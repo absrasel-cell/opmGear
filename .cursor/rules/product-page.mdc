@@ -1,0 +1,139 @@
+product page goal# 
+
+## Fixed Issues:
+1. ✅ Fixed: Quantity Input button now preserves user's input values and doesn't reset to 48 pieces while typing.
+2. ✅ Fixed: Air Freight option is now properly disabled and unclickable unless the total Order Quantity is 3168+ pieces.
+3. ✅ Fixed: Main Image now always shows from "Main Image" field instead of changing to frontColorImages.
+4. ✅ Fixed: Color-specific image display now correctly uses frontColorImages, leftColorImages, rightColorImages, backColorImages with improved matching.
+5. ✅ Fixed: Color option previews use correct image galleries (capColorImage for Solid, splitColorOptions for Split, triColorOptions for Tri, camoColorOption for Camo).
+6. ✅ Investigated: Charcoal color missing issue - display logic is correct, likely a data source limitation.
+7. ✅ Fixed: Multi-Color Selection with Size Options - Users can now select multiple colors, each with individual size options and quantities. Default size is "Medium" with 48 quantity for each selected color. Color-size combinations represent complete quantity units.
+
+## Current Working Features:
+- **Multi-Color Selection**: Users can select multiple colors from any color type (Solid, Split, Tri, Camo)
+- **Size Options per Color**: Each selected color shows size options (Small, Medium, Large) with individual quantity inputs
+- **Default Behavior**: When a color is first selected, it automatically gets "Medium" size with 48 quantity
+- **Quantity Management**: Each color-size combination has its own quantity input with minimum 48 units
+- **Cost Calculation**: Base product cost calculated per color with total quantities, volume pricing applied correctly
+- **Customization Costs**: Logo setup, accessories, closure, and delivery costs follow total quantities across all color-size combinations
+- **API Integration**: Backend properly handles the new color-size structure while maintaining backward compatibility
+- **User Experience**: Intuitive workflow from Colors & Sizes → Customization → Services with proper validation
+
+##Phase 3: Customization Cost and Calculation (Calculation working correctly)
+Fetching Customization Cost from "src\app\csv\Customization Pricings.csv" contains all customization costs for product options like Logo, Closure, Accessoreis, Delivery etc. Following item names to match with product option title:
+
+item name "Small Size Embroidery" - for selection of, Flat Embroidery, Small
+ite name "Medium Size Embroidery" - for selection of, Flat Embroidery, Medium
+item name "Large Size Embroidery" - for selection of, Flat Embroidery, Large
+
+add cost from line item "3D Embroidery" with above, if Logo option "3D Embroidery" is selected. Application "Direct" has no additional cost.
+
+for option "Leather Patch" , use line item "Small Leather Patch", "Medium Leather Patch", "Large Leather Patch".
+for option "Rubber Patch", use line item "Small Rubber Patch", "Medium Rubber Patch", "Large Rubber Patch".
+for all the other options, look from line item "Small Print Woven Patch", "Medium Print Woven Patch", "Large Print Woven Patch".
+
+if Application type "Run", or "Satin" is selected, then add cost from line item "Satin", and "Run".
+
+Example case: lets say, for quantity 48, for a Small Sublimated Patch, at "Left" Position, you are fetching item data "Small Print, Woven Patch" that has cost for 48 pieces $0.8 + the allowed Application for patches are "Satin" or "Run", both costs identical, $0.30 additional, total Front Postion Logo cost is $1.1.
+
+For case of order quantity 48, Front Position, 3D Embroidery, Large Size, Direct Application, then the total cost combines with cost of item "Large Size Embroidery" which is $1.2 + Line Item cost "3D Embroidery" is $0.30 = $1.5. as it is "Direct" application, and there are no cost for "Direct" in CMS, but if application were "Run" or "Satin", it would add the additional cost $0.30 to the total, which would be $1.8.
+
+
+Additionally, For "Accessories", and "Closure Type", match with option title to find value within Line items like "Sticker", "Fitted", "Stretched", "Hang Tag", "Inside Label", "B-Tape Print".
+
+Each Line Item are constructed with following field:
+Name
+Slug
+price48
+price144
+price576
+price1152
+price2880
+price100000
+
+For Add-on type validation, each Items has custom field "type", that says "Logos" for all Logo related items, "type" value "Accessories" for all Accessories related items, "type" value "Premium Closure" for all "Closure Type" related options.
+
+update the "Cost Calculator" section to reflected with this new change accordingly.
+
+price will be added if there are no line item record matches with option title.
+
+All of these costs will follow the Quantity of the current selected Blank Cap Product's color option at "Step 1: Choose Color style". Make sure it supports Mult-Color (Blank Cap) selection mode in Future.
+
+## Phase 2, Product Options, Choices (Established):
+Lets bring in Product Options collections: 
+The following are for all items at "Customer Products" or the Blank Cap products. Collection Name: "Product Options" ID#689aeb2e2148dc453aa7e652,  setup as following items and structure as below example :
+Size: custom-cap-company.webflow.io/product-options/size
+Logo Setup: custom-cap-company.webflow.io/product-options/logo-setup
+Services: custom-cap-company.webflow.io/product-options/services
+Delivery Type: custom-cap-company.webflow.io/product-options/delivery-type
+
+
+I will add more later, thus I need them (Size/Logo Setup, etc) to be dynamically available into the product page for all Consumer Products. for now use the existing available options, which has following fields, as Product Option Choices:
+"Name" example data; Cap Setup
+"Slug", example data; cap-setup, url: custom-cap-company.webflow.io/product-options/cap-setup
+Custom Image field, "optionImages", which has choices (Alt Text), example choices value; "Default", "Customized" , and the Images.
+
+Option presentation Order:
+Always showing options:
+Size, default selection "Medium"
+Logo Setup
+Accessories
+
+Optional options, can show/expand when user want to see them, maybe by clicking on a button, keep their choices unselected as default:
+Delivery Type, default selection "Regular"
+Services
+
+
+Cap Setup related options, to be showed on the left side below itemData images, always visible as "Cap Style Setup":
+
+Bill Shape, default selection should be as per product name, if product name has "7-Panel Flat", then default selection is "Flat". Customer Products are named with "Flat", "Slight Curved", "Curved" at the end of their titles. 
+
+Profile, default selection "Mid"
+Closure Type, default "Snapback"
+Structure, default "Structured"
+
+
+# Option Selection Behaviour (Established): 
+Size, option selection can be multiple, and when a Size option selected, user will see a Quantity input, minimum "48" and  quantity as 144, 576, 1152, 2880, 5760, 11520, 23040, 46080  by quick tag Selector element. At least One choice selection is mandatory.
+
+Logo Setup, option can be selected and unselected. Multi selection enabled. each option will enable dropdown asking for following sub-option selection which are not fetched from CMS but requires Hardcoding:
+ 1)"Select Logo Position", option values are; Front, Left, Right, Back, Upper Bill, Under Bill, Velcro. These Position options can be selected only Once for each "Logo Setup" choice option.
+ 2) When position selection is done, they can select "Logo Size" in another Dropdown for each "Logo Setup" choice options. Logo Size options are "Large", "Medium","Small". This dropdown will only appear when "Select Logo Position" is selected.
+ 3) and finally after above two selections, another dropdown will ask how they will be applied, "Logo Application Method", choice values are; "Run", "Satin", "Direct".
+
+ Default Logo Size selection for "Front", "Large", Other positions "Small".
+ Default Application per Decoration type: 
+ 3D Embroidery - Direct
+ Flat Embroidery - Direct
+ Leather Patch - Run
+ Rubber Patch - Run
+ Printed Patch - Satin
+ Sublimated Patch - Satin
+ Woven Patch -Satin
+
+Accessories, Multi Selectable.
+Delivery Type, Single Select 
+Services, Multi Selectable.
+
+
+## Phase 1, Product Name, Details, Images (established, working correctly):
+use "Main Image" for Main Product Image.
+
+Now, following product options will be placed for each referenced Products:
+1) Select a Color: beautifully present all color options from field "capColorImage" as Solid Colors, "splitColorOptions" as Two Colors, "triColorOptions" as Three Color type, "camoColorOption" as Camo Color Type, place a dropdown from where customer can select color Type so that Image source is changed to show from the correct color type (Solid or Split or Tri or Camo) image gallery field.
+
+when a color option is selected, itemdata image placeholder will be replaced by the images matching with each media gallery image's "Alt Text" which shows the color name like (Black, White, etc) as:
+field  "frontColorImages" to show Front or as 1st image
+field "leftLogoColorImages" to show Left or as 2nd Image
+field "rightColorImages" to show Right or as 3rd Image
+field "backColorImage" to show Back or as 4th Image.
+
+
+
+
+
+
+
+
+
+

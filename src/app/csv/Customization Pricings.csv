@@ -1,0 +1,35 @@
+Name,type,price48,price144,price576,price1152,price2880,price10000,price20000
+3D Embroidery,logos,0.2,0.15,0.12,0.1,0.1,0.08,0.08
+Small Rubber Patch,logos,1,0.7,0.65,0.6,0.55,0.5,0.5
+Medium Rubber Patch,logos,1.25,0.9,0.85,0.8,0.75,0.7,0.7
+Large Rubber Patch,logos,1.5,1.2,1,0.9,0.85,0.8,0.8
+Large Print Woven Patch,logos,1.2,0.9,0.8,0.75,0.7,0.65,0.65
+Medium Print Woven Patch,logos,1,0.7,0.6,0.55,0.5,0.45,0.45
+Small Print Woven Patch,logos,0.8,0.55,0.4,0.35,0.3,0.25,0.25
+Small Leather Patch,logos,1,0.6,0.5,0.45,0.4,0.35,0.35
+Medium Leather Patch,logos,1.2,0.75,0.7,0.65,0.6,0.55,0.55
+Large Leather Patch,logos,1.35,0.9,0.85,0.8,0.75,0.7,0.7
+Small Size Embroidery,Logos,0.7,0.45,0.35,0.3,0.25,0.2,0.2
+Medium Size Embroidery,Logos,0.9,0.65,0.55,0.52,0.5,0.45,0.45
+Large Size Embroidery,Logos,1.2,0.8,0.7,0.65,0.6,0.55,0.55
+Hang Tag,Accessories,0.5,0.35,0.3,0.25,0.25,0.2,0.2
+Inside Label,Accessories,0.3,0.25,0.2,0.15,0.15,0.12,0.12
+B-Tape Print,Accessories,0.3,0.25,0.2,0.15,0.12,0.1,0.1
+Sticker,Accessories,0.3,0.25,0.2,0.18,0.15,0.12,0.12
+Metal Eyelet,Accessories,0.25,0.2,0.15,0.12,0.1,0.08,0.08
+Rope Cost,Accessories,0.2,0.15,0.12,0.1,0.08,0.06,0.06
+Buckle,Premium Closure,0.5,0.35,0.3,0.25,0.2,0.15,0.15
+Fitted,Premium Closure,0.5,0.4,0.3,0.25,0.2,0.15,0.15
+Stretched,Premium Closure,0.5,0.4,0.3,0.25,0.2,0.15,0.15
+Suede Cotton,Premium Fabric,1.2,1,0.8,0.7,0.65,0.6,0.6
+Acrylic,Premium Fabric,1.1,0.8,0.8,0.35,0.3,0.25,0.25
+Air Mesh,Premium Fabric,0.5,0.35,0.3,0.25,0.2,0.15,0.15
+Camo,Premium Fabric,0.5,0.4,0.35,0.3,0.25,0.2,0.2
+Genuine Leather,Premium Fabric,2,1.8,1.7,1.65,1.6,1.55,1.55
+Laser Cut,Premium Fabric,0.5,0.4,0.35,0.3,0.28,0.25,0.25
+Run,Application,0.3,0.25,0.2,0.18,0.15,0.12,0.12
+Satin,Application,0.3,0.25,0.2,0.18,0.15,0.12,0.12
+Regular Delivery,Shipping,3,2.3,1.9,1.85,1.8,1.7,1.7
+Priority Delivery,Shipping,3.2,2.5,2.1,2.05,2.1,2,2
+Air Freight,Shipping,,,,,1.2,1,1
+Sea Freight,Shipping,,,,,0.4,0.35,0.3
