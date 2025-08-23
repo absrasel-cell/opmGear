@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc:*)",
+      "Bash(dir \"F:\\Custom Cap - github\\Claude Instruction\")",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(move \"[orderId]\" \"[id]\")",
+      "Bash(ren:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run prisma:generate:*)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(del test-logo-upload-fix.js)",
+      "Bash(del test-supabase-storage.js)",
+      "Bash(del \"F:\\Custom Cap - github\\customcap\\test-logo-upload-fix.js\")",
+      "Bash(del test-order-assets-debug.js)",
+      "Bash(cmd /c taskkill:*)",
+      "Bash(del /Q /S node_modules.prisma)",
+      "Bash(taskkill:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)",
+      "Bash(del nul)",
+      "Bash(rm:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "F:\\Custom Cap - github\\Claude Instruction"
+    ]
+  }
+}

@@ -1,108 +1,206 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
-export default function CheckoutSuccessPage() {
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+export default function SuccessPage() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('orderId');
+  const orders = searchParams.get('orders'); // Multiple order IDs from cart
+  const total = searchParams.get('total'); // Total amount paid
+  const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (orderId || orders) {
+      // Handle both single order and multiple orders from cart
+      const orderData = {
+        orderId: orderId,
+        orderIds: orders ? orders.split(',') : [orderId],
+        total: total ? parseFloat(total) : null,
+        isMultipleOrders: !!orders
+      };
+      setOrderDetails(orderData);
+      setLoading(false);
+    }
+  }, [orderId, orders, total]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
-            <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Order Confirmed!</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Thank you for your order. We've received your payment and will begin processing your custom caps right away.
-          </p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <div className="space-y-6">
-            {/* Order Details */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">Order Details</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Order Number:</span>
-                  <span className="font-medium text-gray-900">ORD-2024-001</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Order Date:</span>
-                  <span className="text-gray-900">{new Date().toLocaleDateString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Amount:</span>
-                  <span className="font-medium text-gray-900">$47.50</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Payment Method:</span>
-                  <span className="text-gray-900">Credit Card</span>
-                </div>
-              </div>
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-3xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+          {/* Success Header */}
+          <div className="text-center mb-8">
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
+              <CheckCircleIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              {orderDetails?.isMultipleOrders ? 'Orders Submitted Successfully!' : 'Order Submitted Successfully!'}
+            </h1>
+            <p className="text-lg text-gray-600 dark:text-gray-400">
+              {orderDetails?.isMultipleOrders 
+                ? `Thank you for your ${orderDetails.orderIds.length} orders. We'll process them and get back to you soon.`
+                : 'Thank you for your order. We\'ll process it and get back to you soon.'
+              }
+            </p>
+          </div>
 
-            {/* What's Next */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-3">What's Next?</h3>
-              <div className="space-y-3 text-sm text-gray-600">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                    <span className="text-blue-600 text-xs font-medium">1</span>
-                  </div>
-                  <p>You'll receive an order confirmation email within the next few minutes.</p>
-                </div>
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                    <span className="text-blue-600 text-xs font-medium">2</span>
-                  </div>
-                  <p>Our team will review your design and begin production within 1-2 business days.</p>
-                </div>
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                    <span className="text-blue-600 text-xs font-medium">3</span>
-                  </div>
-                  <p>You'll receive shipping updates and tracking information once your order ships.</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Information */}
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-blue-900 mb-2">Need Help?</h3>
-              <p className="text-sm text-blue-700 mb-3">
-                If you have any questions about your order, please don't hesitate to contact us.
-              </p>
-              <div className="text-sm text-blue-700">
-                <p>Email: support@customcap.com</p>
-                <p>Phone: (555) 123-4567</p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
+          {/* Order Details */}
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Order Details
+            </h2>
             <div className="space-y-3">
-              <Link
-                href="/dashboard"
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md text-center font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                View Order Status
-              </Link>
-              <Link
-                href="/customize"
-                className="w-full bg-white text-blue-600 py-3 px-4 rounded-md text-center font-medium border border-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Order More Caps
-              </Link>
-              <Link
-                href="/"
-                className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md text-center font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-              >
-                Continue Shopping
-              </Link>
+              {orderDetails?.isMultipleOrders ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Order IDs:</span>
+                    <div className="text-right">
+                      {orderDetails.orderIds.map((id: string, index: number) => (
+                        <div key={id} className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                          #{id}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Total Items:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {orderDetails.orderIds.length} orders
+                    </span>
+                  </div>
+                  {orderDetails.total && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Total Amount:</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        ${orderDetails.total.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Order ID:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {orderDetails?.orderId || 'N/A'}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Status:</span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                  Pending
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Submitted:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Next Steps */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 mb-8">
+            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4">
+              What happens next?
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">1</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Order Review
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Our team will review your order and confirm all details.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">2</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Confirmation Email
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    You'll receive a confirmation email with order details and timeline.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">3</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Production & Shipping
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    We'll begin production and keep you updated on progress.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Information */}
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Need Help?
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              If you have any questions about your order, please don't hesitate to contact us.
+            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">Email:</span> orders@customcap.com
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">Phone:</span> (555) 123-4567
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">Reference:</span> 
+                {orderDetails?.isMultipleOrders 
+                  ? ` Orders #${orderDetails.orderIds.join(', #')}`
+                  : ` Order #${orderDetails?.orderId || orderId}`
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Link
+              href="/store"
+              className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 text-center"
+            >
+              Continue Shopping
+            </Link>
+            <Link
+              href="/dashboard"
+              className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors duration-200 text-center"
+            >
+              View Dashboard
+            </Link>
           </div>
         </div>
       </div>

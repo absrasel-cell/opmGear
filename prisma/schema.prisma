@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id               String       @id @default(uuid())
+  email            String       @unique
+  name             String?
+  accessRole       AccessRole   @default(CUSTOMER)
+  customerRole     CustomerRole @default(RETAIL)
+  adminLevel       AdminLevel?
+  privileges       String[]     @default([])
+  phone            String?
+  company          String?
+  avatarUrl        String?
+  address          Json?        // Store address as JSON with street, city, state, zipCode, country
+  preferences      Json?        // Store preferences as JSON with notifications, emailUpdates, marketingEmails
+  isBanned         Boolean      @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  carts            Cart[]
+  sentMessages     Message[]    @relation("SentMessages")
+  receivedMessages Message[]    @relation("ReceivedMessages")
+  orders           Order[]
+  quotes           Quote[]
+
+  @@index([email])
+  @@index([isBanned])
+  @@index([accessRole])
+  @@index([customerRole])
+}
+
+model Order {
+  id                     String      @id @default(uuid())
+  productName            String
+  selectedColors         Json
+  logoSetupSelections    Json
+  selectedOptions        Json
+  multiSelectOptions     Json
+  customerInfo           Json
+  uploadedLogoFiles      Json?       // Legacy field - kept for backward compatibility
+  additionalInstructions String?     // Legacy field - kept for backward compatibility
+  additionalInstruction  String?     @db.Text  // New field for additional instructions
+  userId                 String?
+  userEmail              String?
+  orderType              OrderType
+  orderSource            OrderSource @default(PRODUCT_CUSTOMIZATION)
+  status                 OrderStatus @default(PENDING)
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+  ipAddress              String?
+  userAgent              String?
+  trackingNumber         String?
+  lastEditedBy           Json?
+  shipmentId             String?     // Reference to assigned shipment
+  user                   User?       @relation(fields: [userId], references: [id])
+  shipment               Shipment?   @relation(fields: [shipmentId], references: [id])
+  assets                 OrderAsset[]
+
+  @@index([userId])
+  @@index([userEmail])
+  @@index([status])
+  @@index([shipmentId])
+}
+
+model Quote {
+  id           String      @id @default(uuid())
+  productSlug  String
+  productName  String
+  customerInfo Json
+  requirements Json
+  createdAt    DateTime    @default(now())
+  status       QuoteStatus @default(PENDING)
+  ipAddress    String?
+  userAgent    String?
+  userId       String?
+  user         User?       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Message {
+  id             String          @id @default(uuid())
+  content        String
+  category       MessageCategory
+  priority       MessagePriority @default(NORMAL)
+  attachments    Json[]          @default([])
+  fromUserId     String?
+  toUserId       String?
+  fromEmail      String?
+  toEmail        String?
+  fromName       String?
+  toName         String?
+  isRead         Boolean         @default(false)
+  isAdminMessage Boolean         @default(false)
+  replyToId      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  fromUser       User?           @relation("SentMessages", fields: [fromUserId], references: [id])
+  replyTo        Message?        @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies        Message[]       @relation("MessageReplies")
+  toUser         User?           @relation("ReceivedMessages", fields: [toUserId], references: [id])
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Cart {
+  id        String    @id @default(uuid())
+  userId    String?
+  sessionId String?
+  items     Json      @default("[]")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+model Shipment {
+  id                  String         @id @default(uuid())
+  buildNumber         String         @unique
+  shippingMethod      ShippingMethod
+  estimatedDeparture  DateTime?
+  estimatedDelivery   DateTime?
+  actualDeparture     DateTime?
+  actualDelivery      DateTime?
+  status              ShipmentStatus @default(PREPARING)
+  notes               String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  createdBy           String?        // Admin user who created the shipment
+  orders              Order[]
+
+  @@index([status])
+  @@index([shippingMethod])
+  @@index([estimatedDeparture])
+}
+
+model OrderAsset {
+  id             String       @id @default(cuid())
+  orderId        String
+  userId         String
+  kind           AssetKind    // LOGO | ACCESSORY | OTHER
+  position       String?      // e.g., "Front Center" (optional tag)
+  bucket         String       // "order-assets"
+  path           String       // "orderId/uuid-filename.ext"
+  mimeType       String
+  sizeBytes      Int
+  width          Int?         // if image
+  height         Int?         // if image
+  checksum       String?      // optional integrity check
+  uploadedAt     DateTime     @default(now())
+
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId])
+}
+
+enum AssetKind {
+  LOGO
+  ACCESSORY
+  OTHER
+}
+
+enum AccessRole {
+  CUSTOMER
+  STAFF
+  SUPER_ADMIN
+  MASTER_ADMIN
+}
+
+enum CustomerRole {
+  RETAIL
+  WHOLESALE
+  SUPPLIER
+}
+
+enum AdminLevel {
+  MASTER
+  REGULAR
+}
+
+enum OrderType {
+  AUTHENTICATED
+  GUEST
+}
+
+enum OrderSource {
+  PRODUCT_CUSTOMIZATION
+  REORDER
+  QUOTE_CONVERSION
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum QuoteStatus {
+  PENDING
+  REVIEWED
+  QUOTED
+  ACCEPTED
+  REJECTED
+}
+
+enum MessageCategory {
+  ORDER
+  SUPPORT
+  BILLING
+  URGENT
+  GENERAL
+}
+
+enum MessagePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ShippingMethod {
+  PRIORITY_FEDEX      // 4-5 days
+  SAVER_UPS          // 8-12 days  
+  AIR_FREIGHT        // 15-20 days
+  SEA_FREIGHT        // 2-3 months
+}
+
+enum ShipmentStatus {
+  PREPARING
+  READY_TO_SHIP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}

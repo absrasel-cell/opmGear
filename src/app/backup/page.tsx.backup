@@ -1,0 +1,434 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { sanityClient } from '@/lib/sanity';
+
+interface Page {
+  _id: string;
+  title: string;
+  slug: string;
+  isHomePage: boolean;
+  sections: Section[];
+}
+
+interface Section {
+  _type: string;
+  _key: string;
+  title?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  headline?: string;
+  subheadline?: string;
+  description?: string;
+  buttons?: ButtonComponent[];
+  contactInfo?: ContactInfo;
+  showContactForm?: boolean;
+  formFields?: FormField[];
+  submitButtonText?: string;
+}
+
+interface ButtonComponent {
+  _key: string;
+  text: string;
+  link: string;
+  style: string;
+  size: string;
+  alignment: string;
+}
+
+interface ContactInfo {
+  email?: string;
+  phone?: string;
+  address?: string;
+  hours?: string;
+}
+
+interface FormField {
+  _key: string;
+  type: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+export default function HomePage() {
+  const [page, setPage] = useState<Page | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    fetchHomePage();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % 3);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchHomePage = async () => {
+    try {
+      const query = `*[_type == "page" && isHomePage == true][0]{
+        _id,
+        title,
+        slug,
+        isHomePage,
+        sections[]{
+          _type,
+          _key,
+          title,
+          backgroundColor,
+          textColor,
+          headline,
+          subheadline,
+          description,
+          buttons[]{
+            _key,
+            text,
+            link,
+            style,
+            size,
+            alignment
+          },
+          contactInfo{
+            email,
+            phone,
+            address,
+            hours
+          },
+          showContactForm,
+          formFields[]{
+            _key,
+            type,
+            label,
+            placeholder,
+            required
+          },
+          submitButtonText
+        }
+      }`;
+
+      const result = await sanityClient.fetch(query);
+      setPage(result);
+    } catch (error) {
+      console.error('Error fetching home page:', error);
+      setPage(getDefaultHomePage());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getDefaultHomePage = (): Page => ({
+    _id: 'default-home',
+    title: 'OPM Gear - Custom Caps',
+    slug: 'home',
+    isHomePage: true,
+    sections: [
+      {
+        _type: 'heroSection',
+        _key: 'hero-1',
+        headline: 'Empowering Identity, Fueling Communities',
+        subheadline: 'Custom headwear that reflects your identity and supports your goals',
+        description: 'At OPM Gear, our mission is to empower schools, teams, and communities with full control over how they represent themselves—on and off the field.',
+        backgroundColor: 'dark',
+        textColor: 'light',
+        buttons: [
+          {
+            _key: 'btn-1',
+            text: 'Start Customizing',
+            link: '/customize',
+            style: 'primary',
+            size: 'large',
+            alignment: 'center'
+          },
+          {
+            _key: 'btn-2',
+            text: 'Learn More',
+            link: '/about',
+            style: 'secondary',
+            size: 'large',
+            alignment: 'center'
+          }
+        ]
+      }
+    ]
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-2xl">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900">
+      {/* Hero Section */}
+      <section className="relative h-screen overflow-hidden">
+        <div className="absolute inset-0 bg-black/60 z-10" />
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: `url(/src/Home Page contents/slide${currentSlide + 1}mv.jpg)`,
+            filter: 'blur(2px)'
+          }}
+        />
+
+        <div className="relative z-20 h-full flex items-center justify-center">
+          <div className="text-center text-white max-w-6xl mx-auto px-4">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white to-blue-300 bg-clip-text text-transparent">
+              Empowering Identity, Fueling Communities
+            </h1>
+            <p className="text-xl md:text-2xl mb-4 text-blue-200">
+              Custom headwear that reflects your identity and supports your goals
+            </p>
+            <p className="text-lg mb-8 text-gray-300 max-w-3xl mx-auto">
+              At OPM Gear, our mission is to empower schools, teams, and communities with full control over how they represent themselves—on and off the field.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/customize"
+                className="inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
+              >
+                Start Customizing
+              </Link>
+              <Link
+                href="/about"
+                className="inline-block border-2 border-white text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-white hover:text-gray-900 transition-all duration-300"
+              >
+                Learn More
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-30 flex space-x-3">
+          {[0, 1, 2].map((index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                index === currentSlide ? 'bg-white scale-125' : 'bg-white/50'
+              }`}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Mission Section */}
+      <section className="py-20 px-4 bg-gray-900 text-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold mb-6">Our Mission</h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto rounded-full"></div>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="bg-gray-800 rounded-3xl p-8 border border-gray-700 shadow-xl">
+              <h3 className="text-3xl font-bold mb-6">Empowering Identity, Fueling Communities</h3>
+              <p className="text-lg leading-relaxed mb-6">
+                At OPM Gear, our mission is to empower schools, teams, and communities with full control over how they represent themselves—on and off the field. We believe every group deserves access to high-quality, custom headwear that reflects their identity, supports their goals, and strengthens their connection with fans, families, and sponsors.
+              </p>
+              <p className="text-lg leading-relaxed">
+                We've eliminated the traditional barriers set by big-box brands by offering a fully customizable platform where customers can design their own caps, set up fundraising initiatives, and take ownership of their merchandise.
+              </p>
+            </div>
+            
+            <div className="relative">
+              <div className="bg-gray-800 rounded-3xl p-8 border border-gray-700 shadow-xl">
+                <div className="aspect-square bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="text-6xl mb-4">🎯</div>
+                    <h4 className="text-xl font-semibold">5 Million Hats</h4>
+                    <p className="text-blue-200">Our 5-year goal</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Vision Section */}
+      <section className="py-20 px-4 bg-gray-100 text-gray-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold mb-6">Our Vision</h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto rounded-full"></div>
+          </div>
+          
+          <div className="bg-white rounded-3xl p-8 border border-gray-200 shadow-xl">
+            <h3 className="text-3xl font-bold mb-6">Reimagining Custom Gear for the Next Generation</h3>
+            <p className="text-lg leading-relaxed mb-6">
+              At OPM Gear, our vision is to redefine how athletic programs and communities build identity, generate revenue, and foster connection—starting with a cap. We believe custom gear should do more than complete a uniform; it should empower teams to fund their future and fuel long-term impact.
+            </p>
+            <p className="text-lg leading-relaxed mb-6">
+              We envision a world where every school, club, and organization—regardless of size or budget—can access fully branded, retail-grade headwear without relying on traditional manufacturers or inflated markups. By removing middlemen, we've created a direct path between creators and communities.
+            </p>
+            <p className="text-lg leading-relaxed">
+              We're not just building caps—we're building a platform for ownership, equity, and pride in every stitch.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Products Section */}
+      <section className="py-20 px-4 bg-gray-900 text-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold mb-6">Our Products</h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto rounded-full"></div>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              { name: '5 Panel', image: '/src/Home Page contents/Product Type Images/5Panel copy.jpg', desc: 'Classic 5-panel construction' },
+              { name: '6 Panel Flat Bill', image: '/src/Home Page contents/Product Type Images/6P FLat Bill copy 2.jpg', desc: 'Modern flat bill style' },
+              { name: '6 Panel Semi Pro', image: '/src/Home Page contents/Product Type Images/6P Semi Pro Curved copy 2.jpg', desc: 'Professional curved bill' },
+              { name: '7 Panel Flat Perforated', image: '/src/Home Page contents/Product Type Images/7P Flat Perforated copy 2.jpg', desc: 'Breathable perforated design' },
+              { name: 'Unstructured Trucker', image: '/src/Home Page contents/Product Type Images/Unstructured Trucker copy 2.jpg', desc: 'Comfortable unstructured fit' },
+              { name: 'Visor', image: '/src/Home Page contents/Product Type Images/Visor copy 2.jpg', desc: 'Lightweight visor option' }
+            ].map((product, index) => (
+              <div
+                key={index}
+                className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2"
+              >
+                <div className="aspect-square bg-gray-200 rounded-xl mb-4 overflow-hidden">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    width={300}
+                    height={300}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">{product.name}</h3>
+                <p className="text-gray-300 mb-4">{product.desc}</p>
+                <Link
+                  href="/customize"
+                  className="inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-full text-sm font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300"
+                >
+                  Customize Now
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Services Section */}
+      <section className="py-20 px-4 bg-gray-100 text-gray-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold mb-6">Our Services</h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto rounded-full"></div>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              { icon: '🧵', title: '3D Embroidery', desc: 'Raised stitching with serious dimension and impact' },
+              { icon: '✨', title: 'Flat Embroidery', desc: 'Clean, sharp, and perfect for fine logo detail' },
+              { icon: '🛡️', title: 'Rubber Patch', desc: 'Bold, modern, and highly durable' },
+              { icon: '🎨', title: 'Sublimated Print', desc: 'Vivid, full-color printing for complex designs' },
+              { icon: '🐄', title: 'Leather Patch', desc: 'Premium natural texture with timeless appeal' },
+              { icon: '🖨️', title: 'Screen Print', desc: 'Sleek and lightweight — ideal for large graphics' }
+            ].map((service, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2"
+              >
+                <div className="text-4xl mb-4">{service.icon}</div>
+                <h3 className="text-xl font-semibold mb-3">{service.title}</h3>
+                <p className="text-gray-600">{service.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section className="py-20 px-4 bg-gray-900 text-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold mb-6">Contact Us</h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto rounded-full"></div>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-12">
+            <div className="bg-gray-800 rounded-3xl p-8 border border-gray-700 shadow-xl">
+              <h3 className="text-2xl font-bold mb-6">Get in Touch</h3>
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <span className="text-blue-500 mr-3">📧</span>
+                  <span>info@opmgear.com</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-blue-500 mr-3">📞</span>
+                  <span>+1 (555) 123-4567</span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-blue-500 mr-3 mt-1">📍</span>
+                  <span>123 Custom Cap Street, Design City, DC 12345</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-blue-500 mr-3">🕒</span>
+                  <span>Monday - Friday: 9AM - 6PM EST</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 rounded-3xl p-8 border border-gray-700 shadow-xl">
+              <h3 className="text-2xl font-bold mb-6">Send us a Message</h3>
+              <form className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Your name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Message <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-3 rounded-lg bg-gray-700 border border-gray-600 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Your message"
+                    rows={4}
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300"
+                >
+                  Send Message
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}

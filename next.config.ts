@@ -8,6 +8,12 @@ const nextConfig = {
         port: "",
         pathname: "/689adff1e8bb4da83b60751e/**", // Match the specific Webflow collection path
       },
+      {
+        protocol: "https",
+        hostname: "nowxzkdkaegjwfhhqoez.supabase.co",
+        port: "",
+        pathname: "/storage/v1/object/public/**", // Match Supabase storage paths
+      },
     ],
   },
 };

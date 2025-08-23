@@ -34,6 +34,12 @@ interface CostCalculationRequest {
     price2880: number;
     price10000: number;
   };
+  shipmentData?: {
+    id: string;
+    buildNumber: string;
+    totalQuantity: number;
+    shippingMethod: string;
+  };
 }
 
 interface CostBreakdown {
@@ -43,6 +49,7 @@ interface CostBreakdown {
     cost: number;
     unitPrice: number;
     details: string;
+    baseUnitPrice?: number;
   }>;
   accessoriesCosts: Array<{
     name: string;
@@ -206,7 +213,7 @@ function calculateLogoSetupCost(
      // For patch types, find Size + Type combination
      const sizeWithMappedType = `${size} ${mappedLogoType}`;
      
-     let basePricing = pricingData.find(p => 
+     const basePricing = pricingData.find(p => 
        p.Name.toLowerCase() === sizeWithMappedType.toLowerCase()
      );
 
@@ -247,25 +254,47 @@ export async function POST(request: NextRequest) {
       logoSetupSelections,
       multiSelectOptions,
       selectedOptions,
-      baseProductPricing
+      baseProductPricing,
+      shipmentData
     } = body;
 
     let totalCost = 0;
     
     // Calculate total units from selectedColors structure
     const totalUnits = selectedColors ? 
-      Object.values(selectedColors).reduce((sum: number, colorData: any) => 
-        sum + Object.values((colorData as any).sizes).reduce((colorSum: number, qty: any) => colorSum + (qty as number), 0), 0
-      ) : 
-      (selectedSizes ? Object.values(selectedSizes).reduce((sum: number, qty: any) => sum + (qty as number), 0) : 0);
+      Object.values(selectedColors).reduce((sum: number, colorData: unknown) => {
+        const colorObj = colorData as { sizes: Record<string, number> };
+        return sum + Object.values(colorObj.sizes).reduce((colorSum: number, qty: number) => colorSum + qty, 0);
+      }, 0) : 
+      (selectedSizes ? Object.values(selectedSizes).reduce((sum: number, qty: number) => sum + qty, 0) : 0);
+    
+    // Calculate shipment quantity for delivery pricing
+    let shipmentQuantity = 0;
+    if (shipmentData && 'orders' in shipmentData) {
+      const orders = (shipmentData as { orders: Array<{
+        selectedColors?: Record<string, { sizes: Record<string, number> }>;
+      }> }).orders;
+      shipmentQuantity = orders.reduce((sum: number, order) => {
+        if (order.selectedColors) {
+          return sum + Object.values(order.selectedColors).reduce((orderSum: number, colorData) => 
+            orderSum + Object.values(colorData.sizes || {}).reduce((colorSum: number, qty: number) => colorSum + (qty || 0), 0), 0
+          );
+        }
+        return sum;
+      }, 0);
+    }
+    
+    // Combined quantity for delivery pricing (current order + shipment orders)
+    const combinedQuantity = totalUnits + shipmentQuantity;
     
     // Calculate base product cost
     let baseProductCost = 0;
     
     if (selectedColors) {
       // New structure: selectedColors with nested sizes
-      Object.entries(selectedColors).forEach(([colorName, colorData]: [string, any]) => {
-        const colorTotalQuantity = Object.values((colorData as any).sizes).reduce((sum: number, qty: any) => sum + (qty as number), 0);
+      Object.entries(selectedColors).forEach(([, colorData]: [string, unknown]) => {
+        const colorObj = colorData as { sizes: Record<string, number> };
+        const colorTotalQuantity = Object.values(colorObj.sizes).reduce((sum: number, qty: number) => sum + qty, 0);
         let unitPrice = baseProductPricing.price48;
         if (totalUnits >= 10000) unitPrice = baseProductPricing.price10000;
         else if (totalUnits >= 2880) unitPrice = baseProductPricing.price2880;
@@ -277,7 +306,7 @@ export async function POST(request: NextRequest) {
       });
     } else if (selectedSizes) {
       // Fallback to old structure
-      Object.entries(selectedSizes).forEach(([itemName, quantity]) => {
+      Object.entries(selectedSizes).forEach(([, quantity]) => {
         const qty = quantity as number;
         let unitPrice = baseProductPricing.price48;
         if (totalUnits >= 10000) unitPrice = baseProductPricing.price10000;
@@ -313,11 +342,16 @@ export async function POST(request: NextRequest) {
         }
         const logoCost = calculateLogoSetupCost(originalLogoType, logoConfig, pricingData, totalUnits);
         if (logoCost.cost > 0) {
+          // Calculate the 48-piece base price for this logo setup
+          const baseLogoCost = calculateLogoSetupCost(originalLogoType, logoConfig, pricingData, 48);
+          const baseUnitPrice = baseLogoCost.unitPrice;
+          
           logoSetupCosts.push({
-            name: logoValue,
+            name: logoCost.details, // Use the details as the name
             cost: logoCost.cost,
             unitPrice: logoCost.unitPrice,
-            details: logoCost.details
+            details: logoCost.details,
+            baseUnitPrice: baseUnitPrice // Add base unit price for discount calculation
           });
           totalCost += logoCost.cost;
         }
@@ -339,7 +373,7 @@ export async function POST(request: NextRequest) {
         const unitPrice = getPriceForQuantity(accessoryPricing, totalUnits);
         const cost = unitPrice * totalUnits;
         accessoriesCosts.push({
-          name: accessoryValue,
+          name: accessoryPricing.Name,
           cost,
           unitPrice
         });
@@ -363,7 +397,7 @@ export async function POST(request: NextRequest) {
         const unitPrice = getPriceForQuantity(closurePricing, totalUnits);
         const cost = unitPrice * totalUnits;
         closureCosts.push({
-          name: selectedClosure,
+          name: closurePricing.Name,
           cost,
           unitPrice
         });
@@ -392,10 +426,13 @@ export async function POST(request: NextRequest) {
       );
       
       if (deliveryPricing) {
-        const unitPrice = getPriceForQuantity(deliveryPricing, totalUnits);
+        // Use combined quantity for pricing tier but only charge for current order quantity
+        const unitPrice = getPriceForQuantity(deliveryPricing, combinedQuantity);
         const cost = unitPrice * totalUnits;
         deliveryCosts.push({
-          name: selectedDelivery,
+          name: shipmentQuantity > 0 
+            ? `${deliveryPricing.Name} (Combined: ${combinedQuantity} units)`
+            : deliveryPricing.Name,
           cost,
           unitPrice
         });

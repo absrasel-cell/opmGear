@@ -1,0 +1,36 @@
+{
+  "cursor_local_llm_config": {
+    "model_name": "codellama:13b",
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "local-llm",
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "top_p": 0.9,
+    "system_prompt": "You are a senior Next.js (App Router) + TypeScript engineer. Prefer concise, copy-pastable answers with file paths and unified diffs when changing code. Follow ESLint/Prettier defaults. Ask brief clarifying questions only when required. IMPORTANT: Never use function calls or JSON responses. Always respond in natural language only.",
+    "stop_tokens": ["```", "```tsx", "```ts"],
+    "setup_instructions": {
+      "step1": "Open Cursor Settings (Ctrl/Cmd + ,)",
+      "step2": "Navigate to Models section",
+      "step3": "Click 'Add Custom Model'",
+      "step4": "Enable 'Override OpenAI Base URL'",
+      "step5": "Set Base URL to: http://localhost:11434/v1",
+      "step6": "Set API Key to: local-llm",
+      "step7": "Set Model Name/ID to: codellama:13b",
+      "step8": "Click 'Verify/Test' button",
+      "step9": "If verification fails, ensure Ollama is running with 'ollama serve'"
+    },
+    "performance_info": {
+      "gpu": "NVIDIA RTX 4070 (12GB VRAM)",
+      "model_size": "13B parameters (Q4_K_M quantized)",
+      "memory_usage": "~8GB VRAM",
+      "response_time": "2-5 seconds for typical coding tasks",
+      "context_length": "Up to 4K tokens"
+    },
+    "troubleshooting": {
+      "if_cursor_wont_accept_localhost": "Try http://localhost:11434/v1 instead",
+      "if_model_is_slow": "Consider using codellama:7b for faster responses",
+      "if_oom_errors": "Close other GPU-intensive applications",
+      "if_verification_fails": "Ensure Ollama service is running with 'ollama serve'"
+    }
+  }
+}
