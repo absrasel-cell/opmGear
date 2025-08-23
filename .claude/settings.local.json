@@ -30,7 +30,8 @@
       "Bash(rm:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(del \"F:\\Custom Cap - github\\customcap\\tailwind.config.ts\")"
+      "Bash(del \"F:\\Custom Cap - github\\customcap\\tailwind.config.ts\")",
+      "Bash(npm cache clean:*)"
     ],
     "deny": [],
     "ask": [],
