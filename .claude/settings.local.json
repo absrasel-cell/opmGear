@@ -27,7 +27,10 @@
       "Bash(git remote set-url:*)",
       "Bash(git add:*)",
       "Bash(del nul)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(del \"F:\\Custom Cap - github\\customcap\\tailwind.config.ts\")"
     ],
     "deny": [],
     "ask": [],

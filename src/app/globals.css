@@ -1,8 +1,9 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @import "tw-animate-css";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
-@custom-variant dark (&:is(.dark *));
 
 /* Custom Admin Dashboard Animations */
 @keyframes shimmer {
@@ -572,7 +573,7 @@
     padding-right: 2rem; /* Adjust spacing as needed */
   }
   * {
-    @apply border-border outline-ring/50;
+    @apply border-gray-200 outline-blue-500;
   }
   body {
     @apply bg-background text-foreground font-[Inter];
