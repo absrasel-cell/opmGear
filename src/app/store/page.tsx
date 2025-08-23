@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { SanityService } from '../../lib/sanity';
 
 interface ImageWithAlt {
   url: string;
@@ -20,30 +19,51 @@ interface StoreProduct {
 
 async function fetchStoreProducts(): Promise<StoreProduct[]> {
   try {
-    console.log('Fetching store products from Sanity CMS...');
+    console.log('🏪 Store: Fetching products via API endpoint...');
     
-    // Fetch products only from Sanity CMS
-    const sanityProducts = await fetchSanityProducts();
-
-    return sanityProducts;
+    const response = await fetch('/api/store-products', {
+      cache: 'no-store' // Force fresh data
+    });
+    
+    if (!response.ok) {
+      console.error('🏪 Store: API response not ok:', response.status, response.statusText);
+      throw new Error(`API call failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`🏪 Store: API returned ${data.products?.length || 0} products`);
+    console.log('🏪 Store: API config check:', data.config);
+    
+    return data.products || [];
   } catch (error) {
-    console.error('Error fetching store products:', error);
+    console.error('❌ Store: Error fetching via API:', error);
     return [];
   }
 }
 
 async function fetchSanityProducts(): Promise<StoreProduct[]> {
   try {
+    console.log('🏪 Store: Starting direct Sanity product fetch...');
     const sanityProducts = await SanityService.getProducts();
-    console.log('Fetched Sanity products:', sanityProducts.length);
+    console.log('🏪 Store: Fetched Sanity products:', sanityProducts.length);
+    
+    if (sanityProducts.length === 0) {
+      console.warn('⚠️ Store: No products returned from Sanity');
+    }
 
-    return sanityProducts
-      .filter((product: any) => {
-        // Filter for active products with main image and valid slug
-        return product.isActive && 
-               product.mainImage?.url && 
-               (typeof product.slug === 'string' ? product.slug : product.slug?.current);
-      })
+    const filteredProducts = sanityProducts.filter((product: any) => {
+      const isActiveProduct = product.isActive;
+      const hasMainImage = product.mainImage?.url;
+      const hasSlug = typeof product.slug === 'string' ? product.slug : product.slug?.current;
+      
+      console.log(`🔍 Store: Product "${product.name}" - Active: ${isActiveProduct}, Image: ${!!hasMainImage}, Slug: ${!!hasSlug}`);
+      
+      return isActiveProduct && hasMainImage && hasSlug;
+    });
+
+    console.log(`🏪 Store: After filtering - ${filteredProducts.length} products remain`);
+
+    return filteredProducts
       .map((product: any) => ({
         name: product.name,
         slug: typeof product.slug === 'string' ? product.slug : product.slug?.current || '',
@@ -56,11 +76,14 @@ async function fetchSanityProducts(): Promise<StoreProduct[]> {
         priceTier: product.priceTier || 'Standard'
       }))
       .filter(product => {
-        // Additional filter to ensure the product actually exists in Sanity
-        return product.slug && product.slug.trim() !== '';
+        const hasValidSlug = product.slug && product.slug.trim() !== '';
+        if (!hasValidSlug) {
+          console.warn(`⚠️ Store: Product "${product.name}" has invalid slug, skipping`);
+        }
+        return hasValidSlug;
       });
   } catch (error) {
-    console.error('Error fetching Sanity products:', error);
+    console.error('❌ Store: Error fetching Sanity products:', error);
     return [];
   }
 }

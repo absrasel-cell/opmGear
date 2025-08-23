@@ -33,7 +33,9 @@
       "Bash(del \"F:\\Custom Cap - github\\customcap\\tailwind.config.ts\")",
       "Bash(npm cache clean:*)",
       "Bash(git rev-parse:*)",
-      "Bash(next build)"
+      "Bash(next build)",
+      "Bash(git rm:*)",
+      "WebFetch(domain:opm-gear-r6ljt79qw-absrasel-cells-projects.vercel.app)"
     ],
     "deny": [],
     "ask": [],

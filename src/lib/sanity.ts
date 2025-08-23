@@ -139,9 +139,20 @@ export class SanityService {
         company
       }
     } | order(createdAt desc)`;
-    // Use non-CDN client to ensure fresh reads right after updates
-    const freshClient = sanityClient.withConfig({ useCdn: false });
-    return await freshClient.fetch(query);
+    
+    try {
+      // Try CDN first for better performance in production
+      const result = await sanityClient.fetch(query);
+      console.log(`✅ Sanity CDN fetch successful: ${result.length} products`);
+      return result;
+    } catch (error) {
+      console.warn('⚠️ CDN fetch failed, trying fresh client:', error);
+      // Fallback to non-CDN client
+      const freshClient = sanityClient.withConfig({ useCdn: false });
+      const result = await freshClient.fetch(query);
+      console.log(`✅ Sanity fresh fetch successful: ${result.length} products`);
+      return result;
+    }
   }
 
   static async getProductBySlug(slug: string): Promise<SanityProduct | null> {
