@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/components/auth/AuthContext';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -51,7 +51,7 @@ interface User {
   role: string;
 }
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -878,5 +878,13 @@ export default function MessagesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<div>Loading messages...</div>}>
+      <MessagesPageContent />
+    </Suspense>
   );
 }

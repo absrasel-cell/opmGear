@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
@@ -34,7 +34,7 @@ interface QuoteRequest {
   status: 'PENDING' | 'REVIEWED' | 'QUOTED' | 'ACCEPTED' | 'REJECTED';
 }
 
-export default function MemberQuoteRequestPage() {
+function MemberQuoteRequestPageContent() {
   const { user, isAuthenticated, loading } = useAuth();
   const searchParams = useSearchParams();
 
@@ -399,5 +399,13 @@ export default function MemberQuoteRequestPage() {
         </DashboardContent>
       </div>
     </DashboardShell>
+  );
+}
+
+export default function MemberQuoteRequestPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MemberQuoteRequestPageContent />
+    </Suspense>
   );
 }

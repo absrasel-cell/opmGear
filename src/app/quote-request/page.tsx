@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -25,7 +25,7 @@ interface QuoteRequest {
   status: 'PENDING' | 'REVIEWED' | 'QUOTED' | 'ACCEPTED' | 'REJECTED';
 }
 
-export default function QuoteRequestPage() {
+function QuoteRequestPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -402,5 +402,13 @@ export default function QuoteRequestPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function QuoteRequestPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <QuoteRequestPageContent />
+    </Suspense>
   );
 }
