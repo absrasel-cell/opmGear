@@ -1,7 +1,8 @@
 # CLAUDE.md - Project Context for OPM Gear
 read current main Task from ""F:\Custom Cap - github\Claude Instruction\currentTask.txt""
 read current errors and follow up requests from "F:\Custom Cap - github\Claude Instruction\errorReport.txt"
-
+Vercel deployment log "F:\Custom Cap - github\Claude Instruction\vercelBuildLog.txt"
+current live web url "https://opm-gear-dk7lce111-absrasel-cells-projects.vercel.app"
 Prodcut Page "F:\Custom Cap - github\customcap\src\app\customize\[slug]"
 
 ## 🎯 Project Overview

@@ -1,18 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nowxzkdkaegjwfhhqoez.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5vd3h6a2RrYWVnandmaGhxb2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE5NzI4OTIsImV4cCI6MjA0NzU0ODg5Mn0.s_7cWTBrV5TIVrYDPx8mFj4rR_9gOnoxE2c7N6VEEyM'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5vd3h6a2RrYWVnandmaGhxb2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMDM0MDcsImV4cCI6MjA3MDc3OTQwN30.2sEkAtYMIDONrJwBTYdWVUreYHE3zSTQpB4mkUmFOu8'
 
 // For server-side operations, we'll use the service role key when available
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 // Validate that we have required keys
 if (!supabaseUrl) {
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
   throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
 }
 
 if (!supabaseAnonKey || supabaseAnonKey === '') {
-  console.warn('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable, using fallback')
+  console.error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable, using fallback')
 }
 
 // Client for browser/client-side operations
