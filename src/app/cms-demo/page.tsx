@@ -4,11 +4,15 @@ import { fetchWebflowCollection } from '../lib/webflow'; // Adjust path if neede
 export default async function CmsDemoPage() {
   // Fetch data from one collection (e.g., Customization Pricings)
   let customizationPricings: any[] = [];
+  let errorMessage = '';
   
   try {
-    customizationPricings = await fetchWebflowCollection('689af530c2a73c3343f29447');
+    // Use environment variable for collection ID with fallback
+    const collectionId = process.env.WEBFLOW_CUSTOMIZATION_PRICING_COLLECTION_ID || '689af530c2a73c3343f29447';
+    customizationPricings = await fetchWebflowCollection(collectionId);
   } catch (error) {
     console.warn('Failed to fetch Webflow data:', error);
+    errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     // Use fallback data or empty array for build to succeed
     customizationPricings = [];
   }
@@ -37,7 +41,24 @@ export default async function CmsDemoPage() {
         ) : (
           <div className="col-span-full text-center py-8">
             <p className="text-gray-500 text-lg">No CMS data available at the moment.</p>
-            <p className="text-sm text-gray-400 mt-2">This could be due to Webflow API configuration or connectivity issues.</p>
+            <p className="text-sm text-gray-400 mt-2">
+              This could be due to Webflow API configuration or connectivity issues.
+            </p>
+            {errorMessage && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-sm text-yellow-800">
+                  <strong>Debug info:</strong> {errorMessage}
+                </p>
+              </div>
+            )}
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md text-left max-w-md mx-auto">
+              <p className="text-sm text-blue-800 font-semibold">Expected Environment Variables:</p>
+              <ul className="text-xs text-blue-700 mt-2 space-y-1">
+                <li>• WEBFLOW_API_TOKEN</li>
+                <li>• WEBFLOW_SITE_ID</li>
+                <li>• WEBFLOW_CUSTOMIZATION_PRICING_COLLECTION_ID</li>
+              </ul>
+            </div>
           </div>
         )}
       </div>

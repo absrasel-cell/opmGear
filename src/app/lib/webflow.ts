@@ -89,43 +89,52 @@ export async function fetchWebflowCollection(collectionId: string) {
     const siteId = process.env.WEBFLOW_SITE_ID;
   
     if (!token || !siteId) {
-      console.error('❌ Webflow credentials missing:');
-      console.error(`   - WEBFLOW_API_TOKEN: ${token ? 'Set' : 'Missing'}`);
-      console.error(`   - WEBFLOW_SITE_ID: ${siteId ? 'Set' : 'Missing'}`);
-      throw new Error('Webflow credentials missing - check your .env.local file');
+      console.warn('⚠️ Webflow credentials missing - returning empty array for build compatibility:');
+      console.warn(`   - WEBFLOW_API_TOKEN: ${token ? 'Set' : 'Missing'}`);
+      console.warn(`   - WEBFLOW_SITE_ID: ${siteId ? 'Set' : 'Missing'}`);
+      return []; // Return empty array instead of throwing error
     }
   
     const url = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
     console.log(`🔍 Fetching from: ${url}`);
   
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'accept-version': '2.0.0', // Latest API version as of 2025
-        },
-        next: { 
-          revalidate: 60, // Cache for 1 minute for development, revalidate frequently
-          tags: ['webflow-cms'] // Add cache tag for revalidation
-        },
+    try {
+      const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'accept-version': '2.0.0', // Latest API version as of 2025
+          },
+          next: { 
+            revalidate: 60, // Cache for 1 minute for development, revalidate frequently
+            tags: ['webflow-cms'] // Add cache tag for revalidation
+          },
+        }
+      );
+    
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Webflow API Error:', errorText);
+        console.error(`🔧 Request details:`);
+        console.error(`   - URL: ${url}`);
+        console.error(`   - Status: ${response.status} ${response.statusText}`);
+        console.error(`   - Collection ID: ${collectionId}`);
+        console.error(`   - Site ID: ${siteId}`);
+        console.error(`   - Token length: ${token?.length || 0}`);
+        
+        // Return empty array instead of throwing error to prevent build failures
+        console.warn('⚠️ Returning empty array to prevent build failure');
+        return [];
       }
-    );
-  
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Webflow API Error:', errorText);
-      console.error(`🔧 Request details:`);
-      console.error(`   - URL: ${url}`);
-      console.error(`   - Status: ${response.status} ${response.statusText}`);
-      console.error(`   - Collection ID: ${collectionId}`);
-      console.error(`   - Site ID: ${siteId}`);
-      console.error(`   - Token length: ${token?.length || 0}`);
-      throw new Error(`Failed to fetch collection ${collectionId}: ${response.statusText}`);
+    
+      const data = await response.json();
+      console.log(`✅ Successfully fetched collection ${collectionId} with ${data.items?.length || 0} items`);
+      return data.items || []; // Ensure we always return an array
+    } catch (error) {
+      console.error('❌ Network error fetching Webflow collection:', error);
+      console.warn('⚠️ Returning empty array to prevent build failure');
+      return []; // Return empty array on network errors
     }
-  
-    const data = await response.json();
-    console.log(`✅ Successfully fetched collection ${collectionId} with ${data.items?.length || 0} items`);
-    return data.items; // Returns array of CMS items
 }
 
 export async function fetchProductBySlug(slug: string): Promise<WebflowProduct | null> {
