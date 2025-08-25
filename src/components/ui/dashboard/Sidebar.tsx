@@ -25,7 +25,9 @@ import {
   Edit3,
   CreditCard,
   Truck,
-  BarChart3
+  BarChart3,
+  Store,
+  Receipt
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthContext';
 import { GlassCard, NavItem } from './index';
@@ -70,11 +72,17 @@ export function Sidebar({
         icon: Boxes,
         label: 'Products',
         href: '/dashboard/admin/products',
-        active: pathname?.includes('/products')
+        active: pathname?.includes('/products') && !pathname?.includes('/marketplace')
+      },
+      {
+        icon: Store,
+        label: 'Market Place',
+        href: '/dashboard/admin/marketplace',
+        active: pathname?.includes('/marketplace')
       },
       {
         icon: Truck,
-        label: 'Shipments',
+        label: 'Orders & Shipment',
         href: '/dashboard/admin/orders',
         active: pathname?.includes('/orders') || pathname?.includes('/shipments')
       },
@@ -82,7 +90,13 @@ export function Sidebar({
         icon: CreditCard,
         label: 'Billing & Accounts',
         href: '/dashboard/admin/billing',
-        active: pathname?.includes('/billing')
+        active: pathname?.includes('/billing') && !pathname?.includes('/invoices')
+      },
+      {
+        icon: Receipt,
+        label: 'Invoices',
+        href: '/dashboard/admin/billing/invoices',
+        active: pathname?.includes('/invoices')
       },
       {
         icon: LayoutTemplate,
@@ -134,28 +148,6 @@ export function Sidebar({
       >
         <div className="flex-1 overflow-hidden">
           <GlassCard className="p-4">
-            {/* Brand + Collapse */}
-            <div className="flex items-center justify-between">
-              <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-                <div className="h-9 w-9 rounded-xl bg-lime-400 text-black grid place-items-center font-semibold tracking-tight">
-                  CC
-                </div>
-                {!collapsed && (
-                  <span className="text-slate-100 text-lg font-semibold tracking-tight">
-                    CustomCap
-                  </span>
-                )}
-              </div>
-              {!collapsed && (
-                <button 
-                  onClick={onToggleCollapse}
-                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition will-change-transform"
-                  title="Collapse"
-                >
-                  <PanelLeftClose className="w-5 h-5 text-slate-300" />
-                </button>
-              )}
-            </div>
 
             {/* User Profile */}
             <Link href={isAdmin ? "/dashboard/admin/profile" : "/dashboard/member/profile"}>
@@ -230,20 +222,22 @@ export function Sidebar({
                   <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400">
                     Advanced
                   </div>
-                  {advancedNavItems.map((item, index) => (
-                    <Link 
-                      key={index}
-                      href={item.href}
-                      className={`group flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition ${
-                        item.active ? 'bg-white/10' : ''
-                      }`}
-                    >
-                      <item.icon className={`w-5 h-5 ${item.active ? 'text-lime-400' : 'text-lime-300'}`} />
-                      <span className={`text-sm font-medium ${item.active ? 'text-slate-100' : 'text-slate-300'}`}>
-                        {item.label}
-                      </span>
-                    </Link>
-                  ))}
+                  <div className="flex flex-col gap-3">
+                    {advancedNavItems.map((item, index) => (
+                      <Link 
+                        key={index}
+                        href={item.href}
+                        className={`group flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition ${
+                          item.active ? 'bg-white/10' : ''
+                        }`}
+                      >
+                        <item.icon className={`w-5 h-5 ${item.active ? 'text-lime-400' : 'text-lime-300'}`} />
+                        <span className={`text-sm font-medium ${item.active ? 'text-slate-100' : 'text-slate-300'}`}>
+                          {item.label}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
             </nav>
@@ -279,24 +273,7 @@ export function Sidebar({
             onClick={() => setMobileOpen(false)}
           />
           <div className="absolute left-0 top-0 bottom-0 w-80 bg-black/60 border-r border-white/10 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-lime-400 text-black grid place-items-center font-semibold tracking-tight">
-                  CC
-                </div>
-                <span className="text-slate-100 text-lg font-semibold tracking-tight">
-                  CustomCap
-                </span>
-              </div>
-              <button 
-                onClick={() => setMobileOpen(false)}
-                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
-              >
-                <PanelLeftClose className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <nav className="mt-6 grid gap-3">
+            <nav className="grid gap-3">
               {mainNavItems.map((item, index) => (
                 <Link 
                   key={index}

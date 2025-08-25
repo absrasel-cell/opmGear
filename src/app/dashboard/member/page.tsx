@@ -24,7 +24,8 @@ import {
   Truck,
   Search,
   Shield,
-  CheckCircle
+  CheckCircle,
+  Download
 } from 'lucide-react';
 
 // Import our design system components
@@ -40,6 +41,7 @@ import {
 import Sidebar from '@/components/ui/dashboard/Sidebar';
 import DashboardHeader from '@/components/ui/dashboard/DashboardHeader';
 import LogoAssetsDisplay from '@/components/dashboard/LogoAssetsDisplay';
+import { PersonalizedShippingNotification } from '@/components/ui/ShippingNotification';
 
 // Types
 interface Order {
@@ -71,6 +73,16 @@ interface Order {
   uploadedLogoFiles?: Array<{url: string, name: string, size: number, type: string}>;
   additionalInstructions?: string;
   paymentProcessed?: boolean;
+  shipmentId?: string;
+  shipment?: {
+    id: string;
+    buildNumber: string;
+    shippingMethod: string;
+    status: string;
+    estimatedDeparture?: string;
+    estimatedDelivery?: string;
+    createdAt: string;
+  };
 }
 
 interface CostBreakdown {
@@ -88,6 +100,11 @@ interface CostBreakdown {
     unitPrice: number;
   }>;
   closureCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+  }>;
+  premiumFabricCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
@@ -176,6 +193,7 @@ export default function NewMemberDashboard() {
   });
 
   const [orderCostBreakdowns, setOrderCostBreakdowns] = useState<Record<string, CostBreakdown>>({});
+  const [orderInvoices, setOrderInvoices] = useState<Record<string, { id: string; number: string; } | null>>({});
 
   const [databaseStatus, setDatabaseStatus] = useState<'available' | 'unavailable' | 'unknown'>('available');
   const [roleChangeNotification, setRoleChangeNotification] = useState(false);
@@ -283,6 +301,9 @@ export default function NewMemberDashboard() {
         }));
         setOrderCostBreakdowns(costBreakdowns);
         
+        // Fetch invoices for all orders
+        await fetchOrderInvoices(allOrders);
+        
         // Calculate stats
         const totalOrders = allOrders.length;
         const savedOrders = allOrders.filter((order: Order) => order.orderSource === 'PRODUCT_CUSTOMIZATION').length;
@@ -358,6 +379,11 @@ export default function NewMemberDashboard() {
     return deliveryDate.toLocaleDateString();
   };
 
+  const getBuildNumber = (order: Order): string | null => {
+    // Return actual shipment build number if assigned
+    return order.shipment?.buildNumber || null;
+  };
+
   const calculateOrderCosts = async (order: Order): Promise<CostBreakdown | null> => {
     try {
       // Get base product pricing (using default tier)
@@ -394,6 +420,70 @@ export default function NewMemberDashboard() {
     } catch (error) {
       console.error('Error calculating order costs:', error);
       return null;
+    }
+  };
+
+  const fetchOrderInvoices = async (ordersToCheck: Order[] = orders) => {
+    if (!user?.id || ordersToCheck.length === 0) return;
+    
+    try {
+      const invoicePromises = ordersToCheck.map(async (order) => {
+        try {
+          const response = await fetch(`/api/invoices?orderId=${order.id}`, {
+            credentials: 'include'
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const invoices = data.invoices || [];
+            if (invoices.length > 0) {
+              // Return the most recent invoice for this order
+              return { [order.id]: { id: invoices[0].id, number: invoices[0].number } };
+            }
+          }
+          return { [order.id]: null };
+        } catch (error) {
+          console.error(`Error fetching invoice for order ${order.id}:`, error);
+          return { [order.id]: null };
+        }
+      });
+
+      const results = await Promise.all(invoicePromises);
+      const invoicesMap = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+      setOrderInvoices(invoicesMap);
+    } catch (error) {
+      console.error('Error fetching order invoices:', error);
+    }
+  };
+
+  const downloadInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to download invoice');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice-${invoiceNumber}.pdf`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      // Fallback to direct link approach if blob method fails
+      const link = document.createElement('a');
+      link.href = `/api/invoices/${invoiceId}/pdf`;
+      link.download = `invoice-${invoiceNumber}.pdf`;
+      link.click();
     }
   };
 
@@ -579,6 +669,11 @@ export default function NewMemberDashboard() {
                 </div>
               </div>
             )}
+
+            {/* Shipping Notification */}
+            <div className="px-6 md:px-10 mt-4">
+              <PersonalizedShippingNotification orders={orders} />
+            </div>
 
             {/* Quick Actions */}
             <div className="px-6 md:px-10 mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -774,6 +869,21 @@ export default function NewMemberDashboard() {
                                 <h4 className="text-sm font-semibold">Status & Tracking</h4>
                               </div>
                               <dl className="space-y-2 text-sm text-slate-300/90">
+                                <div className="flex justify-between">
+                                  <dt className="opacity-80">Build #</dt>
+                                  <dd>
+                                    {getBuildNumber(order) ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-orange-400/20 text-orange-300 text-xs font-medium">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-10 10-5-5" />
+                                        </svg>
+                                        {getBuildNumber(order)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">Not assigned</span>
+                                    )}
+                                  </dd>
+                                </div>
                                 <div className="flex justify-between">
                                   <dt className="opacity-80">Tracking #</dt>
                                   <dd>
@@ -1126,6 +1236,29 @@ export default function NewMemberDashboard() {
                                         </div>
                                       ))}
 
+                                      {/* Premium Fabric Costs */}
+                                      {costBreakdown?.premiumFabricCosts && costBreakdown.premiumFabricCosts.length > 0 && (
+                                        <div>
+                                          <div className="text-xs font-medium text-slate-300/80 mb-2">Premium Fabrics:</div>
+                                          {costBreakdown.premiumFabricCosts.map((fabricCost, index) => (
+                                            <div key={index} className="flex justify-between items-center py-1 text-sm">
+                                              <div className="text-slate-300/90">
+                                                <div className="flex items-center gap-1">
+                                                  <span>⭐</span>
+                                                  <span>{fabricCost.name}</span>
+                                                </div>
+                                                <div className="text-xs text-slate-400">
+                                                  {formatPrice(fabricCost.unitPrice)} per unit
+                                                </div>
+                                              </div>
+                                              <div className="text-purple-400 font-medium">
+                                                {formatPrice(fabricCost.cost)}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+
                                       {/* Delivery Costs */}
                                       {costBreakdown?.deliveryCosts && costBreakdown.deliveryCosts.length > 0 ? (
                                         <div>
@@ -1183,6 +1316,18 @@ export default function NewMemberDashboard() {
                                 <Link href={`/dashboard/member/checkout?orderId=${order.id}`}>
                                   <Button variant="secondary">Checkout</Button>
                                 </Link>
+                              )}
+                              
+                              {/* Download Invoice Button */}
+                              {orderInvoices[order.id] && (
+                                <Button 
+                                  variant="ghost"
+                                  onClick={() => downloadInvoice(orderInvoices[order.id]!.id, orderInvoices[order.id]!.number)}
+                                  className="bg-white/7.5 border border-white/10 hover:bg-white/10"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Download Invoice
+                                </Button>
                               )}
                               
                               <Link href={`/messages?start=support&category=order&orderId=${order.id}`}>

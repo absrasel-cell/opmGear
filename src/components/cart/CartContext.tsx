@@ -39,6 +39,12 @@ interface CartItem {
   };
   addedAt: Date;
   updatedAt: Date;
+  // Shipment assignment fields
+  shipmentId?: string | null;
+  shipment?: {
+    id: string;
+    buildNumber: string;
+  } | null;
 }
 
 interface CartState {

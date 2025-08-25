@@ -21,7 +21,7 @@ export default function MessagesPage() {
     }
     
     const isMasterAdmin = user.email === 'absrasel@gmail.com';
-    if (user.role !== 'ADMIN' && !isMasterAdmin) {
+    if (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'MASTER_ADMIN' && !isMasterAdmin) {
       router.push('/dashboard/member');
       return;
     }
@@ -40,7 +40,7 @@ export default function MessagesPage() {
     );
   }
 
-  if (!isAuthenticated || !user || (user.role !== 'ADMIN' && user.email !== 'absrasel@gmail.com')) {
+  if (!isAuthenticated || !user || (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'MASTER_ADMIN' && user.email !== 'absrasel@gmail.com')) {
     return (
       <DashboardShell>
         <div className="flex items-center justify-center min-h-screen">
@@ -56,20 +56,25 @@ export default function MessagesPage() {
 
   return (
     <DashboardShell>
-      <div className="flex" style={{ marginTop: '50px' }}>
+      <div className="flex">
         {/* Sidebar */}
         <Sidebar />
 
         {/* Main Content */}
         <DashboardContent>
-          {/* Content wrapper with proper spacing */}
-          <div className="mt-10">
-            {/* Header */}
+          {/* Header */}
           <DashboardHeader
             title="Messages"
             subtitle="Manage customer support and inquiries"
             onSearch={(query) => console.log('Search:', query)}
+            sticky={false}
+            primaryActionText=""
+            showNewQuote={false}
+            showProfile={false}
           />
+
+          {/* Content wrapper with proper margin */}
+          <div className="mt-0">
 
           {/* Messages Panel */}
           <section className="px-6 md:px-10 mt-6">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { FormEvent } from "react";
+import { MinimalShippingNotification } from "@/components/ui/ShippingNotification";
 
 /**
  * OPM Gear — Home Page
@@ -43,7 +44,56 @@ export default function HomePage() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-10 items-center">
-            <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
+            {/* Visual card */}
+            <div className="relative reveal-left" style={{ ['--delay' as any]: '.2s' }}>
+              <div className="relative rounded-3xl bg-white/5 border border-white/10 p-2 md:p-3 backdrop-blur-2xl overflow-hidden">
+                <div className="aspect-[16/9] rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/10 relative flex items-center justify-center">
+                  {/* Background video */}
+                  <video 
+                    autoPlay 
+                    muted 
+                    loop 
+                    playsInline 
+                    className="absolute inset-0 h-full w-full object-cover opacity-60"
+                  >
+                    <source src="/uploads/home/Sora.mp4" type="video/mp4" />
+                  </video>
+                  {/* Hero image overlay */}
+                  <img src="/uploads/home/heroImage.webp" alt="Custom cap hero" className="relative z-10 h-[85%] w-[85%] object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent z-20" />
+
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-30">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-lime-400/90 flex items-center justify-center ring-1 ring-black/10">
+                        {/* badge-check */}
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium leading-tight">Premium Embroidery</div>
+                        <div className="text-xs text-slate-300/80">3D puff, applique, metallic threads</div>
+                      </div>
+                    </div>
+                    <div className="hidden md:flex items-center gap-2 rounded-xl bg-white/10 border border-white/10 px-3 py-2 backdrop-blur-xl hover:border-lime-400/50 hover:text-lime-300 transition">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 12h10"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+                      <span className="text-sm">360° Preview</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* floating spec card */}
+              <div className="absolute -right-3 -bottom-6 w-40 md:w-48 rounded-2xl bg-white/5 border border-white/10 p-3 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(124,58,237,0.5)] animate-[floatY_9s_ease-in-out_infinite]">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-purple-500/30 ring-1 ring-purple-400/40 grid place-items-center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/></svg>
+                  </div>
+                  <div className="text-sm font-medium">Fabrics & Colors</div>
+                </div>
+                <div className="mt-2 text-xs text-slate-400">Wool blends, performance mesh, eco cotton.</div>
+              </div>
+            </div>
+
+            <div className="reveal-right" style={{ ['--delay' as any]: '.05s' }}>
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-semibold tracking-tight text-white">
                 Empowering Identity, Fueling Communities
               </h1>
@@ -77,87 +127,161 @@ export default function HomePage() {
                 ))}
               </div>
             </div>
+          </div>
+        </section>
 
-            {/* Visual card */}
-            <div className="relative reveal-right" style={{ ['--delay' as any]: '.2s' }}>
-              <div className="relative rounded-3xl bg-white/5 border border-white/10 p-2 md:p-3 backdrop-blur-2xl overflow-hidden">
-                <div className="aspect-[5/4] rounded-2xl overflow-hidden bg-black/30 ring-1 ring-white/10 relative">
-                  <img src="https://images.unsplash.com/photo-1621619856624-42fd193a0661?w=1200&q=80" alt="Custom cap" className="h-full w-full object-cover opacity-90" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+        {/* Shipping Notification Banner */}
+        <section className="mt-8">
+          <div className="reveal" style={{ ['--delay' as any]: '.1s' }}>
+            <MinimalShippingNotification />
+          </div>
+        </section>
 
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-lime-400/90 flex items-center justify-center ring-1 ring-black/10">
-                        {/* badge-check */}
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
-                      </div>
-                      <div>
-                        <div className="text-white font-medium leading-tight">Premium Embroidery</div>
-                        <div className="text-xs text-slate-300/80">3D puff, applique, metallic threads</div>
-                      </div>
+        {/* Why OPM Gear? */}
+        <section id="why-opm-gear" className="mt-12">
+          <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Why OPM Gear?</h2>
+            <p className="mt-2 text-slate-300 max-w-3xl">More than just custom caps. We're your partner in building community, raising funds, and creating lasting impact through premium merchandise.</p>
+          </div>
+
+          <div className="mt-8 grid lg:grid-cols-2 gap-6">
+            {/* Left Column - Main Differentiators */}
+            <div className="space-y-4">
+              {[
+                {
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                    </svg>
+                  ),
+                  title: 'Fundraising Built-In',
+                  body: 'Turn merchandise into revenue. Every cap sale directly funds your team\'s goals—equipment, travel, scholarships. We\'ve helped raise $1.2M+ for youth programs.',
+                  color: 'lime',
+                  highlight: '$1.2M+ Raised'
+                },
+                {
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 3v18h18"/><path d="M18.7 8L12 13.3 7.7 9 3 13.3"/>
+                    </svg>
+                  ),
+                  title: 'Transparent Pricing',
+                  body: 'No hidden fees or surprise quotes. Clear tier-based pricing with volume discounts up to 37%. You know exactly what you\'re paying before you order.',
+                  color: 'orange',
+                  highlight: 'Up to 37% Savings'
+                },
+                {
+                  icon: (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 3v6"/><path d="M21 9h-6"/><path d="M15 21v-6"/><path d="M3 15h6"/>
+                    </svg>
+                  ),
+                  title: 'Complete Technology Platform',
+                  body: 'Real-time 3D customization, order tracking, team dashboards, and direct messaging. More than ordering—it\'s a complete merchandise management system.',
+                  color: 'purple',
+                  highlight: 'Full Platform'
+                }
+              ].map((item, i) => (
+                <div key={item.title} className={`rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-xl hover:-translate-y-1 transition-all duration-300 reveal-left ${
+                  item.color === 'lime' ? 'hover:border-lime-400/50 hover:shadow-[0_20px_60px_-15px_rgba(132,204,22,0.4)]' :
+                  item.color === 'orange' ? 'hover:border-orange-400/50 hover:shadow-[0_20px_60px_-15px_rgba(251,146,60,0.4)]' :
+                  'hover:border-purple-400/50 hover:shadow-[0_20px_60px_-15px_rgba(168,85,247,0.4)]'
+                }`} style={{ ['--delay' as any]: `${0.1 + i * 0.1}s` }}>
+                  <div className="flex items-start gap-4">
+                    <div className={`flex-shrink-0 h-12 w-12 rounded-xl grid place-items-center ${
+                      item.color === 'lime' ? 'bg-lime-400/20 text-lime-300 ring-1 ring-lime-300/30' :
+                      item.color === 'orange' ? 'bg-orange-400/20 text-orange-300 ring-1 ring-orange-300/30' :
+                      'bg-purple-500/20 text-purple-300 ring-1 ring-purple-300/30'
+                    }`}>
+                      {item.icon}
                     </div>
-                    <div className="hidden md:flex items-center gap-2 rounded-xl bg-white/10 border border-white/10 px-3 py-2 backdrop-blur-xl hover:border-lime-400/50 hover:text-lime-300 transition">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 12h10"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
-                      <span className="text-sm">360° Preview</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-white">{item.title}</h3>
+                        <span className={`text-xs px-2 py-1 rounded-lg ${
+                          item.color === 'lime' ? 'bg-lime-400/20 text-lime-300' :
+                          item.color === 'orange' ? 'bg-orange-400/20 text-orange-300' :
+                          'bg-purple-500/20 text-purple-300'
+                        }`}>{item.highlight}</span>
+                      </div>
+                      <p className="text-slate-300 text-sm leading-relaxed">{item.body}</p>
                     </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Beyond Basic Ordering */}
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-xl reveal-left hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-15px_rgba(34,211,238,0.4)] hover:-translate-y-1 transition-all duration-300" style={{ ['--delay' as any]: '.4s' }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500/30 to-cyan-400/20 ring-1 ring-purple-300/40 grid place-items-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-300">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Beyond Basic Ordering</h3>
+                    <p className="text-xs text-slate-400">Advanced features others don't offer</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  {[
+                    { label: 'Real-time order updates', status: 'included' },
+                    { label: 'Multi-vendor Marketplace', status: 'included' },
+                    { label: 'Fundraising Analytics', status: 'included' },
+                    { label: 'Direct Designer Communication', status: 'included' },
+                    { label: 'Robust shipping flow and tracking', status: 'included' },
+                    { label: 'Live Product Customization', status: 'expanding' },
+                  ].map((feature) => (
+                    <div key={feature.label} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-300">{feature.label}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        feature.status === 'included' ? 'bg-lime-400/20 text-lime-300' : 'bg-orange-400/20 text-orange-300'
+                      }`}>
+                        {feature.status === 'included' ? '✓' : 'Coming'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Visual Impact & Stats */}
+            <div className="space-y-4">
+              {/* Community Impact Visual */}
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-xl reveal-right h-fit" style={{ ['--delay' as any]: '.2s' }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-lime-400/30 to-orange-400/20 ring-1 ring-lime-300/40 grid place-items-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-lime-300">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Community Impact</h3>
+                    <p className="text-xs text-slate-400">Real results for real teams</p>
+                  </div>
+                </div>
+                
+                <div className="mt-4 aspect-[5/4] rounded-xl bg-black/30 border border-white/10 overflow-hidden relative">
+                  <img 
+                    src="/uploads/home/2nd hero image.webp" 
+                    alt="Team celebrating with custom caps" 
+                    className="w-full h-full object-cover opacity-80"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <div className="text-white text-sm font-medium">Teams succeeding together</div>
+                    <div className="text-slate-300 text-xs">Custom caps that unite and fundraise</div>
                   </div>
                 </div>
               </div>
 
-              {/* floating spec card */}
-              <div className="absolute -right-3 -bottom-6 w-40 md:w-48 rounded-2xl bg-white/5 border border-white/10 p-3 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(124,58,237,0.5)] animate-[floatY_9s_ease-in-out_infinite]">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-purple-500/30 ring-1 ring-purple-400/40 grid place-items-center">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/></svg>
-                  </div>
-                  <div className="text-sm font-medium">Fabrics & Colors</div>
-                </div>
-                <div className="mt-2 text-xs text-slate-400">Wool blends, performance mesh, eco cotton.</div>
-              </div>
             </div>
           </div>
         </section>
 
-        {/* Mission / Vision / Impact */}
-        <section id="mission" className="mt-24">
-          <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
-            <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Mission, Vision & Impact</h2>
-            <p className="mt-2 text-slate-300 max-w-2xl">We craft custom headwear that amplifies identity and powers community causes.</p>
-          </div>
-
-          <div className="mt-6 grid md:grid-cols-3 gap-4">
-            {[
-              {
-                title: 'Mission',
-                color: 'lime',
-                body: 'Empower teams, schools, and creators with premium headwear that funds their goals and unites their community.',
-              },
-              {
-                title: 'Vision',
-                color: 'orange',
-                body: 'A world where every cap tells a story—and every story funds opportunity for the next generation.',
-              },
-              {
-                title: 'Impact',
-                color: 'purple',
-                body: 'Every order fuels youth programs—equipment, travel, scholarships—measured and reported transparently.',
-              },
-            ].map((c, i) => (
-              <div key={c.title} className={`rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-xl ${i===0?'reveal-left': i===2?'reveal-right':'reveal'}`} style={{ ['--delay' as any]: `${0.05 + i*0.1}s` }}>
-                <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-lg ${c.color==='lime'?'bg-lime-400/30 ring-1 ring-lime-300/40': c.color==='orange'?'bg-orange-400/30 ring-1 ring-orange-300/40':'bg-purple-500/30 ring-1 ring-purple-400/40'} grid place-items-center`}>
-                    <div className="h-4 w-4 rounded-full bg-white/70" />
-                  </div>
-                  <div className="font-medium text-white">{c.title}</div>
-                </div>
-                <p className="mt-3 text-slate-300 text-sm leading-relaxed">{c.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* Product Showcase (Carousel) */}
-        <section id="catalog" className="mt-24">
+        <section id="catalog" className="mt-12">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -172,18 +296,39 @@ export default function HomePage() {
           </div>
 
           <div className="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent backdrop-blur-xl relative group">
-            {/* Track 1 */}
-            <div className="carousel-track">
-              <div className="flex gap-4 px-4 py-6">
+            <div className="carousel-container">
+              <div className="carousel-track-continuous flex gap-4 px-4 py-6">
+                {/* First set of products */}
                 {[
-                  { title: 'Classic Snapback', tag: 'New', tagColor: 'text-lime-300', src: 'https://images.unsplash.com/photo-1642615835477-d303d7dc9ee9?w=1200&q=80', note: 'Flat brim, 6-panel, puff embroidery.' },
-                  { title: 'Vintage Dad Hat', tag: 'Hot', tagColor: 'text-orange-300', src: 'https://images.unsplash.com/photo-1635151227785-429f420c6b9d?w=1200&q=80', note: 'Washed cotton, low profile.' },
-                  { title: 'Performance Trucker', tag: 'Pro', tagColor: 'text-purple-300', src: 'https://images.unsplash.com/photo-1621619856624-42fd193a0661?w=1200&q=80', note: 'Moisture-wicking mesh, curved brim.' },
-                  { title: 'Wool Flat Cap', tag: 'Eco', tagColor: 'text-lime-300', src: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=1400&auto=format&fit=crop', note: 'Recycled blend options.' },
-                  { title: '5-Panel Camper', tag: 'Fresh', tagColor: 'text-orange-300', src: 'https://images.unsplash.com/photo-1516822003754-cca485356ecb?q=80&w=1400&auto=format&fit=crop', note: 'Lightweight nylon, reflective label.' },
+                  { title: 'AirFrame 7', tag: 'Pro', tagColor: 'text-lime-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755574709379.jpg', note: '7-panel structured cap with premium finish.' },
+                  { title: 'Heritage 6C', tag: 'Classic', tagColor: 'text-orange-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755577382093.jpg', note: '6-panel heritage design, timeless style.' },
+                  { title: '5P Metal Eyelet', tag: 'Durable', tagColor: 'text-purple-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755586350776.jpg', note: '5-panel with metal eyelets, breathable design.' },
+                  { title: '6P Flat Bill', tag: 'Urban', tagColor: 'text-cyan-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755588958688.jpg', note: 'Flat brim, 6-panel construction.' },
+                  { title: 'Drift 6C', tag: 'Premium', tagColor: 'text-orange-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755947200744.jpg', note: 'Chino twill, curved bill, snapback closure.' },
                 ].map((p, i) => (
-                  <div key={`p1-${i}`} className={`w-[260px] md:w-[320px] shrink-0 rounded-2xl bg-white/5 border border-white/10 overflow-hidden backdrop-blur-xl transition will-change-transform group/item ${i%5===0?'hover:border-lime-400/50 hover:shadow-[0_20px_60px_-20px_rgba(132,204,22,0.6)]': i%5===1?'hover:border-orange-400/50 hover:shadow-[0_20px_60px_-20px_rgba(251,146,60,0.6)]': i%5===2?'hover:border-purple-400/50 hover:shadow-[0_20px_60px_-20px_rgba(168,85,247,0.6)]':'hover:border-lime-400/50' }`}>
-                    <div className="aspect-[4/3] overflow-hidden">
+                  <div key={`p1-${i}`} className={`w-[260px] md:w-[320px] shrink-0 rounded-2xl bg-white/5 border border-white/10 overflow-hidden backdrop-blur-xl transition will-change-transform group/item ${i%5===0?'hover:border-lime-400/50 hover:shadow-[0_20px_60px_-20px_rgba(132,204,22,0.6)]': i%5===1?'hover:border-orange-400/50 hover:shadow-[0_20px_60px_-20px_rgba(251,146,60,0.6)]': i%5===2?'hover:border-purple-400/50 hover:shadow-[0_20px_60px_-20px_rgba(168,85,247,0.6)]': i%5===3?'hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-20px_rgba(34,211,238,0.6)]':'hover:border-orange-400/50 hover:shadow-[0_20px_60px_-20px_rgba(251,146,60,0.6)]' }`}>
+                    <div className="aspect-square overflow-hidden">
+                      <img src={p.src} className="h-full w-full object-cover group-hover/item:scale-[1.06] transition duration-500" alt={p.title} />
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-white font-medium">{p.title}</p>
+                        <span className={`text-xs ${p.tagColor}`}>{p.tag}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">{p.note}</p>
+                    </div>
+                  </div>
+                ))}
+                {/* Duplicate set for seamless loop */}
+                {[
+                  { title: 'AirFrame 7', tag: 'Pro', tagColor: 'text-lime-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755574709379.jpg', note: '7-panel structured cap with premium finish.' },
+                  { title: 'Heritage 6C', tag: 'Classic', tagColor: 'text-orange-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755577382093.jpg', note: '6-panel heritage design, timeless style.' },
+                  { title: '5P Metal Eyelet', tag: 'Durable', tagColor: 'text-purple-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755586350776.jpg', note: '5-panel with metal eyelets, breathable design.' },
+                  { title: '6P Flat Bill', tag: 'Urban', tagColor: 'text-cyan-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755588958688.jpg', note: 'Flat brim, 6-panel construction.' },
+                  { title: 'Drift 6C', tag: 'Premium', tagColor: 'text-orange-300', src: 'https://nowxzkdkaegjwfhhqoez.supabase.co/storage/v1/object/public/uploads/messages/34040f7b-1686-41c6-bf44-a1257d738d98_1755947200744.jpg', note: 'Chino twill, curved bill, snapback closure.' },
+                ].map((p, i) => (
+                  <div key={`p2-${i}`} className={`w-[260px] md:w-[320px] shrink-0 rounded-2xl bg-white/5 border border-white/10 overflow-hidden backdrop-blur-xl transition will-change-transform group/item ${i%5===0?'hover:border-lime-400/50 hover:shadow-[0_20px_60px_-20px_rgba(132,204,22,0.6)]': i%5===1?'hover:border-orange-400/50 hover:shadow-[0_20px_60px_-20px_rgba(251,146,60,0.6)]': i%5===2?'hover:border-purple-400/50 hover:shadow-[0_20px_60px_-20px_rgba(168,85,247,0.6)]': i%5===3?'hover:border-cyan-400/50 hover:shadow-[0_20px_60px_-20px_rgba(34,211,238,0.6)]':'hover:border-orange-400/50 hover:shadow-[0_20px_60px_-20px_rgba(251,146,60,0.6)]' }`}>
+                    <div className="aspect-square overflow-hidden">
                       <img src={p.src} className="h-full w-full object-cover group-hover/item:scale-[1.06] transition duration-500" alt={p.title} />
                     </div>
                     <div className="p-4">
@@ -198,36 +343,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Track 2 (loop) */}
-            <div className="carousel-track">
-              <div className="flex gap-4 px-4 py-6">
-                {[
-                  { title: 'Classic Snapback', src: 'https://images.unsplash.com/photo-1642615835477-d303d7dc9ee9?w=1200&q=80', note: 'Flat brim, 6-panel, puff embroidery.' },
-                  { title: 'Vintage Dad Hat', src: 'https://images.unsplash.com/photo-1635151227785-429f420c6b9d?w=1200&q=80', note: 'Washed cotton, low profile.' },
-                  { title: 'Performance Trucker', src: 'https://images.unsplash.com/photo-1621619856624-42fd193a0661?w=1200&q=80', note: 'Moisture-wicking mesh, curved brim.' },
-                  { title: 'Wool Flat Cap', src: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=1400&auto=format&fit=crop', note: 'Recycled blend options.' },
-                  { title: '5-Panel Camper', src: 'https://images.unsplash.com/photo-1516822003754-cca485356ecb?q=80&w=1400&auto=format&fit=crop', note: 'Lightweight nylon, reflective label.' },
-                ].map((p, i) => (
-                  <div key={`p2-${i}`} className="w-[260px] md:w-[320px] shrink-0 rounded-2xl bg-white/5 border border-white/10 overflow-hidden backdrop-blur-xl transition group/item">
-                    <div className="aspect-[4/3] overflow-hidden">
-                      <img src={p.src} className="h-full w-full object-cover group-hover/item:scale-[1.06] transition duration-500" alt={p.title} />
-                    </div>
-                    <div className="p-4">
-                      <p className="text-white font-medium">{p.title}</p>
-                      <p className="text-xs text-slate-400 mt-1">{p.note}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Hover overlay to pause animation */}
-            <div className="absolute inset-0 group hover:[&_.carousel-track]:!animation-play-state-paused" />
+            <div className="absolute inset-0 group hover:[&_.carousel-track-continuous]:!animation-play-state-paused" />
           </div>
         </section>
 
         {/* Categories */}
-        <section id="categories" className="mt-24">
+        <section id="categories" className="mt-12">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -273,7 +395,7 @@ export default function HomePage() {
         </section>
 
         {/* Customization Features */}
-        <section id="configure" className="mt-24">
+        <section id="configure" className="mt-12">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Customization Features</h2>
             <p className="mt-2 text-slate-300 max-w-2xl">Choose embroidery styles, patches, fabrics, closures, and accessories to make it yours.</p>
@@ -310,7 +432,7 @@ export default function HomePage() {
         </section>
 
         {/* Pricing & Discounts */}
-        <section id="pricing" className="mt-24">
+        <section id="pricing" className="mt-12">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Pricing & Volume Discounts</h2>
             <p className="mt-2 text-slate-300 max-w-2xl">Per-unit cost drops as you scale. Transparent, no surprises.</p>
@@ -369,7 +491,7 @@ export default function HomePage() {
         </section>
 
         {/* Shipping */}
-        <section id="shipping" className="mt-24">
+        <section id="shipping" className="mt-12">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Shipping & Turnaround</h2>
             <p className="mt-2 text-slate-300 max-w-2xl">Reliable timelines from sample to delivery. We ship nationwide with tracking.</p>
@@ -395,7 +517,7 @@ export default function HomePage() {
         </section>
 
         {/* Testimonials */}
-        <section id="about" className="mt-24">
+        <section id="about" className="mt-12">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Loved by Teams & Communities</h2>
             <p className="mt-2 text-slate-300 max-w-2xl">Quality you can feel, impact you can measure. Rotating highlights below.</p>
@@ -419,7 +541,7 @@ export default function HomePage() {
         </section>
 
         {/* Contact / Quote Form */}
-        <section id="contact" className="mt-24">
+        <section id="contact" className="mt-12 pb-20">
           <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-white">Let’s build your cap</h2>
             <p className="mt-2 text-slate-300 max-w-2xl">Tell us about your project. Choose a request type to get the right form.</p>
@@ -474,8 +596,8 @@ export default function HomePage() {
                 </div>
                 <div className="rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur-xl">
                   <label htmlFor="qty" className="block text-sm text-slate-300">Estimated quantity</label>
-                  <select id="qty" name="quantity" className="mt-2 w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-lime-400/60">
-                    {['48','144','288','576','1000+'].map(v => <option key={v}>{v}</option>)}
+                  <select id="qty" name="quantity" className="mt-2 w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-lime-400/60 backdrop-blur-sm [&>option]:bg-black/80 [&>option]:text-white [&>option]:py-3 [&>option]:px-4 [&>option]:border-b [&>option]:border-white/5 [&>option]:hover:bg-lime-400/10 [&>option]:backdrop-blur-md [&>option]:transition-all [&>option]:duration-200">
+                    {['48','144','288','576','1000+'].map(v => <option key={v} className="bg-black/80 text-white py-3 px-4 border-b border-white/5 hover:bg-lime-400/10 transition-all duration-200">{v}</option>)}
                   </select>
                 </div>
               </div>
@@ -530,24 +652,6 @@ export default function HomePage() {
           </form>
         </section>
 
-        {/* CTA */}
-        <section className="mt-24 mb-20">
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-lime-400/10 via-purple-500/10 to-orange-400/10 p-8 md:p-10 backdrop-blur-xl">
-            <div className="grid md:grid-cols-2 items-center gap-6">
-              <div className="reveal" style={{ ['--delay' as any]: '.05s' }}>
-                <h3 className="text-xl md:text-2xl font-semibold text-white">Ready to design? Launch your fundraiser with OPM Gear</h3>
-                <p className="mt-2 text-slate-300">We handle production and fulfillment so you can focus on your community.</p>
-                <a href="#configure" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-lime-400 text-black px-5 py-2.5 font-medium hover:-translate-y-0.5 transition">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 3 3 3-3 3"/><path d="M3 6h12a6 6 0 0 1 6 6"/></svg>
-                  Start Customizing
-                </a>
-              </div>
-              <div className="reveal-right" style={{ ['--delay' as any]: '.15s' }}>
-                <div className="aspect-[5/3] rounded-2xl bg-black/30 border border-white/10 grid place-items-center text-slate-500">Cap lineup visual</div>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
 
       {/* Page-local animation styles (scoped globally so classes work in children) */}
@@ -565,7 +669,16 @@ export default function HomePage() {
         .reveal-left { opacity: 0; animation: slideInLeft 0.9s ease-out forwards; animation-delay: var(--delay, 0s); }
         .reveal-right { opacity: 0; animation: slideInRight 0.9s ease-out forwards; animation-delay: var(--delay, 0s); }
 
-        .carousel-track { display: flex; width: max-content; animation: slowMarquee 32s linear infinite; }
+        .carousel-track-continuous { 
+          display: flex; 
+          width: max-content; 
+          animation: continuousSlide 40s linear infinite; 
+        }
+        
+        @keyframes continuousSlide { 
+          0% { transform: translateX(0); } 
+          100% { transform: translateX(-50%); } 
+        }
 
         .testimonial-rotator > div { position: absolute; inset: 0; opacity: 0; }
         .testimonial-rotator > div:nth-child(1) { animation: rotateQuotes 16s infinite; }

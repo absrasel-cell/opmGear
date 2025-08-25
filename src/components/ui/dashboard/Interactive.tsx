@@ -32,10 +32,7 @@ export function Dropdown({
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -100,6 +97,20 @@ export function RoleDropdown({
   buttonId = `roleBtn-${Math.random().toString(36).substr(2, 9)}` 
 }: RoleDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
   
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -125,36 +136,39 @@ export function RoleDropdown({
   };
 
   return (
-    <Dropdown
-      trigger={
-        <button 
-          id={buttonId}
-          className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-xs transition-colors"
-        >
-          <span className={`w-3.5 h-3.5 ${getRoleColor(currentRole)}`}>
-            {getRoleIcon(currentRole)}
-          </span>
-          {currentRole}
-          <ChevronDown className="w-3.5 h-3.5" />
-        </button>
-      }
-    >
-      <DropdownItem onClick={() => handleRoleSelect('Admin')}>
-        <span className="flex items-center gap-2">
-          <span>🛡️</span> Admin
+    <div className="relative" ref={dropdownRef}>
+      <button 
+        id={buttonId}
+        onClick={() => setIsOpen(!isOpen)}
+        className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-xs transition-colors"
+      >
+        <span className={`w-3.5 h-3.5 ${getRoleColor(currentRole)}`}>
+          {getRoleIcon(currentRole)}
         </span>
-      </DropdownItem>
-      <DropdownItem onClick={() => handleRoleSelect('Member')}>
-        <span className="flex items-center gap-2">
-          <span>👤</span> Member
-        </span>
-      </DropdownItem>
-      <DropdownItem onClick={() => handleRoleSelect('Master Admin')}>
-        <span className="flex items-center gap-2 text-lime-300">
-          <span>👑</span> Master Admin
-        </span>
-      </DropdownItem>
-    </Dropdown>
+        {currentRole}
+        <ChevronDown className={`w-3.5 h-3.5 transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute z-20 mt-1 min-w-[150px] rounded-xl bg-black/60 border border-white/10 backdrop-blur-xl p-1 right-0">
+          <DropdownItem onClick={() => handleRoleSelect('Admin')}>
+            <span className="flex items-center gap-2">
+              <span>🛡️</span> Admin
+            </span>
+          </DropdownItem>
+          <DropdownItem onClick={() => handleRoleSelect('Member')}>
+            <span className="flex items-center gap-2">
+              <span>👤</span> Member
+            </span>
+          </DropdownItem>
+          <DropdownItem onClick={() => handleRoleSelect('Master Admin')}>
+            <span className="flex items-center gap-2 text-lime-300">
+              <span>👑</span> Master Admin
+            </span>
+          </DropdownItem>
+        </div>
+      )}
+    </div>
   );
 }
 

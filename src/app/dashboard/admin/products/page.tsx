@@ -74,20 +74,18 @@ export default function AdminProductsPage() {
 
         {/* Main Content */}
         <DashboardContent>
-          {/* Content wrapper with proper spacing */}
-          <div className="mt-10">
-            {/* Header */}
+          {/* Header */}
           <DashboardHeader
             title="Product Management"
             subtitle="Create, edit, and manage your product catalog with full customization options."
             onSearch={(query) => console.log('Search:', query)}
+            sticky={false}
           />
 
-          {/* Product Management Component */}
-          <div className="px-6 md:px-10 mt-6">
+          {/* Content wrapper with proper margin */}
+          <div className="mt-8">
+            {/* Product Management Component */}
             <ProductManagement />
-          </div>
-
           </div>
           {/* End content wrapper */}
         </DashboardContent>

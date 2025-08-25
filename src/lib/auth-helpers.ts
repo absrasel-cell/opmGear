@@ -12,11 +12,22 @@ export async function getCurrentUser(request: NextRequest) {
     // If not in headers, try cookies
     if (!accessToken) {
       const cookieStore = await cookies();
+      const allCookies = cookieStore.getAll();
+      console.log('Available cookies:', allCookies.map(c => ({ name: c.name, hasValue: !!c.value })));
+      
       accessToken = cookieStore.get('sb-access-token')?.value;
+      
+      // Also try other common Supabase cookie names
+      if (!accessToken) {
+        accessToken = cookieStore.get('supabase-auth-token')?.value;
+      }
+      if (!accessToken) {
+        accessToken = cookieStore.get('supabase.auth.token')?.value;
+      }
     }
 
     if (!accessToken) {
-      console.log('No access token found');
+      console.log('No access token found in any location');
       return null;
     }
 

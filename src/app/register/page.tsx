@@ -151,9 +151,14 @@ export default function RegisterPage() {
       <div className="min-h-screen flex items-center justify-center px-6 md:px-10 py-12">
         <div className="w-full max-w-2xl">
           <div className="text-center mb-8">
-            <Link href="/" className="inline-flex items-center gap-3 group">
-              <span className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/80 to-orange-400/80 grid place-items-center ring-1 ring-white/20 shadow-[0_0_40px_rgba(132,204,22,0.35)] text-black font-semibold">OPM</span>
-              <span className="text-white font-extrabold tracking-wide text-2xl">OPM Gear</span>
+            <Link href="/" className="inline-flex items-center group">
+              <div className="relative h-16 w-auto">
+                <img 
+                  src="/opmLogo.svg" 
+                  alt="OPM Gear" 
+                  className="h-16 w-auto object-contain filter drop-shadow-[0_0_15px_rgba(132,204,22,0.4)]"
+                />
+              </div>
             </Link>
             <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white">Create your account</h1>
             <p className="mt-2 text-sm text-slate-400">

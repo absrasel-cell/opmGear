@@ -33,3 +33,6 @@ Regular Delivery,Shipping,3,2.3,1.9,1.85,1.8,1.7,1.7
 Priority Delivery,Shipping,3.2,2.5,2.1,2.05,2.1,2,2
 Air Freight,Shipping,,,,,1.2,1,1
 Sea Freight,Shipping,,,,,0.4,0.35,0.3
+Small Mold Charge,Mold,40,40,40,40,40,40,40
+Medium Mold Charge,Mold,60,60,60,60,60,60,60
+Large Mold Charge,Mold,80,80,80,80,80,80,80

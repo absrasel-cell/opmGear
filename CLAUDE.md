@@ -1,15 +1,17 @@
 # CLAUDE.md - Project Context for OPM Gear
 read current main Task from ""F:\Custom Cap - github\Claude Instruction\currentTask.txt""
 read current errors and follow up requests from "F:\Custom Cap - github\Claude Instruction\errorReport.txt"
-Vercel deployment log "F:\Custom Cap - github\Claude Instruction\vercelBuildLog.txt"
-current live web url "https://opm-gear-dk7lce111-absrasel-cells-projects.vercel.app"
-Prodcut Page "F:\Custom Cap - github\customcap\src\app\customize\[slug]"
+read screenshot (only if I tell you to) at "F:\Custom Cap - github\Claude Instruction\Screenshots"
+
+
+Dashboard Admin product page "src\app\dashboard\admin\products\create\page.tsx"
+**do not touch unless I tell explicitly, Advanced Product Page  "F:\Custom Cap - github\customcap\src\app\customize\[slug]"
 
 ## 🎯 Project Overview
 OPM Gear is a comprehensive Next.js 15 e-commerce platform for custom baseball cap customization and ordering. This is a production-ready application with advanced user management, real-time messaging, sophisticated order management, and modern UI with volume-based pricing systems.
 
-**Status**: Production Ready (Version 3.2.1)  
-**Completion**: 95% - Core features complete, payment integration in progress
+**Status**: Production Ready (Version 3.3.0)  
+**Completion**: 96% - Core platform complete, marketplace expansion phase initiated
 
 ## 🛠️ Tech Stack & Architecture
 
@@ -222,10 +224,11 @@ NEXTAUTH_URL="http://localhost:3000"
 
 ## 🚀 Current Status & Next Steps
 
-### ✅ Completed (95%)
+### ✅ Completed (96%)
 - Complete authentication system with role-based access
 - Advanced messaging with file attachments
 - Comprehensive admin dashboard
+- Member dashboard with full functionality
 - Complex product customization interface (3500+ lines)
 - Shopping cart and order management
 - Tier-based pricing system with volume discounts
@@ -234,25 +237,92 @@ NEXTAUTH_URL="http://localhost:3000"
 - Sanity CMS integration
 - Recent UI improvements: shipment integration, color themes, layout optimizations
 
-### 🔄 **CURRENT FOCUS: Multi-Vendor Marketplace Expansion**
+### 🔄 **CURRENT FOCUS: Phase 1 - Multi-Vendor Marketplace Expansion (3 weeks)**
 
-#### **Phase 1: Supplier Integration**
-1. **Supplier Dashboard**: Copy admin dashboard, remove admin features, add product upload
-2. **Product Separation**: Simple inventory products vs complex custom caps
-3. **Store Page Enhancement**: Filters, supplier product visibility
-4. **Reseller Features**: Additional sidebar options for resale members
+#### **Copy-Paste Dashboard Architecture Approach**
+**Strategy**: Perfect admin dashboard → Copy structure → Customize per role
 
-#### **Phase 2: Order & Billing System**
-5. **Invoice Generation**: Checkout invoice system
-6. **Billing & Accounts**: Resale pricing implementation
-7. **Order Validation**: Data consistency testing across dashboard/input
+#### **Phase 1A: Admin Dashboard Optimization (Week 1)**
+1. **Perfect Admin Dashboard**: Optimize statistics, streamline product management, add bulk actions
+2. **Code Quality**: Clean up components, improve performance, standardize patterns
+3. **Documentation**: Document reusable components for copying
 
-### 📋 Future Roadmap
-- Payment integration (Stripe gateway)
+#### **Phase 1B: Wholesale Dashboard Creation (Week 2)**
+1. **Copy Admin Structure**: `cp -r dashboard/admin/* dashboard/wholesale/`
+2. **Remove Admin Features**: User management, system settings, admin messaging
+3. **Add Wholesale Features**: Volume pricing calculator, bulk ordering, supplier catalog
+4. **Customize Navigation**: Wholesale-specific sidebar and routing
+
+#### **Phase 1C: Supplier Dashboard Creation (Week 2-3)**
+1. **Copy Admin Structure**: `cp -r dashboard/admin/* dashboard/supplier/`
+2. **Remove Admin Features**: Keep only supplier-relevant functionality
+3. **Add Supplier Features**: Product upload, inventory management, order fulfillment
+4. **Revenue Analytics**: Supplier-scoped financial tracking
+
+#### **Phase 1D: Integration & Testing (Week 3)**
+1. **Update Routing Logic**: Sidebar.tsx role-based navigation
+2. **Store Page Enhancement**: Advanced filtering, product categorization
+3. **Testing**: Role-based access, feature isolation, security validation
+
+### 📋 6-Phase Development Roadmap
+
+#### **Phase 1: Multi-Vendor Marketplace (45-55 hours)**
+- **Week 1**: Admin dashboard perfection (15 hours)
+- **Week 2**: Wholesale dashboard creation (20 hours)  
+- **Week 3**: Supplier dashboard + integration (15-20 hours)
+
+#### **Phase 2: Payment & Billing Integration (60-70 hours)**
+- Stripe payment processing
+- PDF invoice generation
+- Advanced billing features
+
+#### **Phase 3: Communication & Automation (45-55 hours)**
 - Email notification system
-- Mobile app development
-- Real-time WebSocket integration
-- Advanced analytics dashboard
+- N8N workflow automation
+- Enhanced messaging features
+
+#### **Phase 4: AI-Powered Features (70-80 hours)**
+- AI customer support system
+- Intelligent order processing
+- Predictive analytics
+
+#### **Phase 5: 3D Product Experience (90-100 hours)**
+- 3D product configurator
+- AR preview capabilities
+- Advanced customization tools
+
+#### **Phase 6: Mobile & Performance (50-60 hours)**
+- React Native mobile app
+- Performance optimization
+- Advanced caching
+
+### 🛠️ Implementation Details for Copy-Paste Approach
+
+#### **Directory Structure Plan**
+```
+src/app/dashboard/
+├── admin/          # Master dashboard (source template)
+├── wholesale/      # Copied from admin, wholesale-specific
+├── supplier/       # Copied from admin, supplier-specific
+└── member/         # Existing member dashboard
+```
+
+#### **Sidebar.tsx Routing Logic Update**
+```typescript
+const getDashboardPath = () => {
+  if (accessRole === 'MASTER_ADMIN' || accessRole === 'SUPER_ADMIN' || accessRole === 'STAFF') 
+    return '/dashboard/admin';
+  if (customerRole === 'WHOLESALE') return '/dashboard/wholesale';
+  if (customerRole === 'SUPPLIER') return '/dashboard/supplier';
+  return '/dashboard/member'; // RETAIL customers
+};
+```
+
+#### **Features by Dashboard Type**
+- **Admin**: Full system control, user management, all analytics
+- **Wholesale**: Volume pricing, bulk orders, supplier catalogs, inventory forecasting
+- **Supplier**: Product uploads, inventory management, order fulfillment, supplier analytics
+- **Member**: Order history, saved orders, profile management, basic messaging
 
 ## 📚 Documentation Files
 
@@ -274,6 +344,7 @@ Key documentation for reference:
 3. **Security first**: Proper authentication, input validation, role-based access
 4. **Performance matters**: Optimistic UI, efficient queries, proper caching
 5. **User experience**: Modern UI, responsive design, error handling
+6. **Copy-paste strategy**: Perfect admin dashboard first, then replicate structure for other roles
 
 ### Common tasks:
 - API endpoint creation follows `/api/*` structure
@@ -281,3 +352,4 @@ Key documentation for reference:
 - Authentication checks use Supabase
 - UI components follow Tailwind + glass morphism patterns
 - File uploads use configured upload system
+

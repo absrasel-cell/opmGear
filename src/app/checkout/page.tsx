@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/cart/CartContext';
 import { useAuth } from '@/components/auth/AuthContext';
+import { calculateGrandTotal, getDisplayTotal, CostBreakdown } from '@/lib/pricing';
 
 interface CheckoutForm {
   // Shipping Information
@@ -58,6 +59,7 @@ export default function CheckoutPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [orderSubmittedSuccessfully, setOrderSubmittedSuccessfully] = useState(false);
   const hasPrefilledRef = useRef(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [itemCostBreakdowns, setItemCostBreakdowns] = useState<Record<string, any>>({});
@@ -122,6 +124,7 @@ export default function CheckoutPage() {
             productId: order.productName.toLowerCase().replace(/\s+/g, '-'),
             productName: order.productName,
             productSlug: order.productName.toLowerCase().replace(/\s+/g, '-'),
+            priceTier: order.priceTier || 'Tier 1', // Default tier for saved orders (will be improved when database includes tier)
             selectedColors: order.selectedColors || {},
             logoSetupSelections: order.logoSetupSelections || {},
             selectedOptions: order.selectedOptions || {},
@@ -164,10 +167,11 @@ export default function CheckoutPage() {
   // Redirect to cart if empty and not checking out a saved order
   useEffect(() => {
     const hasSavedOrder = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('orderId');
-    if (cart.items.length === 0 && !hasSavedOrder) {
+    // Don't redirect if we're in the process of submitting an order or if order was just submitted successfully
+    if (cart.items.length === 0 && !hasSavedOrder && !isProcessing && !orderSubmittedSuccessfully) {
       router.push('/cart');
     }
-  }, [cart.items.length, router]);
+  }, [cart.items.length, router, isProcessing, orderSubmittedSuccessfully]);
 
   // Calculate cost breakdowns for cart items
   useEffect(() => {
@@ -215,12 +219,18 @@ export default function CheckoutPage() {
         }
       }
 
-      // Fallback: calculate costs on checkout page
+      // Fallback: calculate costs on checkout page with consistent base pricing
       console.log('🔄 Calculating cost breakdowns on checkout page');
       const breakdowns: Record<string, any> = {};
       
+      // Import centralized pricing for consistent base product pricing
+      const { getBaseProductPricing } = await import('@/lib/pricing');
+      
       for (const item of cart.items) {
         try {
+          // Get consistent base product pricing
+          const baseProductPricing = getBaseProductPricing(item.priceTier || 'Tier 1');
+          
           const response = await fetch('/api/calculate-cost', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -229,6 +239,8 @@ export default function CheckoutPage() {
               logoSetupSelections: item.logoSetupSelections,
               selectedOptions: item.selectedOptions,
               multiSelectOptions: item.multiSelectOptions,
+              baseProductPricing: baseProductPricing, // Include base pricing for consistency
+              priceTier: item.priceTier || 'Tier 1', // Ensure tier consistency
             }),
           });
 
@@ -236,27 +248,35 @@ export default function CheckoutPage() {
             const costData = await response.json();
             breakdowns[item.id] = costData;
           } else {
-            // Use fallback pricing if API call fails
+            // Use consistent fallback pricing calculation
+            const { calculateUnitPrice } = await import('@/lib/pricing');
+            const unitPrice = calculateUnitPrice(item.pricing.volume, item.priceTier || 'Tier 1');
+            const baseProductCost = unitPrice * item.pricing.volume;
+            
             breakdowns[item.id] = {
-              baseProductCost: item.pricing.totalPrice || 16.20,
+              baseProductCost: baseProductCost,
               logoSetupCosts: [],
               accessoriesCosts: [],
               closureCosts: [],
               deliveryCosts: [],
-              totalCost: item.pricing.totalPrice || 16.20,
+              totalCost: baseProductCost,
               totalUnits: item.pricing.volume || 1
             };
           }
         } catch (error) {
           console.error('Error calculating costs for item:', item.id, error);
-          // Use fallback pricing
+          // Use consistent fallback pricing calculation
+          const { calculateUnitPrice } = await import('@/lib/pricing');
+          const unitPrice = calculateUnitPrice(item.pricing.volume, item.priceTier || 'Tier 1');
+          const baseProductCost = unitPrice * item.pricing.volume;
+          
           breakdowns[item.id] = {
-            baseProductCost: item.pricing.totalPrice || 16.20,
+            baseProductCost: baseProductCost,
             logoSetupCosts: [],
             accessoriesCosts: [],
             closureCosts: [],
             deliveryCosts: [],
-            totalCost: item.pricing.totalPrice || 16.20,
+            totalCost: baseProductCost,
             totalUnits: item.pricing.volume || 1
           };
         }
@@ -280,11 +300,8 @@ export default function CheckoutPage() {
   ), [cartItemsHash, itemCostBreakdowns]);
 
   const subtotal = useMemo(() => {
-    if (hasAllBreakdowns) {
-      return cart.items.reduce((sum, item) => sum + (itemCostBreakdowns[item.id]?.totalCost || 0), 0);
-    }
-    return getCartTotal();
-  }, [hasAllBreakdowns, cartItemsHash, itemCostBreakdowns]);
+    return getDisplayTotal(cart.items, itemCostBreakdowns);
+  }, [cart.items, itemCostBreakdowns]);
 
   const additionalCosts = useMemo(() => {
     if (hasAllBreakdowns) return 0; // Already included in breakdown totalCost
@@ -293,14 +310,32 @@ export default function CheckoutPage() {
       return sum +
         (breakdown.logoSetupCosts?.reduce((logoSum: number, cost: any) => logoSum + cost.cost, 0) || 0) +
         (breakdown.accessoriesCosts?.reduce((accSum: number, cost: any) => accSum + cost.cost, 0) || 0) +
-        (breakdown.deliveryCosts?.reduce((delSum: number, cost: any) => delSum + cost.cost, 0) || 0) +
-        (breakdown.closureCosts?.reduce((servSum: number, cost: any) => servSum + cost.cost, 0) || 0);
+        (breakdown.closureCosts?.reduce((servSum: number, cost: any) => servSum + cost.cost, 0) || 0) +
+        (breakdown.premiumFabricCosts?.reduce((fabricSum: number, cost: any) => fabricSum + cost.cost, 0) || 0) +
+        (breakdown.deliveryCosts?.reduce((delSum: number, cost: any) => delSum + cost.cost, 0) || 0);
     }, 0);
   }, [hasAllBreakdowns, itemCostBreakdowns]);
 
-  const shipping = hasAllBreakdowns ? 0 : 15; // Avoid double counting if breakdowns include delivery costs
-  const tax = useMemo(() => (subtotal + additionalCosts + shipping) * 0.08, [subtotal, additionalCosts, shipping]);
-  const total = useMemo(() => subtotal + additionalCosts + shipping + tax, [subtotal, additionalCosts, shipping, tax]);
+  // Consistent total calculation to match cart page logic
+  const shipping = useMemo(() => {
+    // Only add shipping if we don't have delivery costs in breakdowns
+    if (hasAllBreakdowns) {
+      const hasDeliveryCosts = Object.values(itemCostBreakdowns).some(
+        (b: any) => b.deliveryCosts && b.deliveryCosts.length > 0
+      );
+      return hasDeliveryCosts ? 0 : 15;
+    }
+    return 15;
+  }, [hasAllBreakdowns, itemCostBreakdowns]);
+  
+  const total = useMemo(() => {
+    // Use consistent calculation: if we have all breakdowns, use those totals
+    // Otherwise add additional costs and shipping to subtotal
+    if (hasAllBreakdowns) {
+      return calculateGrandTotal(itemCostBreakdowns);
+    }
+    return subtotal + additionalCosts + shipping;
+  }, [hasAllBreakdowns, itemCostBreakdowns, subtotal, additionalCosts, shipping]);
 
   // Clear errors when user starts typing
   const handleInputChange = useCallback((fieldName: string) => {
@@ -394,6 +429,17 @@ export default function CheckoutPage() {
       const allUploadedLogoFiles = cart.items.flatMap(item => item.uploadedLogoFiles || []);
       console.log('📁 Consolidated uploaded logo files:', allUploadedLogoFiles.length, 'files');
 
+      // Consolidate shipment data - use shipment if all items have the same one
+      const cartShipments = cart.items.map(item => item.shipmentId).filter(Boolean);
+      const uniqueShipments = [...new Set(cartShipments)];
+      const consolidatedShipmentId = uniqueShipments.length === 1 && cartShipments.length === cart.items.length ? uniqueShipments[0] : null;
+      console.log('🚢 Shipment consolidation:', { 
+        totalItems: cart.items.length, 
+        itemsWithShipment: cartShipments.length, 
+        uniqueShipments: uniqueShipments.length,
+        consolidatedShipmentId 
+      });
+
       // Consolidate all cart items into a single order
       const consolidatedOrderData = {
         productName: cart.items.length === 1 ? firstItem.productName : `Custom Order (${cart.items.length} items)`,
@@ -408,6 +454,7 @@ export default function CheckoutPage() {
           logoSetupCosts: allCostBreakdowns.flatMap(breakdown => breakdown.logoSetupCosts || []),
           accessoriesCosts: allCostBreakdowns.flatMap(breakdown => breakdown.accessoriesCosts || []),
           closureCosts: allCostBreakdowns.flatMap(breakdown => breakdown.closureCosts || []),
+          premiumFabricCosts: allCostBreakdowns.flatMap(breakdown => breakdown.premiumFabricCosts || []),
           deliveryCosts: allCostBreakdowns.flatMap(breakdown => breakdown.deliveryCosts || []),
           totalCost: total,
           totalUnits: allCostBreakdowns.reduce((sum, breakdown) => sum + (breakdown.totalUnits || 0), 0)
@@ -416,6 +463,7 @@ export default function CheckoutPage() {
           logoSetupCosts: [],
           accessoriesCosts: [],
           closureCosts: [],
+          premiumFabricCosts: [],
           deliveryCosts: [],
           totalCost: total,
           totalUnits: cart.items.reduce((sum, item) => sum + (item.pricing.volume || 1), 0)
@@ -448,6 +496,8 @@ export default function CheckoutPage() {
         orderSource: (isReorderCheckout ? 'REORDER' : 'PRODUCT_CUSTOMIZATION'),
         paymentProcessed: true, // Indicate payment was processed
         processedAt: new Date().toISOString(),
+        // Include shipment assignment if all items have the same shipment
+        shipmentId: consolidatedShipmentId,
         // Add cart items details for reference
         cartItems: cart.items.map(item => ({
           id: item.id,
@@ -456,7 +506,9 @@ export default function CheckoutPage() {
           logoSetupSelections: item.logoSetupSelections,
           selectedOptions: item.selectedOptions,
           multiSelectOptions: item.multiSelectOptions,
-          pricing: item.pricing
+          pricing: item.pricing,
+          shipmentId: item.shipmentId,
+          shipment: item.shipment
         }))
       };
 
@@ -484,6 +536,9 @@ export default function CheckoutPage() {
       const orderResult = await response.json();
       
       console.log('✅ Consolidated order placed successfully:', orderResult);
+      
+      // Set flag to prevent cart redirect after clearing
+      setOrderSubmittedSuccessfully(true);
       
       // Clear cart after successful order
       clearCart();
@@ -1207,22 +1262,77 @@ export default function CheckoutPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between rounded-lg bg-transparent p-2">
                       <span className="text-sm text-slate-300">Base Products</span>
-                      <span className="text-sm font-semibold text-white">{formatPrice(subtotal)}</span>
+                      <span className="text-sm font-semibold text-white">{formatPrice(hasAllBreakdowns ? cart.items.reduce((sum, item) => sum + (itemCostBreakdowns[item.id]?.baseProductCost || 0), 0) : subtotal)}</span>
                     </div>
-                    {additionalCosts > 0 && (
+
+                    {hasAllBreakdowns && Object.keys(itemCostBreakdowns).length > 0 && (
+                      <>
+                        {Object.values(itemCostBreakdowns).some((b) => b.logoSetupCosts?.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Logo Setup</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.logoSetupCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.accessoriesCosts?.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Accessories</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.accessoriesCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.premiumFabricCosts?.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Premium Fabric</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.premiumFabricCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.deliveryCosts?.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Delivery</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.deliveryCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.closureCosts?.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Services</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.closureCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {!hasAllBreakdowns && additionalCosts > 0 && (
                       <div className="flex items-center justify-between rounded-lg p-2">
                         <span className="text-sm text-slate-300">Customizations</span>
                         <span className="text-sm font-semibold text-white">{formatPrice(additionalCosts)}</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between rounded-lg p-2">
-                      <span className="text-sm text-slate-300">Shipping</span>
-                      <span className="text-sm font-semibold text-white">{formatPrice(shipping)}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg p-2">
-                      <span className="text-sm text-slate-300">Tax</span>
-                      <span className="text-sm font-semibold text-white">{formatPrice(tax)}</span>
-                    </div>
+
+                    {(!hasAllBreakdowns || !Object.values(itemCostBreakdowns).some((b) => b.deliveryCosts?.length > 0)) && shipping > 0 && (
+                      <div className="flex items-center justify-between rounded-lg p-2">
+                        <span className="text-sm text-slate-300">Shipping</span>
+                        <span className="text-sm font-semibold text-white">{formatPrice(shipping)}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Grand Total */}
@@ -1230,7 +1340,9 @@ export default function CheckoutPage() {
                     <div className="flex items-baseline justify-between">
                       <div>
                         <span className="text-lg md:text-xl font-bold text-white">Total</span>
-                        <p className="text-xs text-slate-400">Including all costs</p>
+                        <p className="text-xs text-slate-400">
+                          {hasAllBreakdowns && Object.keys(itemCostBreakdowns).length > 0 ? 'Including all additional costs' : 'Base products only'}
+                        </p>
                       </div>
                       <span className="text-2xl md:text-3xl font-extrabold text-lime-300">
                         {formatPrice(total)}

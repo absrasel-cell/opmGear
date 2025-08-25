@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadCustomizationPricing } from '@/lib/pricing';
+import { loadCustomizationPricing } from '@/lib/pricing-server';
 
 export async function POST(request: NextRequest) {
   try {

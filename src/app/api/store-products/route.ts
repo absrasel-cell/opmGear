@@ -30,6 +30,7 @@ export async function GET() {
         return isActiveProduct && hasMainImage && hasSlug;
       })
       .map((product: any) => ({
+        _id: product._id,
         name: product.name,
         slug: typeof product.slug === 'string' ? product.slug : product.slug?.current || '',
         mainImage: {
@@ -40,7 +41,9 @@ export async function GET() {
         itemData: product.itemData || [],
         priceTier: product.priceTier || 'Standard',
         _type: product._type,
-        isActive: product.isActive
+        isActive: product.isActive,
+        productReadiness: product.productReadiness || [],
+        productType: product.productType || 'factory'
       }))
       .filter(product => {
         const hasValidSlug = product.slug && product.slug.trim() !== '';

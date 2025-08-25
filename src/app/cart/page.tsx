@@ -6,33 +6,185 @@ import { useCart } from '@/components/cart/CartContext';
 import { useAuth } from '@/components/auth/AuthContext';
 import CustomerInfoForm from '@/components/forms/CustomerInfoForm';
 import { useRouter } from 'next/navigation';
+import { calculateGrandTotal, CostBreakdown } from '@/lib/pricing';
 
-interface CostBreakdown {
-  baseProductCost: number;
-  logoSetupCosts: Array<{
-    name: string;
-    cost: number;
-    unitPrice: number;
-    details: string;
-  }>;
-  accessoriesCosts: Array<{
-    name: string;
-    cost: number;
-    unitPrice: number;
-  }>;
-  closureCosts: Array<{
-    name: string;
-    cost: number;
-    unitPrice: number;
-  }>;
-  deliveryCosts: Array<{
-  name: string;
-    cost: number;
-    unitPrice: number;
-  }>;
-  totalCost: number;
-  totalUnits: number;
+// Helper function to calculate volume discount information
+function calculateVolumeDiscount(unitPrice: number, totalUnits: number, pricingData: any) {
+  // Find the pricing tier that matches the unit price
+  const pricingTiers = [
+    { name: '48+', price: pricingData.price48, minQty: 48 },
+    { name: '144+', price: pricingData.price144, minQty: 144 },
+    { name: '576+', price: pricingData.price576, minQty: 576 },
+    { name: '1152+', price: pricingData.price1152, minQty: 1152 },
+    { name: '2880+', price: pricingData.price2880, minQty: 2880 },
+    { name: '10000+', price: pricingData.price10000, minQty: 10000 }
+  ];
+
+  // Find current tier
+  const currentTier = pricingTiers.find(tier => Math.abs(tier.price - unitPrice) < 0.01);
+  const regularPrice = pricingData.price48; // Regular price is always 48+ pricing
+  
+  if (!currentTier || currentTier.minQty <= 48) {
+    return null; // No discount
+  }
+
+  const savings = regularPrice - unitPrice;
+  const savingsPercentage = ((savings / regularPrice) * 100);
+  const totalSavings = savings * totalUnits;
+
+  return {
+    regularPrice,
+    discountedPrice: unitPrice,
+    savings,
+    savingsPercentage,
+    totalSavings,
+    tierName: currentTier.name
+  };
 }
+
+// Component to display discounted pricing with savings notification
+function DiscountedPriceDisplay({ 
+  unitPrice, 
+  totalUnits, 
+  pricingData, 
+  cost, 
+  name,
+  baseUnitPrice 
+}: {
+  unitPrice: number;
+  totalUnits: number;
+  pricingData: any;
+  cost: number;
+  name: string;
+  baseUnitPrice?: number;
+}) {
+  const [customizationPricing, setCustomizationPricing] = useState<any>(null);
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
+
+  // Load customization pricing for this specific item
+  useEffect(() => {
+    const loadCustomizationPricing = async () => {
+      setIsLoadingPricing(true);
+      try {
+        const response = await fetch('/api/customization-pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemName: name }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCustomizationPricing(data);
+        }
+      } catch (error) {
+        console.error('Error loading customization pricing:', error);
+      } finally {
+        setIsLoadingPricing(false);
+      }
+    };
+
+    loadCustomizationPricing();
+  }, [name]);
+
+  // For logo setup costs with baseUnitPrice, calculate discount manually
+  if (baseUnitPrice && baseUnitPrice > unitPrice) {
+    const savings = baseUnitPrice - unitPrice;
+    const savingsPercentage = ((savings / baseUnitPrice) * 100);
+    const totalSavings = savings * totalUnits;
+    
+    // Determine tier name based on total units
+    let tierName = '48+';
+    if (totalUnits >= 10000) tierName = '10000+';
+    else if (totalUnits >= 2880) tierName = '2880+';
+    else if (totalUnits >= 1152) tierName = '1152+';
+    else if (totalUnits >= 576) tierName = '576+';
+    else if (totalUnits >= 144) tierName = '144+';
+
+    return (
+      <div className="text-right">
+        {/* Regular price crossed out */}
+        <div className="text-slate-400 line-through text-xs">
+          ${baseUnitPrice.toFixed(2)} each
+        </div>
+        {/* Discounted price in bold */}
+        <span className="text-lime-300 font-semibold">
+          ${unitPrice.toFixed(2)} each
+        </span>
+        <div className="font-bold text-lime-300">
+          ${cost.toFixed(2)}
+        </div>
+        {/* Savings notification */}
+        <div className="mt-1 p-2 bg-lime-400/10 border border-lime-400/20 rounded-md">
+          <div className="flex items-center space-x-1">
+            <span className="text-lime-300 text-xs">💰</span>
+            <span className="text-xs font-medium text-lime-200">
+              Save ${totalSavings.toFixed(2)} ({savingsPercentage.toFixed(0)}% off)
+            </span>
+          </div>
+          <div className="text-xs text-lime-300 mt-1">
+            {tierName} volume discount applied
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Use customization pricing if available, otherwise fall back to base product pricing
+  const pricingToUse = customizationPricing || pricingData;
+  const discountInfo = calculateVolumeDiscount(unitPrice, totalUnits, pricingToUse);
+
+  if (isLoadingPricing) {
+    return (
+      <div className="text-right">
+        <div className="animate-pulse">
+          <div className="h-3 bg-slate-700 rounded w-16 mb-1"></div>
+          <div className="h-4 bg-slate-700 rounded w-20"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!discountInfo) {
+    // No discount, show regular pricing
+    return (
+      <div className="text-right">
+        <span className="text-slate-300">${unitPrice.toFixed(2)} each</span>
+        <div className="font-medium text-white">
+          ${cost.toFixed(2)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-right">
+      {/* Regular price crossed out */}
+      <div className="text-slate-400 line-through text-xs">
+        ${discountInfo.regularPrice.toFixed(2)} each
+      </div>
+      {/* Discounted price in bold */}
+      <span className="text-lime-300 font-semibold">
+        ${discountInfo.discountedPrice.toFixed(2)} each
+      </span>
+      <div className="font-bold text-lime-300">
+        ${cost.toFixed(2)}
+      </div>
+      {/* Savings notification */}
+      <div className="mt-1 p-2 bg-lime-400/10 border border-lime-400/20 rounded-md">
+        <div className="flex items-center space-x-1">
+          <span className="text-lime-300 text-xs">💰</span>
+          <span className="text-xs font-medium text-lime-200">
+            Save ${discountInfo.totalSavings.toFixed(2)} ({discountInfo.savingsPercentage.toFixed(0)}% off)
+          </span>
+        </div>
+        <div className="text-xs text-lime-300 mt-1">
+          {discountInfo.tierName} volume discount applied
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 export default function CartPage() {
   const { cart, removeFromCart, updateQuantity, clearCart, getCartTotal, getItemCount, debugClearLocalStorage } = useCart();
@@ -41,6 +193,7 @@ export default function CartPage() {
 
   const [itemCostBreakdowns, setItemCostBreakdowns] = useState<Record<string, CostBreakdown>>({});
   const [isCalculatingCosts, setIsCalculatingCosts] = useState(false);
+  const [baseProductPricing, setBaseProductPricing] = useState<any>(null);
   
   // Refs to track input elements for validation styling
   const inputRefs = useRef<Record<string, HTMLInputElement>>({});
@@ -78,6 +231,21 @@ export default function CartPage() {
     }
   }, []);
 
+  // Load base product pricing for discount calculations
+  useEffect(() => {
+    const loadBaseProductPricing = async () => {
+      try {
+        const { getBaseProductPricing } = await import('@/lib/pricing');
+        const pricing = getBaseProductPricing('Tier 1'); // Default tier for cart discounts
+        setBaseProductPricing(pricing);
+      } catch (error) {
+        console.error('Error loading base product pricing:', error);
+      }
+    };
+
+    loadBaseProductPricing();
+  }, []);
+
   // Calculate costs for all cart items - trigger when quantities change
   useEffect(() => {
     if (cart.items.length > 0) {
@@ -90,6 +258,17 @@ export default function CartPage() {
     setIsCalculatingCosts(true);
     const newCostBreakdowns: Record<string, CostBreakdown> = {};
 
+    console.log('🛒 Cart Debug - Starting cost calculation for items:', cart.items.map(item => ({
+      id: item.id,
+      productName: item.productName,
+      shipmentId: item.shipmentId,
+      hasShipment: !!item.shipment,
+      deliveryType: item.selectedOptions?.['delivery-type'],
+      fabricSetup: item.selectedOptions?.['fabric-setup'],
+      customFabric: item.selectedOptions?.['custom-fabric'],
+      allFabricKeys: Object.keys(item.selectedOptions || {}).filter(k => k.includes('fabric'))
+    })));
+
     try {
       for (const item of cart.items) {
         const costBreakdown = await calculateItemCost(item);
@@ -98,6 +277,12 @@ export default function CartPage() {
         }
       }
       setItemCostBreakdowns(newCostBreakdowns);
+      
+      // Save cost breakdowns to session storage for checkout page consistency
+      if (Object.keys(newCostBreakdowns).length > 0) {
+        sessionStorage.setItem('cart_cost_breakdowns', JSON.stringify(newCostBreakdowns));
+        console.log('💾 Saved cost breakdowns to session storage for checkout consistency');
+      }
     } catch (error) {
       console.error('Error calculating costs:', error);
     } finally {
@@ -105,39 +290,53 @@ export default function CartPage() {
     }
   }, [cart.items]);
 
+  // Helper function to get full shipment data with orders for bulk pricing
+  const getShipmentData = async (shipmentId: string | null | undefined) => {
+    if (!shipmentId) return undefined;
+    
+    try {
+      console.log('🚢 Cart Debug - Fetching shipment data for ID:', shipmentId);
+      const response = await fetch(`/api/shipments/${shipmentId}`);
+      if (response.ok) {
+        const result = await response.json();
+        const shipment = result.shipment; // Extract the shipment from the response
+        console.log('🚢 Cart Debug - Retrieved shipment data:', {
+          id: shipment.id,
+          buildNumber: shipment.buildNumber,
+          shippingMethod: shipment.shippingMethod,
+          ordersCount: shipment.orders?.length || 0,
+          totalQuantity: shipment.totalQuantity,
+          hasOrders: !!shipment.orders
+        });
+        return shipment;
+      } else {
+        console.warn('🚢 Cart Debug - Shipment not found or error:', response.status);
+      }
+    } catch (error) {
+      console.error('🚢 Cart Debug - Error fetching shipment data:', error);
+    }
+    return undefined;
+  };
+
   const calculateItemCost = async (item: any): Promise<CostBreakdown | null> => {
     try {
-      // Get the base product pricing based on the product's price tier (logic unchanged)
-      const getBaseProductPricing = async (priceTier: string = 'Tier 1') => {
-        try {
-          const response = await fetch('/api/blank-cap-pricing', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ priceTier }),
-          });
+      // Use consistent centralized pricing across all pages
+      const { getBaseProductPricing: getCentralizedPricing } = await import('@/lib/pricing');
+      const baseProductPricing = getCentralizedPricing(item.priceTier || 'Tier 1');
 
-          if (response.ok) {
-            const pricing = await response.json();
-            return pricing;
-          }
-        } catch (error) {
-          console.error('Error fetching blank cap pricing:', error);
-        }
 
-        // Fallback to default pricing if API call fails
-        return {
-          price48: 2.4,
-          price144: 1.7,
-          price576: 1.6,
-          price1152: 1.47,
-          price2880: 1.44,
-          price10000: 1.41,
-        };
-      };
-
-      const baseProductPricing = await getBaseProductPricing(item.priceTier);
+      const shipmentData = item.shipmentId ? await getShipmentData(item.shipmentId) : undefined;
+      
+      console.log('🛒 Cart Debug - API request for:', item.productName, {
+        fabricSetup: item.selectedOptions?.['fabric-setup'],
+        customFabricSetup: item.selectedOptions?.['custom-fabric'], // Fix: use correct field name
+        deliveryType: item.selectedOptions?.['delivery-type'],
+        priceTier: item.priceTier || 'Tier 1',
+        shipmentId: item.shipmentId,
+        hasShipmentData: !!shipmentData,
+        shipmentOrders: shipmentData?.orders?.length || 0,
+        allSelectedOptions: item.selectedOptions
+      });
 
       const response = await fetch('/api/calculate-cost', {
         method: 'POST',
@@ -150,6 +349,12 @@ export default function CartPage() {
           multiSelectOptions: item.multiSelectOptions,
           selectedOptions: item.selectedOptions,
           baseProductPricing: baseProductPricing,
+          priceTier: item.priceTier || 'Tier 1',
+          // Add fabric setup for premium fabric costs
+          fabricSetup: item.selectedOptions?.['fabric-setup'],
+          customFabricSetup: item.selectedOptions?.['custom-fabric'], // Fix: use 'custom-fabric' not 'custom-fabric-setup'
+          // Add shipment data if item is assigned to a shipment for bulk pricing
+          shipmentData: shipmentData,
         }),
       });
 
@@ -157,15 +362,45 @@ export default function CartPage() {
         throw new Error('Failed to calculate cost');
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log('🛒 Cart Debug - API response for:', item.productName, {
+        premiumFabricCosts: result.premiumFabricCosts?.map((f: any) => ({
+          name: f.name,
+          unitPrice: f.unitPrice,
+          cost: f.cost
+        })) || [],
+        premiumFabricCount: result.premiumFabricCosts?.length || 0,
+        deliveryCosts: result.deliveryCosts?.map((d: any) => ({
+          name: d.name,
+          unitPrice: d.unitPrice,
+          cost: d.cost
+        })) || [],
+        totalCost: result.totalCost,
+        totalUnits: result.totalUnits
+      });
+
+      return result;
     } catch (error) {
       console.error('Error calculating cost for item:', item.id, error);
       return null;
     }
   };
 
-  const getGrandTotal = () =>
-    Object.values(itemCostBreakdowns).reduce((total, b) => total + b.totalCost, 0);
+  const getGrandTotal = () => calculateGrandTotal(itemCostBreakdowns);
+
+  // Debug cart items on load
+  useEffect(() => {
+    if (cart.items.length > 0) {
+      console.log('🛒 Cart Items Debug:', cart.items.map(item => ({
+        name: item.productName,
+        fabricSetup: item.selectedOptions?.['fabric-setup'],
+        deliveryType: item.selectedOptions?.['delivery-type'],
+        hasSelectedOptions: !!item.selectedOptions,
+        selectedOptions: item.selectedOptions
+      })));
+    }
+  }, [cart.items]);
+
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
@@ -238,6 +473,14 @@ export default function CartPage() {
                   onClick={() => {
                     console.log('🔍 Current cart state:', cart);
                     console.log('🔍 localStorage cart:', localStorage.getItem('customcap_cart'));
+                    cart.items.forEach((item, i) => {
+                      console.log(`🔍 Cart Item ${i+1} (${item.productName}):`, {
+                        fabricSetup: item.selectedOptions?.['fabric-setup'],
+                        deliveryType: item.selectedOptions?.['delivery-type'],
+                        selectedOptions: item.selectedOptions,
+                        hasOptions: !!item.selectedOptions
+                      });
+                    });
                   }}
                   className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-blue-300 transition hover:bg-blue-400/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
                 >
@@ -359,10 +602,14 @@ export default function CartPage() {
                                           <p className="font-medium text-white">{logoCost.name}</p>
                                           <p className="text-xs text-slate-300">{logoCost.details}</p>
                                         </div>
-                                        <div className="text-right">
-                                          <p className="text-sm font-semibold text-white">{formatPrice(logoCost.cost)}</p>
-                                          <p className="text-xs text-lime-200/80">{formatPrice(logoCost.unitPrice)} per unit</p>
-                                        </div>
+                                        <DiscountedPriceDisplay
+                                          unitPrice={logoCost.unitPrice}
+                                          totalUnits={itemCostBreakdowns[item.id].totalUnits}
+                                          pricingData={baseProductPricing}
+                                          cost={logoCost.cost}
+                                          name={logoCost.name}
+                                          baseUnitPrice={(logoCost as any).baseUnitPrice}
+                                        />
                                       </div>
                                     ))
                                   : Object.entries(item.logoSetupSelections).map(([logoKey, logoConfig]: any) => (
@@ -409,10 +656,13 @@ export default function CartPage() {
                                           <p className="font-medium text-white">{acc.name}</p>
                                           <p className="text-xs text-slate-300">{item.pricing.volume} units</p>
                                         </div>
-                                        <div className="text-right">
-                                          <p className="text-sm font-semibold text-white">{formatPrice(acc.cost)}</p>
-                                          <p className="text-xs text-purple-200/80">{formatPrice(acc.unitPrice)} per unit</p>
-                                        </div>
+                                        <DiscountedPriceDisplay
+                                          unitPrice={acc.unitPrice}
+                                          totalUnits={itemCostBreakdowns[item.id].totalUnits}
+                                          pricingData={baseProductPricing}
+                                          cost={acc.cost}
+                                          name={acc.name}
+                                        />
                                       </div>
                                     ))
                                   : item.multiSelectOptions.accessories.map((acc: string, i: number) => (
@@ -421,6 +671,48 @@ export default function CartPage() {
                                         <div className="text-right text-sm font-semibold text-slate-200">Calculating...</div>
                                       </div>
                                     ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Premium Fabric */}
+                          {itemCostBreakdowns[item.id] && itemCostBreakdowns[item.id].premiumFabricCosts.length > 0 && (
+                            <div className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 ring-1 ring-white/5">
+                              <div className="mb-3 flex items-center justify-between">
+                                <SectionTitle icon="⭐" accent="text-purple-200">Premium Fabric</SectionTitle>
+                                {isCalculatingCosts ? (
+                                  <div className="flex items-center gap-2 text-sm text-purple-200">
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-purple-300 border-t-transparent" />
+                                    Calculating...
+                                  </div>
+                                ) : itemCostBreakdowns[item.id] ? (
+                                  <div className="text-right">
+                                    <div className="text-sm font-bold text-purple-300">
+                                      {formatPrice(itemCostBreakdowns[item.id].premiumFabricCosts.reduce((s, c) => s + c.cost, 0))}
+                                    </div>
+                                    <div className="text-xs text-purple-200/80">Total Premium Fabric Cost</div>
+                                  </div>
+                                ) : (
+                                  <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-purple-200">Premium Cost</span>
+                                )}
+                              </div>
+
+                              <div className="space-y-3">
+                                {itemCostBreakdowns[item.id].premiumFabricCosts.map((fabric, i) => (
+                                  <div key={i} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-3">
+                                    <div>
+                                      <p className="font-medium text-white">{fabric.name}</p>
+                                      <p className="text-xs text-slate-300">Premium fabric upgrade</p>
+                                    </div>
+                                    <DiscountedPriceDisplay
+                                      unitPrice={fabric.unitPrice}
+                                      totalUnits={itemCostBreakdowns[item.id].totalUnits}
+                                      pricingData={baseProductPricing}
+                                      cost={fabric.cost}
+                                      name={fabric.name}
+                                    />
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           )}
@@ -455,10 +747,13 @@ export default function CartPage() {
                                         <p className="font-medium text-white">{d.name}</p>
                                         <p className="text-xs text-slate-300">Express delivery service</p>
                                       </div>
-                                      <div className="text-right">
-                                        <p className="text-sm font-semibold text-white">{formatPrice(d.cost)}</p>
-                                        <p className="text-xs text-orange-200/80">{formatPrice(d.unitPrice)} per unit</p>
-                                      </div>
+                                      <DiscountedPriceDisplay
+                                        unitPrice={d.unitPrice}
+                                        totalUnits={itemCostBreakdowns[item.id].totalUnits}
+                                        pricingData={baseProductPricing}
+                                        cost={d.cost}
+                                        name={d.name}
+                                      />
                                     </div>
                                   ))
                                 ) : (
@@ -504,10 +799,13 @@ export default function CartPage() {
                                         <p className="font-medium text-white">{s.name}</p>
                                         <p className="text-xs text-slate-300">Premium service add-on</p>
                                       </div>
-                                      <div className="text-right">
-                                        <p className="text-sm font-semibold text-white">{formatPrice(s.cost)}</p>
-                                        <p className="text-xs text-cyan-200/80">{formatPrice(s.unitPrice)} per unit</p>
-                                      </div>
+                                      <DiscountedPriceDisplay
+                                        unitPrice={s.unitPrice}
+                                        totalUnits={itemCostBreakdowns[item.id].totalUnits}
+                                        pricingData={baseProductPricing}
+                                        cost={s.cost}
+                                        name={s.name}
+                                      />
                                     </div>
                                   ))
                                 ) : (
@@ -663,6 +961,58 @@ export default function CartPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Total Savings Summary */}
+                  {(() => {
+                    if (!baseProductPricing || Object.keys(itemCostBreakdowns).length === 0) return null;
+                    
+                    const allCosts = Object.values(itemCostBreakdowns).flatMap((breakdown) => [
+                      ...breakdown.logoSetupCosts,
+                      ...breakdown.accessoriesCosts,
+                      ...breakdown.closureCosts,
+                      ...(breakdown.premiumFabricCosts || []),
+                      ...breakdown.deliveryCosts,
+                      ...(breakdown.moldChargeCosts || [])
+                    ]);
+                    
+                    const totalSavings = allCosts.reduce((total, cost) => {
+                      // For logo setup costs with baseUnitPrice, calculate savings manually
+                      if ((cost as any).baseUnitPrice) {
+                        const savings = (cost as any).baseUnitPrice - cost.unitPrice;
+                        const itemBreakdown = Object.values(itemCostBreakdowns).find(b => 
+                          b.logoSetupCosts.some(l => l.name === cost.name)
+                        );
+                        const totalSavings = savings * (itemBreakdown?.totalUnits || 0);
+                        return total + totalSavings;
+                      }
+                      
+                      // For other costs, use the standard discount calculation
+                      const discountInfo = calculateVolumeDiscount(cost.unitPrice, getItemCount(), baseProductPricing);
+                      return total + (discountInfo?.totalSavings || 0);
+                    }, 0);
+
+                    if (totalSavings <= 0) return null;
+
+                    return (
+                      <div className="rounded-xl border border-lime-400/20 bg-lime-400/10 p-4 ring-1 ring-lime-400/10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-lime-300 text-lg">💰</span>
+                            <div>
+                              <h4 className="text-sm font-semibold text-lime-200">Total Volume Savings</h4>
+                              <p className="text-xs text-lime-300/80">Applied to all customizations</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-lime-300">
+                              ${totalSavings.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-lime-200/80">total savings</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Grand Total */}
                   <div className="border-t border-white/10 pt-4">

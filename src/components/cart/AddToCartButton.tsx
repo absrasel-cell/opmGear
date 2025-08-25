@@ -36,6 +36,14 @@ interface AddToCartButtonProps {
   className?: string;
   onSuccess?: () => void;
   onError?: (error: string) => void;
+  // Shipment assignment fields
+  shipmentValidation?: {
+    isValid: boolean;
+    shipmentData: {
+      id: string;
+      buildNumber: string;
+    } | null;
+  };
 }
 
 export default function AddToCartButton({
@@ -54,7 +62,8 @@ export default function AddToCartButton({
   disabled = false,
   className = '',
   onSuccess,
-  onError
+  onError,
+  shipmentValidation
 }: AddToCartButtonProps) {
   const { addToCart, isInCart } = useCart();
   const router = useRouter();
@@ -110,7 +119,13 @@ export default function AddToCartButton({
         logoFile,
         uploadedLogoFiles,
         additionalInstructions,
-        pricing
+        pricing,
+        // Include shipment data if validated
+        shipmentId: shipmentValidation?.isValid && shipmentValidation?.shipmentData ? shipmentValidation.shipmentData.id : null,
+        shipment: shipmentValidation?.isValid && shipmentValidation?.shipmentData ? {
+          id: shipmentValidation.shipmentData.id,
+          buildNumber: shipmentValidation.shipmentData.buildNumber
+        } : null
       });
 
       // Show success feedback

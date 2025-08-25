@@ -59,7 +59,7 @@ export default function Footer() {
         <div className="absolute -bottom-20 right-1/4 w-40 h-40 bg-lime-400/3 rounded-full blur-3xl" />
       </div>
 
-      <div className="container mx-auto px-6 py-16">
+      <div className="max-w-[1800px] mx-auto px-6 md:px-10 py-16">
         
         {/* Top Footer Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
@@ -67,10 +67,13 @@ export default function Footer() {
           {/* Company Info */}
           <div className="col-span-1 md:col-span-2 lg:col-span-1">
             <div className="flex items-center mb-6">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-lime-400 to-lime-600 flex items-center justify-center shadow-[0_0_30px_rgba(132,204,22,0.3)]">
-                <span className="text-black font-black text-lg tracking-tight">OPM</span>
+              <div className="relative h-16 w-auto">
+                <img 
+                  src="/opmLogo.svg" 
+                  alt="OPM Gear" 
+                  className="h-16 w-auto object-contain filter drop-shadow-[0_0_20px_rgba(132,204,22,0.4)]"
+                />
               </div>
-              <span className="ml-3 text-xl tracking-tight font-medium text-white">OPM Gear</span>
             </div>
             <p className="text-gray-400 font-light mb-6 text-sm leading-relaxed">
               We are a premium custom headwear company focused on quality, creativity, and customer satisfaction, working globally with teams, schools, and creators.

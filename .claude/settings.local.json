@@ -35,7 +35,15 @@
       "Bash(git rev-parse:*)",
       "Bash(next build)",
       "Bash(git rm:*)",
-      "WebFetch(domain:opm-gear-r6ljt79qw-absrasel-cells-projects.vercel.app)"
+      "WebFetch(domain:opm-gear-r6ljt79qw-absrasel-cells-projects.vercel.app)",
+      "WebFetch(domain:opm-gear-dk7lce111-absrasel-cells-projects.vercel.app)",
+      "Bash(del test-resale-preselection.js)",
+      "Bash(grep:*)",
+      "Bash(del test-get-orders.js test-get-detailed-order.js test-create-invoice.js)",
+      "Bash(timeout:*)",
+      "Bash(del debug-invoices.js test-pdf-generation.js test-fixed-invoice.pdf)",
+      "Bash(del:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": [],

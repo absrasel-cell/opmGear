@@ -373,7 +373,7 @@ export default function BillingDashboard() {
         {/* Main Content */}
         <DashboardContent>
           {/* Content wrapper with proper spacing */}
-          <div className="mt-10">
+          <div className="mt-0">
             {/* Header */}
           <DashboardHeader
             title="Billing & Accounts"

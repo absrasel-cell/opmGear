@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getBaseProductPricing, calculateUnitPrice } from '@/lib/pricing';
 
 interface CustomizationPricing {
   Name: string;
@@ -40,6 +41,10 @@ interface CostCalculationRequest {
     totalQuantity: number;
     shippingMethod: string;
   };
+  fabricSetup?: string;
+  customFabricSetup?: string;
+  productType?: string;
+  previousOrderNumber?: string;
 }
 
 interface CostBreakdown {
@@ -61,10 +66,22 @@ interface CostBreakdown {
     cost: number;
     unitPrice: number;
   }>;
+  premiumFabricCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+  }>;
   deliveryCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
+  }>;
+  moldChargeCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+    waived: boolean;
+    waiverReason?: string;
   }>;
   totalCost: number;
   totalUnits: number;
@@ -133,6 +150,68 @@ function getPriceForQuantity(pricing: CustomizationPricing, quantity: number): n
   if (quantity >= 576) return pricing.price576;
   if (quantity >= 144) return pricing.price144;
   return pricing.price48;
+}
+
+// Check if a previous order number exists with same logo (placeholder for now)
+async function checkPreviousOrderForSameLogo(orderNumber: string, logoDetails: string): Promise<boolean> {
+  // TODO: Connect to database to check if previous order exists with same logo
+  // For now, return false to always charge mold fee
+  // This should check the orders table for the given order number and compare logo details
+  return false;
+}
+
+function calculateMoldCharge(
+  logoValue: string,
+  logoConfig: LogoSetupSelection,
+  pricingData: CustomizationPricing[],
+  previousOrderNumber?: string
+): { cost: number; unitPrice: number; waived: boolean; waiverReason?: string; name: string } {
+  const size = logoConfig.size || 'Medium';
+  let moldChargeType = '';
+  let waived = false;
+  let waiverReason = '';
+  
+  // Only apply mold charge for Rubber Patch and Leather Patch
+  const requiresMoldCharge = logoValue.toLowerCase().includes('rubber patch') || 
+                            logoValue.toLowerCase().includes('leather patch');
+  
+  if (!requiresMoldCharge) {
+    return { cost: 0, unitPrice: 0, waived: false, name: '' };
+  }
+  
+  // Determine mold charge type based on size
+  moldChargeType = `${size} Mold Charge`;
+  
+  const moldPricing = pricingData.find(p => 
+    p.type === 'Mold' && 
+    p.Name.toLowerCase() === moldChargeType.toLowerCase()
+  );
+  
+  if (!moldPricing) {
+    return { cost: 0, unitPrice: 0, waived: false, name: '' };
+  }
+  
+  const unitPrice = moldPricing.price48; // Mold charge is fixed regardless of quantity
+  
+  // Check if previous order number exists and waive charge
+  if (previousOrderNumber && previousOrderNumber.trim()) {
+    waived = true;
+    waiverReason = `Waived due to previous order #${previousOrderNumber}`;
+    return { 
+      cost: 0, 
+      unitPrice: 0, 
+      waived, 
+      waiverReason, 
+      name: `${moldChargeType} (${logoValue})` 
+    };
+  }
+  
+  return { 
+    cost: unitPrice, // One-time charge, not multiplied by quantity
+    unitPrice, 
+    waived, 
+    name: `${moldChargeType} (${logoValue})` 
+  };
 }
 
 function calculateLogoSetupCost(
@@ -255,8 +334,10 @@ export async function POST(request: NextRequest) {
       multiSelectOptions,
       selectedOptions,
       baseProductPricing,
-      shipmentData
+      shipmentData,
+      previousOrderNumber
     } = body;
+
 
     let totalCost = 0;
     
@@ -287,36 +368,52 @@ export async function POST(request: NextRequest) {
     // Combined quantity for delivery pricing (current order + shipment orders)
     const combinedQuantity = totalUnits + shipmentQuantity;
     
-    // Calculate base product cost
+    
+    // Calculate base product cost using centralized pricing logic
     let baseProductCost = 0;
     
+    // Determine the price tier if available in the request (for future consistency)
+    const priceTier = (body as any).priceTier || 'Tier 1';
+    
+    // Helper function to get unit price from baseProductPricing or fallback to centralized pricing
+    const getUnitPrice = (quantity: number): number => {
+      if (baseProductPricing) {
+        // Use the specific pricing passed from the product page
+        if (quantity >= 10000) return baseProductPricing.price10000;
+        if (quantity >= 2880) return baseProductPricing.price2880;
+        if (quantity >= 1152) return baseProductPricing.price1152;
+        if (quantity >= 576) return baseProductPricing.price576;
+        if (quantity >= 144) return baseProductPricing.price144;
+        return baseProductPricing.price48;
+      } else {
+        // Fallback to centralized pricing
+        return calculateUnitPrice(quantity, priceTier);
+      }
+    };
+
     if (selectedColors) {
       // New structure: selectedColors with nested sizes
       Object.entries(selectedColors).forEach(([, colorData]: [string, unknown]) => {
         const colorObj = colorData as { sizes: Record<string, number> };
         const colorTotalQuantity = Object.values(colorObj.sizes).reduce((sum: number, qty: number) => sum + qty, 0);
-        let unitPrice = baseProductPricing.price48;
-        if (totalUnits >= 10000) unitPrice = baseProductPricing.price10000;
-        else if (totalUnits >= 2880) unitPrice = baseProductPricing.price2880;
-        else if (totalUnits >= 1152) unitPrice = baseProductPricing.price1152;
-        else if (totalUnits >= 576) unitPrice = baseProductPricing.price576;
-        else if (totalUnits >= 144) unitPrice = baseProductPricing.price144;
         
+        // Use product-specific pricing if available
+        const unitPrice = getUnitPrice(totalUnits);
         baseProductCost += colorTotalQuantity * unitPrice;
       });
     } else if (selectedSizes) {
       // Fallback to old structure
       Object.entries(selectedSizes).forEach(([, quantity]) => {
         const qty = quantity as number;
-        let unitPrice = baseProductPricing.price48;
-        if (totalUnits >= 10000) unitPrice = baseProductPricing.price10000;
-        else if (totalUnits >= 2880) unitPrice = baseProductPricing.price2880;
-        else if (totalUnits >= 1152) unitPrice = baseProductPricing.price1152;
-        else if (totalUnits >= 576) unitPrice = baseProductPricing.price576;
-        else if (totalUnits >= 144) unitPrice = baseProductPricing.price144;
         
+        // Use product-specific pricing if available
+        const unitPrice = getUnitPrice(totalUnits);
         baseProductCost += qty * unitPrice;
       });
+    } else {
+      // If no color/size structure, use total units
+      const unitPrice = getUnitPrice(totalUnits);
+      baseProductCost = totalUnits * unitPrice;
     }
     totalCost += baseProductCost;
 
@@ -354,6 +451,39 @@ export async function POST(request: NextRequest) {
             baseUnitPrice: baseUnitPrice // Add base unit price for discount calculation
           });
           totalCost += logoCost.cost;
+        }
+      }
+    });
+
+    // Calculate mold charge costs
+    const moldChargeCosts: Array<{ name: string; cost: number; unitPrice: number; waived: boolean; waiverReason?: string }> = [];
+    
+    selectedLogoValues.forEach(logoValue => {
+      const logoConfig = logoSetupSelections[logoValue] || {};
+      
+      if (logoConfig.position && logoConfig.size) {
+        // Extract original logo type from potentially duplicated key
+        let originalLogoType = logoValue;
+        if (logoValue.includes('-')) {
+          const parts = logoValue.split('-');
+          if (parts.length === 2) {
+            originalLogoType = `${parts[0]} ${parts[1]}`;
+          } else {
+            originalLogoType = `${parts[0]} ${parts[1]}`;
+          }
+        }
+        
+        const moldCharge = calculateMoldCharge(originalLogoType, logoConfig, pricingData, previousOrderNumber);
+        
+        if (moldCharge.name) {
+          moldChargeCosts.push({
+            name: moldCharge.name,
+            cost: moldCharge.cost,
+            unitPrice: moldCharge.unitPrice,
+            waived: moldCharge.waived,
+            waiverReason: moldCharge.waiverReason
+          });
+          totalCost += moldCharge.cost;
         }
       }
     });
@@ -406,6 +536,81 @@ export async function POST(request: NextRequest) {
       // If no pricing found, no cost is added (as per requirement)
     }
 
+    // Calculate premium fabric costs
+    const premiumFabricCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
+    
+    // Get fabric setup from selectedOptions (for cart) or direct body properties (for product page)
+    const fabricSetup = selectedOptions?.['fabric-setup'] || body.fabricSetup;
+    const customFabricSetup = selectedOptions?.['custom-fabric'] || body.customFabricSetup; // Fix: use 'custom-fabric' not 'custom-fabric-setup'
+    const productType = body.productType;
+    
+    console.log('🔧 API Debug - Premium Fabric processing:', {
+      fabricSetup,
+      customFabricSetup,
+      effectiveFabricSetup: fabricSetup === 'Other' ? customFabricSetup : fabricSetup,
+      hasFabricSetup: !!(fabricSetup || customFabricSetup),
+      fabricSetupFromOptions: selectedOptions?.['fabric-setup'],
+      customFabricFromOptions: selectedOptions?.['custom-fabric'], // Fix: use correct field name
+      allSelectedOptions: selectedOptions
+    });
+    
+    
+    // Only add premium fabric cost if the product has a premium fabric setup
+    if (fabricSetup || customFabricSetup) {
+      const effectiveFabricSetup = fabricSetup === 'Other' ? customFabricSetup : fabricSetup;
+      
+      if (effectiveFabricSetup) {
+        // Handle dual fabric setups (e.g., "Polyester/Laser Cut")
+        const fabricNames = effectiveFabricSetup.split('/').map(f => f.trim());
+        
+        // Check each fabric component for premium pricing
+        for (const fabricName of fabricNames) {
+          console.log('🔧 API Debug - Searching for premium fabric:', {
+            fabricName,
+            lowercaseName: fabricName.toLowerCase(),
+            availablePremiumFabrics: pricingData.filter(p => p.type === 'Premium Fabric').map(p => p.Name)
+          });
+          
+          const premiumFabricPricing = pricingData.find(p => 
+            p.type === 'Premium Fabric' && 
+            p.Name.toLowerCase() === fabricName.toLowerCase()
+          );
+          
+          if (premiumFabricPricing) {
+            const unitPrice = getPriceForQuantity(premiumFabricPricing, totalUnits);
+            const cost = unitPrice * totalUnits;
+            
+            console.log('🔧 API Debug - Found premium fabric pricing:', {
+              name: premiumFabricPricing.Name,
+              unitPrice,
+              cost,
+              totalUnits
+            });
+            
+            // Check if this premium fabric is already added (avoid duplicates)
+            const existingFabric = premiumFabricCosts.find(f => f.name === premiumFabricPricing.Name);
+            if (!existingFabric) {
+              premiumFabricCosts.push({
+                name: premiumFabricPricing.Name,
+                cost,
+                unitPrice
+              });
+              totalCost += cost;
+              console.log('🔧 API Debug - Added premium fabric cost:', {
+                name: premiumFabricPricing.Name,
+                cost,
+                newTotalCost: totalCost
+              });
+            } else {
+              console.log('🔧 API Debug - Duplicate premium fabric, skipping:', premiumFabricPricing.Name);
+            }
+          } else {
+            console.log('🔧 API Debug - No premium fabric pricing found for:', fabricName);
+          }
+        }
+      }
+    }
+
     // Calculate delivery type costs
     const deliveryCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
     const selectedDelivery = selectedOptions['delivery-type'];
@@ -426,9 +631,50 @@ export async function POST(request: NextRequest) {
       );
       
       if (deliveryPricing) {
-        // Use combined quantity for pricing tier but only charge for current order quantity
-        const unitPrice = getPriceForQuantity(deliveryPricing, combinedQuantity);
+        // For delivery pricing consistency across product page and cart:
+        // - If there's shipment data, use combined quantity for volume discounts (matches product page)
+        // - If no shipment data, use current order quantity but ensure consistency
+        let pricingQuantity = totalUnits;
+        
+        if (shipmentQuantity > 0) {
+          // Use actual combined quantity when shipment data is available (product page behavior)
+          pricingQuantity = combinedQuantity;
+          console.log('🚚 Using combined quantity for shipment-based delivery pricing:', {
+            currentOrder: totalUnits,
+            existingShipment: shipmentQuantity,
+            combined: combinedQuantity
+          });
+        } else {
+          // Use current order quantity for consistent cart behavior
+          pricingQuantity = totalUnits;
+          console.log('🚚 Using order quantity for delivery pricing:', {
+            orderQuantity: totalUnits
+          });
+        }
+        
+        const unitPrice = getPriceForQuantity(deliveryPricing, pricingQuantity);
         const cost = unitPrice * totalUnits;
+        
+        console.log('🔧 API Debug - Delivery pricing calculation:', {
+          deliveryType: deliveryPricing.Name,
+          totalUnits,
+          shipmentQuantity,
+          combinedQuantity,
+          pricingQuantity,
+          unitPrice,
+          totalCost: cost,
+          isShipmentBased: shipmentQuantity > 0,
+          deliveryTiers: {
+            price48: deliveryPricing.price48,
+            price144: deliveryPricing.price144,
+            price576: deliveryPricing.price576,
+            price1152: deliveryPricing.price1152,
+            price2880: deliveryPricing.price2880,
+            price10000: deliveryPricing.price10000
+          }
+        });
+        
+        
         deliveryCosts.push({
           name: shipmentQuantity > 0 
             ? `${deliveryPricing.Name} (Combined: ${combinedQuantity} units)`
@@ -445,10 +691,13 @@ export async function POST(request: NextRequest) {
       logoSetupCosts,
       accessoriesCosts,
       closureCosts,
+      premiumFabricCosts,
       deliveryCosts,
+      moldChargeCosts,
       totalCost,
       totalUnits
     };
+
 
     return NextResponse.json(costBreakdown);
   } catch (error) {

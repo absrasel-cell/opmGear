@@ -89,6 +89,13 @@ export async function POST(request: NextRequest) {
         }
         return option;
       }),
+      // Cap Style Setup fields
+      billShape: productData.billShape || undefined,
+      profile: productData.profile || undefined,
+      closureType: productData.closureType || undefined,
+      structure: productData.structure || undefined,
+      fabricSetup: productData.fabricSetup || undefined,
+      customFabricSetup: productData.customFabricSetup || '',
       // Add createdBy information if available
       createdBy: userId ? {
         userId: userId,
@@ -112,6 +119,9 @@ export async function POST(request: NextRequest) {
         rightColorImages: addKeysToArray(productData.rightColorImages || []),
         backColorImages: addKeysToArray(productData.backColorImages || []),
         capColorImage: addKeysToArray(productData.capColorImage || []),
+        // Alternative color input methods
+        capColorNames: productData.capColorNames || '',
+        referenceProductId: productData.referenceProductId || '',
         splitColorOptions: addKeysToArray(productData.splitColorOptions || []),
         triColorOptions: addKeysToArray(productData.triColorOptions || []),
         camoColorOption: addKeysToArray(productData.camoColorOption || []),
@@ -120,6 +130,9 @@ export async function POST(request: NextRequest) {
       typeSpecificFields = {
         itemData: addKeysToArray(productData.itemData || []),
         capColorImage: addKeysToArray(productData.capColorImage || []),
+        // Alternative color input methods
+        capColorNames: productData.capColorNames || '',
+        referenceProductId: productData.referenceProductId || '',
         sellingPrice: productData.sellingPrice || 0,
         shippingSource: productData.shippingSource || 'Factory',
         productCategory: productData.productCategory || 'Caps',

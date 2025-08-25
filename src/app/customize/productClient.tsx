@@ -8,6 +8,7 @@ import CustomerInfoForm from "../../components/forms/CustomerInfoForm";
 import { useAuth } from "../../components/auth/AuthContext";
 import AddToCartButton from "../../components/cart/AddToCartButton";
 import TempLogoUploader from "../../components/customize/TempLogoUploader";
+import { calculateUnitPrice } from "@/lib/pricing";
 
 interface Pricing {
   price48: number;
@@ -36,10 +37,22 @@ interface CostBreakdown {
     cost: number;
     unitPrice: number;
   }>;
+  premiumFabricCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+  }>;
   deliveryCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
+  }>;
+  moldChargeCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+    waived: boolean;
+    waiverReason?: string;
   }>;
   totalCost: number;
   totalUnits: number;
@@ -78,6 +91,14 @@ interface Product {
   pricing: Pricing;
   productOptions: ProductOption[];
   priceTier?: string; // Add price tier field
+  // Cap Style Setup fields for resale products
+  billShape?: 'Slight Curved' | 'Curved' | 'Flat';
+  profile?: 'High' | 'Mid' | 'Low';
+  closureType?: 'Snapback' | 'Velcro' | 'Fitted' | 'Stretched';
+  structure?: 'Structured' | 'Unstructured' | 'Foam';
+  fabricSetup?: string;
+  customFabricSetup?: string;
+  productType?: 'factory' | 'resale';
 }
 
 interface ProductClientProps {
@@ -573,7 +594,10 @@ function CostCalculator({
   multiSelectOptions, 
   selectedOptions, 
   productPricing,
-  shipmentValidation
+  shipmentValidation,
+  product,
+  previousOrderNumber,
+  setPreviousOrderNumber
 }: {
   selectedColors: Record<string, { sizes: Record<string, number> }>;
   logoSetupSelections: Record<string, { position?: string; size?: string; application?: string }>;
@@ -586,35 +610,53 @@ function CostCalculator({
     shipmentData: any | null;
     error: string | null;
   };
+  product: Product;
+  previousOrderNumber: string;
+  setPreviousOrderNumber: (value: string) => void;
 }) {
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Calculate cost whenever dependencies change
+  // Calculate cost whenever dependencies change (with debounce)
   useEffect(() => {
-    const calculateCost = async () => {
-      if (Object.keys(selectedColors).length === 0) {
-        setCostBreakdown(null);
-        return;
-      }
+    const timer = setTimeout(() => {
+      const calculateCost = async () => {
+        if (Object.keys(selectedColors).length === 0) {
+          setCostBreakdown(null);
+          return;
+        }
 
-      setIsLoading(true);
-      setError(null);
+        setIsLoading(true);
+        setError(null);
 
-      try {
-        const response = await fetch('/api/calculate-cost', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        try {
+          const response = await fetch('/api/calculate-cost', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
             selectedColors,
             logoSetupSelections,
             multiSelectOptions,
             selectedOptions,
             baseProductPricing: productPricing,
             shipmentData: shipmentValidation.isValid ? shipmentValidation.shipmentData : null,
+            fabricSetup: (() => {
+              if (selectedOptions['fabric-setup'] === 'Other') {
+                return 'Other';
+              } else if (selectedOptions['fabric-setup']) {
+                return selectedOptions['fabric-setup'];
+              } else {
+                return product.fabricSetup || null;
+              }
+            })(),
+            customFabricSetup: selectedOptions['fabric-setup'] === 'Other' 
+              ? selectedOptions['custom-fabric'] 
+              : product.customFabricSetup,
+            productType: product.productType,
+            previousOrderNumber: previousOrderNumber?.trim() || undefined,
           }),
         });
 
@@ -632,19 +674,28 @@ function CostCalculator({
       }
     };
 
-    calculateCost();
-  }, [selectedColors, logoSetupSelections, multiSelectOptions, selectedOptions, productPricing, shipmentValidation.isValid, shipmentValidation.shipmentData]);
+      calculateCost();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [selectedColors, logoSetupSelections, multiSelectOptions, selectedOptions, productPricing, shipmentValidation.isValid, shipmentValidation.shipmentData, previousOrderNumber]);
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6 transition-opacity duration-200 ease-in-out">
         <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-6"></div>
+          <div className="space-y-4">
             <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
             <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
             <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/6"></div>
+            <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded mt-6"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
           </div>
+        </div>
+        <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
+          Calculating costs...
         </div>
       </div>
     );
@@ -785,6 +836,29 @@ function CostCalculator({
         </div>
       )}
 
+      {/* Premium Fabric Costs */}
+      {costBreakdown.premiumFabricCosts && costBreakdown.premiumFabricCosts.length > 0 && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Premium Fabric</h4>
+          <div className="space-y-2">
+            {costBreakdown.premiumFabricCosts.map((fabricCost, index) => (
+              <div key={index} className="flex justify-between items-start text-sm">
+                <span className="text-gray-700 dark:text-gray-300">
+                  {fabricCost.name} × {costBreakdown.totalUnits}
+                </span>
+                <DiscountedPriceDisplay
+                  unitPrice={fabricCost.unitPrice}
+                  totalUnits={costBreakdown.totalUnits}
+                  pricingData={productPricing}
+                  cost={fabricCost.cost}
+                  name={fabricCost.name}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Delivery Costs */}
       {costBreakdown.deliveryCosts.length > 0 && (
         <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
@@ -808,13 +882,57 @@ function CostCalculator({
         </div>
       )}
 
+      {/* Mold Charges */}
+      {costBreakdown.moldChargeCosts && costBreakdown.moldChargeCosts.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Mold Development Charges</h4>
+          <div className="space-y-2">
+            {costBreakdown.moldChargeCosts.map((moldCharge, index) => (
+              <div key={index} className="space-y-1">
+                <div className="flex justify-between items-start text-sm">
+                  <span className="text-gray-700 dark:text-gray-300">
+                    {moldCharge.name}
+                  </span>
+                  {moldCharge.waived ? (
+                    <div className="text-right">
+                      <div className="text-gray-500 dark:text-gray-400 line-through text-xs">
+                        ${moldCharge.unitPrice.toFixed(2)}
+                      </div>
+                      <div className="text-green-600 dark:text-green-400 text-sm font-medium">
+                        WAIVED
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-amber-600 dark:text-amber-400 font-medium text-sm">
+                      ${moldCharge.cost.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+                {moldCharge.waived && moldCharge.waiverReason && (
+                  <div className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
+                    {moldCharge.waiverReason}
+                  </div>
+                )}
+                {!moldCharge.waived && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400">
+                    One-time development cost for new mold
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Total Savings Summary */}
       {(() => {
         const allCosts = [
           ...costBreakdown.logoSetupCosts,
           ...costBreakdown.accessoriesCosts,
           ...costBreakdown.closureCosts,
-          ...costBreakdown.deliveryCosts
+          ...(costBreakdown.premiumFabricCosts || []),
+          ...costBreakdown.deliveryCosts,
+          ...(costBreakdown.moldChargeCosts || [])
         ];
         
         const totalSavings = allCosts.reduce((total, cost) => {
@@ -891,6 +1009,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     application?: string;
   }>>({}); // Logo choice value -> sub-options
   const [multiSelectOptions, setMultiSelectOptions] = useState<Record<string, string[]>>({}); // Option slug -> selected values
+  const [previousOrderNumber, setPreviousOrderNumber] = useState<string>(''); // Previous order number for mold reuse
   const [showOptionalOptions, setShowOptionalOptions] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [showOrderForm, setShowOrderForm] = useState<boolean>(false);
@@ -908,6 +1027,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
   const [uploadedLogoFiles, setUploadedLogoFiles] = useState<any[]>([]);
   const [showCustomizeOptions, setShowCustomizeOptions] = useState<boolean>(false);
   const [showAccessories, setShowAccessories] = useState<boolean>(false);
+  const [showFabricOptions, setShowFabricOptions] = useState<boolean>(false);
   const [showAllColors, setShowAllColors] = useState<boolean>(false);
   const [shipmentNumber, setShipmentNumber] = useState<string>('');
   const [shipmentValidation, setShipmentValidation] = useState<{
@@ -922,6 +1042,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     error: null
   });
   const [availableShipments, setAvailableShipments] = useState<any[]>([]);
+  const [autoConfigFastestShipment, setAutoConfigFastestShipment] = useState<boolean>(true);
   const [showShipmentSuggestions, setShowShipmentSuggestions] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
   const [uploadSuccess, setUploadSuccess] = useState<string>('');
@@ -993,15 +1114,18 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     }));
 
     try {
+      console.log('🔍 Validating shipment build number:', buildNumber);
       const response = await fetch('/api/shipments?includeOrders=true');
       const data = await response.json();
       
       if (response.ok) {
+        console.log('📋 Available shipments:', data.shipments?.map((s: any) => s.buildNumber));
         const shipment = data.shipments?.find((s: any) => 
           s.buildNumber.toLowerCase() === buildNumber.toLowerCase()
         );
         
         if (shipment) {
+          console.log('✅ Shipment found:', { id: shipment.id, buildNumber: shipment.buildNumber });
           setShipmentValidation({
             isValidating: false,
             isValid: true,
@@ -1009,6 +1133,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
             error: null
           });
         } else {
+          console.log('❌ Shipment not found for build number:', buildNumber);
           setShipmentValidation({
             isValidating: false,
             isValid: false,
@@ -1041,10 +1166,53 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
       
       if (response.ok && data.shipments) {
         setAvailableShipments(data.shipments);
+        
+        // Auto-assign fastest shipment if auto-config is enabled
+        if (autoConfigFastestShipment && data.shipments.length > 0) {
+          const fastestShipment = getFastestShipment(data.shipments);
+          if (fastestShipment) {
+            setShipmentNumber(fastestShipment.buildNumber);
+            // Trigger validation for the auto-assigned shipment
+            await validateShipmentNumber(fastestShipment.buildNumber);
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading available shipments:', error);
     }
+  };
+
+  const getFastestShipment = (shipments: any[]) => {
+    // Priority order: PRIORITY_FEDEX (fastest) > SAVER_UPS > AIR_FREIGHT > SEA_FREIGHT
+    const shippingMethodPriority = {
+      'PRIORITY_FEDEX': 1,
+      'SAVER_UPS': 2,
+      'AIR_FREIGHT': 3,
+      'SEA_FREIGHT': 4
+    };
+    
+    // Filter for active shipments (not cancelled) and sort by shipping method priority
+    const activeShipments = shipments.filter(shipment => 
+      shipment.status !== 'CANCELLED' && 
+      shipment.status !== 'DELIVERED'
+    );
+    
+    if (activeShipments.length === 0) return null;
+    
+    return activeShipments.sort((a, b) => {
+      const priorityA = shippingMethodPriority[a.shippingMethod as keyof typeof shippingMethodPriority] || 999;
+      const priorityB = shippingMethodPriority[b.shippingMethod as keyof typeof shippingMethodPriority] || 999;
+      
+      // If same priority, prefer shipment with more recent estimated departure
+      if (priorityA === priorityB) {
+        if (a.estimatedDeparture && b.estimatedDeparture) {
+          return new Date(b.estimatedDeparture).getTime() - new Date(a.estimatedDeparture).getTime();
+        }
+        return 0;
+      }
+      
+      return priorityA - priorityB;
+    })[0];
   };
 
   const getShipmentSuggestions = (query: string) => {
@@ -1059,9 +1227,12 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
 
   // Helper functions for color-size selection
   const handleColorSelection = (colorName: string) => {
-    const isSelected = selectedColors.hasOwnProperty(colorName);
-    
-    if (isSelected) {
+    try {
+      console.log('🎨 Color selection clicked:', colorName);
+      const isSelected = selectedColors.hasOwnProperty(colorName);
+      console.log('🔍 Is selected:', isSelected);
+      
+      if (isSelected) {
       // Remove color and all its sizes
       setSelectedColors(prev => {
         const newColors = { ...prev };
@@ -1090,6 +1261,11 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
           sizes: { [defaultSize]: 48 } // Default to Medium size with 48 quantity
         }
       }));
+      console.log('✅ Color added successfully:', colorName);
+    }
+    } catch (error) {
+      console.error('❌ Error in handleColorSelection:', error);
+      console.error('Error stack:', error.stack);
     }
   };
 
@@ -1293,22 +1469,34 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
       
       // Cap Style Setup defaults (if present in CMS)
       if (option.slug === 'bill-shape') {
-        const desired = getDefaultBillShapeFromProductName(product.name);
+        // For resale products, use preset value if available, otherwise use product name-based default
+        const desired = (product.productType === 'resale' && product.billShape) 
+          ? product.billShape 
+          : getDefaultBillShapeFromProductName(product.name);
         const match = option.choices.find(c => c.label.toLowerCase() === desired.toLowerCase());
         defaultOptions[option.slug] = match?.value || option.choices[0]?.value || '';
       }
       if (option.slug === 'profile') {
-        const desired = 'Mid';
+        // For resale products, use preset value if available, otherwise use 'Mid' default
+        const desired = (product.productType === 'resale' && product.profile) 
+          ? product.profile 
+          : 'Mid';
         const match = option.choices.find(c => c.label.toLowerCase() === desired.toLowerCase());
         defaultOptions[option.slug] = match?.value || option.choices[0]?.value || '';
       }
       if (option.slug === 'closure-type') {
-        const desired = 'Snapback';
+        // For resale products, use preset value if available, otherwise use 'Snapback' default
+        const desired = (product.productType === 'resale' && product.closureType) 
+          ? product.closureType 
+          : 'Snapback';
         const match = option.choices.find(c => c.label.toLowerCase() === desired.toLowerCase());
         defaultOptions[option.slug] = match?.value || option.choices[0]?.value || '';
       }
       if (option.slug === 'structure') {
-        const desired = 'Structured';
+        // For resale products, use preset value if available, otherwise use 'Structured' default
+        const desired = (product.productType === 'resale' && product.structure) 
+          ? product.structure 
+          : 'Structured';
         const match = option.choices.find(c => c.label.toLowerCase() === desired.toLowerCase());
         defaultOptions[option.slug] = match?.value || option.choices[0]?.value || '';
       }
@@ -1316,7 +1504,28 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     
     setSelectedOptions(defaultOptions);
     setMultiSelectOptions(defaultMultiSelect);
-  }, [product.productOptions]);
+    
+    // Debug logging for cap style preselection (only for resale products)
+    if (product.productType === 'resale') {
+      console.log('🔧 Cap Style Setup preselection for resale product:', {
+        productName: product.name,
+        productType: product.productType,
+        presetValues: {
+          billShape: product.billShape,
+          profile: product.profile,
+          closureType: product.closureType,
+          structure: product.structure,
+          fabricSetup: product.fabricSetup
+        },
+        selectedDefaults: {
+          'bill-shape': defaultOptions['bill-shape'],
+          'profile': defaultOptions['profile'],
+          'closure-type': defaultOptions['closure-type'],
+          'structure': defaultOptions['structure']
+        }
+      });
+    }
+  }, [product.productOptions, product.productType, product.billShape, product.profile, product.closureType, product.structure]);
 
   // Helpers to read product options by slug
   const getOptionBySlug = (slug: string) => product.productOptions.find(o => o.slug === slug);
@@ -1346,10 +1555,25 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     setMainImage(product.mainImage);
   }, [product.mainImage]);
 
-  // Load available shipments on component mount
+  // Load available shipments on component mount and when auto-config changes
   useEffect(() => {
     loadAvailableShipments();
-  }, []);
+  }, [autoConfigFastestShipment]);
+
+  // Handle auto-config checkbox change
+  const handleAutoConfigChange = (checked: boolean) => {
+    setAutoConfigFastestShipment(checked);
+    if (!checked) {
+      // Clear shipment number when auto-config is disabled
+      setShipmentNumber('');
+      setShipmentValidation({
+        isValidating: false,
+        isValid: null,
+        shipmentData: null,
+        error: null
+      });
+    }
+  };
 
   // Validate shipment number with debounce
   useEffect(() => {
@@ -1452,18 +1676,14 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     setTimeout(() => setCartError(''), 5000);
   };
 
-  // Calculate current pricing for cart
+  // Calculate current pricing for cart using centralized pricing logic
   const getCurrentPricing = () => {
     const totalVolume = Object.values(selectedColors).reduce((sum, colorData) => 
       sum + Object.values(colorData.sizes).reduce((sizeSum, qty) => sizeSum + qty, 0), 0
     );
 
-    let unitPrice = product.pricing.price48;
-    if (totalVolume >= 10000) unitPrice = product.pricing.price10000;
-    else if (totalVolume >= 2880) unitPrice = product.pricing.price2880;
-    else if (totalVolume >= 1152) unitPrice = product.pricing.price1152;
-    else if (totalVolume >= 576) unitPrice = product.pricing.price576;
-    else if (totalVolume >= 144) unitPrice = product.pricing.price144;
+    // Use centralized pricing calculation with the product's price tier
+    const unitPrice = calculateUnitPrice(totalVolume, product.priceTier || 'Tier 1');
 
     return {
       unitPrice,
@@ -1624,6 +1844,15 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
       console.log('🔐 Authentication status:', { isAuthenticated, user: user ? { id: user.id, email: user.email } : null });
       console.log('📝 Customer info received:', customerInfo);
       console.log('📋 Order IDs:', { editOrderId });
+      console.log('🚢 Shipment validation state:', {
+        shipmentNumber,
+        isValid: shipmentValidation.isValid,
+        shipmentData: shipmentValidation.shipmentData ? {
+          id: shipmentValidation.shipmentData.id,
+          buildNumber: shipmentValidation.shipmentData.buildNumber
+        } : null,
+        error: shipmentValidation.error
+      });
       
       let result: any;
       if (editOrderId) {
@@ -1974,7 +2203,11 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
               {(() => {
                 const option = getOptionBySlug('bill-shape');
                 if (!option) return null;
-                const currentLabel = getSelectedOrDefaultLabel('bill-shape', getDefaultBillShapeFromProductName(product.name));
+                const currentLabel = getSelectedOrDefaultLabel('bill-shape', 
+                  (product.productType === 'resale' && product.billShape) 
+                    ? product.billShape 
+                    : getDefaultBillShapeFromProductName(product.name)
+                );
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -2024,7 +2257,11 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
               {(() => {
                 const option = getOptionBySlug('profile');
                 if (!option) return null;
-                const currentLabel = getSelectedOrDefaultLabel('profile', 'Mid');
+                const currentLabel = getSelectedOrDefaultLabel('profile', 
+                  (product.productType === 'resale' && product.profile) 
+                    ? product.profile 
+                    : 'Mid'
+                );
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -2074,7 +2311,11 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
               {(() => {
                 const option = getOptionBySlug('closure-type');
                 if (!option) return null;
-                const currentLabel = getSelectedOrDefaultLabel('closure-type', 'Snapback');
+                const currentLabel = getSelectedOrDefaultLabel('closure-type', 
+                  (product.productType === 'resale' && product.closureType) 
+                    ? product.closureType 
+                    : 'Snapback'
+                );
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -2124,7 +2365,11 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
               {(() => {
                 const option = getOptionBySlug('structure');
                 if (!option) return null;
-                const currentLabel = getSelectedOrDefaultLabel('structure', 'Structured');
+                const currentLabel = getSelectedOrDefaultLabel('structure', 
+                  (product.productType === 'resale' && product.structure) 
+                    ? product.structure 
+                    : 'Structured'
+                );
                 return (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -2169,10 +2414,107 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                   </div>
                 );
               })()}
+
+              {/* Premium Fabric Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">Fabric Setup</label>
+                  {selectedOptions['fabric-setup'] && (
+                    <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full">
+                      {selectedOptions['fabric-setup']}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <select
+                    value={selectedOptions['fabric-setup'] || product.fabricSetup || ''}
+                    onChange={(e) => {
+                      setSelectedOptions(prev => ({ ...prev, 'fabric-setup': e.target.value }));
+                    }}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                    aria-label="Select Fabric Setup"
+                  >
+                    <option value="">Select Fabric</option>
+                    {/* Standard Fabrics */}
+                    <option value="Chino Twill/Trucker Mesh">Chino Twill/Trucker Mesh</option>
+                    <option value="Chino Twill">Chino Twill</option>
+                    <option value="Cotton Polyester Mix">Cotton Polyester Mix</option>
+                    <option value="Polyester">Polyester</option>
+                    <option value="Ripstop">Ripstop</option>
+                    <option value="Denim">Denim</option>
+                    <option value="Spandex">Spandex</option>
+                    <option value="Cotton Corduroy">Cotton Corduroy</option>
+                    <option value="Ribbed Corduroy">Ribbed Corduroy</option>
+                    <option value="Polyester 97% Spandex 3%">Polyester 97% Spandex 3%</option>
+                    <option value="100% Polyester Jersey">100% Polyester Jersey</option>
+                    <option value="Canvas">Canvas</option>
+                    <option value="Cotton Polyester Mix/Trucker Mesh">Cotton Polyester Mix/Trucker Mesh</option>
+                    <option value="Chino Twill/Air Mesh">Chino Twill/Air Mesh</option>
+                    <option value="Cotton Polyester Mix/Air Mesh">Cotton Polyester Mix/Air Mesh</option>
+                    <option value="PU Leather">PU Leather</option>
+                    {/* Premium Fabrics */}
+                    <option value="Acrylic">Acrylic ⭐ Premium</option>
+                    <option value="Suede Cotton">Suede Cotton ⭐ Premium</option>
+                    <option value="Genuine Leather">Genuine Leather ⭐ Premium</option>
+                    <option value="Camo">Camo ⭐ Premium</option>
+                    <option value="Polyester/Laser Cut">Polyester/Laser Cut ⭐ Premium</option>
+                    <option value="Cotton Polyester Mix/Laser Cut">Cotton Polyester Mix/Laser Cut ⭐ Premium</option>
+                    <option value="Other">Other (Custom)</option>
+                  </select>
+                  
+                  {/* Custom Fabric Input */}
+                  {selectedOptions['fabric-setup'] === 'Other' && (
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        placeholder="Enter custom fabric setup (e.g., Cotton/Silk, Wool, etc.)"
+                        value={selectedOptions['custom-fabric'] || ''}
+                        onChange={(e) => setSelectedOptions(prev => ({ ...prev, 'custom-fabric': e.target.value }))}
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Premium Fabric Notice */}
+                  {(() => {
+                    const selectedFabric = selectedOptions['fabric-setup'] === 'Other' 
+                      ? selectedOptions['custom-fabric'] 
+                      : selectedOptions['fabric-setup'];
+                    const isPremium = selectedFabric && (
+                      selectedFabric.toLowerCase().includes('acrylic') ||
+                      selectedFabric.toLowerCase().includes('suede cotton') ||
+                      selectedFabric.toLowerCase().includes('genuine leather') ||
+                      selectedFabric.toLowerCase().includes('camo') ||
+                      selectedFabric.toLowerCase().includes('laser cut') ||
+                      selectedFabric.toLowerCase().includes('air mesh')
+                    );
+                    
+                    if (isPremium) {
+                      return (
+                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-600">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-purple-500">⭐</span>
+                            <p className="text-xs text-purple-700 dark:text-purple-300 font-medium">
+                              Premium fabric selected - additional costs will apply based on volume
+                            </p>
+                          </div>
+                          {selectedFabric.includes('/') && (
+                            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                              Dual fabric: Front panel uses first fabric, back panel uses second fabric
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
             </div>
             )}
           </div>
         </div>
+
 
         {/* Middle Column: Interactive Color Selection */}
         <div className="space-y-6 relative z-10">
@@ -2971,6 +3313,20 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
 
                     {/* Shipment Number Input */}
                     <div className="space-y-3">
+                      {/* Auto-config checkbox */}
+                      <div className="flex items-center space-x-3 mb-4">
+                        <input
+                          type="checkbox"
+                          id="autoConfigFastestShipment"
+                          checked={autoConfigFastestShipment}
+                          onChange={(e) => handleAutoConfigChange(e.target.checked)}
+                          className="w-4 h-4 text-lime-600 bg-gray-100 border-gray-300 rounded focus:ring-lime-500 dark:focus:ring-lime-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <label htmlFor="autoConfigFastestShipment" className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
+                          Automatically Configured to Fastest Shipment Build
+                        </label>
+                      </div>
+
                       <div className="flex items-center space-x-3">
                         <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center space-x-2">
                           <span>🚢</span>
@@ -2981,19 +3337,28 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                         <input
                           type="text"
                           value={shipmentNumber}
+                          disabled={autoConfigFastestShipment}
                           onChange={(e) => {
-                            setShipmentNumber(e.target.value);
-                            setShowShipmentSuggestions(e.target.value.length > 0);
+                            if (!autoConfigFastestShipment) {
+                              setShipmentNumber(e.target.value);
+                              setShowShipmentSuggestions(e.target.value.length > 0);
+                            }
                           }}
                           onBlur={() => setTimeout(() => setShowShipmentSuggestions(false), 200)}
                           onFocus={() => setShowShipmentSuggestions(shipmentNumber.length > 0)}
-                          placeholder="Enter existing shipment number (e.g., SB-2024-001)"
-                          className={`w-full px-4 py-3 border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:border-blue-500 transition-all duration-200 pr-12 ${
-                            shipmentValidation.isValid === true 
-                              ? 'border-green-500 dark:border-green-500 focus:ring-green-500' 
-                              : shipmentValidation.isValid === false 
-                              ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
-                              : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
+                          placeholder={autoConfigFastestShipment ? "Auto-configured to fastest shipment" : "Enter existing shipment number (e.g., SB-2024-001)"}
+                          className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 pr-12 ${
+                            autoConfigFastestShipment 
+                              ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed' 
+                              : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:border-blue-500'
+                          } ${
+                            !autoConfigFastestShipment && (
+                              shipmentValidation.isValid === true 
+                                ? 'border-green-500 dark:border-green-500 focus:ring-green-500' 
+                                : shipmentValidation.isValid === false 
+                                ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                                : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
+                            )
                           }`}
                         />
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
@@ -3009,7 +3374,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                         </div>
                         
                         {/* Autocomplete Suggestions */}
-                        {showShipmentSuggestions && shipmentNumber && (
+                        {showShipmentSuggestions && shipmentNumber && !autoConfigFastestShipment && (
                           <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
                             {getShipmentSuggestions(shipmentNumber).map((shipment) => (
                               <div
@@ -3179,21 +3544,36 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
           {/* Section Starting from Cost Calculator */}
           <div className="space-y-6">
             {/* Costing & Calculation Section */}
-            {Object.keys(selectedColors).length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Cost Calculator</h3>
-                
-                {/* Cost Breakdown */}
-                <CostCalculator 
-                  selectedColors={selectedColors}
-                  logoSetupSelections={logoSetupSelections}
-                  multiSelectOptions={multiSelectOptions}
-                  selectedOptions={selectedOptions}
-                  productPricing={product.pricing}
-                  shipmentValidation={shipmentValidation}
-                />
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Cost Calculator</h3>
+              
+              <div className="transition-all duration-300 ease-in-out">
+                {Object.keys(selectedColors).length > 0 ? (
+                  <div className="animate-fadeIn">
+                    <CostCalculator 
+                      selectedColors={selectedColors}
+                      logoSetupSelections={logoSetupSelections}
+                      multiSelectOptions={multiSelectOptions}
+                      selectedOptions={selectedOptions}
+                      productPricing={product.pricing}
+                      shipmentValidation={shipmentValidation}
+                      product={product}
+                      previousOrderNumber={previousOrderNumber}
+                      setPreviousOrderNumber={setPreviousOrderNumber}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 animate-fadeIn">
+                    <div className="mb-4">
+                      <svg className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm">Select colors and quantities above to see cost breakdown</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
 
             {/* Action Buttons */}
@@ -3248,6 +3628,43 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                   </div>
                 )}
 
+                {/* Previous Order Number Input */}
+                {Object.keys(selectedColors).length > 0 && (
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl p-6 shadow-lg border border-amber-200 dark:border-amber-700 hover:shadow-xl transition-all duration-300 backdrop-blur-sm mb-6">
+                    <div className="flex items-center space-x-4 mb-4">
+                      <div className="relative">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                          <span className="text-white text-xl">🔄</span>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-bold text-amber-900 dark:text-amber-100">
+                          Previous Order Number
+                        </h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Save on mold charges by referencing a previous order
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={previousOrderNumber}
+                        onChange={(e) => setPreviousOrderNumber(e.target.value)}
+                        placeholder="Enter previous order number (e.g., ORD-2024-001)"
+                        className="w-full px-4 py-3 border border-amber-300 dark:border-amber-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                      />
+                      <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
+                        <div className="text-xs text-amber-800 dark:text-amber-200">
+                          <strong>💡 Pro Tip:</strong> If you've previously ordered the same logo design (Rubber Patch or Leather Patch), 
+                          enter your order number to automatically waive mold development charges and save $40-$80!
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Enhanced Shipment Number Block */}
                 {Object.keys(selectedColors).length > 0 && (
                   <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-900/50 rounded-2xl p-6 shadow-xl border border-gray-200/60 dark:border-gray-700/60 hover:shadow-2xl transition-all duration-500 backdrop-blur-sm">
@@ -3266,25 +3683,49 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                       </div>
                     </div>
                     
+                    {/* Auto-config checkbox */}
+                    <div className="flex items-center space-x-3 mb-6 p-4 bg-gradient-to-r from-lime-50 to-green-50 dark:from-lime-900/20 dark:to-green-900/20 rounded-xl border border-lime-200 dark:border-lime-700">
+                      <input
+                        type="checkbox"
+                        id="autoConfigFastestShipment2"
+                        checked={autoConfigFastestShipment}
+                        onChange={(e) => handleAutoConfigChange(e.target.checked)}
+                        className="w-5 h-5 text-lime-600 bg-white border-lime-300 rounded focus:ring-lime-500 dark:focus:ring-lime-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-lime-600"
+                      />
+                      <label htmlFor="autoConfigFastestShipment2" className="text-sm font-semibold text-lime-800 dark:text-lime-200 cursor-pointer flex items-center space-x-2">
+                        <span>⚡</span>
+                        <span>Automatically Configured to Fastest Shipment Build</span>
+                      </label>
+                    </div>
+                    
                     <div className="space-y-4">
                       <div className="relative group">
                         <input
                           type="text"
                           id="shipmentNumber"
                           value={shipmentNumber}
+                          disabled={autoConfigFastestShipment}
                           onChange={(e) => {
-                            setShipmentNumber(e.target.value);
-                            setShowShipmentSuggestions(e.target.value.length > 0);
+                            if (!autoConfigFastestShipment) {
+                              setShipmentNumber(e.target.value);
+                              setShowShipmentSuggestions(e.target.value.length > 0);
+                            }
                           }}
                           onBlur={() => setTimeout(() => setShowShipmentSuggestions(false), 200)}
                           onFocus={() => setShowShipmentSuggestions(shipmentNumber.length > 0)}
-                          placeholder="Enter shipment number (e.g., SB-2024-001)"
-                          className={`w-full px-4 py-4 border-2 rounded-xl bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-4 transition-all duration-300 pr-16 shadow-sm hover:shadow-lg backdrop-blur-sm font-medium ${
-                            shipmentValidation.isValid === true 
-                              ? 'border-green-400 dark:border-green-500 focus:ring-green-500/30 bg-green-50/80 dark:bg-green-900/20 shadow-green-500/20' 
-                              : shipmentValidation.isValid === false 
-                              ? 'border-red-400 dark:border-red-500 focus:ring-red-500/30 bg-red-50/80 dark:bg-red-900/20 shadow-red-500/20' 
-                              : 'border-gray-300 dark:border-gray-600 focus:ring-lime-500/30 focus:border-lime-400 group-hover:border-lime-300 hover:bg-lime-50/30 dark:hover:bg-lime-900/10'
+                          placeholder={autoConfigFastestShipment ? "Auto-configured to fastest shipment ⚡" : "Enter shipment number (e.g., SB-2024-001)"}
+                          className={`w-full px-4 py-4 border-2 rounded-xl transition-all duration-300 pr-16 shadow-sm backdrop-blur-sm font-medium ${
+                            autoConfigFastestShipment
+                              ? 'bg-gray-100/80 dark:bg-gray-700/80 text-gray-500 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-gray-600 cursor-not-allowed'
+                              : 'bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-4 hover:shadow-lg'
+                          } ${
+                            !autoConfigFastestShipment && (
+                              shipmentValidation.isValid === true 
+                                ? 'border-green-400 dark:border-green-500 focus:ring-green-500/30 bg-green-50/80 dark:bg-green-900/20 shadow-green-500/20' 
+                                : shipmentValidation.isValid === false 
+                                ? 'border-red-400 dark:border-red-500 focus:ring-red-500/30 bg-red-50/80 dark:bg-red-900/20 shadow-red-500/20' 
+                                : 'border-gray-300 dark:border-gray-600 focus:ring-lime-500/30 focus:border-lime-400 group-hover:border-lime-300 hover:bg-lime-50/30 dark:hover:bg-lime-900/10'
+                            )
                           }`}
                         />
                         
@@ -3311,7 +3752,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                         </div>
                         
                         {/* Autocomplete Suggestions */}
-                        {showShipmentSuggestions && shipmentNumber && (
+                        {showShipmentSuggestions && shipmentNumber && !autoConfigFastestShipment && (
                           <div className="absolute top-full left-0 right-0 mt-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-600 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto backdrop-blur-md">
                             {getShipmentSuggestions(shipmentNumber).map((shipment, index) => (
                               <div
@@ -3606,7 +4047,13 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                     priceTier={product.priceTier || 'Tier 1'}
                     selectedColors={selectedColors}
                     logoSetupSelections={logoSetupSelections}
-                    selectedOptions={selectedOptions}
+                    selectedOptions={{
+                      ...selectedOptions,
+                      // Ensure fabric setup is included with default value if not explicitly set
+                      'fabric-setup': selectedOptions['fabric-setup'] || product.fabricSetup || '',
+                      // Include custom fabric setup if relevant
+                      'custom-fabric': selectedOptions['custom-fabric'] || product.customFabricSetup || ''
+                    }}
                     multiSelectOptions={multiSelectOptions}
                     logoFile={logoFile}
                     uploadedLogoFiles={uploadedLogoFiles}
@@ -3615,6 +4062,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                     disabled={Object.keys(selectedColors).length === 0}
                     onSuccess={handleCartSuccess}
                     onError={handleCartError}
+                    shipmentValidation={shipmentValidation}
                   />
                 </div>
 

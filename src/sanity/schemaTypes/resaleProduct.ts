@@ -62,10 +62,85 @@ export const resaleProduct = defineType({
       of: [{type: 'productImage'}],
     }),
     defineField({
+      name: 'capColorNames',
+      title: 'Cap Color Names',
+      type: 'string',
+      description: 'Comma-separated color names for text-based color input',
+    }),
+    defineField({
+      name: 'referenceProductId',
+      title: 'Reference Product ID',
+      type: 'string',
+      description: 'ID of factory product to reference for colors',
+    }),
+    defineField({
       name: 'customOptions',
       title: 'Custom Product Options',
       type: 'array',
       of: [{type: 'customOption'}],
+    }),
+    // Cap Style Setup fields
+    defineField({
+      name: 'billShape',
+      title: 'Bill Shape',
+      type: 'string',
+      options: {
+        list: [
+          {title: 'Slight Curved', value: 'Slight Curved'},
+          {title: 'Curved', value: 'Curved'},
+          {title: 'Flat', value: 'Flat'},
+        ],
+      },
+    }),
+    defineField({
+      name: 'profile',
+      title: 'Profile',
+      type: 'string',
+      options: {
+        list: [
+          {title: 'High', value: 'High'},
+          {title: 'Mid', value: 'Mid'},
+          {title: 'Low', value: 'Low'},
+        ],
+      },
+    }),
+    defineField({
+      name: 'closureType',
+      title: 'Closure Type',
+      type: 'string',
+      options: {
+        list: [
+          {title: 'Snapback', value: 'Snapback'},
+          {title: 'Velcro', value: 'Velcro'},
+          {title: 'Fitted', value: 'Fitted'},
+          {title: 'Stretched', value: 'Stretched'},
+        ],
+      },
+    }),
+    defineField({
+      name: 'structure',
+      title: 'Structure',
+      type: 'string',
+      options: {
+        list: [
+          {title: 'Structured', value: 'Structured'},
+          {title: 'Unstructured', value: 'Unstructured'},
+          {title: 'Foam', value: 'Foam'},
+        ],
+      },
+    }),
+    defineField({
+      name: 'fabricSetup',
+      title: 'Fabric Setup',
+      type: 'string',
+      description: 'Premium fabrics add cost to customization',
+    }),
+    defineField({
+      name: 'customFabricSetup',
+      title: 'Custom Fabric Setup',
+      type: 'string',
+      description: 'Custom fabric setup when "Other" is selected',
+      hidden: ({document}) => document?.fabricSetup !== 'Other',
     }),
     defineField({
       name: 'isActive',

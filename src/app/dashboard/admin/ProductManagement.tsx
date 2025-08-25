@@ -15,9 +15,16 @@ interface ProductOptionImage extends ProductImage {
   price?: number;
 }
 
+interface TextOption {
+  label: string;
+  price?: number;
+}
+
 interface CustomOption {
   name: string;
+  type: 'text' | 'image';
   images: ProductOptionImage[];
+  textOptions?: TextOption[];
 }
 
 interface SanityProduct {
@@ -35,11 +42,21 @@ interface SanityProduct {
   rightColorImages: ProductImage[];
   backColorImages: ProductImage[];
   capColorImage: ProductImage[];
+  // New fields for alternative color input methods
+  capColorNames?: string; // Comma-separated color names for text input
+  referenceProductId?: string; // ID of factory product to reference for colors
   splitColorOptions?: ProductImage[];
   triColorOptions?: ProductImage[];
   camoColorOption?: ProductImage[];
   // Custom product options
   customOptions?: CustomOption[];
+  // Cap Style Setup fields
+  billShape?: 'Slight Curved' | 'Curved' | 'Flat';
+  profile?: 'High' | 'Mid' | 'Low';
+  closureType?: 'Snapback' | 'Velcro' | 'Fitted' | 'Stretched';
+  structure?: 'Structured' | 'Unstructured' | 'Foam';
+  fabricSetup?: string;
+  customFabricSetup?: string; // For "Other" option
   isActive: boolean;
   productType: 'factory' | 'resale';
   sellingPrice?: number;
@@ -53,6 +70,8 @@ interface SanityProduct {
   stockQuantity?: number;
   inventoryLocation?: string;
   reorderPoint?: number;
+  supplierPhoto?: ProductImage; // Profile photo that displays as Brand Image on Store Page
+  categoryTags?: string[]; // Category/Tag for Store Page filters
   createdBy?: {
     userId: string;
     name: string;
@@ -96,7 +115,7 @@ export function ProductManagement() {
   }, []);
   
   // Function to add a new custom option
-  const addCustomOption = () => {
+  const addCustomOption = (optionType: 'text' | 'image' = 'image') => {
     if (!customOptionInput.trim()) return;
     
     // Split by comma and trim each option
@@ -105,7 +124,9 @@ export function ProductManagement() {
     // Add each option as a new custom option
     const newOptions = optionNames.map(name => ({
       name,
-      images: []
+      type: optionType,
+      images: [],
+      textOptions: optionType === 'text' ? [] : undefined
     }));
     
     // Add to form data
@@ -128,6 +149,52 @@ export function ProductManagement() {
     });
   };
 
+  // Functions to manage text options
+  const addTextOption = (optionIndex: number, label: string, price?: number) => {
+    const updatedOptions = [...(formData.customOptions || [])];
+    const textOptions = updatedOptions[optionIndex].textOptions || [];
+    
+    updatedOptions[optionIndex].textOptions = [
+      ...textOptions, 
+      { label, price: price && price > 0 ? price : undefined }
+    ];
+    
+    setFormData({
+      ...formData,
+      customOptions: updatedOptions
+    });
+  };
+
+  const removeTextOption = (optionIndex: number, textIndex: number) => {
+    const updatedOptions = [...(formData.customOptions || [])];
+    const textOptions = [...(updatedOptions[optionIndex].textOptions || [])];
+    textOptions.splice(textIndex, 1);
+    updatedOptions[optionIndex].textOptions = textOptions;
+    
+    setFormData({
+      ...formData,
+      customOptions: updatedOptions
+    });
+  };
+
+  const updateTextOption = (optionIndex: number, textIndex: number, field: 'label' | 'price', value: string | number) => {
+    const updatedOptions = [...(formData.customOptions || [])];
+    const textOptions = [...(updatedOptions[optionIndex].textOptions || [])];
+    textOptions[textIndex] = {
+      ...textOptions[textIndex],
+      [field]: field === 'price' ? (Number(value) > 0 ? Number(value) : undefined) : value
+    };
+    updatedOptions[optionIndex].textOptions = textOptions;
+    
+    setFormData({
+      ...formData,
+      customOptions: updatedOptions
+    });
+  };
+
+  // Category tags input state (separate from formData for better UX)
+  const [categoryTagsInput, setCategoryTagsInput] = useState<string>('');
+
   // Form state
   const [formData, setFormData] = useState<SanityProduct>({
     name: '',
@@ -142,10 +209,18 @@ export function ProductManagement() {
     rightColorImages: [],
     backColorImages: [],
     capColorImage: [],
+    capColorNames: '',
+    referenceProductId: '',
     splitColorOptions: [],
     triColorOptions: [],
     camoColorOption: [],
     customOptions: [],
+    billShape: undefined,
+    profile: undefined,
+    closureType: undefined,
+    structure: undefined,
+    fabricSetup: undefined,
+    customFabricSetup: '',
     isActive: true,
     productType: 'factory',
     sellingPrice: 0,
@@ -158,10 +233,62 @@ export function ProductManagement() {
     stockQuantity: 0,
     inventoryLocation: '',
     reorderPoint: 0,
+    supplierPhoto: { url: '', alt: '' },
+    categoryTags: [],
   });
   
   // State for custom option input
   const [customOptionInput, setCustomOptionInput] = useState('');
+
+
+  // Cap Style Setup options
+  const FABRIC_OPTIONS = [
+    'Chino Twill/Trucker Mesh',
+    'Chino Twill',
+    'Cotton Polyester Mix',
+    'Acrylic',
+    'Polyester',
+    'Ripstop',
+    'Denim',
+    'Suede Cotton',
+    'Genuine Leather',
+    'PU Leather',
+    'Camo',
+    'Spandex',
+    'Cotton Corduroy',
+    'Ribbed Corduroy',
+    'Polyester 97% Spandex 3%',
+    '100% Polyester Jersey',
+    'Canvas',
+    'Cotton Polyester Mix/Trucker Mesh',
+    'Chino Twill/Air Mesh',
+    'Cotton Polyester Mix/Air Mesh',
+    'Polyester/Laser Cut',
+    'Cotton Polyester Mix/Laser Cut',
+    'Other'
+  ];
+
+  // Premium fabrics from CSV that add cost (matching CSV data)
+  const PREMIUM_FABRICS = [
+    'Suede Cotton',
+    'Acrylic', 
+    'Air Mesh',
+    'Camo',
+    'Genuine Leather',
+    'Laser Cut'
+  ];
+
+  // Check if a fabric is premium and add cost
+  const isPremiumFabric = (fabricName: string) => {
+    if (!fabricName) return false;
+    return PREMIUM_FABRICS.some(premium => {
+      // Check if the fabric name contains the premium fabric name
+      return fabricName.toLowerCase().includes(premium.toLowerCase());
+    });
+  };
+  
+  // State for text option inputs (per option)
+  const [textOptionInputs, setTextOptionInputs] = useState<{ [optionIndex: number]: { label: string; price: string } }>({});
   
   // State for drag and drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -177,12 +304,35 @@ export function ProductManagement() {
     fetchProducts();
   }, []);
 
+
+  // Debug effect to track formData changes
+  useEffect(() => {
+    if (formData.name) { // Only log when we have actual form data
+      console.log('📊 Form Data Changed:', {
+        productName: formData.name,
+        referenceProductId: formData.referenceProductId,
+        hasCapColorImages: formData.capColorImage?.length > 0,
+        capColorNames: formData.capColorNames
+      });
+    }
+  }, [formData.referenceProductId, formData.capColorImage, formData.capColorNames, formData.name]);
+
   const fetchProducts = async () => {
     try {
       const response = await fetch('/api/sanity/products');
       if (response.ok) {
         const data = await response.json();
         setProducts(data.products || []);
+        
+        // Debug log to see what products were fetched and their referenceProductId values
+        console.log('📥 Fetched Products Debug:', 
+          data.products.map((p: any) => ({
+            name: p.name,
+            id: p._id || p.id,
+            productType: p.productType,
+            referenceProductId: p.referenceProductId
+          }))
+        );
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -416,6 +566,22 @@ export function ProductManagement() {
     setIsSaving(true);
     setError(null);
 
+    // Debug log to track form submission
+    console.log('📤 Form Submission Debug:', {
+      productName: formData.name,
+      referenceProductId: formData.referenceProductId,
+      capColorImage: formData.capColorImage?.length || 0,
+      capColorNames: formData.capColorNames,
+      isEdit: !!editingProduct,
+      // Cap Style Setup fields
+      billShape: formData.billShape,
+      profile: formData.profile,
+      closureType: formData.closureType,
+      structure: formData.structure,
+      fabricSetup: formData.fabricSetup,
+      customFabricSetup: formData.customFabricSetup
+    });
+
     try {
       const method = editingProduct ? 'PUT' : 'POST';
       const url = editingProduct 
@@ -444,18 +610,37 @@ export function ProductManagement() {
         return;
       }
 
+      // Debug log complete formData being sent
+      console.log('🚀 Complete FormData being sent:', formData);
+
       const response = await fetch(url, {
         method,
         headers,
         body: JSON.stringify(formData),
       });
 
+      // Debug log API response
+      const data = await response.json();
+      console.log('🔄 API Response Debug:', {
+        responseOk: response.ok,
+        status: response.status,
+        responseData: data
+      });
+      
+      // Separate log for debug info to see it clearly
+      if (data.debug) {
+        console.log('🔍 API Debug Details:', {
+          receivedReferenceProductId: data.debug.receivedReferenceProductId,
+          updateDataReferenceProductId: data.debug.updateDataReferenceProductId,
+          finalReferenceProductId: data.debug.finalReferenceProductId
+        });
+      }
+
       if (response.ok) {
         await fetchProducts();
         resetForm();
         setShowForm(false);
       } else {
-        const data = await response.json();
         setError(data.error || 'Failed to save product');
       }
     } catch (error) {
@@ -481,8 +666,42 @@ export function ProductManagement() {
       ...product,
       styleInfo: convertHTMLToCleanText(product.styleInfo),
       slug: typeof product.slug === 'string' ? product.slug : product.slug?.current || '',
+      // Ensure referenceProductId is properly preserved
+      referenceProductId: product.referenceProductId || '',
     };
+    
+    // Debug log to track referenceProductId preservation
+    console.log('🔧 Edit Product Debug:', {
+      productName: product.name,
+      originalReferenceProductId: product.referenceProductId,
+      cleanedReferenceProductId: productWithCleanText.referenceProductId,
+      // Cap Style Setup fields from loaded product
+      capStyleFields: {
+        billShape: product.billShape,
+        profile: product.profile,
+        closureType: product.closureType,
+        structure: product.structure,
+        fabricSetup: product.fabricSetup,
+        customFabricSetup: product.customFabricSetup
+      },
+      fullProductData: product
+    });
+    
     setFormData(productWithCleanText);
+    
+    // Debug log to confirm Cap Style values were set in formData
+    console.log('✅ FormData after setFormData:', {
+      billShape: productWithCleanText.billShape,
+      profile: productWithCleanText.profile,
+      closureType: productWithCleanText.closureType,
+      structure: productWithCleanText.structure,
+      fabricSetup: productWithCleanText.fabricSetup,
+      customFabricSetup: productWithCleanText.customFabricSetup
+    });
+    
+    // Initialize category tags input with existing tags
+    setCategoryTagsInput((productWithCleanText.categoryTags || []).join(', '));
+    
     setShowForm(true);
   };
 
@@ -553,10 +772,18 @@ export function ProductManagement() {
       rightColorImages: [],
       backColorImages: [],
       capColorImage: [],
+      capColorNames: '',
+      referenceProductId: '',
       splitColorOptions: [],
       triColorOptions: [],
       camoColorOption: [],
       customOptions: [],
+      billShape: undefined,
+      profile: undefined,
+      closureType: undefined,
+      structure: undefined,
+      fabricSetup: undefined,
+      customFabricSetup: '',
       isActive: true,
       productType: 'factory',
       sellingPrice: 0,
@@ -569,9 +796,12 @@ export function ProductManagement() {
       stockQuantity: 0,
       inventoryLocation: '',
       reorderPoint: 0,
+      supplierPhoto: { url: '', alt: '' },
+      categoryTags: [],
     });
     setUploadedImages({});
     setCustomOptionInput('');
+    setCategoryTagsInput(''); // Reset category tags input
   };
 
   const handleImageRemove = (field: keyof SanityProduct | string, index: number, optionIndex?: number) => {
@@ -686,59 +916,60 @@ export function ProductManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-black to-gray-900">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-                {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          {/* Migration Tool button */}
-          <button
-            onClick={() => setShowMigrationTool(!showMigrationTool)}
-            className="inline-flex items-center px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-all duration-200 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            {showMigrationTool ? 'Hide' : 'Show'} Migration Tool
-          </button>
-          
-          {/* Back to Products button - only show when editing */}
-          {editingProduct && (
-            <button
-              onClick={() => {
-                setShowForm(false);
-                resetForm();
-              }}
-              className="inline-flex items-center px-4 py-2 bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded-lg hover:bg-gray-600/30 transition-all duration-200"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Products
-            </button>
-          )}
-          
-          {/* Create New Product button */}
-          <button
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="inline-flex items-center px-6 py-3 bg-lime-400 text-black font-semibold rounded-lg hover:bg-lime-300 transition-all duration-200 shadow-[0_0_30px_rgba(163,230,53,0.3)] hover:shadow-[0_0_40px_rgba(163,230,53,0.4)]"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Create New Product
-          </button>
-        </div>
-      </div>
+    <div>
+            {/* Action Buttons Section */}
+            <section className="px-6 md:px-10">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  {/* Create New Product button */}
+                  <button
+                    onClick={() => {
+                      resetForm();
+                      setShowForm(true);
+                    }}
+                    className="inline-flex items-center px-6 py-3 bg-lime-400 text-black font-semibold rounded-lg hover:bg-lime-300 transition-all duration-200 shadow-[0_0_30px_rgba(163,230,53,0.3)] hover:shadow-[0_0_40px_rgba(163,230,53,0.4)]"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Create New Product
+                  </button>
+                </div>
+                
+                {/* Right side - Migration Tool and Back to Products buttons */}
+                <div className="flex items-center space-x-3">
+                  {/* Migration Tool button */}
+                  <button
+                    onClick={() => setShowMigrationTool(!showMigrationTool)}
+                    className="inline-flex items-center px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-all duration-200 shadow-[0_0_20px_rgba(59,130,246,0.15)]"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    {showMigrationTool ? 'Hide' : 'Show'} Migration Tool
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowForm(false);
+                      resetForm();
+                    }}
+                    className="inline-flex items-center px-4 py-2 bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded-lg hover:bg-gray-600/30 transition-all duration-200"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back to Products
+                  </button>
+                </div>
+              </div>
+            </section>
 
-      {/* Migration Tool */}
-      {showMigrationTool && (
-        <div className="border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl ring-1 ring-blue-500/5 shadow-lg rounded-lg p-6">
-          <div className="flex items-center mb-4">
+            {/* Migration Tool */}
+            {showMigrationTool && (
+              <section className="px-6 md:px-10">
+                <div className="border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl ring-1 ring-blue-500/5 shadow-lg rounded-lg p-6">
+            <div className="flex items-center mb-6">
             <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center mr-3">
               <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -750,7 +981,7 @@ export function ProductManagement() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">User ID</label>
               <input
@@ -788,31 +1019,34 @@ export function ProductManagement() {
               <strong>Instructions:</strong> Fill in the user information above, then click "Migrate" on any product that shows "System" as the creator.
             </p>
           </div>
-        </div>
-      )}
+                </div>
+              </section>
+            )}
 
-      {/* Error Message */}
-      {error && (
-        <div className="border border-red-500/30 bg-red-500/10 backdrop-blur-xl ring-1 ring-red-500/5 shadow-lg rounded-lg p-4">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center mr-3">
-              <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-red-400">Error</h4>
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Error Message */}
+            {error && (
+              <section className="px-6 md:px-10">
+                <div className="border border-red-500/30 bg-red-500/10 backdrop-blur-xl ring-1 ring-red-500/5 shadow-lg rounded-lg p-4">
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center mr-3">
+                      <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-red-400">Error</h4>
+                      <p className="text-sm text-red-300">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
 
-
-      {/* Product Form */}
-      {showForm && (
-        <div className="border border-white/10 bg-white/5 backdrop-blur-xl ring-1 ring-white/5 shadow-lg rounded-lg p-6">
-          <div className="flex items-center mb-6">
+            {/* Product Form */}
+            {showForm && (
+              <section className="px-6 md:px-10">
+                <div className="border border-white/10 bg-white/5 backdrop-blur-xl ring-1 ring-white/5 shadow-lg rounded-lg p-6">
+            <div className="flex items-center mb-6">
             <div className="w-10 h-10 bg-lime-500/20 rounded-lg flex items-center justify-center mr-4">
               <svg className="w-6 h-6 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -898,18 +1132,22 @@ export function ProductManagement() {
                 />
               </div>
 
-              <div>
+              <div className="glass-dropdown">
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Price Tier
                 </label>
                 <select
                   value={formData.priceTier}
                   onChange={(e) => setFormData({ ...formData, priceTier: e.target.value })}
-                  className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  className="w-full px-3 py-2 border border-white/20 bg-white/[0.08] backdrop-blur-md text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                  style={{
+                    backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                  }}
                 >
-                  <option value="Tier 1">Tier 1</option>
-                  <option value="Tier 2">Tier 2</option>
-                  <option value="Tier 3">Tier 3</option>
+                  <option value="Tier 1" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Tier 1</option>
+                  <option value="Tier 2" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Tier 2</option>
+                  <option value="Tier 3" className="bg-gray-900/95 backdrop-blur-sm text-white">Tier 3</option>
                 </select>
               </div>
               
@@ -930,7 +1168,7 @@ export function ProductManagement() {
                     />
                   </div>
                   
-                  <div>
+                  <div className="glass-dropdown">
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Shipping Source *
                     </label>
@@ -938,14 +1176,18 @@ export function ProductManagement() {
                       value={formData.shippingSource}
                       onChange={(e) => setFormData({ ...formData, shippingSource: e.target.value as 'Factory' | 'Warehouse' })}
                       required={formData.productType === 'resale'}
-                      className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                      className="w-full px-3 py-2 border border-white/20 bg-white/[0.08] backdrop-blur-md text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                      style={{
+                        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                      }}
                     >
-                      <option value="Factory">Factory</option>
-                      <option value="Warehouse">Warehouse</option>
+                      <option value="Factory" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Factory</option>
+                      <option value="Warehouse" className="bg-gray-900/95 backdrop-blur-sm text-white">Warehouse</option>
                     </select>
                   </div>
                   
-                  <div>
+                  <div className="glass-dropdown">
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Type of Product *
                     </label>
@@ -953,12 +1195,16 @@ export function ProductManagement() {
                       value={formData.productCategory}
                       onChange={(e) => setFormData({ ...formData, productCategory: e.target.value as 'Caps' | 'Shirts' | 'Beanies' | 'Other' })}
                       required={formData.productType === 'resale'}
-                      className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                      className="w-full px-3 py-2 border border-white/20 bg-white/[0.08] backdrop-blur-md text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                      style={{
+                        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                      }}
                     >
-                      <option value="Caps">Caps</option>
-                      <option value="Shirts">Shirts</option>
-                      <option value="Beanies">Beanies</option>
-                      <option value="Other">Other</option>
+                      <option value="Caps" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Caps</option>
+                      <option value="Shirts" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Shirts</option>
+                      <option value="Beanies" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Beanies</option>
+                      <option value="Other" className="bg-gray-900/95 backdrop-blur-sm text-white">Other</option>
                     </select>
                   </div>
                   
@@ -978,7 +1224,7 @@ export function ProductManagement() {
                     </div>
                   )}
                   
-                  <div>
+                  <div className="glass-dropdown">
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       QC Handler *
                     </label>
@@ -986,11 +1232,15 @@ export function ProductManagement() {
                       value={formData.qcHandler}
                       onChange={(e) => setFormData({ ...formData, qcHandler: e.target.value as 'Factory' | '3rd Party' | 'Buyer' })}
                       required={formData.productType === 'resale'}
-                      className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                      className="w-full px-3 py-2 border border-white/20 bg-white/[0.08] backdrop-blur-md text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                      style={{
+                        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                      }}
                     >
-                      <option value="Factory">Factory</option>
-                      <option value="3rd Party">3rd Party</option>
-                      <option value="Buyer">Buyer</option>
+                      <option value="Factory" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Factory</option>
+                      <option value="3rd Party" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">3rd Party</option>
+                      <option value="Buyer" className="bg-gray-900/95 backdrop-blur-sm text-white">Buyer</option>
                     </select>
                   </div>
                   
@@ -1019,7 +1269,7 @@ export function ProductManagement() {
                           }}
                           className="h-4 w-4 text-lime-400 focus:ring-lime-400 border-white/20 rounded"
                         />
-                        <span className="ml-2 text-sm text-gray-700">Stock/Inventory</span>
+                        <span className="ml-2 text-sm text-white">Stock/Inventory</span>
                       </label>
                       
                       <label className="inline-flex items-center">
@@ -1042,7 +1292,7 @@ export function ProductManagement() {
                           }}
                           className="h-4 w-4 text-lime-400 focus:ring-lime-400 border-white/20 rounded"
                         />
-                        <span className="ml-2 text-sm text-gray-700">Customizable</span>
+                        <span className="ml-2 text-sm text-white">Customizable</span>
                       </label>
                     </div>
                     {formData.productReadiness?.length === 0 && (
@@ -1053,6 +1303,71 @@ export function ProductManagement() {
                   {/* Supplier Information Section */}
                   <div className="col-span-2 border border-lime-400/30 bg-lime-400/5 p-4 rounded-lg">
                     <h4 className="text-md font-medium mb-3 text-lime-400">Supplier Information</h4>
+                    
+                    {/* Profile Photo Section */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Profile Photo (Brand Image) *
+                      </label>
+                      <div className="flex items-start space-x-4">
+                        <input
+                          ref={(el) => {
+                            if (el) multipleImageRefs.current['supplierPhoto'] = el;
+                          }}
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              setUploadingImages(true);
+                              const url = await uploadImage(file);
+                              setFormData({
+                                ...formData,
+                                supplierPhoto: { url, alt: 'Supplier Profile Photo' },
+                              });
+                            } catch (error) {
+                              setError('Failed to upload profile photo');
+                            } finally {
+                              setUploadingImages(false);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const inputRef = multipleImageRefs.current['supplierPhoto'];
+                            if (inputRef && inputRef.click) {
+                              inputRef.click();
+                            }
+                          }}
+                          disabled={uploadingImages}
+                          className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors disabled:opacity-50"
+                        >
+                          <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          Upload Profile Photo
+                        </button>
+                        
+                        {/* Profile Photo Preview */}
+                        {formData.supplierPhoto?.url && (
+                          <div className="border border-white/10 bg-white/5 rounded-lg p-2">
+                            <div className="aspect-square w-20 h-20">
+                              <img 
+                                src={formData.supplierPhoto.url} 
+                                alt="Supplier profile preview"
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            </div>
+                            <p className="text-xs text-slate-400 text-center mt-1">Brand Image</p>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">This photo will be displayed as the brand image on the store page</p>
+                    </div>
+                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -1117,8 +1432,8 @@ export function ProductManagement() {
                   
                   {/* Inventory fields shown only when Stock/Inventory is selected */}
                   {formData.productReadiness?.includes('Stock/Inventory') && (
-                    <div className="col-span-2 p-4 border border-gray-200 rounded-lg bg-gray-50 mt-4">
-                      <h4 className="font-medium text-gray-700 mb-4">Inventory Information</h4>
+                    <div className="col-span-2 border border-orange-400/30 bg-orange-400/5 p-4 rounded-lg">
+                      <h4 className="text-md font-medium mb-3 text-orange-400">Inventory Information</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -1180,40 +1495,84 @@ export function ProductManagement() {
                 </>
               )}
 
-              <div>
+              <div className="glass-dropdown">
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Status
                 </label>
                 <select
                   value={formData.isActive ? 'active' : 'inactive'}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'active' })}
-                  className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  className="w-full px-3 py-2 border border-white/20 bg-white/[0.08] backdrop-blur-md text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                  style={{
+                    backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                  }}
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="active" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Active</option>
+                  <option value="inactive" className="bg-gray-900/95 backdrop-blur-sm text-white">Inactive</option>
                 </select>
+              </div>
+              
+              {/* Category/Tags for Store Page filters */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Category/Tags for Store Filters
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Enter tags separated by commas (e.g., Baseball Equipment, Sports Caps, Casual Wear, Premium Quality)"
+                    value={categoryTagsInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCategoryTagsInput(value);
+                      
+                      // Process tags and update formData
+                      const tags = value
+                        .split(',')
+                        .map(tag => tag.trim())
+                        .filter(tag => tag.length > 0);
+                      
+                      setFormData({ ...formData, categoryTags: tags });
+                    }}
+                    onBlur={() => {
+                      // On blur, ensure the input reflects the processed tags
+                      const processedTags = (formData.categoryTags || []).join(', ');
+                      setCategoryTagsInput(processedTags);
+                    }}
+                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  />
+                  {/* Display current tags */}
+                  {formData.categoryTags && formData.categoryTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {formData.categoryTags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-sm"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updatedTags = [...(formData.categoryTags || [])];
+                              updatedTags.splice(index, 1);
+                              setFormData({ ...formData, categoryTags: updatedTags });
+                            }}
+                            className="ml-2 text-blue-300 hover:text-blue-100"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500">These tags will be used as filters on the store page</p>
+                </div>
               </div>
             </div>
 
-                         {/* Style Info (Clean Text) */}
-             <div>
-               <label className="block text-sm font-medium text-white mb-2">
-                 Style Information
-               </label>
-               <textarea
-                 value={formData.styleInfo}
-                 onChange={(e) => setFormData({ ...formData, styleInfo: e.target.value })}
-                 rows={4}
-                 placeholder={`Shape: Flat
-Profile: Mid
-Closure: Snapback
-Structure: Structured`}
-                 className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
-               />
-               <p className="mt-1 text-sm text-slate-400">
-                 Enter style details in a simple format. Each line will be converted to a paragraph automatically.
-               </p>
-             </div>
 
             {/* Description */}
             <div>
@@ -1228,9 +1587,161 @@ Structure: Structured`}
               />
             </div>
 
+            {/* Cap Style Setup */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+              <h4 className="text-lg font-medium mb-6 text-white flex items-center">
+                <svg className="w-5 h-5 mr-2 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Cap Style Setup
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {/* Bill Shape */}
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Bill Shape
+                  </label>
+                  <select
+                    value={formData.billShape || ''}
+                    onChange={(e) => setFormData({ ...formData, billShape: e.target.value as 'Slight Curved' | 'Curved' | 'Flat' || undefined })}
+                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  >
+                    <option value="">Select Bill Shape</option>
+                    <option value="Slight Curved">Slight Curved</option>
+                    <option value="Curved">Curved</option>
+                    <option value="Flat">Flat</option>
+                  </select>
+                </div>
+
+                {/* Profile */}
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Profile
+                  </label>
+                  <select
+                    value={formData.profile || ''}
+                    onChange={(e) => setFormData({ ...formData, profile: e.target.value as 'High' | 'Mid' | 'Low' || undefined })}
+                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  >
+                    <option value="">Select Profile</option>
+                    <option value="High">High</option>
+                    <option value="Mid">Mid</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+
+                {/* Closure Type */}
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Closure Type
+                  </label>
+                  <select
+                    value={formData.closureType || ''}
+                    onChange={(e) => setFormData({ ...formData, closureType: e.target.value as 'Snapback' | 'Velcro' | 'Fitted' | 'Stretched' || undefined })}
+                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  >
+                    <option value="">Select Closure Type</option>
+                    <option value="Snapback">Snapback</option>
+                    <option value="Velcro">Velcro</option>
+                    <option value="Fitted">Fitted</option>
+                    <option value="Stretched">Stretched</option>
+                  </select>
+                </div>
+
+                {/* Structure */}
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Structure
+                  </label>
+                  <select
+                    value={formData.structure || ''}
+                    onChange={(e) => setFormData({ ...formData, structure: e.target.value as 'Structured' | 'Unstructured' | 'Foam' || undefined })}
+                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                  >
+                    <option value="">Select Structure</option>
+                    <option value="Structured">Structured</option>
+                    <option value="Unstructured">Unstructured</option>
+                    <option value="Foam">Foam</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Fabric Setup */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Fabric Setup
+                  <span className="text-xs text-slate-400 ml-2">(Premium fabrics add cost to customization)</span>
+                </label>
+                <select
+                  value={formData.fabricSetup || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({ 
+                      ...formData, 
+                      fabricSetup: value,
+                      customFabricSetup: value === 'Other' ? formData.customFabricSetup : ''
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                >
+                  <option value="">Select Fabric Setup</option>
+                  {FABRIC_OPTIONS.map((fabric) => (
+                    <option key={fabric} value={fabric}>{fabric}</option>
+                  ))}
+                </select>
+
+                {/* Custom Fabric Input */}
+                {formData.fabricSetup === 'Other' && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Custom Fabric Setup
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.customFabricSetup || ''}
+                      onChange={(e) => setFormData({ ...formData, customFabricSetup: e.target.value })}
+                      placeholder="Enter custom fabric setup"
+                      className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                    />
+                  </div>
+                )}
+
+                {/* Fabric Setup Display */}
+                {formData.fabricSetup && (
+                  <div className={`mt-4 p-3 rounded-lg border ${
+                    isPremiumFabric(formData.fabricSetup === 'Other' ? formData.customFabricSetup || '' : formData.fabricSetup)
+                      ? 'bg-orange-400/10 border-orange-400/20'
+                      : 'bg-lime-400/10 border-lime-400/20'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <p className={`text-sm font-medium ${
+                        isPremiumFabric(formData.fabricSetup === 'Other' ? formData.customFabricSetup || '' : formData.fabricSetup)
+                          ? 'text-orange-400'
+                          : 'text-lime-400'
+                      }`}>
+                        Selected Fabric: {formData.fabricSetup === 'Other' ? formData.customFabricSetup : formData.fabricSetup}
+                      </p>
+                      {isPremiumFabric(formData.fabricSetup === 'Other' ? formData.customFabricSetup || '' : formData.fabricSetup) && (
+                        <span className="px-2 py-1 bg-orange-400/20 text-orange-400 text-xs font-medium rounded-full">
+                          Premium Fabric
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {isPremiumFabric(formData.fabricSetup === 'Other' ? formData.customFabricSetup || '' : formData.fabricSetup)
+                        ? 'This premium fabric will add "Premium Fabric Cost" during customization'
+                        : 'This fabric will be considered for customization options'
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Main Image Upload */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-white mb-2">
                 Main Image *
               </label>
               <div className="space-y-4">
@@ -1294,7 +1805,8 @@ Structure: Structured`}
               </div>
             </div>
 
-            {/* Custom Product Options */}
+            {/* Custom Product Options - Only show when Customizable is checked */}
+            {formData.productReadiness?.includes('Customizable') && (
             <div className="border-t pt-6 mt-6">
               <h3 className="text-lg font-medium text-white mb-4">Custom Product Options</h3>
               <p className="text-sm text-slate-400 mb-4">
@@ -1302,28 +1814,48 @@ Structure: Structured`}
               </p>
               
               {/* Input for adding new options */}
-              <div className="flex items-end space-x-4 mb-6">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Add Custom Option Categories
-                  </label>
-                  <input
-                    type="text"
-                    value={customOptionInput}
-                    onChange={(e) => setCustomOptionInput(e.target.value)}
-                    placeholder="Enter option names separated by commas (e.g., Size, Color, Material)"
-                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
-                    disabled={(formData.customOptions || []).length >= 10}
-                  />
+              <div className="space-y-4 mb-6">
+                <div className="flex items-end space-x-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Add Custom Option Categories
+                    </label>
+                    <input
+                      type="text"
+                      value={customOptionInput}
+                      onChange={(e) => setCustomOptionInput(e.target.value)}
+                      placeholder="Enter option names separated by commas (e.g., Size, Color, Material)"
+                      className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                      disabled={(formData.customOptions || []).length >= 10}
+                    />
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={addCustomOption}
-                  disabled={(formData.customOptions || []).length >= 10 || !customOptionInput.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  Add Option
-                </button>
+                
+                {/* Option Type Selection */}
+                <div className="flex space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => addCustomOption('text')}
+                    disabled={(formData.customOptions || []).length >= 10 || !customOptionInput.trim()}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                    <span>Add Text Option</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addCustomOption('image')}
+                    disabled={(formData.customOptions || []).length >= 10 || !customOptionInput.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Add Image Option</span>
+                  </button>
+                </div>
               </div>
               
               {/* List of added custom options */}
@@ -1334,9 +1866,25 @@ Structure: Structured`}
                     {(formData.customOptions || []).map((option, optionIndex) => (
                       <div key={`option-${optionIndex}`} className="border border-gray-200 rounded-lg overflow-hidden">
                         <div className="flex items-center justify-between p-3 bg-gray-50 border-b">
-                          <span className="font-medium text-gray-700">{option.name}</span>
+                          <div className="flex items-center space-x-3">
+                            <span className="font-medium text-gray-700">{option.name}</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              option.type === 'text' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {option.type === 'text' ? 'Text Option' : 'Image Option'}
+                            </span>
+                          </div>
                           <div className="flex items-center space-x-2">
-                            <span className="text-xs text-slate-400">{option.images.length} images</span>
+                            {option.type === 'text' && (
+                              <span className="text-xs text-slate-400">
+                                {(option.textOptions || []).length} text options
+                              </span>
+                            )}
+                            {option.type === 'image' && (
+                              <span className="text-xs text-slate-400">{option.images.length} images</span>
+                            )}
                             <button
                               type="button"
                               onClick={() => removeCustomOption(optionIndex)}
@@ -1349,8 +1897,115 @@ Structure: Structured`}
                           </div>
                         </div>
                         
-                        {/* Image Uploader for this option */}
+                        {/* Option Content based on type */}
                         <div className="p-4">
+                          {option.type === 'text' ? (
+                            /* Text Option Management */
+                            <div className="space-y-4">
+                              {/* Add Text Option Input */}
+                              <div className="flex items-end space-x-4">
+                                <div className="flex-1">
+                                  <label className="block text-sm font-medium text-white mb-2">
+                                    Add Text Option
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={textOptionInputs[optionIndex]?.label || ''}
+                                    onChange={(e) => setTextOptionInputs(prev => ({
+                                      ...prev,
+                                      [optionIndex]: { 
+                                        ...prev[optionIndex], 
+                                        label: e.target.value 
+                                      }
+                                    }))}
+                                    placeholder="e.g. Small, Medium, Large"
+                                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                                  />
+                                </div>
+                                <div className="w-32">
+                                  <label className="block text-sm font-medium text-white mb-2">
+                                    Price ($)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={textOptionInputs[optionIndex]?.price || ''}
+                                    onChange={(e) => setTextOptionInputs(prev => ({
+                                      ...prev,
+                                      [optionIndex]: { 
+                                        ...prev[optionIndex], 
+                                        price: e.target.value 
+                                      }
+                                    }))}
+                                    className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const label = textOptionInputs[optionIndex]?.label?.trim();
+                                    const priceInput = textOptionInputs[optionIndex]?.price?.trim();
+                                    const price = priceInput ? parseFloat(priceInput) : undefined;
+                                    if (label) {
+                                      addTextOption(optionIndex, label, price);
+                                      setTextOptionInputs(prev => ({
+                                        ...prev,
+                                        [optionIndex]: { label: '', price: '' }
+                                      }));
+                                    }
+                                  }}
+                                  disabled={!textOptionInputs[optionIndex]?.label?.trim()}
+                                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                                >
+                                  Add
+                                </button>
+                              </div>
+
+                              {/* Display Text Options */}
+                              {option.textOptions && option.textOptions.length > 0 && (
+                                <div className="space-y-2">
+                                  <h5 className="text-sm font-medium text-white">Text Options:</h5>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {option.textOptions.map((textOpt, textIndex) => (
+                                      <div key={textIndex} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-lg">
+                                        <div className="flex-1">
+                                          <input
+                                            type="text"
+                                            value={textOpt.label}
+                                            onChange={(e) => updateTextOption(optionIndex, textIndex, 'label', e.target.value)}
+                                            className="bg-transparent text-white font-medium text-sm border-none p-0 focus:ring-0"
+                                          />
+                                          <div className="flex items-center space-x-2 mt-1">
+                                            <span className="text-xs text-slate-400">$</span>
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              min="0"
+                                              value={textOpt.price || 0}
+                                              onChange={(e) => updateTextOption(optionIndex, textIndex, 'price', parseFloat(e.target.value) || 0)}
+                                              className="bg-transparent text-lime-400 text-xs w-16 border-none p-0 focus:ring-0"
+                                            />
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeTextOption(optionIndex, textIndex)}
+                                          className="ml-3 p-1 text-red-500 hover:text-red-700"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* Image Option Management - Keep existing logic */
+                            <div>
                           <div className="flex items-center space-x-4 mb-4">
                             <input
                               ref={setMultipleImageRef(`customOption-${optionIndex}`)}
@@ -1455,56 +2110,13 @@ Structure: Structured`}
                                         className="relative z-20"
                                       >
                                         <label className="block text-sm font-medium text-white mb-1">
-                                          Option Name/Color
+                                          Option Name
                                         </label>
                                         <input
                                           type="text"
                                           value={img.alt}
                                           onChange={(e) => handleAltTextChange(`customOption-${optionIndex}`, imgIndex, e.target.value, optionIndex)}
                                           placeholder="e.g., Red, Large, Cotton"
-                                          className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
-                                          onFocus={(e) => {
-                                            e.stopPropagation();
-                                            setInputInteracting(itemKey);
-                                          }}
-                                          onBlur={(e) => {
-                                            e.stopPropagation();
-                                            setInputInteracting(null);
-                                          }}
-                                          onMouseDown={(e) => {
-                                            e.stopPropagation();
-                                            setInputInteracting(itemKey);
-                                          }}
-                                          onDragStart={(e) => e.preventDefault()}
-                                          draggable={false}
-                                        />
-                                      </div>
-                                      
-                                      <div
-                                        onMouseEnter={(e) => {
-                                          e.stopPropagation();
-                                          setInputInteracting(itemKey);
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.stopPropagation();
-                                          setInputInteracting(null);
-                                        }}
-                                        onMouseDown={(e) => {
-                                          e.stopPropagation();
-                                          setInputInteracting(itemKey);
-                                        }}
-                                        onDragStart={(e) => e.preventDefault()}
-                                        draggable={false}
-                                        className="relative z-20"
-                                      >
-                                        <label className="block text-sm font-medium text-white mb-1">
-                                          Option Title
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={img.title || ''}
-                                          onChange={(e) => handleOptionImageTitleChange(optionIndex, imgIndex, e.target.value)}
-                                          placeholder="e.g., Premium Red Color"
                                           className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
                                           onFocus={(e) => {
                                             e.stopPropagation();
@@ -1626,6 +2238,8 @@ Structure: Structured`}
                               })}
                             </div>
                           )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1633,6 +2247,7 @@ Structure: Structured`}
                 </div>
               )}
             </div>
+            )}
             
             {/* Multiple Image Galleries */}
             {[
@@ -1641,7 +2256,6 @@ Structure: Structured`}
               { field: 'leftColorImages', label: 'Left Color Images', showFor: ['factory'] },
               { field: 'rightColorImages', label: 'Right Color Images', showFor: ['factory'] },
               { field: 'backColorImages', label: 'Back Color Images', showFor: ['factory'] },
-              { field: 'capColorImage', label: 'Cap Color Images', showFor: ['factory', 'resale'] },
               { field: 'splitColorOptions', label: 'Split Color Options', showFor: ['factory'] },
               { field: 'triColorOptions', label: 'Tri Color Options', showFor: ['factory'] },
               { field: 'camoColorOption', label: 'Camo Color Options', showFor: ['factory'] },
@@ -1797,6 +2411,256 @@ Structure: Structured`}
               </div>
             ))}
 
+            {/* Custom Cap Color Images Section */}
+            <div key="capColorImage">
+              <label className="block text-sm font-medium text-white mb-2">
+                Cap Color Images
+              </label>
+              
+              {/* Color Input Method Selection */}
+              <div className="mb-4">
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Method 1: Image Upload with Text Names */}
+                  <div className={`border border-white/10 rounded-lg p-4 transition-all duration-200 ${
+                    formData.referenceProductId 
+                      ? 'bg-gray-800/50 opacity-60' 
+                      : 'bg-white/5 hover:bg-white/10'
+                  }`}>
+                    <h4 className={`text-md font-medium mb-3 ${
+                      formData.referenceProductId ? 'text-gray-400' : 'text-white'
+                    }`}>Method 1: Upload Images with Color Names</h4>
+                    
+                    {formData.referenceProductId && (
+                      <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded text-yellow-200 text-sm flex items-center justify-between">
+                        <span><span className="font-medium">Method 2 is active:</span> Clear the factory product selection to use this method.</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, referenceProductId: '' })}
+                          className="ml-2 px-2 py-1 bg-yellow-500/30 hover:bg-yellow-500/40 text-yellow-200 text-xs rounded transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Image Upload Section */}
+                    <div className="flex items-center space-x-4 mb-4">
+                      <input
+                        ref={setMultipleImageRef('capColorImage')}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => handleMultipleImageUpload(e, 'capColorImage')}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inputRef = multipleImageRefs.current['capColorImage'];
+                          if (inputRef && inputRef.click) {
+                            inputRef.click();
+                          }
+                        }}
+                        disabled={uploadingImages || !!formData.referenceProductId}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        <svg className="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Upload Images (Max 50)
+                      </button>
+                      <span className="text-sm text-slate-400">Upload multiple images for color variations</span>
+                    </div>
+
+                    {/* Text Input for Color Names */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Or add colors by text (comma-separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.capColorNames || ''}
+                        onChange={(e) => setFormData({ ...formData, capColorNames: e.target.value })}
+                        placeholder="e.g. Red, Blue, Green, Navy, Black"
+                        disabled={!!formData.referenceProductId}
+                        className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">You can upload images for these colors later</p>
+                    </div>
+
+                    {/* Upload Progress */}
+                    {uploadingImages && (
+                      <div className="border border-blue-500/30 bg-blue-500/20 text-blue-400 px-4 py-3 rounded-lg mb-4">
+                        <div className="flex items-center justify-between">
+                          <span>Uploading images... {Math.round(uploadProgress)}%</span>
+                          <div className="w-32 bg-blue-200/20 border border-blue-400/30 rounded-full h-2">
+                            <div 
+                              className="bg-blue-400 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${uploadProgress}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Existing Images */}
+                    {(formData.capColorImage)?.length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
+                        {(formData.capColorImage).map((img, index) => {
+                          const itemKey = `capColorImage-${index}`;
+                          const isDraggingDisabled = inputInteracting === itemKey;
+                          
+                          return (
+                          <div 
+                            key={`capColorImage-${index}-${img.url}`} 
+                            className={`relative group border border-white/10 bg-white/5 rounded-lg p-2 transition-all duration-200 ${
+                              isDraggingDisabled ? 'cursor-default' : 'cursor-move'
+                            } ${
+                              draggedIndex === index && draggedField === 'capColorImage' ? 'opacity-50 scale-95' : 'hover:scale-105'
+                            }`}
+                            draggable={!isDraggingDisabled}
+                            onDragStart={(e) => {
+                              if (isDraggingDisabled) {
+                                e.preventDefault();
+                                return;
+                              }
+                              handleDragStart(e, index, 'capColorImage');
+                            }}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, index, 'capColorImage')}
+                            onDragEnd={handleDragEnd}
+                          >
+                            {/* Drag handle indicator */}
+                            <div className="absolute top-1 left-1 bg-black/50 text-white rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                              </svg>
+                            </div>
+                            
+                            <div className="aspect-square w-full mb-2">
+                              <img 
+                                src={img.url} 
+                                alt={img.alt || `Cap Color ${index + 1}`}
+                                className="w-full h-full object-cover rounded-lg pointer-events-none"
+                              />
+                            </div>
+                            
+                            <div 
+                              className="relative z-20"
+                              onMouseEnter={(e) => {
+                                e.stopPropagation();
+                                setInputInteracting(itemKey);
+                              }}
+                              onMouseLeave={(e) => {
+                                e.stopPropagation();
+                                setInputInteracting(null);
+                              }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setInputInteracting(itemKey);
+                              }}
+                              onDragStart={(e) => e.preventDefault()}
+                              draggable={false}
+                            >
+                              <input
+                                type="text"
+                                value={img.alt}
+                                onChange={(e) => handleAltTextChange('capColorImage', index, e.target.value)}
+                                placeholder="Color name"
+                                className="w-full text-xs px-2 py-1 border border-white/10 bg-black/30 text-white rounded focus:ring-1 focus:ring-lime-400 focus:border-lime-400"
+                                onFocus={(e) => {
+                                  e.stopPropagation();
+                                  setInputInteracting(itemKey);
+                                }}
+                                onBlur={(e) => {
+                                  e.stopPropagation();
+                                  setInputInteracting(null);
+                                }}
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                  setInputInteracting(itemKey);
+                                }}
+                                onDragStart={(e) => e.preventDefault()}
+                                draggable={false}
+                              />
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => handleImageRemove('capColorImage', index)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Method 2: Reference Factory Product */}
+                  <div className={`border border-white/10 rounded-lg p-4 transition-all duration-200 ${
+                    (formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) 
+                      ? 'bg-gray-800/50 opacity-60' 
+                      : 'bg-white/5 hover:bg-white/10'
+                  }`}>
+                    <h4 className={`text-md font-medium mb-3 ${
+                      (formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) ? 'text-gray-400' : 'text-white'
+                    }`}>Method 2: Reference Existing Factory Product</h4>
+                    
+                    {(formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) && (
+                      <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500/30 rounded text-yellow-200 text-sm flex items-center justify-between">
+                        <span><span className="font-medium">Method 1 is active:</span> Clear uploaded images or color names to use this method.</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ 
+                            ...formData, 
+                            capColorImage: [],
+                            capColorNames: ''
+                          })}
+                          className="ml-2 px-2 py-1 bg-yellow-500/30 hover:bg-yellow-500/40 text-yellow-200 text-xs rounded transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Select Factory Product to use Front Color Images
+                      </label>
+                      <select
+                        value={formData.referenceProductId || ''}
+                        onChange={(e) => {
+                          console.log('🔄 Reference Product Selection:', {
+                            selectedValue: e.target.value,
+                            selectedProductName: products.find(p => (p._id || p.id) === e.target.value)?.name || 'Not found'
+                          });
+                          setFormData({ ...formData, referenceProductId: e.target.value });
+                        }}
+                        disabled={!!(formData.capColorImage?.length > 0 || formData.capColorNames?.trim())}
+                        className="w-full px-3 py-2 border border-white/10 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="">Select a factory product...</option>
+                        {(() => {
+                          const factoryProducts = products.filter(product => product.productType === 'factory' && product.frontColorImages?.length > 0);
+                          console.log('🏭 Available Factory Products:', factoryProducts.map(p => ({ name: p.name, id: p._id || p.id, frontColorCount: p.frontColorImages?.length })));
+                          return factoryProducts.map(product => (
+                            <option key={product._id || product.id} value={product._id || product.id}>
+                              {product.name} ({product.frontColorImages?.length || 0} colors)
+                            </option>
+                          ));
+                        })()}
+                      </select>
+                      <p className="text-xs text-slate-500 mt-1">This will use the Front Color Images from the selected factory product</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Form Actions */}
             <div className="flex items-center justify-end space-x-4 pt-6 border-t border-white/10">
               <button
@@ -1818,12 +2682,14 @@ Structure: Structured`}
               </button>
             </div>
           </form>
-        </div>
-      )}
+                </div>
+              </section>
+            )}
 
-      {/* Products List */}
-      {!showForm && (
-        <div className="border border-white/10 bg-white/5 backdrop-blur-xl ring-1 ring-white/5 shadow-lg rounded-lg overflow-hidden">
+            {/* Products List */}
+            {!showForm && (
+              <section className="px-6 md:px-10">
+                <div className="border border-white/10 bg-white/5 backdrop-blur-xl ring-1 ring-white/5 shadow-lg rounded-lg overflow-hidden">
           {isLoading ? (
             <div className="p-12 text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-lime-400 mx-auto"></div>
@@ -1990,10 +2856,9 @@ Structure: Structured`}
               </button>
             </div>
           )}
-        </div>
-      )}
-        </div>
-      </div>
+                </div>
+              </section>
+            )}
     </div>
   );
 }

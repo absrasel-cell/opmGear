@@ -44,6 +44,69 @@
   animation: pulse-glow 2s infinite;
 }
 
+/* Enhanced Glass Morphism Dropdown Styles */
+select {
+  background-image: 
+    linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%),
+    linear-gradient(45deg, rgba(255,255,255,0.05) 0%, transparent 50%);
+}
+
+select:focus {
+  background-image: 
+    linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.08) 100%),
+    linear-gradient(45deg, rgba(132,204,22,0.1) 0%, transparent 50%);
+  box-shadow: 
+    0 8px 32px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    0 0 0 2px rgba(132,204,22,0.3);
+}
+
+/* Enhanced Option Styling for Better Glass Effect */
+select option {
+  background-color: rgba(17, 24, 39, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+  padding: 8px 12px !important;
+  color: white !important;
+}
+
+select option:hover {
+  background-color: rgba(17, 24, 39, 0.98) !important;
+  background-image: linear-gradient(135deg, rgba(132,204,22,0.1) 0%, rgba(132,204,22,0.05) 100%) !important;
+}
+
+select option:checked {
+  background-color: rgba(132,204,22,0.2) !important;
+  background-image: linear-gradient(135deg, rgba(132,204,22,0.3) 0%, rgba(132,204,22,0.1) 100%) !important;
+}
+
+/* Custom Dropdown Container Enhancement */
+.glass-dropdown {
+  position: relative;
+}
+
+.glass-dropdown::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05));
+  border-radius: inherit;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+}
+
+.glass-dropdown::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.1), transparent 70%);
+  pointer-events: none;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

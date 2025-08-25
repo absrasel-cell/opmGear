@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { id } = params;
     const product = await sanityClient.fetch(
-      `*[_type == "product" && _id == $id][0]`,
+      `*[(_type == "product" || _type == "resaleProduct") && _id == $id][0]`,
       { id }
     );
 
@@ -23,10 +23,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      product,
-    });
+    return NextResponse.json(product);
 
   } catch (error) {
     console.error('Error fetching product from Sanity:', error);
@@ -48,6 +45,14 @@ export async function PUT(
   try {
     const { id } = params;
     const productData = await request.json();
+    
+    // Debug log to track API data
+    console.log('🔧 API PUT Debug:', {
+      productId: id,
+      productName: productData.name,
+      receivedReferenceProductId: productData.referenceProductId,
+      productType: productData.productType
+    });
     
     // Get the current product to check if type is changing
     const currentProduct = await sanityClient.fetch(
@@ -96,10 +101,20 @@ export async function PUT(
         rightColorImages: productData.rightColorImages || [],
         backColorImages: productData.backColorImages || [],
         capColorImage: productData.capColorImage || [],
+        // Alternative color input methods
+        capColorNames: productData.capColorNames || '',
+        referenceProductId: productData.referenceProductId || '',
         splitColorOptions: productData.splitColorOptions || [],
         triColorOptions: productData.triColorOptions || [],
         camoColorOption: productData.camoColorOption || [],
         customOptions: productData.customOptions || [],
+        // Cap Style Setup fields
+        billShape: productData.billShape || undefined,
+        profile: productData.profile || undefined,
+        closureType: productData.closureType || undefined,
+        structure: productData.structure || undefined,
+        fabricSetup: productData.fabricSetup || undefined,
+        customFabricSetup: productData.customFabricSetup || '',
         isActive: productData.isActive !== false,
         productType: newProductType,
         sellingPrice: productData.sellingPrice || 0,
@@ -142,10 +157,20 @@ export async function PUT(
         rightColorImages: productData.rightColorImages || [],
         backColorImages: productData.backColorImages || [],
         capColorImage: productData.capColorImage || [],
+        // Alternative color input methods
+        capColorNames: productData.capColorNames || '',
+        referenceProductId: productData.referenceProductId || '',
         splitColorOptions: productData.splitColorOptions || [],
         triColorOptions: productData.triColorOptions || [],
         camoColorOption: productData.camoColorOption || [],
         customOptions: productData.customOptions || [],
+        // Cap Style Setup fields
+        billShape: productData.billShape || undefined,
+        profile: productData.profile || undefined,
+        closureType: productData.closureType || undefined,
+        structure: productData.structure || undefined,
+        fabricSetup: productData.fabricSetup || undefined,
+        customFabricSetup: productData.customFabricSetup || '',
         isActive: productData.isActive !== false,
         productType: newProductType,
         sellingPrice: productData.sellingPrice || 0,
@@ -161,16 +186,36 @@ export async function PUT(
         updatedAt: new Date().toISOString(),
       };
 
+      // Debug log before Sanity update
+      console.log('💾 Sanity Update Data:', {
+        productId: id,
+        updateDataReferenceProductId: updateData.referenceProductId,
+        updateDataKeys: Object.keys(updateData)
+      });
+
       // Update the existing product
       const updatedProduct = await sanityClient
         .patch(id)
         .set(updateData)
         .commit();
 
+      // Debug log after Sanity update
+      console.log('✅ Sanity Update Result:', {
+        productId: id,
+        updatedProductReferenceProductId: updatedProduct.referenceProductId,
+        success: true
+      });
+
       return NextResponse.json({
         success: true,
         product: updatedProduct,
         message: 'Product updated successfully',
+        // Include debug info in response
+        debug: {
+          receivedReferenceProductId: productData.referenceProductId,
+          updateDataReferenceProductId: updateData.referenceProductId,
+          finalReferenceProductId: updatedProduct.referenceProductId
+        }
       });
     }
 

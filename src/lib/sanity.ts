@@ -113,11 +113,21 @@ export class SanityService {
       rightColorImages,
       backColorImages,
       capColorImage,
+      // Alternative color input methods
+      capColorNames,
+      referenceProductId,
       splitColorOptions,
       triColorOptions,
       camoColorOption,
       // Custom options
       customOptions,
+      // Cap Style Setup fields
+      billShape,
+      profile,
+      closureType,
+      structure,
+      fabricSetup,
+      customFabricSetup,
       // Resale product fields
       itemData,
       sellingPrice,
@@ -159,6 +169,73 @@ export class SanityService {
     const query = `*[(_type == "product" || _type == "resaleProduct") && slug.current == $slug && isActive == true][0]`;
     const freshClient = sanityClient.withConfig({ useCdn: false });
     return await freshClient.fetch(query, { slug });
+  }
+
+  static async getProductById(id: string): Promise<SanityProduct | null> {
+    const query = `*[(_type == "product" || _type == "resaleProduct") && _id == $id][0] {
+      _id,
+      _type,
+      name,
+      slug,
+      description,
+      mainImage,
+      gallery,
+      basePrice,
+      priceTier,
+      sellingPrice,
+      productType,
+      categories,
+      colors,
+      sizes,
+      customizationOptions,
+      volumePricing,
+      isActive,
+      createdAt,
+      updatedAt,
+      // Color arrays for factory products
+      frontColorImages,
+      leftColorImages,
+      rightColorImages,
+      backColorImages,
+      capColorImage,
+      // Alternative color input methods
+      capColorNames,
+      referenceProductId,
+      splitColorOptions,
+      triColorOptions,
+      camoColorOption,
+      // Custom options
+      customOptions,
+      // Cap Style Setup fields
+      billShape,
+      profile,
+      closureType,
+      structure,
+      fabricSetup,
+      customFabricSetup,
+      // Resale product fields
+      itemData,
+      sellingPrice,
+      shippingSource,
+      productCategory,
+      customProductCategory,
+      qcHandler,
+      productReadiness,
+      sku,
+      stockQuantity,
+      inventoryLocation,
+      reorderPoint,
+      styleInfo,
+      "createdBy": createdBy->{
+        userId,
+        name,
+        email,
+        role,
+        company
+      }
+    }`;
+    const freshClient = sanityClient.withConfig({ useCdn: false });
+    return await freshClient.fetch(query, { id });
   }
 
   static async getCategories(): Promise<SanityCategory[]> {

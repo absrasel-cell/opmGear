@@ -26,7 +26,8 @@ import {
   Mail,
   Phone,
   Building,
-  BarChart3
+  BarChart3,
+  ShoppingBag
 } from 'lucide-react';
 
 // Import our new design system components
@@ -95,7 +96,8 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: string;
+  accessRole: string;
+  customerRole: string;
   createdAt: string;
 }
 
@@ -110,6 +112,13 @@ interface QuoteRequest {
   createdAt: string;
   status: string;
 }
+
+const ACCESS_ROLES = [
+  { value: 'MASTER_ADMIN', label: 'Master Admin', icon: Crown, color: 'text-red-400' },
+  { value: 'SUPER_ADMIN', label: 'Super Admin', icon: Shield, color: 'text-orange-400' },
+  { value: 'STAFF', label: 'Staff', icon: User, color: 'text-green-400' },
+  { value: 'CUSTOMER', label: 'Customer', icon: ShoppingBag, color: 'text-slate-400' }
+];
 
 export default function NewAdminDashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -172,6 +181,46 @@ export default function NewAdminDashboard() {
     
     fetchAdminData();
   }, [user, loading, isAuthenticated, router]);
+
+  // Helper functions
+  const getAccessRoleIcon = (accessRole: string) => {
+    const roleConfig = ACCESS_ROLES.find(r => r.value === accessRole);
+    if (roleConfig) {
+      const IconComponent = roleConfig.icon;
+      return <IconComponent className={`w-4 h-4 ${roleConfig.color}`} />;
+    }
+    return <User className="w-4 h-4 text-slate-400" />;
+  };
+
+  const getAccessRoleLabel = (accessRole: string) => {
+    const roleConfig = ACCESS_ROLES.find(r => r.value === accessRole);
+    return roleConfig ? roleConfig.label : accessRole;
+  };
+
+  // Role change handlers
+  const handleAccessRoleChange = async (userId: string, newAccessRole: string) => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          updates: { accessRole: newAccessRole }
+        })
+      });
+
+      if (response.ok) {
+        // Update local state
+        setUsers(prev => prev.map(user => 
+          user.id === userId ? { ...user, accessRole: newAccessRole } : user
+        ));
+      } else {
+        console.error('Failed to update user access role');
+      }
+    } catch (error) {
+      console.error('Error updating user access role:', error);
+    }
+  };
 
   const fetchAdminData = async () => {
     try {
@@ -358,7 +407,7 @@ export default function NewAdminDashboard() {
           />
 
           {/* Content wrapper with proper margin */}
-          <div className="mt-8">
+          <div>
             {/* Error Display */}
           {error && (
             <section className="px-6 md:px-10 mt-4">
@@ -383,7 +432,7 @@ export default function NewAdminDashboard() {
 
           {/* Loading State */}
           {isLoading && (
-            <section className="px-6 md:px-10 mt-4">
+            <section className="px-6 md:px-10">
               <GlassCard className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lime-400"></div>
@@ -667,10 +716,19 @@ export default function NewAdminDashboard() {
                       </TableCell>
                       <TableCell>{userItem.email}</TableCell>
                       <TableCell>
-                        <RoleDropdown
-                          currentRole={userItem.role === 'ADMIN' ? 'Admin' : 'Member'}
-                          onRoleChange={(role) => console.log('Role changed:', role)}
-                        />
+                        <div className="flex items-center gap-2">
+                          {getAccessRoleIcon(userItem.accessRole)}
+                          <select
+                            className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-lime-400/50"
+                            style={{ backgroundColor: 'rgb(30 41 59 / 0.5)', color: 'white' }}
+                            value={userItem.accessRole}
+                            onChange={(e) => handleAccessRoleChange(userItem.id, e.target.value)}
+                          >
+                            {ACCESS_ROLES.map(role => (
+                              <option key={role.value} value={role.value} style={{ backgroundColor: 'rgb(30 41 59)', color: 'white' }}>{role.label}</option>
+                            ))}
+                          </select>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <StatusBadge status="Active" />

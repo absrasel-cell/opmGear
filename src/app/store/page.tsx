@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { SanityService } from "@/lib/sanity";
 
 interface ImageWithAlt {
   url: string;
@@ -12,9 +13,12 @@ interface ImageWithAlt {
 interface StoreProduct {
   name: string;
   slug: string;
+  _id?: string;
   mainImage: ImageWithAlt;
   itemData: ImageWithAlt[];
   priceTier?: string;
+  productReadiness?: string[];
+  productType?: string;
 }
 
 async function fetchStoreProducts(): Promise<StoreProduct[]> {
@@ -90,6 +94,7 @@ async function fetchSanityProducts(): Promise<StoreProduct[]> {
 
 // Filter interfaces and state management
 interface FilterState {
+  capProfile: string[];
   capShape: string[];
   panelCount: string[];
   closureType: string[];
@@ -99,9 +104,11 @@ interface FilterState {
   color: string[];
   season: string[];
   vendor: string[];
+  productType: string[];
 }
 
 const initialFilterState: FilterState = {
+  capProfile: [],
   capShape: [],
   panelCount: [],
   closureType: [],
@@ -110,7 +117,8 @@ const initialFilterState: FilterState = {
   feel: [],
   color: [],
   season: [],
-  vendor: []
+  vendor: [],
+  productType: []
 };
 
 
@@ -122,6 +130,39 @@ export default function StorePage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Admin Dashboard compatible search handler
+  const handleAdminSearch = (query: string) => {
+    setSearchQuery(query);
+  };
+
+  // Vendor helper functions from Admin Marketplace
+  const getVendorName = (product: StoreProduct) => {
+    if (product.productType === 'factory') {
+      return 'OPM Gear';
+    }
+    // For other products without specific vendor info, default to brand names
+    return 'OPM Gear';
+  };
+
+  const getVendorLogo = (product: StoreProduct) => {
+    if (product.productType === 'factory') {
+      return '/opmLogo.svg';
+    }
+    return '/opmLogo.svg';
+  };
+
+  // Get dynamic vendor list based on actual products
+  const availableVendors = Array.from(new Set(
+    products.map(p => getVendorName(p))
+  )).sort((a, b) => {
+    // Sort with OPM Gear first, then Official, then alphabetically
+    if (a === 'OPM Gear') return -1;
+    if (b === 'OPM Gear') return 1;
+    if (a === 'Official') return -1;
+    if (b === 'Official') return 1;
+    return a.localeCompare(b);
+  });
   
   useEffect(() => {
     async function loadProducts() {
@@ -157,7 +198,50 @@ export default function StorePage() {
       if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
-      // Add more filtering logic based on product properties when available
+      
+      // Price tier filter with mapping (Admin Marketplace style)
+      if (filters.priceTier && filters.priceTier !== '') {
+        const productTier = product.priceTier || 'Standard';
+        // Map system tiers to display names for filtering
+        const tierMapping: { [key: string]: string } = {
+          'Tier 1': 'Budget',
+          'Tier 2': 'Premium', 
+          'Tier 3': 'Luxury',
+          'Standard': 'Mid'
+        };
+        const displayTier = tierMapping[productTier] || productTier;
+        if (filters.priceTier !== displayTier) {
+          return false;
+        }
+      }
+      
+      // Vendor filter (using dynamic vendor names)
+      if (filters.vendor.length > 0) {
+        const vendorName = getVendorName(product);
+        if (!filters.vendor.some(v => vendorName.includes(v))) {
+          return false;
+        }
+      }
+      
+      // Filter by Product Type (Stock/Inventory vs Customizable)
+      if (filters.productType.length > 0) {
+        const hasStockInventory = product.productReadiness?.includes('Stock/Inventory');
+        const hasCustomizable = product.productReadiness?.includes('Customizable');
+        
+        let matchesFilter = false;
+        
+        if (filters.productType.includes('Stock/Inventory') && hasStockInventory) {
+          matchesFilter = true;
+        }
+        if (filters.productType.includes('Customizable') && hasCustomizable) {
+          matchesFilter = true;
+        }
+        
+        if (!matchesFilter) {
+          return false;
+        }
+      }
+      
       return true;
     })
     .sort((a, b) => {
@@ -262,6 +346,88 @@ export default function StorePage() {
             </summary>
             <div className="mt-3 rounded-2xl bg-white/[0.08] border border-white/20 ring-1 ring-white/[0.08] backdrop-blur-2xl p-3 shadow-2xl">
               <div className="grid grid-cols-1 gap-6">
+                {/* Vendor - Moved to Top */}
+                <div className="rounded-2xl border border-white/20 bg-black/40 backdrop-blur-sm p-3 shadow-lg">
+                  <div className="flex items-center gap-2 text-slate-200 mb-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <span className="text-sm font-semibold">Vendor</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {availableVendors.map((vendor, index) => (
+                      <label key={`mobile-${vendor}-${index}`} className="cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="peer sr-only"
+                          checked={filters.vendor.includes(vendor)}
+                          onChange={(e) => handleFilterChange('vendor', vendor, e.target.checked)}
+                        />
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
+                          <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center overflow-hidden">
+                            {vendor === 'OPM Gear' ? (
+                              <Image src="/opmLogo.svg" alt="OPM Gear" width={16} height={16} />
+                            ) : (
+                              <span className="text-xs font-bold text-white/70">{vendor.charAt(0)}</span>
+                            )}
+                          </div>
+                          <span className="text-sm text-slate-200 font-medium">{vendor}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Product Type */}
+                <div className="rounded-2xl border border-white/20 bg-black/40 backdrop-blur-sm p-3 shadow-lg">
+                  <div className="flex items-center gap-2 text-slate-200 mb-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <span className="text-sm font-semibold">Product Type</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['Stock/Inventory', 'Customizable'].map(type => (
+                      <label key={type} className="cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="peer sr-only"
+                          checked={filters.productType.includes(type)}
+                          onChange={(e) => handleFilterChange('productType', type, e.target.checked)}
+                        />
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-sm text-slate-200 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-gradient-to-r peer-checked:from-[#84cc16] peer-checked:to-[#65a30d] peer-checked:text-black peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
+                          {type}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cap Profile */}
+                <div className="rounded-2xl border border-white/20 bg-black/40 backdrop-blur-sm p-3 shadow-lg">
+                  <div className="flex items-center gap-2 text-slate-200 mb-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <span className="text-sm font-semibold">Cap Profile</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['High', 'Low', 'Mid'].map(profile => (
+                      <label key={profile} className="cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="peer sr-only"
+                          checked={filters.capProfile.includes(profile)}
+                          onChange={(e) => handleFilterChange('capProfile', profile, e.target.checked)}
+                        />
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-sm text-slate-200 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-gradient-to-r peer-checked:from-[#84cc16] peer-checked:to-[#65a30d] peer-checked:text-black peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
+                          {profile}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Cap Shape */}
                 <div className="rounded-2xl border border-white/20 bg-black/40 backdrop-blur-sm p-3 shadow-lg">
                   <div className="flex items-center gap-2 text-slate-200 mb-2">
@@ -271,7 +437,7 @@ export default function StorePage() {
                     <span className="text-sm font-semibold">Cap Shape</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {['Trucker', 'Dad', 'Flat Bill', 'Curved', '5-Panel Camper'].map(shape => (
+                    {['Flat Bill', 'Slight Flat', 'Curved'].map(shape => (
                       <label key={shape} className="cursor-pointer">
                         <input 
                           type="checkbox" 
@@ -320,23 +486,21 @@ export default function StorePage() {
                     </svg>
                     <span className="text-sm font-semibold">Price Tier</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {[
-                      { label: 'Budget', symbol: '$' },
-                      { label: 'Mid', symbol: '$$' },
-                      { label: 'Premium', symbol: '$$$' },
-                      { label: 'Luxury', symbol: '$$$$' }
+                      { display: 'Budget', system: 'Tier 1' },
+                      { display: 'Premium', system: 'Tier 2' },
+                      { display: 'Luxury', system: 'Tier 3' }
                     ].map(tier => (
-                      <label key={tier.label} className="cursor-pointer">
+                      <label key={tier.display} className="cursor-pointer">
                         <input 
-                          type="radio" 
-                          name="price-tier-m" 
+                          type="checkbox" 
                           className="peer sr-only"
-                          checked={filters.priceTier === tier.label}
-                          onChange={(e) => handleFilterChange('priceTier', tier.label, e.target.checked)}
+                          checked={filters.priceTier === tier.display}
+                          onChange={(e) => handleFilterChange('priceTier', tier.display, e.target.checked)}
                         />
-                        <span className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 text-sm hover:bg-white/[0.12] backdrop-blur-sm peer-checked:border-lime-300/40 peer-checked:bg-gradient-to-r peer-checked:from-[#84cc16]/20 peer-checked:to-[#65a30d]/20 transition-all duration-300 shadow-sm">
-                          {tier.label} <span className="text-slate-400">{tier.symbol}</span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-sm hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-gradient-to-r peer-checked:from-[#84cc16]/20 peer-checked:to-[#65a30d]/20 peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
+                          {tier.display} ({tier.system})
                         </span>
                       </label>
                     ))}
@@ -352,7 +516,7 @@ export default function StorePage() {
                     <span className="text-sm font-semibold">Feel</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {['Soft', 'Structured', 'Lightweight', 'Heavy Duty', 'Breathable'].map(feel => (
+                    {['Soft', 'Structured', 'Unstructured', 'Foam', 'Breathable'].map(feel => (
                       <label key={feel} className="cursor-pointer">
                         <input 
                           type="checkbox" 
@@ -382,10 +546,14 @@ export default function StorePage() {
                       { name: 'White', color: 'bg-white border-gray-300' },
                       { name: 'Navy', color: 'bg-blue-900 border-blue-700' },
                       { name: 'Red', color: 'bg-red-600 border-red-400' },
-                      { name: 'Green', color: 'bg-green-600 border-green-400' },
-                      { name: 'Blue', color: 'bg-blue-500 border-blue-300' },
-                      { name: 'Gray', color: 'bg-gray-500 border-gray-300' },
-                      { name: 'Khaki', color: 'bg-yellow-700 border-yellow-500' }
+                      { name: 'Orange', color: 'bg-orange-600 border-orange-400' },
+                      { name: 'Light Grey', color: 'bg-gray-300 border-gray-500' },
+                      { name: 'Khaki', color: 'bg-yellow-700 border-yellow-500' },
+                      { name: 'Charcoal', color: 'bg-gray-800 border-gray-600' },
+                      { name: 'Royal', color: 'bg-blue-600 border-blue-400' },
+                      { name: 'Olive', color: 'bg-green-800 border-green-600' },
+                      { name: 'Neon Green', color: 'bg-green-400 border-green-300' },
+                      { name: 'Neon Orange', color: 'bg-orange-400 border-orange-300' }
                     ].map(colorItem => (
                       <label key={colorItem.name} className="cursor-pointer">
                         <input 
@@ -434,38 +602,6 @@ export default function StorePage() {
                   </div>
                 </div>
 
-                {/* Vendor */}
-                <div className="rounded-2xl border border-white/20 bg-black/40 backdrop-blur-sm p-3 shadow-lg">
-                  <div className="flex items-center gap-2 text-slate-200 mb-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    <span className="text-sm font-semibold">Vendor</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {[
-                      { name: 'New Era', logo: '/api/placeholder/40/40' },
-                      { name: 'Flexfit', logo: '/api/placeholder/40/40' },
-                      { name: 'Richardson', logo: '/api/placeholder/40/40' },
-                      { name: 'Yupoong', logo: '/api/placeholder/40/40' }
-                    ].map(vendor => (
-                      <label key={vendor.name} className="cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="peer sr-only"
-                          checked={filters.vendor.includes(vendor.name)}
-                          onChange={(e) => handleFilterChange('vendor', vendor.name, e.target.checked)}
-                        />
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
-                          <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center overflow-hidden">
-                            <span className="text-xs font-bold text-white/70">{vendor.name.charAt(0)}</span>
-                          </div>
-                          <span className="text-sm text-slate-200 font-medium">{vendor.name}</span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
               </div>
               
               {/* Mobile Actions */}
@@ -507,6 +643,109 @@ export default function StorePage() {
                   </div>
                   
                   <div className="mt-6 space-y-6">
+                    {/* Vendor - Moved to Top */}
+                    <details open className="group rounded-xl border border-white/20 bg-black/40 backdrop-blur-sm shadow-lg">
+                      <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-200">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          <span className="text-sm font-semibold font-inter">Vendor</span>
+                        </div>
+                        <svg className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </summary>
+                      <div className="px-3 pb-3">
+                        <div className="grid grid-cols-1 gap-2">
+                          {availableVendors.map((vendor, index) => (
+                            <label key={`${vendor}-${index}`} className="cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="peer sr-only"
+                                checked={filters.vendor.includes(vendor)}
+                                onChange={(e) => handleFilterChange('vendor', vendor, e.target.checked)}
+                              />
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
+                                <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center overflow-hidden">
+                                  {vendor === 'OPM Gear' ? (
+                                    <Image src="/opmLogo.svg" alt="OPM Gear" width={20} height={20} />
+                                  ) : (
+                                    <span className="text-xs font-bold text-white/70">{vendor.charAt(0)}</span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-slate-200 font-medium">{vendor}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+
+                    {/* Product Type */}
+                    <details open className="group rounded-xl border border-white/20 bg-black/40 backdrop-blur-sm shadow-lg">
+                      <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-200">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
+                          <span className="text-sm font-semibold font-inter">Product Type</span>
+                        </div>
+                        <svg className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </summary>
+                      <div className="px-3 pb-3">
+                        <div className="flex flex-wrap gap-2">
+                          {['Stock/Inventory', 'Customizable'].map(type => (
+                            <label key={type} className="cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="peer sr-only"
+                                checked={filters.productType.includes(type)}
+                                onChange={(e) => handleFilterChange('productType', type, e.target.checked)}
+                              />
+                              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm hover:bg-white/10 peer-checked:bg-[#84cc16] peer-checked:text-black peer-checked:border-lime-300/40 transition">
+                                {type}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+
+                    {/* Cap Profile */}
+                    <details open className="group rounded-xl border border-white/20 bg-black/40 backdrop-blur-sm shadow-lg">
+                      <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-200">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          <span className="text-sm font-semibold font-inter">Cap Profile</span>
+                        </div>
+                        <svg className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </summary>
+                      <div className="px-3 pb-3">
+                        <div className="flex flex-wrap gap-2">
+                          {['High', 'Low', 'Mid'].map(profile => (
+                            <label key={profile} className="cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="peer sr-only"
+                                checked={filters.capProfile.includes(profile)}
+                                onChange={(e) => handleFilterChange('capProfile', profile, e.target.checked)}
+                              />
+                              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm hover:bg-white/10 peer-checked:bg-[#84cc16] peer-checked:text-black peer-checked:border-lime-300/40 transition">
+                                {profile}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+
                     {/* Cap Shape */}
                     <details open className="group rounded-xl border border-white/20 bg-black/40 backdrop-blur-sm shadow-lg">
                       <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center justify-between">
@@ -522,7 +761,7 @@ export default function StorePage() {
                       </summary>
                       <div className="px-3 pb-3">
                         <div className="flex flex-wrap gap-2">
-                          {['Trucker', 'Dad', 'Flat Bill', 'Curved', '5-Panel Camper'].map(shape => (
+                          {['Flat Bill', 'Slight Flat', 'Curved'].map(shape => (
                             <label key={shape} className="cursor-pointer">
                               <input 
                                 type="checkbox" 
@@ -585,23 +824,21 @@ export default function StorePage() {
                         </svg>
                       </summary>
                       <div className="px-3 pb-3">
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-wrap gap-2">
                           {[
-                            { label: 'Budget', symbol: '$' },
-                            { label: 'Mid', symbol: '$$' },
-                            { label: 'Premium', symbol: '$$$' },
-                            { label: 'Luxury', symbol: '$$$$' }
+                            { display: 'Budget', system: 'Tier 1' },
+                            { display: 'Premium', system: 'Tier 2' },
+                            { display: 'Luxury', system: 'Tier 3' }
                           ].map(tier => (
-                            <label key={tier.label} className="cursor-pointer">
+                            <label key={tier.display} className="cursor-pointer">
                               <input 
-                                type="radio" 
-                                name="price-tier" 
+                                type="checkbox" 
                                 className="peer sr-only"
-                                checked={filters.priceTier === tier.label}
-                                onChange={(e) => handleFilterChange('priceTier', tier.label, e.target.checked)}
+                                checked={filters.priceTier === tier.display}
+                                onChange={(e) => handleFilterChange('priceTier', tier.display, e.target.checked)}
                               />
-                              <span className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 text-sm hover:bg-white/[0.12] backdrop-blur-sm peer-checked:border-lime-300/40 peer-checked:bg-gradient-to-r peer-checked:from-[#84cc16]/20 peer-checked:to-[#65a30d]/20 transition-all duration-300 shadow-sm">
-                                {tier.label} <span className="text-slate-400">{tier.symbol}</span>
+                              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-sm hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-gradient-to-r peer-checked:from-[#84cc16]/20 peer-checked:to-[#65a30d]/20 peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
+                                {tier.display} ({tier.system})
                               </span>
                             </label>
                           ))}
@@ -624,7 +861,7 @@ export default function StorePage() {
                       </summary>
                       <div className="px-3 pb-3">
                         <div className="flex flex-wrap gap-2">
-                          {['Soft', 'Structured', 'Lightweight', 'Heavy Duty', 'Breathable'].map(feel => (
+                          {['Soft', 'Structured', 'Unstructured', 'Foam', 'Breathable'].map(feel => (
                             <label key={feel} className="cursor-pointer">
                               <input 
                                 type="checkbox" 
@@ -661,10 +898,14 @@ export default function StorePage() {
                             { name: 'White', color: 'bg-white border-gray-300' },
                             { name: 'Navy', color: 'bg-blue-900 border-blue-700' },
                             { name: 'Red', color: 'bg-red-600 border-red-400' },
-                            { name: 'Green', color: 'bg-green-600 border-green-400' },
-                            { name: 'Blue', color: 'bg-blue-500 border-blue-300' },
-                            { name: 'Gray', color: 'bg-gray-500 border-gray-300' },
-                            { name: 'Khaki', color: 'bg-yellow-700 border-yellow-500' }
+                            { name: 'Orange', color: 'bg-orange-600 border-orange-400' },
+                            { name: 'Light Grey', color: 'bg-gray-300 border-gray-500' },
+                            { name: 'Khaki', color: 'bg-yellow-700 border-yellow-500' },
+                            { name: 'Charcoal', color: 'bg-gray-800 border-gray-600' },
+                            { name: 'Royal', color: 'bg-blue-600 border-blue-400' },
+                            { name: 'Olive', color: 'bg-green-800 border-green-600' },
+                            { name: 'Neon Green', color: 'bg-green-400 border-green-300' },
+                            { name: 'Neon Orange', color: 'bg-orange-400 border-orange-300' }
                           ].map(colorItem => (
                             <label key={colorItem.name} className="cursor-pointer">
                               <input 
@@ -721,47 +962,6 @@ export default function StorePage() {
                       </div>
                     </details>
 
-                    {/* Vendor */}
-                    <details open className="group rounded-xl border border-white/20 bg-black/40 backdrop-blur-sm shadow-lg">
-                      <summary className="list-none cursor-pointer select-none px-4 py-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-200">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                          <span className="text-sm font-semibold font-inter">Vendor</span>
-                        </div>
-                        <svg className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </summary>
-                      <div className="px-3 pb-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          {[
-                            { name: 'New Era', logo: '/api/placeholder/40/40' },
-                            { name: 'Flexfit', logo: '/api/placeholder/40/40' },
-                            { name: 'Richardson', logo: '/api/placeholder/40/40' },
-                            { name: 'Yupoong', logo: '/api/placeholder/40/40' },
-                            { name: 'Otto', logo: '/api/placeholder/40/40' },
-                            { name: 'Port Authority', logo: '/api/placeholder/40/40' }
-                          ].map(vendor => (
-                            <label key={vendor.name} className="cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                className="peer sr-only"
-                                checked={filters.vendor.includes(vendor.name)}
-                                onChange={(e) => handleFilterChange('vendor', vendor.name, e.target.checked)}
-                              />
-                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
-                                <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center overflow-hidden">
-                                  <span className="text-xs font-bold text-white/70">{vendor.name.charAt(0)}</span>
-                                </div>
-                                <span className="text-xs text-slate-200 font-medium">{vendor.name}</span>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
                   </div>
                   
                   {/* Desktop Apply */}
@@ -782,6 +982,34 @@ export default function StorePage() {
 
             {/* Product Area */}
             <section className="col-span-12 md:col-span-9 lg:col-span-9">
+              {/* Search Bar - Admin Dashboard Style */}
+              <div className="rounded-2xl bg-white/[0.08] border border-white/20 ring-1 ring-white/[0.08] backdrop-blur-2xl p-4 shadow-2xl mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search products, vendors, colors..."
+                      value={searchQuery}
+                      onChange={(e) => handleAdminSearch(e.target.value)}
+                      className="w-full h-12 pl-10 pr-4 rounded-xl bg-white/[0.08] backdrop-blur-md border border-white/20 text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/50 focus:border-[#84cc16]/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => handleAdminSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-slate-400 hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Controls Row */}
               <div className="rounded-2xl bg-white/[0.08] border border-white/20 ring-1 ring-white/[0.08] backdrop-blur-2xl p-4 shadow-2xl">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -789,9 +1017,21 @@ export default function StorePage() {
                     <span className="text-sm text-slate-300 font-inter">{filteredAndSortedProducts.length} results</span>
                     {/* Active Filter Chips */}
                     <div className="hidden md:flex items-center gap-2">
-                      {(filters.capShape.length > 0 || filters.panelCount.length > 0 || filters.priceTier || filters.feel.length > 0 || filters.color.length > 0 || filters.season.length > 0 || filters.vendor.length > 0) && (
+                      {(filters.capProfile.length > 0 || filters.capShape.length > 0 || filters.panelCount.length > 0 || filters.priceTier || filters.feel.length > 0 || filters.color.length > 0 || filters.season.length > 0 || filters.vendor.length > 0 || filters.productType.length > 0) && (
                         <>
                           <span className="text-xs text-slate-400">Active:</span>
+                          {filters.capProfile.map(profile => (
+                            <button 
+                              key={profile}
+                              onClick={() => handleFilterChange('capProfile', profile, false)}
+                              className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition text-xs"
+                            >
+                              {profile}
+                              <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          ))}
                           {filters.capShape.map(shape => (
                             <button 
                               key={shape}
@@ -875,6 +1115,18 @@ export default function StorePage() {
                               </svg>
                             </button>
                           )}
+                          {filters.productType.map(type => (
+                            <button 
+                              key={type}
+                              onClick={() => handleFilterChange('productType', type, false)}
+                              className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition text-xs"
+                            >
+                              {type}
+                              <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          ))}
                         </>
                       )}
                     </div>
@@ -883,16 +1135,20 @@ export default function StorePage() {
                   {/* Sort + Views + Quote Button */}
                   <div className="flex items-center gap-3">
                     {/* Sort Select */}
-                    <div className="relative">
+                    <div className="relative glass-dropdown">
                       <select 
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value)}
-                        className="appearance-none h-10 pl-3 pr-9 rounded-xl bg-black/30 border border-white/10 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/50 focus:border-[#84cc16]/30 transition-colors duration-200"
+                        className="appearance-none h-10 pl-3 pr-9 rounded-xl bg-white/[0.08] backdrop-blur-md border border-white/20 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/50 focus:border-[#84cc16]/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
+                        style={{
+                          backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+                        }}
                       >
-                        <option value="featured">Sort: Featured</option>
-                        <option value="name-asc">Name: A to Z</option>
-                        <option value="name-desc">Name: Z to A</option>
-                        <option value="newest">Newest</option>
+                        <option value="featured" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Sort: Featured</option>
+                        <option value="name-asc" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Name: A to Z</option>
+                        <option value="name-desc" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Name: Z to A</option>
+                        <option value="newest" className="bg-gray-900/95 backdrop-blur-sm text-white">Newest</option>
                       </select>
                       <svg className="pointer-events-none w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1017,7 +1273,7 @@ export default function StorePage() {
                           
                           <div className={`${viewMode === 'list' ? 'flex items-center gap-3' : 'mt-5 flex items-center gap-3'}`}>
                             <Link
-                              href={`/customize/${product.slug}`}
+                              href={product.productType === 'resale' ? `/dashboard/admin/products/${product._id}` : `/customize/${product.slug}`}
                               className="flex-1 h-11 px-4 rounded-full bg-gradient-to-r from-[#84cc16] to-[#65a30d] text-black font-bold text-sm shadow-[0_0_0_2px_rgba(255,255,255,0.1)] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(132,204,22,0.5)] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/60 flex items-center justify-center backdrop-blur-sm"
                             >
                               Click to Customize

@@ -1,46 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadBlankCapPricing } from '../../lib/webflow';
+import { getBaseProductPricing } from '@/lib/pricing';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { priceTier } = body;
+    const { priceTier = 'Tier 1' } = body; // Default to Tier 1 if not provided
 
-    if (!priceTier) {
-      return NextResponse.json(
-        { error: 'Price tier is required' },
-        { status: 400 }
-      );
+    // First try to load Webflow pricing data
+    try {
+      const blankCapPricingData = await loadBlankCapPricing();
+      const pricing = blankCapPricingData.find((p: any) => p.Name === priceTier);
+      
+      if (pricing) {
+        return NextResponse.json({
+          price48: pricing.price48,
+          price144: pricing.price144,
+          price576: pricing.price576,
+          price1152: pricing.price1152,
+          price2880: pricing.price2880,
+          price10000: pricing.price10000,
+        });
+      }
+    } catch (webflowError) {
+      console.warn('Webflow pricing unavailable, falling back to centralized pricing:', webflowError);
     }
 
-    // Load blank cap pricing data
-    const blankCapPricingData = await loadBlankCapPricing();
-    
-    // Find matching pricing based on the price tier
-    const pricing = blankCapPricingData.find((p: any) => p.Name === priceTier);
-    
-    if (!pricing) {
-      return NextResponse.json(
-        { error: `Pricing not found for tier: ${priceTier}` },
-        { status: 404 }
-      );
-    }
-
-    // Return the pricing data
-    return NextResponse.json({
-      price48: pricing.price48,
-      price144: pricing.price144,
-      price576: pricing.price576,
-      price1152: pricing.price1152,
-      price2880: pricing.price2880,
-      price10000: pricing.price10000,
-    });
+    // Fallback to centralized pricing for consistency
+    const centralizedPricing = getBaseProductPricing(priceTier);
+    return NextResponse.json(centralizedPricing);
 
   } catch (error) {
     console.error('Error fetching blank cap pricing:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch pricing data' },
-      { status: 500 }
-    );
+    
+    // Final fallback to default centralized pricing
+    const defaultPricing = getBaseProductPricing();
+    return NextResponse.json(defaultPricing);
   }
+}
+
+// Add GET method for simple usage
+export async function GET() {
+  const defaultPricing = getBaseProductPricing();
+  return NextResponse.json(defaultPricing);
 }

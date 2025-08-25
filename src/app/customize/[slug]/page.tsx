@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { fetchProductBySlug, fetchPricingData, fetchProductOptions, fetchAltTextForImage, loadBlankCapPricing } from "../../lib/webflow";
 import { SanityService } from "../../../lib/sanity";
+import { getBaseProductPricing } from "@/lib/pricing";
 
 // Define types
 interface Pricing {
@@ -50,6 +51,14 @@ interface Product {
   pricing: Pricing;
   productOptions: ProductOption[];
   priceTier?: string; // Add price tier field
+  // Cap Style Setup fields for resale products
+  billShape?: 'Slight Curved' | 'Curved' | 'Flat';
+  profile?: 'High' | 'Mid' | 'Low';
+  closureType?: 'Snapback' | 'Velcro' | 'Fitted' | 'Stretched';
+  structure?: 'Structured' | 'Unstructured' | 'Foam';
+  fabricSetup?: string;
+  customFabricSetup?: string;
+  productType?: 'factory' | 'resale';
 }
 
 function extractColorName(url: string): string {
@@ -146,14 +155,15 @@ async function fetchProduct(slug: string): Promise<Product> {
   // Find matching blank cap pricing based on the product's price tier
   const blankCapPricing = blankCapPricingData.find(p => p.Name === productPriceTier);
   
-  // Use blank cap pricing if available, otherwise fall back to default pricing
+  // Use blank cap pricing if available, otherwise use centralized pricing
+  const centralizedPricing = getBaseProductPricing(productPriceTier);
   const pricing: Pricing = {
-    price48: blankCapPricing?.price48 ?? 2.4,
-    price144: blankCapPricing?.price144 ?? 1.7,
-    price576: blankCapPricing?.price576 ?? 1.6,
-    price1152: blankCapPricing?.price1152 ?? 1.47,
-    price2880: blankCapPricing?.price2880 ?? 1.44,
-    price10000: blankCapPricing?.price10000 ?? 1.41,
+    price48: blankCapPricing?.price48 ?? centralizedPricing.price48,
+    price144: blankCapPricing?.price144 ?? centralizedPricing.price144,
+    price576: blankCapPricing?.price576 ?? centralizedPricing.price576,
+    price1152: blankCapPricing?.price1152 ?? centralizedPricing.price1152,
+    price2880: blankCapPricing?.price2880 ?? centralizedPricing.price2880,
+    price10000: blankCapPricing?.price10000 ?? centralizedPricing.price10000,
   };
 
 
@@ -226,15 +236,8 @@ async function fetchProduct(slug: string): Promise<Product> {
     notFound();
   }
 
-  // Get pricing data (optional, defaults if not available)
-  let pricing: Pricing = {
-    price48: 2.4,
-    price144: 1.7,
-    price576: 1.6,
-    price1152: 1.47,
-    price2880: 1.44,
-    price10000: 1.41,
-  };
+  // Get pricing data using centralized pricing for consistency
+  let pricing: Pricing = getBaseProductPricing('Tier 3'); // Default to Tier 3 for Sanity products
   try {
     // Load blank cap pricing data
     const blankCapPricingData = await loadBlankCapPricing();
@@ -259,6 +262,23 @@ async function fetchProduct(slug: string): Promise<Product> {
     console.error('Error loading blank cap pricing for Sanity product:', e);
   }
 
+  // Handle referenceProductId for resale products - fetch referenced factory product's front color images
+  let referencedFrontColorImages: ImageWithAlt[] = [];
+  if ((sanityProduct as any).referenceProductId && (sanityProduct as any).productType === 'resale') {
+    try {
+      console.log('🔗 Fetching referenced factory product for color images:', (sanityProduct as any).referenceProductId);
+      const referencedProduct = await SanityService.getProductById((sanityProduct as any).referenceProductId);
+      if (referencedProduct && Array.isArray((referencedProduct as any).frontColorImages)) {
+        referencedFrontColorImages = (referencedProduct as any).frontColorImages;
+        console.log('✅ Successfully loaded', referencedFrontColorImages.length, 'front color images from referenced factory product');
+      } else {
+        console.log('⚠️ Referenced factory product not found or has no front color images');
+      }
+    } catch (e) {
+      console.error('❌ Error fetching referenced factory product:', e);
+    }
+  }
+
   // Map Sanity product to Product shape
   const resultFromSanity: Product = {
     name: sanityProduct.name,
@@ -279,7 +299,10 @@ async function fetchProduct(slug: string): Promise<Product> {
             name: img.name || img.alt || '',
           }))
       : [],
-    frontColorImages: Array.isArray((sanityProduct as any).frontColorImages) ? (sanityProduct as any).frontColorImages : [],
+    // Use referenced factory product's frontColorImages if available, otherwise use the product's own frontColorImages
+    frontColorImages: referencedFrontColorImages.length > 0 
+      ? referencedFrontColorImages 
+      : (Array.isArray((sanityProduct as any).frontColorImages) ? (sanityProduct as any).frontColorImages : []),
     leftColorImages: Array.isArray((sanityProduct as any).leftColorImages) ? (sanityProduct as any).leftColorImages : [],
     rightColorImages: Array.isArray((sanityProduct as any).rightColorImages) ? (sanityProduct as any).rightColorImages : [],
     backColorImages: Array.isArray((sanityProduct as any).backColorImages) ? (sanityProduct as any).backColorImages : [],
@@ -290,6 +313,14 @@ async function fetchProduct(slug: string): Promise<Product> {
     pricing,
     productOptions: [],
     priceTier: (sanityProduct as any).priceTier || 'Tier 1', // Add price tier to Sanity products
+    // Cap Style Setup fields for resale products
+    billShape: (sanityProduct as any).billShape,
+    profile: (sanityProduct as any).profile,
+    closureType: (sanityProduct as any).closureType,
+    structure: (sanityProduct as any).structure,
+    fabricSetup: (sanityProduct as any).fabricSetup,
+    customFabricSetup: (sanityProduct as any).customFabricSetup,
+    productType: (sanityProduct as any).productType,
   };
 
   // Debug logging
@@ -297,6 +328,17 @@ async function fetchProduct(slug: string): Promise<Product> {
     name: resultFromSanity.name,
     mainImageUrl: resultFromSanity.mainImage.url,
     itemDataCount: resultFromSanity.itemData.length,
+    frontColorImagesCount: resultFromSanity.frontColorImages.length,
+    productType: (sanityProduct as any).productType,
+    referenceProductId: (sanityProduct as any).referenceProductId,
+    usingReferencedColors: referencedFrontColorImages.length > 0,
+    capStyleSetup: {
+      billShape: resultFromSanity.billShape,
+      profile: resultFromSanity.profile,
+      closureType: resultFromSanity.closureType,
+      structure: resultFromSanity.structure,
+      fabricSetup: resultFromSanity.fabricSetup
+    }
   });
 
   // Also load product options (from Webflow) so options are available for Sanity products too

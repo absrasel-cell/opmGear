@@ -28,7 +28,8 @@ import {
   RefreshCw,
   Trash2,
   Ship,
-  X
+  X,
+  Receipt
 } from 'lucide-react';
 
 import {
@@ -49,6 +50,7 @@ import Sidebar from '@/components/ui/dashboard/Sidebar';
 import DashboardHeader from '@/components/ui/dashboard/DashboardHeader';
 import ShipmentBuilder from '@/components/ui/dashboard/ShipmentBuilder';
 import AdminLogoAssetsDisplay from '@/components/dashboard/AdminLogoAssetsDisplay';
+// Removed server action import - using direct API calls instead
 
 interface Order {
   id: string;
@@ -116,6 +118,11 @@ interface CostBreakdown {
     unitPrice: number;
   }>;
   closureCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+  }>;
+  premiumFabricCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
@@ -429,22 +436,27 @@ export default function AdminOrdersPage() {
 
   const calculateOrderCosts = async (order: Order): Promise<CostBreakdown | null> => {
     try {
-      // Get base product pricing (using default tier)
-      const baseProductPricing = {
-        price48: 2.4,
-        price144: 1.7,
-        price576: 1.6,
-        price1152: 1.47,
-        price2880: 1.44,
-        price10000: 1.41,
-      };
+      // Determine pricing tier from the product's embedded priceTier field
+      // This is the true source of truth - each product has its own tier set in Product Management
+      let pricingTier = 'Tier 1'; // Default fallback
+      
+      // TODO: Look up the product from Sanity using order.productName to get the actual priceTier
+      // For now, we'll use Tier 1 as default to match current behavior until we implement product lookup
+      // The proper implementation would be:
+      // 1. Query Sanity for product by productName matching order.productName
+      // 2. Extract product.priceTier field
+      // 3. Use that tier for pricing
+      
+      const { getBaseProductPricing } = await import('@/lib/pricing');
+      const baseProductPricing = getBaseProductPricing(pricingTier);
 
       const requestData = {
         selectedColors: order.selectedColors,
         logoSetupSelections: order.logoSetupSelections || {},
         multiSelectOptions: order.multiSelectOptions || {},
         selectedOptions: order.selectedOptions || {},
-        baseProductPricing
+        baseProductPricing,
+        priceTier: pricingTier // Send the tier to API for consistency
       };
 
       const response = await fetch('/api/calculate-cost', {
@@ -785,6 +797,33 @@ export default function AdminOrdersPage() {
   const handleContactCustomer = (order: Order) => {
     setSelectedOrder(order);
     setContactModal(true);
+  };
+
+  const handleCreateInvoice = async (order: Order) => {
+    try {
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create invoice');
+      }
+
+      const invoice = await response.json();
+      showNotification(`Invoice ${invoice.number} created successfully`, 'success');
+      
+      // Optionally refresh orders to show updated status
+      fetchAllOrders();
+    } catch (error: any) {
+      console.error('Error creating invoice:', error);
+      showNotification(`Error: ${error.message}`, 'error');
+    }
+    setOpenDropdown(null);
   };
 
   const handleSaveOrderChanges = async (updatedOrder: Partial<Order>) => {
@@ -1392,6 +1431,14 @@ export default function AdminOrdersPage() {
                                         <Edit className="w-4 h-4" />
                                         Edit Order
                                       </button>
+
+                                      <button
+                                        onClick={() => handleCreateInvoice(order)}
+                                        className="w-full px-4 py-2 text-left text-sm text-cyan-400 hover:bg-cyan-500/10 flex items-center gap-2 transition-colors"
+                                      >
+                                        <Receipt className="w-4 h-4" />
+                                        Create Invoice
+                                      </button>
                                       
                                       {order.shipment ? (
                                         <button
@@ -1928,6 +1975,29 @@ export default function AdminOrdersPage() {
                                                 ))}
                                               </div>
                                             ))}
+
+                                            {/* Premium Fabric Costs */}
+                                            {costBreakdown?.premiumFabricCosts && costBreakdown.premiumFabricCosts.length > 0 && (
+                                              <div>
+                                                <div className="text-xs font-medium text-slate-300 mb-2">Premium Fabrics:</div>
+                                                {costBreakdown.premiumFabricCosts.map((fabricCost, index) => (
+                                                  <div key={index} className="flex justify-between items-center py-1 text-sm">
+                                                    <div className="text-slate-300">
+                                                      <div className="flex items-center gap-1">
+                                                        <span>⭐</span>
+                                                        <span>{fabricCost.name}</span>
+                                                      </div>
+                                                      <div className="text-xs text-slate-400">
+                                                        {formatPrice(fabricCost.unitPrice)} per unit
+                                                      </div>
+                                                    </div>
+                                                    <div className="text-purple-400 font-medium">
+                                                      {formatPrice(fabricCost.cost)}
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
 
                                             {/* Delivery Costs */}
                                             {costBreakdown?.deliveryCosts && costBreakdown.deliveryCosts.length > 0 ? (

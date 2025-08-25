@@ -36,6 +36,7 @@ interface OrderSubmission {
   orderType?: 'AUTHENTICATED' | 'GUEST';
   orderSource?: string;
   status?: string;
+  shipmentId?: string | null;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -141,18 +142,12 @@ async function getCurrentUser(request: NextRequest) {
 // Add function to calculate order total
 async function calculateOrderTotal(order: any): Promise<number> {
   try {
-    // Import the cost calculation logic directly
-    const { loadCustomizationPricing } = await import('@/lib/pricing');
+    // Import the cost calculation logic and pricing
+    const { loadCustomizationPricing } = await import('@/lib/pricing-server');
+    const { getBaseProductPricing } = await import('@/lib/pricing');
     
-    // Get base product pricing (using default tier)
-    const baseProductPricing = {
-      price48: 2.4,
-      price144: 1.7,
-      price576: 1.6,
-      price1152: 1.47,
-      price2880: 1.44,
-      price10000: 1.41,
-    };
+    // Get base product pricing (using Tier 2 for consistency with cart/checkout)
+    const baseProductPricing = getBaseProductPricing('Tier 2');
 
     // Load customization pricing
     const pricingData = await loadCustomizationPricing();
@@ -307,12 +302,18 @@ export async function POST(request: NextRequest) {
           orderType: user ? 'AUTHENTICATED' : 'GUEST',
           orderSource: orderData.orderSource === 'REORDER' ? 'REORDER' : 'PRODUCT_CUSTOMIZATION',
           status: orderData.status || 'PENDING',
+          shipmentId: orderData.shipmentId || null,
           ipAddress,
           userAgent,
         },
       });
 
       console.log('✅ Order saved to database with ID:', order.id);
+      if (orderData.shipmentId) {
+        console.log('🚢 Order assigned to shipment:', orderData.shipmentId);
+      } else {
+        console.log('📦 Order created without shipment assignment');
+      }
 
       // Handle temporary logo file uploads
       if (orderData.tempLogoFiles && orderData.tempLogoFiles.length > 0) {
