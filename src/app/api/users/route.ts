@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is admin or master admin
-    const isMasterAdmin = userProfile.email === 'absrasel@gmail.com';
+    const isMasterAdmin = userProfile.email === 'absrasel@gmail.com' || userProfile.email === 'vic@onpointmarketing.com';
     const isAdmin = userProfile.accessRole === 'SUPER_ADMIN' || 
                    userProfile.accessRole === 'MASTER_ADMIN' || 
                    userProfile.customerRole === 'ADMIN' ||
@@ -138,7 +138,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Check if user is admin or master admin
-    const isMasterAdmin = userProfile.email === 'absrasel@gmail.com';
+    const isMasterAdmin = userProfile.email === 'absrasel@gmail.com' || userProfile.email === 'vic@onpointmarketing.com';
     if (userProfile.accessRole !== 'SUPER_ADMIN' && userProfile.accessRole !== 'MASTER_ADMIN' && !isMasterAdmin) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }

@@ -1788,7 +1788,7 @@ export function ProductManagement() {
                 )}
 
                                  {/* Image Preview */}
-                 {formData.mainImage.url && (
+                 {formData.mainImage?.url && (
                    <div className="inline-block">
                      <div className="border border-white/10 bg-white/5 rounded-lg p-4 w-fit">
                        <div className="aspect-square w-32 h-32">

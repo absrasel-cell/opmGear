@@ -43,7 +43,16 @@
       "Bash(timeout:*)",
       "Bash(del debug-invoices.js test-pdf-generation.js test-fixed-invoice.pdf)",
       "Bash(del:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo view:*)",
+      "Bash(find:*)",
+      "Bash(for file in \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\profile\\page.tsx\" \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\messages\\page.tsx\" \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\products\\page.tsx\")",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash(for file in \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\quotes\\page.tsx\" \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\billing\\invoices\\page.tsx\" \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\shipments\\analytics\\page.tsx\")",
+      "Bash(for:*)",
+      "Bash(do echo \"=== Updating $file ===\")"
     ],
     "deny": [],
     "ask": [],

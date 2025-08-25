@@ -20,7 +20,7 @@ export default function MessagesPage() {
       return;
     }
     
-    const isMasterAdmin = user.email === 'absrasel@gmail.com';
+    const isMasterAdmin = user.email === 'absrasel@gmail.com' || user.email === 'vic@onpointmarketing.com';
     if (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'MASTER_ADMIN' && !isMasterAdmin) {
       router.push('/dashboard/member');
       return;
@@ -40,7 +40,7 @@ export default function MessagesPage() {
     );
   }
 
-  if (!isAuthenticated || !user || (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'MASTER_ADMIN' && user.email !== 'absrasel@gmail.com')) {
+  if (!isAuthenticated || !user || (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'MASTER_ADMIN' && user.email !== 'absrasel@gmail.com' && user.email !== 'vic@onpointmarketing.com')) {
     return (
       <DashboardShell>
         <div className="flex items-center justify-center min-h-screen">

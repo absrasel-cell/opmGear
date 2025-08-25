@@ -15,7 +15,7 @@ async function canAccessInvoice(request: NextRequest, customerId: string) {
   if (!profile) return false;
   
   // Check if user is admin
-  const isMasterAdmin = profile.email === 'absrasel@gmail.com';
+  const isMasterAdmin = profile.email === 'absrasel@gmail.com' || profile.email === 'vic@onpointmarketing.com';
   const isAdmin = profile.accessRole === 'SUPER_ADMIN' || 
                  profile.accessRole === 'MASTER_ADMIN' || 
                  profile.customerRole === 'ADMIN' ||

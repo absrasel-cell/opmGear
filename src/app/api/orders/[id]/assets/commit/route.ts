@@ -31,7 +31,7 @@ export async function POST(
     
     // Check if user owns order or is admin
     const isOwner = order.userId === user.id;
-    const isMasterAdmin = userProfile?.email === 'absrasel@gmail.com';
+    const isMasterAdmin = userProfile?.email === 'absrasel@gmail.com' || userProfile?.email === 'vic@onpointmarketing.com';
     const isAdmin = ['SUPER_ADMIN', 'MASTER_ADMIN'].includes(userProfile?.accessRole || '') || isMasterAdmin;
 
     if (!isOwner && !isAdmin) {

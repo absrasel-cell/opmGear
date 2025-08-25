@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       }, { status: 401 });
     }
 
-    const isMasterAdmin = userProfile.email === 'absrasel@gmail.com';
+    const isMasterAdmin = userProfile.email === 'absrasel@gmail.com' || userProfile.email === 'vic@onpointmarketing.com';
     const isAdmin = userProfile.role === 'ADMIN' || isMasterAdmin;
 
     return NextResponse.json({

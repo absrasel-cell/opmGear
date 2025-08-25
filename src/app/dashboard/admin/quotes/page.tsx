@@ -57,7 +57,7 @@ export default function AdminQuotesPage() {
       return;
     }
     
-    const isMasterAdmin = user.email === 'absrasel@gmail.com';
+    const isMasterAdmin = user.email === 'absrasel@gmail.com' || user.email === 'vic@onpointmarketing.com';
     const allowedRoles = ['STAFF', 'SUPER_ADMIN', 'MASTER_ADMIN'];
     if (!allowedRoles.includes(user.accessRole as any) && !isMasterAdmin) {
       router.push('/dashboard/member');

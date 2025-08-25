@@ -29,7 +29,7 @@ export default function SanityCMSPage() {
       return;
     }
     
-    const isMasterAdmin = user.email === 'absrasel@gmail.com';
+    const isMasterAdmin = user.email === 'absrasel@gmail.com' || user.email === 'vic@onpointmarketing.com';
     if (user.role !== 'ADMIN' && !isMasterAdmin) {
       router.push('/dashboard/member');
       return;

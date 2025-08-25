@@ -149,7 +149,7 @@ export default function AdminDashboardPage() {
     }
     
     // Special check for master admin
-    const isMasterAdmin = user.email === 'absrasel@gmail.com';
+    const isMasterAdmin = user.email === 'absrasel@gmail.com' || user.email === 'vic@onpointmarketing.com';
     console.log('🔍 Master admin check result:', isMasterAdmin);
     console.log('🔍 Regular admin check:', user.role === 'ADMIN');
     
