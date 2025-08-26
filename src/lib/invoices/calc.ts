@@ -204,6 +204,365 @@ interface InvoiceCalculation {
 }
 
 export async function calcInvoiceFromOrder(order: OrderWithDetails): Promise<InvoiceCalculation> {
+  // Use the same /api/calculate-cost API that admin orders page uses for perfect consistency
+  try {
+    console.log('🔄 Using /api/calculate-cost API for invoice calculation consistency');
+    
+    // Parse order data
+    const selectedColors = typeof order.selectedColors === 'string' ? JSON.parse(order.selectedColors) : (order.selectedColors || {});
+    const logoSetupSelections = typeof order.logoSetupSelections === 'string' ? JSON.parse(order.logoSetupSelections) : (order.logoSetupSelections || {});
+    const selectedOptions = typeof order.selectedOptions === 'string' ? JSON.parse(order.selectedOptions) : (order.selectedOptions || {});
+    const multiSelectOptions = typeof order.multiSelectOptions === 'string' ? JSON.parse(order.multiSelectOptions) : (order.multiSelectOptions || {});
+    
+    // Prepare request data exactly like admin orders page does
+    const { getBaseProductPricing } = await import('@/lib/pricing');
+    const baseProductPricing = getBaseProductPricing('Tier 2'); // Default tier
+    
+    const requestData = {
+      selectedColors,
+      logoSetupSelections,
+      multiSelectOptions,
+      selectedOptions,
+      baseProductPricing,
+      priceTier: 'Tier 2'
+    };
+    
+    console.log('🔍 Debug - API request data:', {
+      hasSelectedColors: Object.keys(selectedColors).length > 0,
+      hasLogoSetupSelections: Object.keys(logoSetupSelections).length > 0,
+      multiSelectOptions,
+      selectedOptions
+    });
+    
+    // Make internal API call
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/calculate-cost`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    });
+    
+    if (response.ok) {
+      const costBreakdown = await response.json();
+      console.log('💰 Cost breakdown result from API:', costBreakdown);
+      
+      if (costBreakdown) {
+        console.log('📊 Using /api/calculate-cost breakdown for invoice');
+        return convertCostBreakdownToInvoice(order, costBreakdown);
+      }
+    } else {
+      console.warn('API call failed:', response.status, response.statusText);
+    }
+  } catch (error) {
+    console.warn('/api/calculate-cost failed, falling back to legacy:', error);
+  }
+  
+  // Fallback to legacy calculation
+  console.log('⚠️ Using legacy calculation as fallback');
+  return calculateInvoiceFromOrderLegacy(order);
+}
+
+function convertCostBreakdownToInvoice(order: OrderWithDetails, costBreakdown: any): InvoiceCalculation {
+  const items: DetailedInvoiceItem[] = [];
+  let subtotal = new Decimal(0);
+
+  // Extract total quantity
+  const selectedColors = typeof order.selectedColors === 'string'
+    ? JSON.parse(order.selectedColors)
+    : order.selectedColors || {};
+    
+  let totalQuantity = 0;
+  Object.values(selectedColors).forEach((colorData: any) => {
+    if (colorData?.sizes) {
+      Object.values(colorData.sizes).forEach((qty: any) => {
+        totalQuantity += parseInt(qty) || 0;
+      });
+    }
+  });
+
+  // Base product cost
+  if (costBreakdown.baseProductCost > 0) {
+    const basePrice = new Decimal(costBreakdown.baseProductCost);
+    items.push({
+      name: 'Blank Cap Cost',
+      description: `${totalQuantity} units @ ${basePrice.div(totalQuantity || 1).toFixed(2)} ea`,
+      quantity: totalQuantity,
+      unitPrice: basePrice.div(totalQuantity || 1),
+      total: basePrice,
+      category: 'cap'
+    });
+    subtotal = subtotal.add(basePrice);
+  }
+
+  // Logo setup costs
+  if (costBreakdown.logoSetupCosts && Array.isArray(costBreakdown.logoSetupCosts)) {
+    costBreakdown.logoSetupCosts.forEach((logo: any) => {
+      const logoPrice = new Decimal(logo.cost);
+      const logoUnitPrice = new Decimal(logo.unitPrice || 0);
+      items.push({
+        name: 'Logo Setup',
+        description: `${logo.details || logo.name} (${totalQuantity} units @ $${logoUnitPrice.toFixed(2)} ea)`,
+        quantity: totalQuantity,
+        unitPrice: logoUnitPrice,
+        total: logoPrice,
+        category: 'logo'
+      });
+      subtotal = subtotal.add(logoPrice);
+    });
+  }
+
+  // Accessories costs
+  if (costBreakdown.accessoriesCosts && Array.isArray(costBreakdown.accessoriesCosts)) {
+    costBreakdown.accessoriesCosts.forEach((accessory: any) => {
+      const accessoryPrice = new Decimal(accessory.cost);
+      const accessoryUnitPrice = new Decimal(accessory.unitPrice || 0);
+      items.push({
+        name: 'Other Accessories',
+        description: accessory.name,
+        quantity: totalQuantity,
+        unitPrice: accessoryUnitPrice,
+        total: accessoryPrice,
+        category: 'accessory'
+      });
+      subtotal = subtotal.add(accessoryPrice);
+    });
+  }
+
+  // Closure costs
+  if (costBreakdown.closureCosts && Array.isArray(costBreakdown.closureCosts)) {
+    costBreakdown.closureCosts.forEach((closure: any) => {
+      const closurePrice = new Decimal(closure.cost);
+      const closureUnitPrice = new Decimal(closure.unitPrice || 0);
+      items.push({
+        name: 'Closure Option',
+        description: closure.name,
+        quantity: totalQuantity,
+        unitPrice: closureUnitPrice,
+        total: closurePrice,
+        category: 'closure'
+      });
+      subtotal = subtotal.add(closurePrice);
+    });
+  }
+
+  // Premium fabric costs
+  if (costBreakdown.premiumFabricCosts && Array.isArray(costBreakdown.premiumFabricCosts)) {
+    costBreakdown.premiumFabricCosts.forEach((fabric: any) => {
+      const fabricPrice = new Decimal(fabric.cost);
+      const fabricUnitPrice = new Decimal(fabric.unitPrice || 0);
+      items.push({
+        name: 'Premium Fabric',
+        description: fabric.name,
+        quantity: totalQuantity,
+        unitPrice: fabricUnitPrice,
+        total: fabricPrice,
+        category: 'accessory'
+      });
+      subtotal = subtotal.add(fabricPrice);
+    });
+  }
+
+  // Delivery costs
+  if (costBreakdown.deliveryCosts && Array.isArray(costBreakdown.deliveryCosts)) {
+    costBreakdown.deliveryCosts.forEach((delivery: any) => {
+      const deliveryPrice = new Decimal(delivery.cost);
+      const deliveryUnitPrice = new Decimal(delivery.unitPrice || 0);
+      items.push({
+        name: 'Delivery Charges',
+        description: delivery.name,
+        quantity: totalQuantity,
+        unitPrice: deliveryUnitPrice,
+        total: deliveryPrice,
+        category: 'delivery'
+      });
+      subtotal = subtotal.add(deliveryPrice);
+    });
+  }
+
+  // Mold charge costs
+  if (costBreakdown.moldChargeCosts && Array.isArray(costBreakdown.moldChargeCosts)) {
+    costBreakdown.moldChargeCosts.forEach((mold: any) => {
+      if (!mold.waived && mold.cost > 0) {
+        const moldPrice = new Decimal(mold.cost);
+        items.push({
+          name: 'Mold Charge',
+          description: mold.name,
+          quantity: 1,
+          unitPrice: moldPrice,
+          total: moldPrice,
+          category: 'other'
+        });
+        subtotal = subtotal.add(moldPrice);
+      }
+    });
+  }
+
+  // Ensure we have at least one delivery item
+  const hasDeliveryItem = items.some(item => item.category === 'delivery');
+  if (!hasDeliveryItem) {
+    items.push({
+      name: 'Delivery Charges',
+      description: 'Standard Shipping',
+      quantity: 1,
+      unitPrice: new Decimal(0),
+      total: new Decimal(0),
+      category: 'delivery'
+    });
+  }
+
+  const breakdown = {
+    blankCapCost: new Decimal(costBreakdown.baseProductCost || 0),
+    logoSetupCost: new Decimal(costBreakdown.logoSetupCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0),
+    accessoriesCost: new Decimal(
+      (costBreakdown.accessoriesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
+      (costBreakdown.closureCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
+      (costBreakdown.premiumFabricCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
+      (costBreakdown.moldChargeCosts?.reduce((sum: number, item: any) => item.waived ? sum : sum + item.cost, 0) || 0)
+    ),
+    deliveryCost: new Decimal(costBreakdown.deliveryCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0)
+  };
+
+  return {
+    items,
+    subtotal,
+    discount: new Decimal(0),
+    shipping: new Decimal(0),
+    tax: new Decimal(0),
+    total: subtotal,
+    breakdown
+  };
+}
+
+function convertOrderCostBreakdownToInvoice(order: OrderWithDetails, costBreakdown: any): InvoiceCalculation {
+  const items: DetailedInvoiceItem[] = [];
+  let subtotal = new Decimal(0);
+
+  // Extract total quantity
+  const selectedColors = typeof order.selectedColors === 'string'
+    ? JSON.parse(order.selectedColors)
+    : order.selectedColors || {};
+    
+  let totalQuantity = 0;
+  Object.values(selectedColors).forEach((colorData: any) => {
+    if (colorData?.sizes) {
+      Object.values(colorData.sizes).forEach((qty: any) => {
+        totalQuantity += parseInt(qty) || 0;
+      });
+    }
+  });
+
+  // Base product cost
+  if (costBreakdown.baseProductCost > 0) {
+    const basePrice = new Decimal(costBreakdown.baseProductCost);
+    items.push({
+      name: 'Blank Cap Cost',
+      description: `${totalQuantity} units @ ${basePrice.div(totalQuantity || 1).toFixed(2)} ea`,
+      quantity: totalQuantity,
+      unitPrice: basePrice.div(totalQuantity || 1),
+      total: basePrice,
+      category: 'cap'
+    });
+    subtotal = subtotal.add(basePrice);
+  }
+
+  // Logo setup costs
+  if (costBreakdown.logoSetupCosts && Array.isArray(costBreakdown.logoSetupCosts)) {
+    costBreakdown.logoSetupCosts.forEach((logo: any) => {
+      const logoPrice = new Decimal(logo.cost);
+      const logoUnitPrice = new Decimal(logo.unitPrice || 0);
+      items.push({
+        name: 'Logo Setup',
+        description: `${logo.details || logo.name} (${totalQuantity} units @ $${logoUnitPrice.toFixed(2)} ea)`,
+        quantity: totalQuantity,
+        unitPrice: logoUnitPrice,
+        total: logoPrice,
+        category: 'logo'
+      });
+      subtotal = subtotal.add(logoPrice);
+    });
+  }
+
+  // Accessories costs
+  if (costBreakdown.accessoriesCosts && Array.isArray(costBreakdown.accessoriesCosts)) {
+    costBreakdown.accessoriesCosts.forEach((accessory: any) => {
+      const accessoryPrice = new Decimal(accessory.cost);
+      const accessoryUnitPrice = new Decimal(accessory.unitPrice || 0);
+      items.push({
+        name: 'Other Accessories',
+        description: accessory.name,
+        quantity: totalQuantity,
+        unitPrice: accessoryUnitPrice,
+        total: accessoryPrice,
+        category: 'accessory'
+      });
+      subtotal = subtotal.add(accessoryPrice);
+    });
+  }
+
+  // Closure costs
+  if (costBreakdown.closureCosts && Array.isArray(costBreakdown.closureCosts)) {
+    costBreakdown.closureCosts.forEach((closure: any) => {
+      const closurePrice = new Decimal(closure.cost);
+      items.push({
+        name: 'Closure Option',
+        description: closure.name,
+        quantity: 1,
+        unitPrice: closurePrice,
+        total: closurePrice,
+        category: 'closure'
+      });
+      subtotal = subtotal.add(closurePrice);
+    });
+  }
+
+  // Delivery costs
+  if (costBreakdown.deliveryCosts && Array.isArray(costBreakdown.deliveryCosts)) {
+    costBreakdown.deliveryCosts.forEach((delivery: any) => {
+      const deliveryPrice = new Decimal(delivery.cost);
+      const deliveryUnitPrice = new Decimal(delivery.unitPrice || 0);
+      items.push({
+        name: 'Delivery Charges',
+        description: delivery.name,
+        quantity: totalQuantity,
+        unitPrice: deliveryUnitPrice,
+        total: deliveryPrice,
+        category: 'delivery'
+      });
+      subtotal = subtotal.add(deliveryPrice);
+    });
+  }
+
+  // Ensure we have at least one delivery item
+  const hasDeliveryItem = items.some(item => item.category === 'delivery');
+  if (!hasDeliveryItem) {
+    items.push({
+      name: 'Delivery Charges',
+      description: 'Standard Shipping',
+      quantity: 1,
+      unitPrice: new Decimal(0),
+      total: new Decimal(0),
+      category: 'delivery'
+    });
+  }
+
+  const breakdown = {
+    blankCapCost: new Decimal(costBreakdown.baseProductCost || 0),
+    logoSetupCost: new Decimal(costBreakdown.logoSetupCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0),
+    accessoriesCost: new Decimal(costBreakdown.accessoriesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0),
+    deliveryCost: new Decimal(costBreakdown.deliveryCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0)
+  };
+
+  return {
+    items,
+    subtotal,
+    discount: new Decimal(0),
+    shipping: new Decimal(0),
+    tax: new Decimal(0),
+    total: subtotal,
+    breakdown
+  };
+}
+
+async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise<InvoiceCalculation> {
   // Extract pricing data from the order JSON fields
   const selectedOptions = typeof order.selectedOptions === 'string' 
     ? JSON.parse(order.selectedOptions) 

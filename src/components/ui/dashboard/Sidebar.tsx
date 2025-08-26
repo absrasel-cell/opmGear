@@ -26,8 +26,7 @@ import {
   CreditCard,
   Truck,
   BarChart3,
-  Store,
-  Receipt
+  Store
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthContext';
 import { GlassCard, NavItem } from './index';
@@ -90,13 +89,7 @@ export function Sidebar({
         icon: CreditCard,
         label: 'Billing & Accounts',
         href: '/dashboard/admin/billing',
-        active: pathname?.includes('/billing') && !pathname?.includes('/invoices')
-      },
-      {
-        icon: Receipt,
-        label: 'Invoices',
-        href: '/dashboard/admin/billing/invoices',
-        active: pathname?.includes('/invoices')
+        active: pathname?.includes('/billing')
       },
       {
         icon: LayoutTemplate,
@@ -108,7 +101,7 @@ export function Sidebar({
     {
       icon: Settings,
       label: 'Settings',
-      href: '/settings',
+      href: isAdmin ? '/dashboard/admin/settings' : '/dashboard/member/settings',
       active: pathname?.includes('/settings')
     }
   ];

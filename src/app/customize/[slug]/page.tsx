@@ -155,15 +155,45 @@ async function fetchProduct(slug: string): Promise<Product> {
   // Find matching blank cap pricing based on the product's price tier
   const blankCapPricing = blankCapPricingData.find(p => p.Name === productPriceTier);
   
-  // Use blank cap pricing if available, otherwise use centralized pricing
+  // Use blank cap pricing with global margins applied
   const centralizedPricing = getBaseProductPricing(productPriceTier);
+  
+  // Apply global margins to factory pricing (20% margin for blank caps)
+  const factoryPricing = blankCapPricing ? {
+    price48: blankCapPricing.price48,
+    price144: blankCapPricing.price144,
+    price576: blankCapPricing.price576,
+    price1152: blankCapPricing.price1152,
+    price2880: blankCapPricing.price2880,
+    price10000: blankCapPricing.price10000,
+  } : centralizedPricing;
+  
+  // Fetch global margins from admin settings
+  let blankCapMarginPercent = 20; // Default 20% if API fails
+  let blankCapFlatMargin = 0; // Default $0 flat margin
+  
+  try {
+    const marginResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/billing/margins?category=blank_caps&mode=global`);
+    if (marginResponse.ok) {
+      const marginData = await marginResponse.json();
+      const blankCapSetting = marginData.data.find((setting: any) => setting.category === 'blank_caps' && setting.isActive);
+      if (blankCapSetting) {
+        blankCapMarginPercent = blankCapSetting.marginPercent;
+        blankCapFlatMargin = blankCapSetting.flatMargin;
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching global margins, using defaults:', error);
+  }
+  
+  // Apply dynamic global margins from admin settings
   const pricing: Pricing = {
-    price48: blankCapPricing?.price48 ?? centralizedPricing.price48,
-    price144: blankCapPricing?.price144 ?? centralizedPricing.price144,
-    price576: blankCapPricing?.price576 ?? centralizedPricing.price576,
-    price1152: blankCapPricing?.price1152 ?? centralizedPricing.price1152,
-    price2880: blankCapPricing?.price2880 ?? centralizedPricing.price2880,
-    price10000: blankCapPricing?.price10000 ?? centralizedPricing.price10000,
+    price48: Math.round((factoryPricing.price48 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+    price144: Math.round((factoryPricing.price144 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+    price576: Math.round((factoryPricing.price576 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+    price1152: Math.round((factoryPricing.price1152 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+    price2880: Math.round((factoryPricing.price2880 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+    price10000: Math.round((factoryPricing.price10000 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
   };
 
 
@@ -248,14 +278,42 @@ async function fetchProduct(slug: string): Promise<Product> {
     // Find matching blank cap pricing based on the product's price tier
     const blankCapPricing = blankCapPricingData.find(p => p.Name === productPriceTier);
     
-    // Use blank cap pricing if available, otherwise fall back to default pricing
+    // Use blank cap pricing with global margins applied
+    const factoryPricing = blankCapPricing ? {
+      price48: blankCapPricing.price48,
+      price144: blankCapPricing.price144,
+      price576: blankCapPricing.price576,
+      price1152: blankCapPricing.price1152,
+      price2880: blankCapPricing.price2880,
+      price10000: blankCapPricing.price10000,
+    } : pricing;
+    
+    // Fetch global margins from admin settings
+    let blankCapMarginPercent = 20; // Default 20% if API fails
+    let blankCapFlatMargin = 0; // Default $0 flat margin
+    
+    try {
+      const marginResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/billing/margins?category=blank_caps&mode=global`);
+      if (marginResponse.ok) {
+        const marginData = await marginResponse.json();
+        const blankCapSetting = marginData.data.find((setting: any) => setting.category === 'blank_caps' && setting.isActive);
+        if (blankCapSetting) {
+          blankCapMarginPercent = blankCapSetting.marginPercent;
+          blankCapFlatMargin = blankCapSetting.flatMargin;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching global margins for Sanity product, using defaults:', error);
+    }
+    
+    // Apply dynamic global margins from admin settings
     pricing = {
-      price48: blankCapPricing?.price48 ?? pricing.price48,
-      price144: blankCapPricing?.price144 ?? pricing.price144,
-      price576: blankCapPricing?.price576 ?? pricing.price576,
-      price1152: blankCapPricing?.price1152 ?? pricing.price1152,
-      price2880: blankCapPricing?.price2880 ?? pricing.price2880,
-      price10000: blankCapPricing?.price10000 ?? pricing.price10000,
+      price48: Math.round((factoryPricing.price48 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+      price144: Math.round((factoryPricing.price144 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+      price576: Math.round((factoryPricing.price576 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+      price1152: Math.round((factoryPricing.price1152 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+      price2880: Math.round((factoryPricing.price2880 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
+      price10000: Math.round((factoryPricing.price10000 * (1 + blankCapMarginPercent / 100) + blankCapFlatMargin) * 100) / 100,
     };
   } catch (e) {
     // Use defaults if pricing fetch fails

@@ -240,28 +240,79 @@ function SuccessPageContent() {
   }, [orderId, orders, isAuthenticated]);
 
   const createInvoice = async (orderId: string) => {
-    if (!isAuthenticated || creatingInvoice) return;
+    console.log(`🧾 Starting invoice creation for order ${orderId}`);
+    console.log(`🧾 Authentication status: ${isAuthenticated}`);
+    console.log(`🧾 Already creating invoice: ${creatingInvoice}`);
     
+    if (!isAuthenticated || creatingInvoice) {
+      console.log(`🧾 Aborting invoice creation - not authenticated or already creating`);
+      return;
+    }
+    
+    console.log(`🧾 Setting creatingInvoice state to ${orderId}`);
     setCreatingInvoice(orderId);
+    
     try {
+      console.log(`🧾 Making API call to /api/user/invoices`);
+      
+      // Add timeout to detect hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log(`🧾 Request timeout - aborting after 30 seconds`);
+        controller.abort();
+      }, 30000);
+      
       const response = await fetch('/api/user/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId })
+        body: JSON.stringify({ orderId }),
+        credentials: 'include',
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
+
+      console.log(`🧾 API response status: ${response.status} ${response.statusText}`);
+      console.log(`🧾 API response headers:`, Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
         const result = await response.json();
-        setInvoices(prev => [...prev, result.invoice]);
+        console.log(`🧾 Invoice creation successful:`, result);
+        setInvoices(prev => {
+          const updated = [...prev, result.invoice];
+          console.log(`🧾 Updated invoices state:`, updated);
+          return updated;
+        });
       } else {
-        const error = await response.json();
-        console.error('Error creating invoice:', error);
-        alert('Unable to create invoice. Please contact support.');
+        const errorText = await response.text();
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { message: errorText };
+        }
+        console.error(`🧾 Invoice creation failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error
+        });
+        alert(`Unable to create invoice: ${error.error || error.message || 'Unknown error'}. Please contact support.`);
       }
     } catch (error) {
-      console.error('Error creating invoice:', error);
-      alert('Unable to create invoice. Please try again later.');
+      console.error('🧾 Error creating invoice:', error);
+      
+      if (error.name === 'AbortError') {
+        console.error('🧾 Request was aborted due to timeout (30 seconds)');
+        alert('Request timeout: The server is taking too long to respond. Please try again or contact support.');
+      } else if (error.message?.includes('fetch')) {
+        console.error('🧾 Network fetch error:', error.message);
+        alert(`Network error: ${error.message}. Please check your connection and try again.`);
+      } else {
+        console.error('🧾 Unknown error:', error);
+        alert(`Unknown error: ${error.message || 'Unable to create invoice. Please try again later.'}`);
+      }
     } finally {
+      console.log(`🧾 Clearing creatingInvoice state`);
       setCreatingInvoice(null);
     }
   };
@@ -271,10 +322,36 @@ function SuccessPageContent() {
     
     setDownloadingPdf(invoiceId);
     try {
-      const response = await fetch(`/api/invoices/${invoiceId}/pdf`);
+      console.log(`🔽 Starting PDF download for invoice ${invoiceNumber} (ID: ${invoiceId})`);
+      
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      console.log(`🔽 PDF response status: ${response.status} ${response.statusText}`);
+      console.log(`🔽 PDF response headers:`, Object.fromEntries(response.headers.entries()));
       
       if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/pdf')) {
+          const errorText = await response.text();
+          console.error(`🔽 Invalid content type: ${contentType}. Response:`, errorText);
+          alert(`Error: Server returned ${contentType} instead of PDF. Check console for details.`);
+          return;
+        }
+        
         const blob = await response.blob();
+        console.log(`🔽 PDF blob size: ${blob.size} bytes`);
+        
+        if (blob.size === 0) {
+          console.error('🔽 PDF blob is empty');
+          alert('Error: PDF file is empty. Please contact support.');
+          return;
+        }
+        
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
@@ -284,12 +361,20 @@ function SuccessPageContent() {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        
+        console.log(`🔽 PDF download completed successfully for ${invoiceNumber}`);
       } else {
-        alert('Unable to download PDF. Please try again.');
+        const errorText = await response.text();
+        console.error(`🔽 PDF download failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        alert(`Error ${response.status}: ${errorText || 'Unable to download PDF. Please try again.'}`);
       }
     } catch (error) {
-      console.error('Error downloading PDF:', error);
-      alert('Unable to download PDF. Please try again.');
+      console.error('🔽 Error downloading PDF:', error);
+      alert(`Network error: ${error.message || 'Unable to download PDF. Please try again.'}`);
     } finally {
       setDownloadingPdf(null);
     }
@@ -376,18 +461,27 @@ function SuccessPageContent() {
               }
             </p>
             
-            {/* DEBUG INFO */}
-            <div className="mt-8 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-left text-xs">
-              <p className="text-red-300 font-bold mb-2">🔍 DEBUG INFO:</p>
-              <p className="text-red-200">URL Order IDs: {JSON.stringify(orderIds)}</p>
-              <p className="text-red-200">URL Total: {searchParams.get('total')}</p>
-              <p className="text-red-200">Orders Found: {orderDetails.length}</p>
-              <p className="text-red-200">Cost Breakdowns: {Object.keys(costBreakdowns).length}</p>
-              <p className="text-red-200">Breakdown IDs: {Object.keys(costBreakdowns).join(', ')}</p>
-              {Object.entries(costBreakdowns).map(([id, breakdown]) => (
-                <p key={id} className="text-red-200">Order {id}: ${breakdown.totalCost}</p>
-              ))}
-            </div>
+            {/* Order Total Summary */}
+            {Object.values(costBreakdowns).length > 0 && (
+              <div className="mt-8 p-6 rounded-2xl border border-lime-400/20 bg-lime-400/5 backdrop-blur-xl ring-1 ring-lime-400/10">
+                <div className="text-center">
+                  <p className="text-lime-300 font-semibold text-lg mb-2">Order Total</p>
+                  <div className="text-4xl font-bold text-white mb-2">
+                    {formatPrice(
+                      isMultipleOrders 
+                        ? calculateGrandTotal(costBreakdowns)
+                        : Object.values(costBreakdowns)[0]?.totalCost || 0
+                    )}
+                  </div>
+                  <p className="text-slate-300 text-sm">
+                    {isMultipleOrders 
+                      ? `${orderIds.length} orders • ${Object.values(costBreakdowns).reduce((sum, breakdown) => sum + breakdown.totalUnits, 0)} total units`
+                      : `${Object.values(costBreakdowns)[0]?.totalUnits || 0} units`
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Order Details */}

@@ -3,45 +3,49 @@ import { z } from 'zod';
 import { requireAdmin, getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { generateInvoiceNumber } from '@/lib/invoices/generateNumber';
 import { calcInvoiceFromOrder } from '@/lib/invoices/calc';
+import { calcSimpleInvoiceFromOrder } from '@/lib/invoices/simple-calc';
+import { 
+  createInvoiceSchema,
+  InvoiceError,
+  validateOrderForInvoice,
+  validateInvoiceForRegeneration,
+  validateInvoiceData
+} from '@/lib/invoices/validation';
 import prisma from '@/lib/prisma';
 
-const createInvoiceSchema = z.object({
-  orderId: z.string(),
-  notes: z.string().optional(),
-  dueDate: z.string().optional()
-});
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 Invoice API called');
+    
     // Check admin permissions using established auth pattern
     const { user, profile } = await requireAdmin(request);
+    console.log('✅ Admin authentication successful:', profile.email);
 
     const body = await request.json();
-    const { orderId, notes, dueDate } = createInvoiceSchema.parse(body);
+    console.log('📥 Request body:', body);
     
-    console.log('Creating invoice for order:', orderId);
+    const { orderId, notes, dueDate, simple, discountPercent, discountFlat } = createInvoiceSchema.parse(body);
+    console.log('✅ Schema validation passed');
+    
+    console.log('🔍 Creating invoice for order:', orderId, 'simple mode:', simple);
 
     // Get the order with customer info
+    console.log('🔍 Querying database for order:', orderId);
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
         user: true
       }
     });
+    console.log('📋 Order query result:', order ? 'Found' : 'Not found');
 
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-
-    if (!order.userId) {
-      console.log('Order has no userId:', order.id, order.productName);
-      return NextResponse.json({ 
-        error: 'Order must have a customer', 
-        details: `Order ${order.id} (${order.productName}) has no associated customer` 
-      }, { status: 400 });
-    }
+    // Validate order before proceeding
+    console.log('🔍 Validating order...');
+    validateOrderForInvoice(order);
+    console.log('✅ Order validation passed');
     
-    console.log('Order found with customer:', order.id, order.userId);
+    console.log('👤 Order found with customer:', order!.id, order!.userId);
 
     // Check if invoice already exists for this order
     const existingInvoice = await prisma.invoice.findFirst({
@@ -51,8 +55,29 @@ export async function POST(request: NextRequest) {
     let invoice;
 
     if (existingInvoice && existingInvoice.status === 'DRAFT') {
+      // Validate that we can regenerate this invoice
+      validateInvoiceForRegeneration(existingInvoice);
+      
       // Regenerate existing DRAFT invoice
-      const calculation = await calcInvoiceFromOrder(order);
+      let calculation = simple ? await calcSimpleInvoiceFromOrder(order!) : await calcInvoiceFromOrder(order!);
+      
+      // Apply custom discounts if provided
+      if (discountPercent || discountFlat) {
+        const originalTotal = Number(calculation.total);
+        const percentDiscount = discountPercent ? originalTotal * (discountPercent / 100) : 0;
+        const flatDiscount = discountFlat || 0;
+        const totalDiscount = percentDiscount + flatDiscount;
+        const newTotal = Math.max(0, originalTotal - totalDiscount);
+        
+        calculation = {
+          ...calculation,
+          discount: new (require('@prisma/client/runtime/library').Decimal)(totalDiscount),
+          total: new (require('@prisma/client/runtime/library').Decimal)(newTotal)
+        };
+      }
+      
+      // Validate calculation results
+      validateInvoiceData(calculation);
       
       // Delete existing items
       await prisma.invoiceItem.deleteMany({
@@ -90,8 +115,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invoice already exists and is not in DRAFT status' }, { status: 400 });
     } else {
       // Create new invoice
+      console.log('🔢 Generating invoice number...');
       const invoiceNumber = await generateInvoiceNumber();
-      const calculation = await calcInvoiceFromOrder(order);
+      console.log('✅ Invoice number generated:', invoiceNumber);
+      
+      console.log('💰 Starting invoice calculation...');
+      let calculation = simple ? await calcSimpleInvoiceFromOrder(order!) : await calcInvoiceFromOrder(order!);
+      console.log('✅ Invoice calculation completed');
+      
+      // Apply custom discounts if provided
+      if (discountPercent || discountFlat) {
+        const originalTotal = Number(calculation.total);
+        const percentDiscount = discountPercent ? originalTotal * (discountPercent / 100) : 0;
+        const flatDiscount = discountFlat || 0;
+        const totalDiscount = percentDiscount + flatDiscount;
+        const newTotal = Math.max(0, originalTotal - totalDiscount);
+        
+        console.log(`💸 Applying discounts: ${discountPercent || 0}% + $${discountFlat || 0} = $${totalDiscount.toFixed(2)}`);
+        
+        calculation = {
+          ...calculation,
+          discount: new (require('@prisma/client/runtime/library').Decimal)(totalDiscount),
+          total: new (require('@prisma/client/runtime/library').Decimal)(newTotal)
+        };
+      }
+      
+      // Validate calculation results
+      validateInvoiceData(calculation);
 
       invoice = await prisma.invoice.create({
         data: {
@@ -128,8 +178,19 @@ export async function POST(request: NextRequest) {
     console.error('Error creating invoice:', {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
+      code: error.code
     });
+    
+    // Handle custom invoice errors
+    if (error instanceof InvoiceError) {
+      const statusCode = error.code === 'ORDER_NOT_FOUND' ? 404 : 400;
+      return NextResponse.json({ 
+        error: error.message, 
+        code: error.code,
+        details: error.details 
+      }, { status: statusCode });
+    }
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -139,9 +200,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
     
-    
     if (error.name === 'ZodError') {
-      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Invalid request data',
+        details: error.errors 
+      }, { status: 400 });
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

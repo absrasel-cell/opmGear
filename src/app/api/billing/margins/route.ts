@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Product type categories from Webflow and CSV analysis
+// Factory cost is now handled by CSV data, so we only store margin settings
 export interface MarginSetting {
   id: string;
   productType: string;
-  category: 'blank_caps' | 'logos' | 'accessories' | 'closures' | 'fabrics' | 'applications' | 'shipping';
-  factoryCost: number;
+  category: 'blank_caps' | 'logos' | 'accessories' | 'closures' | 'fabrics' | 'applications' | 'shipping' | 'delivery';
   marginPercent: number;
   flatMargin: number;
   isActive: boolean;
@@ -13,26 +13,45 @@ export interface MarginSetting {
   memberOverrides?: { [userId: string]: { marginPercent: number; flatMargin: number } };
 }
 
+export interface MarginMode {
+  mode: 'global' | 'detailed';
+  description: string;
+}
+
+export interface MarginAPIRequest {
+  settings: Partial<MarginSetting>[];
+  scope?: 'global' | 'per_member';
+  mode?: 'global' | 'detailed';
+}
+
+export interface MarginAPIResponse {
+  success: boolean;
+  data: MarginSetting[];
+  mode?: 'global' | 'detailed';
+  categories: string[];
+  message?: string;
+  error?: string;
+}
+
 // Mock data based on the CSV analysis - in production this would be stored in database
+// Factory costs are now managed via CSV files and only margin settings are stored here
 const marginSettings: MarginSetting[] = [
-  // Blank Caps
+  // Blank Caps - Applied to CSV factory pricing data
   {
     id: '1',
-    productType: 'Blank Caps',
+    productType: 'Blank Caps (All Tiers)',
     category: 'blank_caps',
-    factoryCost: 3.50,
     marginPercent: 20,
     flatMargin: 0,
     isActive: true,
     appliedScope: 'global'
   },
   
-  // Logo Types
+  // Logo Types - Applied to customization pricing
   {
     id: '2',
     productType: '3D Embroidery',
     category: 'logos',
-    factoryCost: 0.15,
     marginPercent: 35,
     flatMargin: 0.05,
     isActive: true,
@@ -42,7 +61,6 @@ const marginSettings: MarginSetting[] = [
     id: '3',
     productType: 'Rubber Patches',
     category: 'logos',
-    factoryCost: 0.80,
     marginPercent: 40,
     flatMargin: 0.10,
     isActive: true,
@@ -52,7 +70,6 @@ const marginSettings: MarginSetting[] = [
     id: '4',
     productType: 'Woven Patches',
     category: 'logos',
-    factoryCost: 0.65,
     marginPercent: 38,
     flatMargin: 0.08,
     isActive: true,
@@ -62,7 +79,6 @@ const marginSettings: MarginSetting[] = [
     id: '5',
     productType: 'Leather Patches',
     category: 'logos',
-    factoryCost: 0.70,
     marginPercent: 42,
     flatMargin: 0.12,
     isActive: true,
@@ -72,19 +88,17 @@ const marginSettings: MarginSetting[] = [
     id: '6',
     productType: 'Standard Embroidery',
     category: 'logos',
-    factoryCost: 0.50,
     marginPercent: 35,
     flatMargin: 0.05,
     isActive: true,
     appliedScope: 'global'
   },
   
-  // Accessories
+  // Accessories - Applied to accessory pricing
   {
     id: '7',
     productType: 'Hang Tags',
     category: 'accessories',
-    factoryCost: 0.30,
     marginPercent: 50,
     flatMargin: 0.05,
     isActive: true,
@@ -94,7 +108,6 @@ const marginSettings: MarginSetting[] = [
     id: '8',
     productType: 'Inside Labels',
     category: 'accessories',
-    factoryCost: 0.20,
     marginPercent: 45,
     flatMargin: 0.03,
     isActive: true,
@@ -104,7 +117,6 @@ const marginSettings: MarginSetting[] = [
     id: '9',
     productType: 'B-Tape Print',
     category: 'accessories',
-    factoryCost: 0.18,
     marginPercent: 40,
     flatMargin: 0.02,
     isActive: true,
@@ -114,7 +126,6 @@ const marginSettings: MarginSetting[] = [
     id: '10',
     productType: 'Stickers & Eyelets',
     category: 'accessories',
-    factoryCost: 0.15,
     marginPercent: 35,
     flatMargin: 0.02,
     isActive: true,
@@ -126,7 +137,6 @@ const marginSettings: MarginSetting[] = [
     id: '11',
     productType: 'Premium Closures',
     category: 'closures',
-    factoryCost: 0.35,
     marginPercent: 30,
     flatMargin: 0.05,
     isActive: true,
@@ -138,7 +148,6 @@ const marginSettings: MarginSetting[] = [
     id: '12',
     productType: 'Premium Fabrics',
     category: 'fabrics',
-    factoryCost: 0.60,
     marginPercent: 25,
     flatMargin: 0.10,
     isActive: true,
@@ -150,19 +159,17 @@ const marginSettings: MarginSetting[] = [
     id: '13',
     productType: 'Applications',
     category: 'applications',
-    factoryCost: 0.20,
     marginPercent: 40,
     flatMargin: 0.03,
     isActive: true,
     appliedScope: 'global'
   },
   
-  // Shipping/Delivery
+  // Delivery/Shipping - Applied to delivery cost calculations
   {
     id: '14',
     productType: 'Regular Delivery',
-    category: 'shipping',
-    factoryCost: 2.00,
+    category: 'delivery',
     marginPercent: 15,
     flatMargin: 0.50,
     isActive: true,
@@ -171,8 +178,7 @@ const marginSettings: MarginSetting[] = [
   {
     id: '15',
     productType: 'Priority Delivery',
-    category: 'shipping',
-    factoryCost: 2.20,
+    category: 'delivery',
     marginPercent: 18,
     flatMargin: 0.60,
     isActive: true,
@@ -181,8 +187,7 @@ const marginSettings: MarginSetting[] = [
   {
     id: '16',
     productType: 'Air Freight',
-    category: 'shipping',
-    factoryCost: 1.00,
+    category: 'delivery',
     marginPercent: 25,
     flatMargin: 0.20,
     isActive: true,
@@ -191,8 +196,7 @@ const marginSettings: MarginSetting[] = [
   {
     id: '17',
     productType: 'Sea Freight',
-    category: 'shipping',
-    factoryCost: 0.35,
+    category: 'delivery',
     marginPercent: 30,
     flatMargin: 0.10,
     isActive: true,
@@ -205,6 +209,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const scope = searchParams.get('scope');
+    const mode = searchParams.get('mode') || 'global'; // 'global' or 'detailed'
     
     let filteredSettings = marginSettings.filter(setting => setting.isActive);
     
@@ -216,11 +221,34 @@ export async function GET(request: NextRequest) {
       filteredSettings = filteredSettings.filter(setting => setting.appliedScope === scope);
     }
     
-    return NextResponse.json({
-      success: true,
-      data: filteredSettings,
-      categories: ['blank_caps', 'logos', 'accessories', 'closures', 'fabrics', 'applications', 'shipping']
-    });
+    // In global mode, return only category-level margins (blank_caps for caps pricing)
+    // In detailed mode, return specific item margins with category fallbacks
+    if (mode === 'global') {
+      // For global mode, prioritize category-level settings
+      // Group by category and return the most general setting for each category
+      const categorySettings = filteredSettings.reduce((acc: any[], setting: MarginSetting) => {
+        const existingCategory = acc.find(s => s.category === setting.category);
+        if (!existingCategory) {
+          acc.push(setting);
+        }
+        return acc;
+      }, []);
+      
+      return NextResponse.json({
+        success: true,
+        data: categorySettings,
+        mode: 'global',
+        categories: ['blank_caps', 'logos', 'accessories', 'closures', 'fabrics', 'applications', 'delivery']
+      });
+    } else {
+      // For detailed mode, return all specific item settings
+      return NextResponse.json({
+        success: true,
+        data: filteredSettings,
+        mode: 'detailed',
+        categories: ['blank_caps', 'logos', 'accessories', 'closures', 'fabrics', 'applications', 'delivery']
+      });
+    }
   } catch (error) {
     console.error('Error fetching margin settings:', error);
     return NextResponse.json(
@@ -233,7 +261,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { settings, scope = 'global' } = body;
+    const { settings, scope = 'global', mode = 'global' } = body;
     
     if (!settings || !Array.isArray(settings)) {
       return NextResponse.json(
@@ -259,7 +287,6 @@ export async function POST(request: NextRequest) {
           id: newSetting.id,
           productType: newSetting.productType || 'Unknown',
           category: newSetting.category || 'accessories',
-          factoryCost: newSetting.factoryCost || 0,
           marginPercent: newSetting.marginPercent || 0,
           flatMargin: newSetting.flatMargin || 0,
           isActive: newSetting.isActive !== false,
@@ -272,6 +299,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Margin settings updated successfully',
+      mode: mode,
       data: marginSettings.filter(s => s.isActive)
     });
   } catch (error) {
@@ -328,13 +356,22 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// Utility function to calculate partner cost
-export function calculatePartnerCost(
+// Utility function to apply margin to factory cost (factory cost comes from CSV data)
+export function applyMarginToFactoryCost(
   factoryCost: number,
   marginPercent: number,
   flatMargin: number
 ): number {
   return Math.max(0, factoryCost + (factoryCost * marginPercent / 100) + flatMargin);
+}
+
+// Backward compatibility - deprecated, use applyMarginToFactoryCost instead
+export function calculatePartnerCost(
+  factoryCost: number,
+  marginPercent: number,
+  flatMargin: number
+): number {
+  return applyMarginToFactoryCost(factoryCost, marginPercent, flatMargin);
 }
 
 // Utility function to get margin for specific user (with overrides)

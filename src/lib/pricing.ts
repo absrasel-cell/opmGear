@@ -131,3 +131,83 @@ export function getDisplayTotal(items: any[], costBreakdowns: Record<string, Cos
   
   return calculateBaseTotal(items);
 }
+
+/**
+ * Apply global margin settings to factory pricing
+ * This function integrates with the Global Margin Settings from the admin dashboard
+ */
+export interface GlobalMarginSetting {
+  category: 'blank_caps' | 'customization' | 'delivery';
+  marginPercent: number;
+  flatMargin: number;
+}
+
+/**
+ * Calculate price with global margins applied to factory cost
+ */
+export function applyGlobalMargins(
+  factoryCost: number,
+  category: 'blank_caps' | 'customization' | 'delivery',
+  margins?: GlobalMarginSetting[]
+): number {
+  if (!margins || margins.length === 0) {
+    return factoryCost; // No margins applied
+  }
+  
+  const applicableMargin = margins.find(m => m.category === category);
+  if (!applicableMargin) {
+    return factoryCost; // No margin for this category
+  }
+  
+  const marginAmount = (factoryCost * applicableMargin.marginPercent / 100) + applicableMargin.flatMargin;
+  return Math.max(0, factoryCost + marginAmount);
+}
+
+/**
+ * Batch apply margins to multiple cost items
+ */
+export function applyMarginsToBreakdown(
+  breakdown: CostBreakdown,
+  margins?: GlobalMarginSetting[]
+): CostBreakdown {
+  if (!margins || margins.length === 0) {
+    return breakdown; // Return original if no margins
+  }
+  
+  // Apply margins to each cost category
+  const updatedBreakdown: CostBreakdown = {
+    ...breakdown,
+    baseProductCost: applyGlobalMargins(breakdown.baseProductCost, 'blank_caps', margins),
+    logoSetupCosts: breakdown.logoSetupCosts.map(cost => ({
+      ...cost,
+      cost: applyGlobalMargins(cost.cost, 'customization', margins)
+    })),
+    accessoriesCosts: breakdown.accessoriesCosts.map(cost => ({
+      ...cost,
+      cost: applyGlobalMargins(cost.cost, 'customization', margins)
+    })),
+    closureCosts: breakdown.closureCosts.map(cost => ({
+      ...cost,
+      cost: applyGlobalMargins(cost.cost, 'customization', margins)
+    })),
+    premiumFabricCosts: breakdown.premiumFabricCosts.map(cost => ({
+      ...cost,
+      cost: applyGlobalMargins(cost.cost, 'customization', margins)
+    })),
+    deliveryCosts: breakdown.deliveryCosts.map(cost => ({
+      ...cost,
+      cost: applyGlobalMargins(cost.cost, 'delivery', margins)
+    }))
+  };
+  
+  // Recalculate total cost
+  updatedBreakdown.totalCost = 
+    updatedBreakdown.baseProductCost +
+    updatedBreakdown.logoSetupCosts.reduce((sum, cost) => sum + cost.cost, 0) +
+    updatedBreakdown.accessoriesCosts.reduce((sum, cost) => sum + cost.cost, 0) +
+    updatedBreakdown.closureCosts.reduce((sum, cost) => sum + cost.cost, 0) +
+    updatedBreakdown.premiumFabricCosts.reduce((sum, cost) => sum + cost.cost, 0) +
+    updatedBreakdown.deliveryCosts.reduce((sum, cost) => sum + cost.cost, 0);
+    
+  return updatedBreakdown;
+}

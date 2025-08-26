@@ -83,10 +83,26 @@ export async function renderInvoicePdfBuffer(invoiceId: string): Promise<Buffer>
 
     console.log('PDF Generation: Rendering PDF with React PDF...');
     
+    // Validate invoice data before rendering
+    if (!invoice.items || invoice.items.length === 0) {
+      console.warn('PDF Generation: Invoice has no items:', invoiceId);
+    }
+    if (!invoice.customer) {
+      console.warn('PDF Generation: Invoice has no customer:', invoiceId);
+    }
+    if (!invoice.order) {
+      console.warn('PDF Generation: Invoice has no order:', invoiceId);
+    }
+    
     // Render the React component to PDF buffer asynchronously
     const buffer = await renderToBuffer(InvoicePdf({ doc: invoice }));
     
     console.log('PDF Generation: PDF rendered successfully, buffer size:', buffer.length);
+    
+    // Validate buffer is not empty
+    if (buffer.length === 0) {
+      throw new Error('Generated PDF buffer is empty - PDF rendering failed');
+    }
     
     // Cache the result
     pdfCache.set(cacheKey, {

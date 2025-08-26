@@ -438,10 +438,10 @@ export default function AdminOrdersPage() {
     try {
       // Determine pricing tier from the product's embedded priceTier field
       // This is the true source of truth - each product has its own tier set in Product Management
-      let pricingTier = 'Tier 1'; // Default fallback
+      let pricingTier = 'Tier 2'; // Fixed to Tier 2 to match source of truth ($1.60 per unit for 144+ units)
       
       // TODO: Look up the product from Sanity using order.productName to get the actual priceTier
-      // For now, we'll use Tier 1 as default to match current behavior until we implement product lookup
+      // For now, we'll use Tier 2 as default to match current source of truth until we implement product lookup
       // The proper implementation would be:
       // 1. Query Sanity for product by productName matching order.productName
       // 2. Extract product.priceTier field
@@ -800,28 +800,54 @@ export default function AdminOrdersPage() {
   };
 
   const handleCreateInvoice = async (order: Order) => {
+    console.log('🔄 Starting invoice creation for order:', order.id);
+    
     try {
+      showNotification('Creating invoice...', 'success');
+      
+      const requestData = { orderId: order.id, simple: false };
+      console.log('📤 Sending invoice creation request:', requestData);
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Request timeout - aborting');
+        controller.abort();
+      }, 30000); // 30 second timeout
+
       const response = await fetch('/api/invoices', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ orderId: order.id }),
+        credentials: 'include',
+        body: JSON.stringify(requestData),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
+      console.log('📥 Invoice API response status:', response.status);
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('❌ Invoice creation failed:', error);
         throw new Error(error.error || 'Failed to create invoice');
       }
 
       const invoice = await response.json();
-      showNotification(`Invoice ${invoice.number} created successfully`, 'success');
+      console.log('✅ Invoice created successfully:', invoice.number);
+      showNotification(`Customer invoice ${invoice.number} created successfully`, 'success');
       
       // Optionally refresh orders to show updated status
       fetchAllOrders();
     } catch (error: any) {
-      console.error('Error creating invoice:', error);
-      showNotification(`Error: ${error.message}`, 'error');
+      console.error('❌ Error creating invoice:', error);
+      
+      if (error.name === 'AbortError') {
+        showNotification(`Invoice creation timed out - check server logs`, 'error');
+      } else {
+        showNotification(`Error creating invoice: ${error.message}`, 'error');
+      }
     }
     setOpenDropdown(null);
   };

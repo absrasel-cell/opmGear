@@ -27,7 +27,14 @@ import {
   Beaker,
   Edit,
   Trash2,
-  X
+  X,
+  Download,
+  Filter,
+  AlertCircle,
+  Clock,
+  RotateCcw,
+  ArrowUpDown,
+  ExternalLink
 } from 'lucide-react';
 
 // Import design system components
@@ -43,26 +50,54 @@ import DashboardHeader from '@/components/ui/dashboard/DashboardHeader';
 interface Order {
   id: string;
   customer: string;
+  customerEmail: string;
   items: number;
   factory: number;
   due: string;
   status: string;
+  productName: string;
+  hasInvoice: boolean;
+  invoices: any[];
+  orderType: string;
+  createdAt: string;
 }
 
-interface Partner {
-  name: string;
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-}
 
 interface MarginRow {
   key: string;
   label: string;
-  factory: number;
   percent: number;
   flat: number;
+}
+
+interface Invoice {
+  id: string;
+  number: string;
+  orderId: string;
+  status: 'DRAFT' | 'ISSUED' | 'PAID' | 'VOID' | 'REFUNDED';
+  total: number;
+  issueDate: string;
+  dueDate?: string;
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  order: {
+    id: string;
+    productName: string;
+  };
+  _count: {
+    items: number;
+  };
+}
+
+interface InvoiceFilters {
+  status: string;
+  dateFrom: string;
+  dateTo: string;
+  customer: string;
+  search: string;
 }
 
 export default function BillingDashboard() {
@@ -72,49 +107,83 @@ export default function BillingDashboard() {
   // State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentTab, setCurrentTab] = useState<'invoices' | 'discounts' | 'templates'>('invoices');
-  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  
+  // Invoice Management State
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [invoiceFilters, setInvoiceFilters] = useState<InvoiceFilters>({
+    status: '',
+    dateFrom: '',
+    dateTo: '',
+    customer: '',
+    search: ''
+  });
+  const [currentInvoicePage, setCurrentInvoicePage] = useState(1);
+  const [totalInvoicePages, setTotalInvoicePages] = useState(1);
+  const [selectedInvoicesForDelete, setSelectedInvoicesForDelete] = useState<Set<string>>(new Set());
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountFlat, setDiscountFlat] = useState(0);
+  
+  // Real orders data state
+  const [realOrders, setRealOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [currentOrderPage, setCurrentOrderPage] = useState(1);
+  const [totalOrderPages, setTotalOrderPages] = useState(1);
+  const [orderFilters, setOrderFilters] = useState({
+    customer: '',
+    status: ''
+  });
+  
+  // Individual order invoice state
+  const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<Order | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState(0);
   const [globalDiscountFlat, setGlobalDiscountFlat] = useState(0);
   const [testFactoryAmount, setTestFactoryAmount] = useState(120);
   const [customerFilter, setCustomerFilter] = useState('');
-  const [partnerSearchFilter, setPartnerSearchFilter] = useState('');
   const [globalScope, setGlobalScope] = useState(true);
   
   // Modal states
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [partnerModalOpen, setPartnerModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [editingPartnerIndex, setEditingPartnerIndex] = useState<number | null>(null);
   
-  // Form states
-  const [partnerForm, setPartnerForm] = useState({
-    name: '',
-    id: '',
-    email: '',
-    role: 'Partner',
-    status: 'Active'
-  });
 
-  // Mock data
-  const [orders] = useState<Order[]>([
-    { id: 'OPM-1021', customer: 'Resale Team A', items: 240, factory: 840.00, due: '2025-09-02', status: 'Ready' },
-    { id: 'OPM-1019', customer: 'ACME Co.', items: 120, factory: 430.25, due: '2025-08-29', status: 'Pending' },
-    { id: 'OPM-1014', customer: 'Resale Team B', items: 80, factory: 295.00, due: '2025-08-26', status: 'Ready' },
-    { id: 'OPM-1007', customer: 'ACME Co.', items: 300, factory: 1080.75, due: '2025-09-05', status: 'In-Prod' },
-    { id: 'OPM-0998', customer: 'Resale Team A', items: 60, factory: 210.10, due: '2025-08-22', status: 'Ready' }
-  ]);
+  // Orders are now loaded from API - see realOrders state above
 
-  const [partners, setPartners] = useState<Partner[]>([
-    { name: 'OPM Gear', id: 'usr_og_01', email: 'ops@opmgear.com', role: 'Admin', status: 'Active' },
-    { name: 'US Custom Caps', id: 'usr_us_02', email: 'support@uscc.com', role: 'Partner', status: 'Pending' },
-    { name: 'CBC', id: 'usr_cbc_03', email: 'hello@cbc.com', role: 'Reseller', status: 'Active' }
-  ]);
 
   const [marginState, setMarginState] = useState<MarginRow[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [showDetailedCustomization, setShowDetailedCustomization] = useState(false);
+  const [marginMode, setMarginMode] = useState<'global' | 'detailed'>('global');
+
+  // Toast notification function
+  const showToast = (message: string) => {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 bg-slate-800 border border-slate-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300';
+    toast.textContent = message;
+    
+    // Add to document
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+      toast.classList.remove('translate-x-full');
+    }, 10);
+    
+    // Remove after delay
+    setTimeout(() => {
+      toast.classList.add('translate-x-full');
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 3000);
+  };
 
   // Check admin access and load data
   useEffect(() => {
@@ -133,41 +202,72 @@ export default function BillingDashboard() {
     
     // Load margin settings
     loadMarginSettings();
-    loadPartners();
+    loadInvoices();
+    loadOrders();
   }, [user, loading, isAuthenticated, router]);
 
-  // Load margin settings from API
+  // Reload invoices when filters or page change
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      loadInvoices();
+    }
+  }, [currentInvoicePage, invoiceFilters, user, isAuthenticated]);
+
+  // Reload orders when filters or page change
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      loadOrders();
+    }
+  }, [currentOrderPage, orderFilters, user, isAuthenticated]);
+
+  // Reload margin settings when mode changes
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      loadMarginSettings();
+    }
+  }, [marginMode, user, isAuthenticated]);
+
+  // Load margin settings from API based on current mode
   const loadMarginSettings = async () => {
     try {
-      const response = await fetch('/api/billing/margins');
+      const response = await fetch(`/api/billing/margins?mode=${marginMode}`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // Group similar items and create simplified initial view
-          const simplifiedMargins = [
+          // In global mode, group similar items and create simplified initial view
+          // In detailed mode, show all specific items
+          if (marginMode === 'global') {
+            const simplifiedMargins = [
             {
               key: 'blank_caps',
               label: 'Blank Caps',
-              factory: 3.50,
               percent: 20,
               flat: 0
             },
             {
               key: 'customization_combined',
               label: 'Customization (Combined)',
-              factory: 0.75,
               percent: 35,
               flat: 0.08
             },
             {
               key: 'delivery_combined',
               label: 'Delivery (Combined)',
-              factory: 2.00,
               percent: 18,
               flat: 0.50
             }
           ];
           setMarginState(simplifiedMargins);
+          } else {
+            // Detailed mode: Show all specific item margins
+            const detailedMargins = data.data.map((setting: any) => ({
+              key: setting.category,
+              label: setting.productType,
+              percent: setting.marginPercent,
+              flat: setting.flatMargin
+            }));
+            setMarginState(detailedMargins);
+          }
         }
       } else {
         // Fallback to simplified data if API fails
@@ -175,21 +275,18 @@ export default function BillingDashboard() {
           {
             key: 'blank_caps',
             label: 'Blank Caps',
-            factory: 3.50,
             percent: 20,
             flat: 0
           },
           {
             key: 'customization_combined',
             label: 'Customization (Combined)',
-            factory: 0.75,
             percent: 35,
             flat: 0.08
           },
           {
             key: 'delivery_combined',
             label: 'Delivery (Combined)',
-            factory: 2.00,
             percent: 18,
             flat: 0.50
           }
@@ -203,21 +300,18 @@ export default function BillingDashboard() {
         {
           key: 'blank_caps',
           label: 'Blank Caps',
-          factory: 3.50,
           percent: 20,
           flat: 0
         },
         {
           key: 'customization_combined',
           label: 'Customization (Combined)',
-          factory: 0.75,
           percent: 35,
           flat: 0.08
         },
         {
           key: 'delivery_combined',
           label: 'Delivery (Combined)',
-          factory: 2.00,
           percent: 18,
           flat: 0.50
         }
@@ -226,20 +320,6 @@ export default function BillingDashboard() {
     }
   };
 
-  // Load partners from API
-  const loadPartners = async () => {
-    try {
-      const response = await fetch('/api/billing/partners');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setPartners(data.data);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading partners:', error);
-    }
-  };
 
   // Save margin settings
   const saveMarginSettings = async () => {
@@ -248,7 +328,6 @@ export default function BillingDashboard() {
         id: (index + 1).toString(),
         productType: margin.label,
         category: margin.key,
-        factoryCost: margin.factory,
         marginPercent: margin.percent,
         flatMargin: margin.flat
       }));
@@ -260,7 +339,8 @@ export default function BillingDashboard() {
         },
         body: JSON.stringify({
           settings: formattedSettings,
-          scope: globalScope ? 'global' : 'per_member'
+          scope: globalScope ? 'global' : 'per_member',
+          mode: marginMode
         }),
       });
 
@@ -278,55 +358,430 @@ export default function BillingDashboard() {
     }
   };
 
-  // Utility functions
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(price);
-  };
+  // Duplicate formatPrice function removed - using the one defined below
 
-  const showToast = (message: string) => {
-    // Simple alert for now - can be replaced with toast library
-    alert(message);
-  };
+  // Duplicate showToast and calculateSummary functions removed - using the ones defined above
 
-  // Calculate invoice summary
-  const calculateSummary = () => {
-    const subtotal = Array.from(selectedOrders).reduce((acc, orderId) => {
-      const order = orders.find(o => o.id === orderId);
-      return acc + (order?.factory || 0);
-    }, 0);
-    
-    const discPct = (subtotal * discountPercent) / 100;
-    const total = Math.max(0, subtotal - discPct - discountFlat);
-    
-    return { subtotal, total, count: selectedOrders.size };
-  };
-
-  // Calculate test discount preview
-  const calculateTestPreview = () => {
-    const afterPercent = Math.max(0, testFactoryAmount - (testFactoryAmount * globalDiscountPercent / 100));
-    const afterFlat = Math.max(0, testFactoryAmount - globalDiscountFlat);
-    const combined = Math.max(0, testFactoryAmount - (testFactoryAmount * globalDiscountPercent / 100) - globalDiscountFlat);
-    
-    return { afterPercent, afterFlat, combined };
-  };
+  // Duplicate calculateTestPreview function removed - using the one defined below
 
   // Calculate partner cost preview
   const calculatePartnerCost = (factory: number, percent: number, flat: number) => {
     return Math.max(0, factory + (factory * percent / 100) + flat);
   };
 
-  // Filter orders based on customer selection
-  const filteredOrders = customerFilter ? orders.filter(o => o.customer === customerFilter) : orders;
-  
-  // Filter partners based on search
-  const filteredPartners = partners.filter(p => 
-    `${p.name} ${p.email} ${p.id}`.toLowerCase().includes(partnerSearchFilter.toLowerCase())
-  );
+  // Invoice Management Functions
+  const loadInvoices = async () => {
+    setIsLoadingInvoices(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('page', currentInvoicePage.toString());
+      params.append('limit', '10');
+      
+      if (invoiceFilters.status) params.append('status', invoiceFilters.status);
+      if (invoiceFilters.search) params.append('search', invoiceFilters.search);
 
-  const summary = calculateSummary();
+      const response = await fetch(`/api/invoices?${params.toString()}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load invoices');
+      }
+
+      const data = await response.json();
+      setInvoices(data.invoices);
+      setTotalInvoicePages(data.pagination.pages);
+      setInvoiceError(null);
+    } catch (err: any) {
+      console.error('Error loading invoices:', err);
+      setInvoiceError(err.message);
+      setInvoices([]);
+    } finally {
+      setIsLoadingInvoices(false);
+    }
+  };
+
+  const createInvoiceFromOrder = async (orderId: string, useSimple: boolean = true) => {
+    try {
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          orderId,
+          simple: useSimple 
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create invoice');
+      }
+
+      const invoice = await response.json();
+      showToast(`Invoice ${invoice.number} created successfully (${useSimple ? 'Streamlined' : 'Detailed'} format)`);
+      loadInvoices();
+    } catch (err: any) {
+      console.error('Error creating invoice:', err);
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const updateInvoiceStatus = async (invoiceId: string, status: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update invoice');
+      }
+
+      showToast(`Invoice status updated to ${status}`);
+      loadInvoices();
+    } catch (err: any) {
+      console.error('Error updating invoice:', err);
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const sendInvoice = async (invoiceId: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/send`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send invoice');
+      }
+
+      const result = await response.json();
+      if (result.emailSent) {
+        showToast('Invoice sent successfully');
+      } else {
+        showToast('Invoice sending attempted (email may not be configured)');
+      }
+      loadInvoices();
+    } catch (err: any) {
+      console.error('Error sending invoice:', err);
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const downloadInvoicePDF = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to download PDF: ${errorText}`);
+      }
+
+      // Check if the response is actually a PDF
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/pdf')) {
+        throw new Error('Invalid response: Expected PDF file');
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      
+      // Verify blob size
+      if (blob.size === 0) {
+        throw new Error('Empty PDF file received');
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice-${invoiceNumber}.pdf`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      // Use setTimeout to ensure DOM is ready and avoid interruption
+      setTimeout(() => {
+        try {
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          showToast(`Invoice ${invoiceNumber} downloaded successfully`);
+        } catch (clickError) {
+          console.warn('Click error (PDF likely downloaded anyway):', clickError);
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }
+      }, 100);
+      
+    } catch (err: any) {
+      // Check if this is a post-download network error (common with file downloads)
+      const isPostDownloadError = err.message?.includes('NetworkError') || 
+                                  err.message?.includes('network') || 
+                                  err.message?.includes('fetch') ||
+                                  err.name === 'AbortError' ||
+                                  err.name === 'TypeError';
+      
+      if (isPostDownloadError) {
+        // This is likely a harmless post-download error, just log it quietly
+        console.warn('Post-download network interruption (PDF likely downloaded successfully):', err.message);
+        showToast(`Invoice ${invoiceNumber} download completed`);
+      } else {
+        // This is a real error that should be shown to user
+        console.error('Error downloading PDF:', err);
+        showToast(`Error: ${err.message}`);
+      }
+    }
+  };
+
+  const deleteInvoice = async (invoiceId: string) => {
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    const invoiceNumber = invoice?.number || 'Unknown';
+    
+    if (!confirm(`Are you sure you want to delete invoice ${invoiceNumber}?\n\nThis will permanently remove the invoice and all associated data.\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete invoice');
+      }
+
+      showToast('Invoice deleted successfully');
+      loadInvoices();
+    } catch (err: any) {
+      console.error('Error deleting invoice:', err);
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }).format(new Date(dateString));
+  };
+
+  // Load orders from API
+  const loadOrders = async () => {
+    if (!user || !isAuthenticated) return;
+    
+    try {
+      setIsLoadingOrders(true);
+      setOrderError(null);
+
+      const params = new URLSearchParams({
+        page: currentOrderPage.toString(),
+        limit: '20'
+      });
+
+      if (orderFilters.customer) {
+        params.append('customer', orderFilters.customer);
+      }
+      if (orderFilters.status) {
+        params.append('status', orderFilters.status);
+      }
+
+      const response = await fetch(`/api/admin/orders/billing?${params.toString()}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load orders');
+      }
+
+      const data = await response.json();
+      setRealOrders(data.orders);
+      setTotalOrderPages(data.pagination.pages);
+      setOrderError(null);
+    } catch (err: any) {
+      console.error('Error loading orders:', err);
+      setOrderError(err.message);
+      setRealOrders([]);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  };
+
+  // Calculate summary for selected orders
+
+  // Calculate test preview for discount rules
+  const calculateTestPreview = () => {
+    const base = testFactoryAmount;
+    const afterPercent = base - (base * (globalDiscountPercent / 100));
+    const afterFlat = Math.max(0, afterPercent - globalDiscountFlat);
+    const combined = afterFlat;
+    
+    return {
+      afterPercent,
+      afterFlat,
+      combined
+    };
+  };
+
+  // Create invoice for individual order with custom discount
+  const createInvoiceForOrder = async (order: Order, customDiscountPercent = 0, customDiscountFlat = 0) => {
+    try {
+      setIsCreatingInvoice(true);
+      
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          orderId: order.id,
+          simple: true,
+          discountPercent: customDiscountPercent || 0,
+          discountFlat: customDiscountFlat || 0
+        })
+      });
+      
+      if (response.ok) {
+        const invoice = await response.json();
+        showToast(`Invoice ${invoice.number} created successfully for order ${order.id}`);
+        loadInvoices();
+        loadOrders(); // Refresh to show updated invoice status
+        setInvoiceModalOpen(false);
+        setSelectedOrderForInvoice(null);
+      } else {
+        const error = await response.json();
+        showToast(`Failed to create invoice: ${error.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error creating invoice:', err);
+      showToast('Error creating invoice');
+    } finally {
+      setIsCreatingInvoice(false);
+    }
+  };
+
+  // Recreate invoice for order with additional discount
+  const recreateInvoiceForOrder = async (order: Order, additionalDiscountPercent = 0, additionalDiscountFlat = 0) => {
+    try {
+      setIsCreatingInvoice(true);
+      
+      // First delete existing invoice if any
+      if (order.invoices && order.invoices.length > 0) {
+        const existingInvoice = order.invoices[0];
+        await fetch(`/api/invoices/${existingInvoice.id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+      }
+      
+      // Then create new invoice with additional discount
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          orderId: order.id,
+          simple: true,
+          discountPercent: additionalDiscountPercent || 0,
+          discountFlat: additionalDiscountFlat || 0
+        })
+      });
+      
+      if (response.ok) {
+        const invoice = await response.json();
+        showToast(`Invoice ${invoice.number} recreated with additional discount for order ${order.id}`);
+        loadInvoices();
+        loadOrders(); // Refresh to show updated invoice status
+        setInvoiceModalOpen(false);
+        setSelectedOrderForInvoice(null);
+      } else {
+        const error = await response.json();
+        showToast(`Failed to recreate invoice: ${error.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error recreating invoice:', err);
+      showToast('Error recreating invoice');
+    } finally {
+      setIsCreatingInvoice(false);
+    }
+  };
+
+  const formatPrice = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  // Bulk select/deselect functions
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'DRAFT':
+        return <Edit className="h-4 w-4" />;
+      case 'ISSUED':
+        return <Send className="h-4 w-4" />;
+      case 'PAID':
+        return <CheckCircle2 className="h-4 w-4" />;
+      case 'VOID':
+        return <XCircle className="h-4 w-4" />;
+      case 'REFUNDED':
+        return <RotateCcw className="h-4 w-4" />;
+      default:
+        return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'DRAFT':
+        return 'bg-slate-400/15 text-slate-300 border-slate-400/20';
+      case 'ISSUED':
+        return 'bg-blue-400/15 text-blue-300 border-blue-400/20';
+      case 'PAID':
+        return 'bg-green-400/15 text-green-300 border-green-400/20';
+      case 'VOID':
+        return 'bg-red-400/15 text-red-300 border-red-400/20';
+      case 'REFUNDED':
+        return 'bg-orange-400/15 text-orange-300 border-orange-400/20';
+      default:
+        return 'bg-gray-400/15 text-gray-300 border-gray-400/20';
+    }
+  };
+
+  // Filter orders based on customer and status selection
+  const filteredOrders = realOrders.filter(order => {
+    // Customer filter
+    if (orderFilters.customer && !order.customer.includes(orderFilters.customer)) {
+      return false;
+    }
+    
+    // Status filter
+    if (orderFilters.status === 'no-invoice' && order.hasInvoice) {
+      return false;
+    }
+    if (orderFilters.status === 'with-invoice' && !order.hasInvoice) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+
   const testPreview = calculateTestPreview();
 
   const isMasterAdmin = user?.email === 'absrasel@gmail.com';
@@ -377,9 +832,280 @@ export default function BillingDashboard() {
             {/* Header */}
           <DashboardHeader
             title="Billing & Accounts"
-            subtitle="Manage invoices, partners, and margin controls in one place."
-            onSearch={(query) => console.log('Search:', query)}
+            subtitle="Manage invoices and margin controls in one place."
+            onSearch={(query) => setInvoiceFilters(prev => ({ ...prev, search: query }))}
           />
+
+          {/* Invoice Management Section */}
+          <section className="px-6 md:px-10 mt-6">
+            <GlassCard className="overflow-hidden">
+              <div className="p-6 sm:p-8">
+                {/* Header Row */}
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-white tracking-tight text-[28px] sm:text-[32px] md:text-[36px] font-semibold">
+                      Invoice Management
+                    </h2>
+                    <p className="text-slate-300/80 text-[15px]">Create, manage, and send invoices to customers</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button 
+                      variant="ghost" 
+                      className="bg-white/7.5 border border-white/10"
+                      onClick={loadInvoices}
+                      disabled={isLoadingInvoices}
+                    >
+                      <RotateCcw className={`h-5 w-5 mr-2 ${isLoadingInvoices ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    <Link href="/dashboard/admin/orders">
+                      <Button 
+                        variant="primary" 
+                        className="bg-lime-500/20 border border-lime-400/30 text-lime-300 hover:bg-lime-500/30"
+                      >
+                        <Plus className="h-5 w-5 mr-2" />
+                        Create from Order
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Status Filter */}
+                    <div className="relative">
+                      <Filter className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
+                      <select 
+                        value={invoiceFilters.status}
+                        onChange={(e) => setInvoiceFilters(prev => ({ ...prev, status: e.target.value }))}
+                        className="appearance-none w-[180px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
+                      >
+                        <option value="">All statuses</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="ISSUED">Issued</option>
+                        <option value="PAID">Paid</option>
+                        <option value="VOID">Void</option>
+                        <option value="REFUNDED">Refunded</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-5 w-5 text-slate-400" />
+                    </div>
+
+                    {/* Date Range */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
+                        <input 
+                          type="date" 
+                          value={invoiceFilters.dateFrom}
+                          onChange={(e) => setInvoiceFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                          className="w-[170px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
+                        />
+                      </div>
+                      <span className="text-slate-400">to</span>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
+                        <input 
+                          type="date" 
+                          value={invoiceFilters.dateTo}
+                          onChange={(e) => setInvoiceFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                          className="w-[170px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="text-slate-300 text-sm bg-white/5 border border-white/10 rounded-lg px-3 py-1">
+                      Total: {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
+                    </div>
+                    {invoices.length > 0 && (
+                      <div className="text-slate-300 text-sm bg-white/5 border border-white/10 rounded-lg px-3 py-1">
+                        Revenue: {formatPrice(invoices.reduce((sum, inv) => sum + inv.total, 0))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {invoiceError && (
+                  <div className="mb-6 p-4 rounded-lg bg-red-400/10 border border-red-400/20 text-red-300 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    <span>{invoiceError}</span>
+                  </div>
+                )}
+
+                {/* Invoices Table */}
+                <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                  {/* Table Header */}
+                  <div className="bg-white/2.5 border-b border-white/10">
+                    <div className="grid grid-cols-12 gap-6 text-[13px] font-medium text-slate-300 px-4 sm:px-6 py-4">
+                      <div className="col-span-2 flex items-center gap-1">
+                        <span>Invoice</span>
+                        <ArrowUpDown className="h-3 w-3" />
+                      </div>
+                      <div className="col-span-2">Customer</div>
+                      <div className="col-span-1">Status</div>
+                      <div className="col-span-2">Order ID / Product</div>
+                      <div className="col-span-1 text-right">Total</div>
+                      <div className="col-span-2">Issue / Due Date</div>
+                      <div className="col-span-2 text-right">Actions</div>
+                    </div>
+                  </div>
+                  
+                  {/* Table Body */}
+                  <div className="divide-y divide-white/10">
+                    {isLoadingInvoices ? (
+                      <div className="px-6 py-12 text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lime-400 mx-auto mb-4"></div>
+                        <p className="text-slate-300">Loading invoices...</p>
+                      </div>
+                    ) : invoices.length === 0 ? (
+                      <div className="px-6 py-12 text-center">
+                        <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                        <p className="text-slate-300 mb-2">No invoices found</p>
+                        <p className="text-slate-400 text-sm">Invoices will appear here after you create them from orders</p>
+                      </div>
+                    ) : (
+                      invoices.map((invoice) => (
+                        <div key={invoice.id} className="grid grid-cols-12 gap-6 items-center px-4 sm:px-6 py-4 hover:bg-white/3 transition">
+                          {/* Invoice Number */}
+                          <div className="col-span-2">
+                            <div className="font-medium text-slate-200">{invoice.number}</div>
+                            <div className="text-xs text-slate-400 mt-0.5">
+                              {invoice._count.items} item{invoice._count.items !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                          
+                          {/* Customer */}
+                          <div className="col-span-2">
+                            <div className="text-slate-300">{invoice.customer.name || 'N/A'}</div>
+                            <div className="text-xs text-slate-400 mt-0.5">{invoice.customer.email}</div>
+                          </div>
+                          
+                          {/* Status */}
+                          <div className="col-span-1">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(invoice.status)}`}>
+                              {getStatusIcon(invoice.status)}
+                              {invoice.status}
+                            </span>
+                          </div>
+                          
+                          {/* Order */}
+                          <div className="col-span-2">
+                            <Link 
+                              href={`/dashboard/admin/orders/${invoice.orderId}`}
+                              className="text-cyan-300 hover:text-cyan-200 text-sm font-medium flex items-center gap-1"
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-mono text-xs text-cyan-400" title={`Order ID: ${invoice.orderId}`}>
+                                  #{invoice.orderId.slice(-8)}
+                                </span>
+                                <span className="text-xs text-slate-300 truncate" title={invoice.order.productName}>
+                                  {invoice.order.productName}
+                                </span>
+                              </div>
+                              <ExternalLink className="h-3 w-3 ml-1 flex-shrink-0" />
+                            </Link>
+                          </div>
+                          
+                          {/* Total */}
+                          <div className="col-span-1 text-right">
+                            <span className="font-semibold text-slate-200">
+                              {formatPrice(invoice.total)}
+                            </span>
+                          </div>
+                          
+                          {/* Dates */}
+                          <div className="col-span-2">
+                            <div className="text-xs text-slate-300">{formatDate(invoice.issueDate)}</div>
+                            {invoice.dueDate && (
+                              <div className="text-xs text-slate-400 mt-0.5">Due: {formatDate(invoice.dueDate)}</div>
+                            )}
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="col-span-2 flex items-center justify-end gap-2">
+                            {/* View PDF */}
+                            <button 
+                              onClick={() => downloadInvoicePDF(invoice.id, invoice.number)}
+                              className="rounded-full p-2 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition"
+                              title="Download PDF"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            
+                            {/* Send Email */}
+                            {invoice.status !== 'VOID' && (
+                              <button 
+                                onClick={() => sendInvoice(invoice.id)}
+                                className="rounded-full p-2 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition"
+                                title="Send Invoice Email"
+                              >
+                                <Send className="h-4 w-4" />
+                              </button>
+                            )}
+                            
+                            {/* Status Dropdown */}
+                            <div className="relative">
+                              <select 
+                                value={invoice.status}
+                                onChange={(e) => updateInvoiceStatus(invoice.id, e.target.value)}
+                                className="appearance-none rounded-full bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-3 py-1.5 pr-8 text-xs"
+                              >
+                                <option value="DRAFT">Draft</option>
+                                <option value="ISSUED">Issued</option>
+                                <option value="PAID">Paid</option>
+                                <option value="VOID">Void</option>
+                                <option value="REFUNDED">Refunded</option>
+                              </select>
+                              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+                            </div>
+                            
+                            {/* Delete (All invoices - for cleanup) */}
+                            <button 
+                              onClick={() => deleteInvoice(invoice.id)}
+                              className="rounded-full p-2 bg-white/5 border border-white/10 hover:bg-red-400/20 hover:border-red-400/40 transition"
+                              title="Delete Invoice"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-300/80" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Pagination */}
+                {totalInvoicePages > 1 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-slate-400 text-sm">
+                      Page {currentInvoicePage} of {totalInvoicePages}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCurrentInvoicePage(prev => Math.max(1, prev - 1))}
+                        disabled={currentInvoicePage === 1 || isLoadingInvoices}
+                      >
+                        Previous
+                      </Button>
+                      <Button 
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCurrentInvoicePage(prev => Math.min(totalInvoicePages, prev + 1))}
+                        disabled={currentInvoicePage === totalInvoicePages || isLoadingInvoices}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+          </section>
 
           {/* Billing to Resale Team / Customers Section */}
           <section className="px-6 md:px-10 mt-6">
@@ -403,8 +1129,8 @@ export default function BillingDashboard() {
                     </Button>
                     <Button 
                       variant="primary"
-                      disabled={summary.count === 0}
-                      onClick={() => showToast(`Invoice created for ${summary.count} order${summary.count > 1 ? 's' : ''}`)}
+                      disabled={filteredOrders.length === 0}
+                      onClick={() => showToast(`Billing dashboard ready - ${filteredOrders.length} orders available`)}
                     >
                       <FileText className="h-5 w-5 mr-2" />
                       Create Invoice
@@ -453,30 +1179,44 @@ export default function BillingDashboard() {
                 {currentTab === 'invoices' && (
                   <div className="space-y-6">
                     {/* Filters */}
-                    <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="relative">
-                          <Users className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-                          <select 
-                            value={customerFilter}
-                            onChange={(e) => setCustomerFilter(e.target.value)}
-                            className="appearance-none w-[240px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
-                          >
-                            <option value="">All customers</option>
-                            <option value="Resale Team A">Resale Team A</option>
-                            <option value="Resale Team B">Resale Team B</option>
-                            <option value="ACME Co.">ACME Co.</option>
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-5 w-5 text-slate-400" />
-                        </div>
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
-                          <input 
-                            type="date" 
-                            className="w-[190px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
-                          />
-                        </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="relative">
+                        <Users className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
+                        <select 
+                          value={orderFilters.customer}
+                          onChange={(e) => setOrderFilters(prev => ({ ...prev, customer: e.target.value }))}
+                          className="appearance-none w-[240px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
+                        >
+                          <option value="">All customers</option>
+                          {Array.from(new Set(realOrders.map(order => order.customer))).map(customer => (
+                            <option key={customer} value={customer}>{customer}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-5 w-5 text-slate-400" />
                       </div>
+                      <div className="relative">
+                        <Filter className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
+                        <select 
+                          value={orderFilters.status}
+                          onChange={(e) => setOrderFilters(prev => ({ ...prev, status: e.target.value }))}
+                          className="appearance-none w-[180px] rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
+                        >
+                          <option value="">All statuses</option>
+                          <option value="no-invoice">Without invoices</option>
+                          <option value="with-invoice">With invoices</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-5 w-5 text-slate-400" />
+                      </div>
+                      <Button 
+                        variant="ghost"
+                        size="sm"
+                        onClick={loadOrders}
+                        disabled={isLoadingOrders}
+                        className="bg-white/5 border border-white/10"
+                      >
+                        <RotateCcw className={`h-4 w-4 mr-2 ${isLoadingOrders ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
                     </div>
 
                     {/* Orders and Summary Grid */}
@@ -486,139 +1226,181 @@ export default function BillingDashboard() {
                         <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
                           <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/10">
                             <div className="flex items-center gap-2">
-                              <span className="text-[15px] text-slate-300">Orders</span>
-                              {selectedOrders.size > 0 && (
-                                <span className="rounded-full bg-lime-400/15 text-lime-300 text-xs px-2 py-0.5 border border-lime-400/20">
-                                  {selectedOrders.size} selected
-                                </span>
-                              )}
+                              <span className="text-[15px] text-slate-300">Orders ({filteredOrders.length})</span>
                             </div>
-                            <div className="text-xs text-slate-400">Factory cost shown</div>
+                            <div className="text-xs text-slate-400">Factory cost shown • Actions available per order</div>
                           </div>
                           
                           {/* Table Header */}
-                          <div className="grid grid-cols-12 text-[13px] text-slate-400 px-4 sm:px-5 py-2.5 bg-white/2.5">
-                            <div className="col-span-5 sm:col-span-4">Order</div>
-                            <div className="hidden sm:block col-span-3">Customer</div>
-                            <div className="col-span-3 sm:col-span-2">Items</div>
-                            <div className="col-span-2 sm:col-span-2 text-right">Factory $</div>
-                            <div className="hidden md:block col-span-1 text-right whitespace-nowrap">Due Date</div>
+                          <div className="grid grid-cols-12 gap-6 text-[13px] text-slate-400 px-4 sm:px-6 py-2.5 bg-white/2.5">
+                            <div className="col-span-3 sm:col-span-2">Order</div>
+                            <div className="hidden sm:block col-span-3 sm:col-span-2">Customer</div>
+                            <div className="col-span-2 sm:col-span-1 text-center">Items</div>
+                            <div className="col-span-2 sm:col-span-2 text-right">Factory Cost</div>
+                            <div className="hidden lg:block col-span-2 text-center">Due Date</div>
+                            <div className="col-span-5 sm:col-span-3 text-right">Actions</div>
                           </div>
                           
                           {/* Table Rows */}
                           <div className="max-h-[320px] overflow-auto divide-y divide-white/10">
-                            {filteredOrders.map((order) => (
-                              <div key={order.id} className="grid grid-cols-12 items-center px-4 sm:px-5 py-3 hover:bg-white/3 transition">
-                                <div className="col-span-5 sm:col-span-4 flex items-center gap-3">
-                                  <label className="inline-flex items-center">
-                                    <input 
-                                      type="checkbox"
-                                      checked={selectedOrders.has(order.id)}
-                                      onChange={(e) => {
-                                        const newSelected = new Set(selectedOrders);
-                                        if (e.target.checked) {
-                                          newSelected.add(order.id);
-                                        } else {
-                                          newSelected.delete(order.id);
-                                        }
-                                        setSelectedOrders(newSelected);
-                                      }}
-                                      className="sr-only peer"
-                                    />
-                                    <span className="mr-2 h-5 w-5 rounded-md border border-white/15 bg-white/5 flex items-center justify-center peer-checked:border-lime-400/60 peer-checked:bg-lime-400/20 transition">
-                                      {selectedOrders.has(order.id) && (
-                                        <Check className="h-3.5 w-3.5 text-lime-300" />
-                                      )}
-                                    </span>
-                                  </label>
+                            {isLoadingOrders ? (
+                              <div className="px-6 py-12 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lime-400 mx-auto mb-4"></div>
+                                <p className="text-slate-300">Loading orders...</p>
+                              </div>
+                            ) : orderError ? (
+                              <div className="px-6 py-12 text-center">
+                                <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                                <p className="text-slate-300 mb-2">Error loading orders</p>
+                                <p className="text-slate-400 text-sm mb-4">{orderError}</p>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={loadOrders}
+                                  className="bg-white/7.5 border border-white/10"
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Retry
+                                </Button>
+                              </div>
+                            ) : filteredOrders.length === 0 ? (
+                              <div className="px-6 py-12 text-center">
+                                <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                                <p className="text-slate-300 mb-2">No orders found</p>
+                                <p className="text-slate-400 text-sm">Orders ready for billing will appear here</p>
+                              </div>
+                            ) : filteredOrders.map((order) => (
+                              <div key={order.id} className="grid grid-cols-12 gap-6 items-center px-4 sm:px-6 py-4 hover:bg-white/3 transition">
+                                <div className="col-span-3 sm:col-span-2">
                                   <div className="flex flex-col">
-                                    <span className="text-[15px] text-slate-200">{order.id}</span>
-                                    <span className="text-[12px] text-slate-400 md:hidden">{order.customer}</span>
+                                    <span className="text-[14px] text-slate-200 font-medium">
+                                      #{order.id.slice(-8)}
+                                    </span>
+                                    <span className="text-[12px] text-slate-400 sm:hidden truncate">{order.customer}</span>
+                                    {order.hasInvoice && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <CheckCircle2 className="h-3 w-3 text-green-400" />
+                                        <span className="text-[10px] text-green-400">Invoiced ({order.invoices.length})</span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                                <div className="hidden sm:block col-span-3 text-[14px] text-slate-300">{order.customer}</div>
-                                <div className="col-span-3 sm:col-span-2 text-[14px] text-slate-300">{order.items}</div>
-                                <div className="col-span-2 sm:col-span-2 text-right text-[14px] text-slate-200">
+                                <div className="hidden sm:block col-span-3 sm:col-span-2 text-[14px] text-slate-300">
+                                  <div className="truncate" title={order.customer}>
+                                    {order.customer}
+                                  </div>
+                                </div>
+                                <div className="col-span-2 sm:col-span-1 text-center text-[14px] text-slate-300 font-medium">
+                                  {order.items}
+                                </div>
+                                <div className="col-span-2 sm:col-span-2 text-right text-[14px] text-slate-200 font-semibold">
                                   {formatPrice(order.factory)}
                                 </div>
-                                <div className="hidden md:block col-span-1 text-right text-[13px] text-slate-400 whitespace-nowrap">{order.due}</div>
+                                <div className="hidden lg:block col-span-2 text-center">
+                                  <div className="text-[12px] text-slate-400">
+                                    {(() => {
+                                      try {
+                                        const date = new Date(order.due);
+                                        if (isNaN(date.getTime())) {
+                                          return 'N/A';
+                                        }
+                                        return date.toLocaleDateString('en-US', { 
+                                          month: 'short', 
+                                          day: 'numeric',
+                                          year: '2-digit'
+                                        });
+                                      } catch {
+                                        return 'N/A';
+                                      }
+                                    })()}
+                                  </div>
+                                </div>
+                                <div className="col-span-5 sm:col-span-3 flex items-center justify-end gap-2">
+                                  {!order.hasInvoice ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedOrderForInvoice(order);
+                                        setInvoiceModalOpen(true);
+                                      }}
+                                      className="bg-lime-500/10 border border-lime-400/20 hover:bg-lime-500/20 text-lime-300 text-xs px-3 py-1.5 whitespace-nowrap"
+                                    >
+                                      <Plus className="h-3 w-3 mr-1.5" />
+                                      Create Invoice
+                                    </Button>
+                                  ) : (
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedOrderForInvoice(order);
+                                          setInvoiceModalOpen(true);
+                                        }}
+                                        className="bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-orange-300 text-xs px-3 py-1.5 whitespace-nowrap"
+                                      >
+                                        <Edit className="h-3 w-3 mr-1.5" />
+                                        Modify
+                                      </Button>
+                                      {order.invoices.length > 0 && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => downloadInvoicePDF(order.invoices[0].id, order.invoices[0].number)}
+                                          className="bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-xs px-2.5 py-1.5"
+                                          title="Download PDF"
+                                        >
+                                          <Download className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       </div>
 
-                      {/* Invoice Summary */}
+                      {/* Order Statistics */}
                       <div className="col-span-12 lg:col-span-4">
                         <div className="rounded-xl bg-white/5 border border-white/10 p-5">
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-white tracking-tight text-[20px] font-semibold">Invoice Summary</h3>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-white tracking-tight text-[20px] font-semibold">Order Statistics</h3>
                             <Calculator className="h-5 w-5 text-slate-400" />
                           </div>
+                          
                           <div className="space-y-3">
                             <div className="flex items-center justify-between text-[15px]">
-                              <span className="text-slate-300">Selected orders</span>
-                              <span className="text-slate-200">{summary.count}</span>
+                              <span className="text-slate-300">Total orders</span>
+                              <span className="text-slate-200">{filteredOrders.length}</span>
                             </div>
                             <div className="flex items-center justify-between text-[15px]">
-                              <span className="text-slate-300">Subtotal (factory)</span>
-                              <span className="text-slate-200">{formatPrice(summary.subtotal)}</span>
+                              <span className="text-slate-300">With invoices</span>
+                              <span className="text-slate-200">{filteredOrders.filter(o => o.hasInvoice).length}</span>
                             </div>
                             <div className="flex items-center justify-between text-[15px]">
-                              <span className="text-slate-300">Discount %</span>
-                              <div className="relative">
-                                <input 
-                                  type="number"
-                                  min="0"
-                                  step="0.5"
-                                  value={discountPercent}
-                                  onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)}
-                                  className="w-32 text-right rounded-md bg-white/5 border border-white/10 pl-3 pr-8 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
-                                />
-                                <span className="absolute right-3 top-2.5 text-slate-400 text-sm pointer-events-none">%</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between text-[15px]">
-                              <span className="text-slate-300">Discount $</span>
-                              <div className="relative">
-                                <input 
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={discountFlat}
-                                  onChange={(e) => setDiscountFlat(Number(e.target.value) || 0)}
-                                  className="w-32 text-right rounded-md bg-white/5 border border-white/10 pl-8 pr-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
-                                />
-                                <span className="absolute left-3 top-2.5 text-slate-400 text-sm pointer-events-none">$</span>
-                              </div>
+                              <span className="text-slate-300">Pending invoices</span>
+                              <span className="text-slate-200">{filteredOrders.filter(o => !o.hasInvoice).length}</span>
                             </div>
                             <div className="h-px w-full bg-white/10 my-2"></div>
-                            <div className="flex items-center justify-between text-[16px]">
-                              <span className="text-slate-200">Total after discount</span>
-                              <span className="text-white font-semibold">{formatPrice(summary.total)}</span>
+                            <div className="flex items-center justify-between text-[15px]">
+                              <span className="text-slate-300">Total factory cost</span>
+                              <span className="text-slate-200">{formatPrice(filteredOrders.reduce((sum, o) => sum + o.factory, 0))}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[15px]">
+                              <span className="text-slate-300">Invoiced value</span>
+                              <span className="text-slate-200">{formatPrice(filteredOrders.filter(o => o.hasInvoice).reduce((sum, o) => sum + o.factory, 0))}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[15px]">
+                              <span className="text-slate-300">Pending value</span>
+                              <span className="text-slate-200">{formatPrice(filteredOrders.filter(o => !o.hasInvoice).reduce((sum, o) => sum + o.factory, 0))}</span>
                             </div>
                           </div>
-                          <div className="mt-5 flex items-center gap-3">
-                            <Button 
-                              variant="ghost" 
-                              className="bg-white/7.5 border border-white/10 flex-1"
-                              onClick={() => showToast('Template saved')}
-                            >
-                              <Save className="h-5 w-5 mr-2" />
-                              Save Template
-                            </Button>
-                            <Button 
-                              variant="primary"
-                              disabled={summary.count === 0}
-                              className="flex-1"
-                              onClick={() => {
-                                showToast(`Invoice created for ${summary.count} order${summary.count > 1 ? 's' : ''}`);
-                                setSelectedOrders(new Set());
-                              }}
-                            >
-                              <FileText className="h-5 w-5 mr-2" />
-                              Create Invoice
-                            </Button>
+                          
+                          <div className="mt-5 p-3 bg-white/5 border border-white/10 rounded-lg">
+                            <p className="text-xs text-slate-400 mb-1">💡 Usage Tip</p>
+                            <p className="text-xs text-slate-300">
+                              Use the action buttons in the orders table to create invoices for new orders or modify existing ones with additional discounts.
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -790,118 +1572,6 @@ export default function BillingDashboard() {
             </GlassCard>
           </section>
 
-          {/* Billing to Partner Section */}
-          <section className="px-6 md:px-10 mt-6">
-            <GlassCard className="overflow-hidden">
-              <div className="p-6 sm:p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-white tracking-tight text-[28px] sm:text-[32px] font-semibold">Billing to Partner</h2>
-                    <p className="text-slate-300/80 text-[15px]">Manage partners and their access roles.</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="primary"
-                      onClick={() => {
-                        setPartnerForm({ name: '', id: '', email: '', role: 'Partner', status: 'Active' });
-                        setEditingPartnerIndex(null);
-                        setPartnerModalOpen(true);
-                      }}
-                    >
-                      <Plus className="h-5 w-5 mr-2" />
-                      Create Partner
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-white/10 gap-4">
-                    <div className="text-[16px] font-medium text-slate-200">Partner Management</div>
-                    <div className="relative">
-                      <input 
-                        type="text"
-                        placeholder="Search partners…"
-                        value={partnerSearchFilter}
-                        onChange={(e) => setPartnerSearchFilter(e.target.value)}
-                        className="w-full sm:w-80 rounded-lg bg-white/5 border border-white/10 text-slate-200 placeholder:text-slate-400/70 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 pl-12 pr-4 py-3"
-                      />
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    </div>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <div className="grid grid-cols-12 gap-6 text-[14px] font-medium text-slate-300 px-4 sm:px-6 py-4 bg-white/2.5 min-w-[800px]">
-                      <div className="col-span-3">Partner Name</div>
-                      <div className="col-span-2">User ID</div>
-                      <div className="col-span-3">Email Address</div>
-                      <div className="col-span-2">Role</div>
-                      <div className="col-span-1">Status</div>
-                      <div className="col-span-1 text-right">Actions</div>
-                    </div>
-                    
-                    <div className="divide-y divide-white/10">
-                      {filteredPartners.map((partner, index) => (
-                        <div key={partner.id} className="grid grid-cols-12 gap-6 items-center px-4 sm:px-6 py-5 hover:bg-white/3 transition min-w-[800px]">
-                          <div className="col-span-3">
-                            <div className="text-[16px] font-medium text-slate-100">{partner.name}</div>
-                            <div className="text-[13px] text-slate-400 mt-0.5">Partner</div>
-                          </div>
-                          <div className="col-span-2">
-                            <div className="text-[14px] text-slate-300 font-mono">{partner.id}</div>
-                          </div>
-                          <div className="col-span-3">
-                            <div className="text-[14px] text-slate-300">{partner.email}</div>
-                          </div>
-                          <div className="col-span-2">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">
-                              {partner.role}
-                            </span>
-                          </div>
-                          <div className="col-span-1">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-medium whitespace-nowrap ${
-                              partner.status === 'Active' 
-                                ? 'bg-lime-400/15 text-lime-300 border border-lime-400/20'
-                                : partner.status === 'Pending'
-                                ? 'bg-orange-400/15 text-orange-300 border border-orange-400/20'
-                                : 'bg-purple-400/15 text-purple-300 border border-purple-400/20'
-                            }`}>
-                              {partner.status}
-                            </span>
-                          </div>
-                          <div className="col-span-1 flex items-center justify-end gap-3">
-                            <button 
-                              className="rounded-full p-2.5 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition"
-                              onClick={() => {
-                                setPartnerForm(partner);
-                                setEditingPartnerIndex(partners.indexOf(partner));
-                                setPartnerModalOpen(true);
-                              }}
-                              title="Edit Partner"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button 
-                              className="rounded-full p-2.5 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition"
-                              onClick={() => {
-                                if (confirm(`Delete partner "${partner.name}"?`)) {
-                                  const newPartners = partners.filter(p => p.id !== partner.id);
-                                  setPartners(newPartners);
-                                  showToast('Partner deleted');
-                                }
-                              }}
-                              title="Delete Partner"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-300/80" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-          </section>
 
           {/* Global Margin Settings Section */}
           <section className="px-6 md:px-10 mt-6">
@@ -922,7 +1592,7 @@ export default function BillingDashboard() {
                     <div>
                       <div className="text-[16px] font-medium text-slate-200">Apply Settings</div>
                       <div className="text-[14px] text-slate-400 mt-1">
-                        {globalScope ? 'Global (all partners)' : 'Per-member (overrides allowed)'}
+                        {globalScope ? 'Global (all members)' : 'Per-member (overrides allowed)'}
                       </div>
                     </div>
                     <button 
@@ -965,35 +1635,91 @@ export default function BillingDashboard() {
                           }}
                         >
                           <option value="" className="bg-slate-800 text-slate-200">Select a member...</option>
-                          {partners.map((partner) => (
-                            <option key={partner.id} value={partner.id} className="bg-slate-800 text-slate-200">
-                              {partner.name} ({partner.role})
-                            </option>
-                          ))}
+                          <option value="member1" className="bg-slate-800 text-slate-200">
+                            Member 1 (MEMBER)
+                          </option>
+                          <option value="member2" className="bg-slate-800 text-slate-200">
+                            Member 2 (MEMBER)
+                          </option>
                         </select>
                         <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                       </div>
                       {selectedMember && (
                         <p className="text-[14px] text-slate-300 mt-2 flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full bg-purple-400"></span>
-                          Setting custom margins for: <strong>{partners.find(p => p.id === selectedMember)?.name}</strong>
+                          Setting custom margins for: <strong>{selectedMember === 'member1' ? 'Member 1' : selectedMember === 'member2' ? 'Member 2' : selectedMember}</strong>
                         </p>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Margin table */}
-                <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                  {/* Table Header */}
-                  <div className="bg-white/2.5 border-b border-white/10 px-6 py-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-[18px] font-semibold text-white">Product Margin Configuration</h3>
-                      <span className="text-[13px] text-slate-400">Factory cost + margin = partner cost</span>
+                {/* Margin Mode Toggle */}
+                <div className="mb-6 rounded-xl bg-white/5 border border-white/10 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-[18px] font-semibold text-white mb-2">Margin Configuration Mode</h3>
+                      <p className="text-[13px] text-slate-400">Choose how you want to configure margin settings</p>
                     </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 bg-white/5 rounded-lg p-1.5 border border-white/10">
+                      <button
+                        onClick={() => setMarginMode('global')}
+                        className={`px-4 py-2.5 rounded-md text-[14px] font-medium transition-all duration-200 ${
+                          marginMode === 'global'
+                            ? 'bg-lime-500 text-black shadow-lg shadow-lime-500/25'
+                            : 'text-slate-300 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <SlidersHorizontal className="h-4 w-4" />
+                          Simple Global Mode
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setMarginMode('detailed')}
+                        className={`px-4 py-2.5 rounded-md text-[14px] font-medium transition-all duration-200 ${
+                          marginMode === 'detailed'
+                            ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/25'
+                            : 'text-slate-300 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          Advanced Detailed Mode
+                        </div>
+                      </button>
+                    </div>
+                    
+                    <div className="flex-1 text-[13px] text-slate-400">
+                      {marginMode === 'global' ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-lime-400" />
+                          Using broad category margins for all products
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-purple-400" />
+                          Using detailed item-specific margin overrides
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Global Margin Configuration - Only show in global mode */}
+                {marginMode === 'global' && (
+                  <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                    {/* Table Header */}
+                    <div className="bg-white/2.5 border-b border-white/10 px-6 py-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-[18px] font-semibold text-white">Global Margin Configuration</h3>
+                        <span className="text-[13px] text-slate-400">Margins apply to existing factory pricing from CSV data</span>
+                      </div>
                     <div className="grid grid-cols-12 gap-6 text-[14px] font-medium text-slate-300">
-                      <div className="col-span-4">Product Type</div>
-                      <div className="col-span-2 text-center">Factory Cost ($)</div>
+                      <div className="col-span-6">Product Type</div>
                       <div className="col-span-3 text-center">Margin Percentage (%)</div>
                       <div className="col-span-3 text-center">Flat Margin ($)</div>
                     </div>
@@ -1005,27 +1731,10 @@ export default function BillingDashboard() {
                       <div key={`${row.key}-${index}`} className="px-6 py-6 hover:bg-white/3 transition">
                         <div className="grid grid-cols-12 gap-6 items-center">
                             {/* Product Type Column */}
-                            <div className="col-span-4">
+                            <div className="col-span-6">
                               <div className="text-[16px] font-medium text-slate-100">{row.label}</div>
-                              <div className="text-[13px] text-slate-400 mt-0.5">{row.key.replace(/_/g, ' ')}</div>
-                            </div>
-
-                            {/* Factory Cost Column */}
-                            <div className="col-span-2">
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                                <input 
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={row.factory}
-                                  onChange={(e) => {
-                                    const newMarginState = [...marginState];
-                                    newMarginState[index].factory = Number(e.target.value) || 0;
-                                    setMarginState(newMarginState);
-                                  }}
-                                  className="w-full text-center rounded-lg bg-white/5 border border-white/10 pl-10 pr-6 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-400/40"
-                                />
+                              <div className="text-[13px] text-slate-400 mt-0.5">
+                                {row.key.replace(/_/g, ' ')} - Factory pricing from CSV data
                               </div>
                             </div>
 
@@ -1072,55 +1781,42 @@ export default function BillingDashboard() {
                       ))}
                     </div>
 
-                    {/* See More Button */}
+                    {/* Info Footer */}
                     <div className="border-t border-white/10 px-6 py-4 bg-white/2.5">
-                      <button
-                        onClick={() => setShowDetailedCustomization(!showDetailedCustomization)}
-                        className="inline-flex items-center gap-2 text-[14px] text-slate-300 hover:text-white transition"
-                      >
-                        <span>{showDetailedCustomization ? 'Show Less' : 'See More'} Customization Options</span>
-                        <ChevronDown className={`h-4 w-4 transition-transform ${showDetailedCustomization ? 'rotate-180' : ''}`} />
-                      </button>
+                      <div className="flex items-center gap-2 text-[14px] text-slate-300">
+                        <CheckCircle2 className="h-4 w-4 text-lime-400" />
+                        <span>Global mode applies broad category margins to all products</span>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  {/* Detailed Customization Options */}
-                  {showDetailedCustomization && (
-                    <div className="mt-4 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                      {/* Header */}
-                      <div className="bg-white/2.5 border-b border-white/10 px-6 py-4">
-                        <h4 className="text-white text-[16px] font-medium">Detailed Customization Options</h4>
-                        <p className="text-slate-400 text-[13px] mt-1">Individual margin settings for specific customization types</p>
-                      </div>
+                {/* Detailed Margin Configuration - Only show in detailed mode */}
+                {marginMode === 'detailed' && (
+                  <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-white/2.5 border-b border-white/10 px-6 py-4">
+                      <h3 className="text-[18px] font-semibold text-white">Advanced Detailed Margin Configuration</h3>
+                      <p className="text-slate-400 text-[13px] mt-1">Item-specific margin settings that override global defaults</p>
+                    </div>
 
-                      {/* Detailed Options Grid */}
-                      <div className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Detailed Options Grid */}
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        {/* Logo Options */}
+                        <div className="space-y-4">
+                          <h5 className="text-slate-200 text-[14px] font-medium border-b border-white/10 pb-2">Logo Options</h5>
                           
-                          {/* Logo Options */}
-                          <div className="space-y-4">
-                            <h5 className="text-slate-200 text-[14px] font-medium border-b border-white/10 pb-2">Logo Options</h5>
-                            
-                            {[
-                              { name: '3D Embroidery', factory: 0.15, percent: 35, flat: 0.05 },
-                              { name: 'Standard Embroidery', factory: 0.50, percent: 32, flat: 0.03 },
-                              { name: 'Rubber Patches', factory: 0.80, percent: 40, flat: 0.10 },
-                              { name: 'Woven Patches', factory: 0.65, percent: 38, flat: 0.08 },
-                              { name: 'Leather Patches', factory: 0.70, percent: 42, flat: 0.12 }
+                          {[
+                              { name: '3D Embroidery', percent: 35, flat: 0.05 },
+                              { name: 'Standard Embroidery', percent: 32, flat: 0.03 },
+                              { name: 'Rubber Patches', percent: 40, flat: 0.10 },
+                              { name: 'Woven Patches', percent: 38, flat: 0.08 },
+                              { name: 'Leather Patches', percent: 42, flat: 0.12 }
                             ].map((item, idx) => (
-                              <div key={`logo-${idx}`} className="grid grid-cols-8 gap-2 items-center p-3 rounded-lg bg-white/2.5 hover:bg-white/5 transition">
+                              <div key={`logo-${idx}`} className="grid grid-cols-6 gap-3 items-center p-3 rounded-lg bg-white/2.5 hover:bg-white/5 transition">
                                 <div className="col-span-3 text-[13px] text-slate-300">{item.name}</div>
-                                <div className="col-span-2">
-                                  <div className="relative">
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
-                                    <input 
-                                      type="number" 
-                                      step="0.01" 
-                                      defaultValue={item.factory}
-                                      className="w-full text-xs text-center rounded bg-white/5 border border-white/10 pl-5 pr-2 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-400/40"
-                                    />
-                                  </div>
-                                </div>
                                 <div className="col-span-2">
                                   <div className="relative">
                                     <input 
@@ -1152,25 +1848,14 @@ export default function BillingDashboard() {
                             <h5 className="text-slate-200 text-[14px] font-medium border-b border-white/10 pb-2">Accessories & Others</h5>
                             
                             {[
-                              { name: 'Hang Tags', factory: 0.30, percent: 50, flat: 0.05 },
-                              { name: 'Inside Labels', factory: 0.20, percent: 45, flat: 0.03 },
-                              { name: 'Premium Closures', factory: 0.35, percent: 30, flat: 0.05 },
-                              { name: 'Premium Fabrics', factory: 0.60, percent: 25, flat: 0.10 },
-                              { name: 'Special Applications', factory: 0.20, percent: 40, flat: 0.03 }
+                              { name: 'Hang Tags', percent: 50, flat: 0.05 },
+                              { name: 'Inside Labels', percent: 45, flat: 0.03 },
+                              { name: 'Premium Closures', percent: 30, flat: 0.05 },
+                              { name: 'Premium Fabrics', percent: 25, flat: 0.10 },
+                              { name: 'Special Applications', percent: 40, flat: 0.03 }
                             ].map((item, idx) => (
-                              <div key={`accessory-${idx}`} className="grid grid-cols-8 gap-2 items-center p-3 rounded-lg bg-white/2.5 hover:bg-white/5 transition">
+                              <div key={`accessory-${idx}`} className="grid grid-cols-6 gap-3 items-center p-3 rounded-lg bg-white/2.5 hover:bg-white/5 transition">
                                 <div className="col-span-3 text-[13px] text-slate-300">{item.name}</div>
-                                <div className="col-span-2">
-                                  <div className="relative">
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
-                                    <input 
-                                      type="number" 
-                                      step="0.01" 
-                                      defaultValue={item.factory}
-                                      className="w-full text-xs text-center rounded bg-white/5 border border-white/10 pl-5 pr-2 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-400/40"
-                                    />
-                                  </div>
-                                </div>
                                 <div className="col-span-2">
                                   <div className="relative">
                                     <input 
@@ -1254,7 +1939,6 @@ export default function BillingDashboard() {
                             variant="primary"
                             onClick={() => {
                               showToast('Detailed margin settings saved');
-                              setShowDetailedCustomization(false);
                             }}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -1263,7 +1947,8 @@ export default function BillingDashboard() {
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
                 {/* Preview and Actions Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -1281,7 +1966,7 @@ export default function BillingDashboard() {
                       <div className="flex items-center justify-between text-[16px]">
                         <span className="text-slate-300">Applied Margin</span>
                         <span className="text-slate-200 font-medium">
-                          {marginState[0]?.percent || 0}% + {formatPrice(marginState[0]?.flat || 0)}
+                          {(marginState[0]?.percent || 0)}% + {formatPrice(marginState[0]?.flat || 0)}
                         </span>
                       </div>
                       <div className="h-px w-full bg-white/10"></div>
@@ -1319,9 +2004,9 @@ export default function BillingDashboard() {
                           onClick={() => {
                             // Reset to default values
                             setMarginState([
-                              { key: 'blank_caps', label: 'Blank Caps', factory: 3.50, percent: 20, flat: 0 },
-                              { key: 'customization_combined', label: 'Customization (Combined)', factory: 0.75, percent: 35, flat: 0.08 },
-                              { key: 'delivery_combined', label: 'Delivery (Combined)', factory: 2.00, percent: 18, flat: 0.50 }
+                              { key: 'blank_caps', label: 'Blank Caps', percent: 20, flat: 0 },
+                              { key: 'customization_combined', label: 'Customization (Combined)', percent: 35, flat: 0.08 },
+                              { key: 'delivery_combined', label: 'Delivery (Combined)', percent: 18, flat: 0.50 }
                             ]);
                           }}
                         >
@@ -1408,107 +2093,144 @@ export default function BillingDashboard() {
         </div>
       )}
 
-      {/* Partner Create/Edit Modal */}
-      {partnerModalOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setPartnerModalOpen(false)} />
-          <div className="relative mx-auto max-w-xl mt-24 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl p-6 sm:p-8 text-slate-200 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-cyan-300" />
-                <h3 className="text-white tracking-tight text-[24px] font-semibold">
-                  {editingPartnerIndex !== null ? 'Edit Partner' : 'Create Partner'}
-                </h3>
-              </div>
-              <button 
-                onClick={() => setPartnerModalOpen(false)}
-                className="rounded-full p-2 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition focus:outline-none focus:ring-2 focus:ring-white/20"
+
+      {/* Invoice Creation/Modification Modal */}
+      {invoiceModalOpen && selectedOrderForInvoice && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900/95 border border-white/10 rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-white text-lg font-semibold">
+                {selectedOrderForInvoice.hasInvoice ? 'Modify Invoice' : 'Create Invoice'}
+              </h3>
+              <button
+                onClick={() => {
+                  setInvoiceModalOpen(false);
+                  setSelectedOrderForInvoice(null);
+                  setDiscountPercent(0);
+                  setDiscountFlat(0);
+                }}
+                className="text-slate-400 hover:text-slate-200 transition"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-12">
-                <label className="text-[14px] text-slate-300 mb-1.5 block">Partner Name</label>
-                <input 
-                  type="text"
-                  value={partnerForm.name}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
-                />
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <p className="text-slate-300 text-sm">
+                  <span className="text-slate-400">Order ID:</span> {selectedOrderForInvoice.id}
+                </p>
+                <p className="text-slate-300 text-sm">
+                  <span className="text-slate-400">Customer:</span> {selectedOrderForInvoice.customer}
+                </p>
+                <p className="text-slate-300 text-sm">
+                  <span className="text-slate-400">Factory Cost:</span> {formatPrice(selectedOrderForInvoice.factory)}
+                </p>
+                {selectedOrderForInvoice.hasInvoice && (
+                  <p className="text-slate-300 text-sm">
+                    <span className="text-slate-400">Current Invoices:</span> {selectedOrderForInvoice.invoices.length}
+                  </p>
+                )}
               </div>
-              <div className="col-span-12 sm:col-span-6">
-                <label className="text-[14px] text-slate-300 mb-1.5 block">User ID</label>
-                <input 
-                  type="text"
-                  value={partnerForm.id}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, id: e.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
-                />
-              </div>
-              <div className="col-span-12 sm:col-span-6">
-                <label className="text-[14px] text-slate-300 mb-1.5 block">Email</label>
-                <input 
-                  type="email"
-                  value={partnerForm.email}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, email: e.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
-                />
-              </div>
-              <div className="col-span-12 sm:col-span-6">
-                <label className="text-[14px] text-slate-300 mb-1.5 block">Role</label>
-                <select 
-                  value={partnerForm.role}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, role: e.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
-                >
-                  <option value="Partner">Partner</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Reseller">Reseller</option>
-                </select>
-              </div>
-              <div className="col-span-12 sm:col-span-6">
-                <label className="text-[14px] text-slate-300 mb-1.5 block">Status</label>
-                <select 
-                  value={partnerForm.status}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, status: e.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Suspended">Suspended</option>
-                </select>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-slate-300 text-sm mb-1">
+                    {selectedOrderForInvoice.hasInvoice ? 'Additional Discount %' : 'Discount %'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 text-sm mb-1">
+                    {selectedOrderForInvoice.hasInvoice ? 'Additional Flat Discount $' : 'Flat Discount $'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discountFlat}
+                    onChange={(e) => setDiscountFlat(Number(e.target.value) || 0)}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+                  <h4 className="text-slate-300 text-sm font-medium mb-2">Preview</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Subtotal:</span>
+                      <span>{formatPrice(selectedOrderForInvoice.factory)}</span>
+                    </div>
+                    {discountPercent > 0 && (
+                      <div className="flex justify-between text-slate-400">
+                        <span>Discount ({discountPercent}%):</span>
+                        <span>-{formatPrice(selectedOrderForInvoice.factory * (discountPercent / 100))}</span>
+                      </div>
+                    )}
+                    {discountFlat > 0 && (
+                      <div className="flex justify-between text-slate-400">
+                        <span>Flat Discount:</span>
+                        <span>-{formatPrice(discountFlat)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-200 font-medium border-t border-white/10 pt-1">
+                      <span>Total:</span>
+                      <span>
+                        {formatPrice(Math.max(0, selectedOrderForInvoice.factory - (selectedOrderForInvoice.factory * (discountPercent / 100)) - discountFlat))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <Button 
+
+            <div className="flex gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setInvoiceModalOpen(false);
+                  setSelectedOrderForInvoice(null);
+                  setDiscountPercent(0);
+                  setDiscountFlat(0);
+                }}
+                className="flex-1 bg-white/5 border border-white/10"
+                disabled={isCreatingInvoice}
+              >
+                Cancel
+              </Button>
+              <Button
                 variant="primary"
                 onClick={() => {
-                  if (editingPartnerIndex !== null) {
-                    const newPartners = [...partners];
-                    newPartners[editingPartnerIndex] = partnerForm;
-                    setPartners(newPartners);
+                  if (selectedOrderForInvoice.hasInvoice) {
+                    recreateInvoiceForOrder(selectedOrderForInvoice, discountPercent, discountFlat);
                   } else {
-                    const newPartner = {
-                      ...partnerForm,
-                      id: partnerForm.id || `usr_${Math.random().toString(36).substring(2,7)}`
-                    };
-                    setPartners([newPartner, ...partners]);
+                    createInvoiceForOrder(selectedOrderForInvoice, discountPercent, discountFlat);
                   }
-                  setPartnerModalOpen(false);
-                  showToast('Partner saved');
                 }}
+                className="flex-1"
+                disabled={isCreatingInvoice}
               >
-                <Check className="h-5 w-5 mr-2" />
-                Save
-              </Button>
-              <Button 
-                variant="ghost" 
-                className="bg-white/7.5 border border-white/10"
-                onClick={() => setPartnerModalOpen(false)}
-              >
-                <XCircle className="h-5 w-5 mr-2" />
-                Cancel
+                {isCreatingInvoice ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {selectedOrderForInvoice.hasInvoice ? 'Recreating...' : 'Creating...'}
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    {selectedOrderForInvoice.hasInvoice ? 'Recreate Invoice' : 'Create Invoice'}
+                  </>
+                )}
               </Button>
             </div>
           </div>

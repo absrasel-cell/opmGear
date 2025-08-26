@@ -227,53 +227,18 @@ async function calculateOrderTotal(order: any): Promise<number> {
 
 export async function POST(request: NextRequest) {
   try {
-    const orderData: OrderSubmission = await request.json();
+    const rawOrderData: OrderSubmission = await request.json();
     
-    // Debug logging for temporary files
-    console.log('=== ORDER API DEBUG ===');
-    console.log('📄 Order data keys:', Object.keys(orderData));
-    console.log('📁 tempLogoFiles:', orderData.tempLogoFiles ? `${orderData.tempLogoFiles.length} files` : 'none');
-    console.log('📁 uploadedLogoFiles:', orderData.uploadedLogoFiles ? `${orderData.uploadedLogoFiles.length} files` : 'none');
-    if (orderData.tempLogoFiles) {
-      console.log('📋 tempLogoFiles structure:', orderData.tempLogoFiles.map(f => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        kind: f.kind,
-        hasBase64: !!f.base64Data && f.base64Data.length > 0
-      })));
-    }
+    // Import the streamlined order recording system
+    const { 
+      OrderRecordingSystem, 
+      convertCheckoutToStandardOrder
+    } = await import('@/lib/order-recording-system');
     
-    // Get idempotency key from headers or body
-    const idempotencyKey = request.headers.get('Idempotency-Key') || (orderData as any).idempotencyKey;
-    
-    // Check for potential duplicate orders (basic duplicate prevention)
-    if (idempotencyKey && orderData.customerInfo?.email) {
-      try {
-        // Check for recent orders from the same email with similar product name
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const existingOrder = await prisma.order.findFirst({
-          where: {
-            userEmail: orderData.customerInfo.email,
-            productName: orderData.productName,
-            createdAt: { gte: fiveMinutesAgo }
-          },
-          orderBy: { createdAt: 'desc' }
-        });
-        
-        if (existingOrder) {
-          console.log('🔄 Potential duplicate order prevented:', idempotencyKey);
-          return NextResponse.json({
-            message: 'Order already exists',
-            orderId: existingOrder.id,
-            order: existingOrder,
-            duplicate: true
-          }, { status: 200 });
-        }
-      } catch (idempotencyError) {
-        console.warn('Duplicate check failed, proceeding with order creation:', idempotencyError);
-      }
-    }
+    console.log('=== STREAMLINED ORDER API ===');
+    console.log('📄 Raw order data keys:', Object.keys(rawOrderData));
+    console.log('📁 tempLogoFiles:', rawOrderData.tempLogoFiles ? `${rawOrderData.tempLogoFiles.length} files` : 'none');
+    console.log('📁 uploadedLogoFiles:', rawOrderData.uploadedLogoFiles ? `${rawOrderData.uploadedLogoFiles.length} files` : 'none');
     
     // Get current user if authenticated
     const user = await getCurrentUser(request);
@@ -283,106 +248,81 @@ export async function POST(request: NextRequest) {
                      request.headers.get('x-real-ip') || 
                      'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
-
-    // Create the order with graceful database failure handling
-    let order = null;
-    try {
-      order = await prisma.order.create({
-        data: {
-          productName: orderData.productName,
-          selectedColors: orderData.selectedColors,
-          logoSetupSelections: orderData.logoSetupSelections,
-          selectedOptions: orderData.selectedOptions,
-          multiSelectOptions: orderData.multiSelectOptions,
-          customerInfo: orderData.customerInfo,
-          uploadedLogoFiles: orderData.uploadedLogoFiles || [],
-          additionalInstructions: orderData.additionalInstructions || null,
-          userId: user?.id || orderData.userId,
-          userEmail: user?.email || orderData.userEmail || orderData.customerInfo.email,
-          orderType: user ? 'AUTHENTICATED' : 'GUEST',
-          orderSource: orderData.orderSource === 'REORDER' ? 'REORDER' : 'PRODUCT_CUSTOMIZATION',
-          status: orderData.status || 'PENDING',
-          shipmentId: orderData.shipmentId || null,
-          ipAddress,
-          userAgent,
-        },
-      });
-
-      console.log('✅ Order saved to database with ID:', order.id);
-      if (orderData.shipmentId) {
-        console.log('🚢 Order assigned to shipment:', orderData.shipmentId);
-      } else {
-        console.log('📦 Order created without shipment assignment');
-      }
-
-      // Handle temporary logo file uploads
-      if (orderData.tempLogoFiles && orderData.tempLogoFiles.length > 0) {
-        console.log('📤 Uploading temporary logo files...');
-        try {
-          // Pass userId to the upload function for OrderAsset records
-          const uploadedLogoFiles = await uploadTempFiles(orderData.tempLogoFiles, order.id, orderData.userId || undefined);
-          
-          // Update the order with the uploaded files
-          if (uploadedLogoFiles.length > 0) {
-            await prisma.order.update({
-              where: { id: order.id },
-              data: {
-                uploadedLogoFiles: [...(orderData.uploadedLogoFiles || []), ...uploadedLogoFiles]
-              }
-            });
-            console.log('✅ Updated order with uploaded logo files');
-          }
-          
-          // Update OrderAsset records with correct userId
-          if (user?.id) {
-            await prisma.orderAsset.updateMany({
-              where: { 
-                orderId: order.id,
-                userId: '' // Update records with empty userId
-              },
-              data: { userId: user.id }
-            });
-          }
-        } catch (uploadError) {
-          console.error('Failed to upload logo files:', uploadError);
-          // Continue anyway - order was created successfully
-        }
-      }
-
+    
+    // Convert raw order data to standard format
+    const standardOrderData = convertCheckoutToStandardOrder({
+      ...rawOrderData,
+      userId: user?.id || rawOrderData.userId,
+      userEmail: user?.email || rawOrderData.userEmail || rawOrderData.customerInfo.email,
+      orderType: user ? 'AUTHENTICATED' : 'GUEST',
+      orderSource: rawOrderData.orderSource || 'PRODUCT_CUSTOMIZATION',
+      status: rawOrderData.status || 'PENDING',
+      ipAddress,
+      userAgent,
+      paymentProcessed: true, // Orders from checkout are payment processed
+      processedAt: new Date().toISOString()
+    });
+    
+    // Set up recording options
+    const recordingOptions = {
+      idempotencyKey: request.headers.get('Idempotency-Key') || (rawOrderData as any).idempotencyKey,
+      skipDuplicateCheck: false,
+      autoCalculateCosts: true,
+      createInvoice: false, // Can be enabled later
+      notifyCustomer: false, // Can be enabled later
+      assignToShipment: !!standardOrderData.shipmentId,
+      updateInventory: false // Can be enabled later
+    };
+    
+    console.log('🎯 Recording options:', recordingOptions);
+    
+    // Record the order using the streamlined system
+    const result = await OrderRecordingSystem.recordOrder(standardOrderData, recordingOptions);
+    
+    if (!result.success) {
+      console.error('❌ Order recording failed:', result.errors);
       return NextResponse.json({
-        message: 'Order submitted successfully',
-        orderId: order.id,
-        order: order,
-      }, { status: 201 });
-
-    } catch (dbError) {
-      console.error('Database error when creating order:', dbError);
-      
-      // Return a temporary success response with order data
-      // This allows the user to continue while we fix the database
-      const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      console.log('⚠️ Database unavailable, returning temporary order ID:', tempOrderId);
-      
-      return NextResponse.json({
-        message: 'Order submitted successfully (temporary)',
-        orderId: tempOrderId,
-        order: {
-          id: tempOrderId,
-          productName: orderData.productName,
-          customerInfo: orderData.customerInfo,
-          status: 'PENDING',
-          createdAt: new Date().toISOString(),
-          // Note: This is a temporary response due to database connection issues
-        },
-        note: 'Order saved temporarily due to database maintenance. Will be properly stored when database is available.',
-      }, { status: 200 });
+        error: 'Failed to submit order',
+        details: result.errors
+      }, { status: 500 });
     }
+    
+    // Log success and warnings
+    console.log('✅ Order recorded successfully:', result.orderId);
+    if (result.warnings && result.warnings.length > 0) {
+      console.warn('⚠️ Order recording warnings:', result.warnings);
+    }
+    if (result.isDuplicate) {
+      console.log('🔄 Duplicate order handled:', result.orderId);
+    }
+    if (result.temporaryId) {
+      console.log('⚠️ Temporary order ID issued due to database issues:', result.orderId);
+    }
+    
+    // Return standardized response
+    const response: any = {
+      message: result.temporaryId ? 
+        'Order submitted successfully (temporary)' : 
+        'Order submitted successfully',
+      orderId: result.orderId,
+      order: result.order,
+    };
+    
+    // Add additional info
+    if (result.isDuplicate) response.duplicate = true;
+    if (result.temporaryId) response.note = 'Order saved temporarily due to database maintenance. Will be properly stored when database is available.';
+    if (result.invoice) response.invoice = result.invoice;
+    if (result.shipmentAssignment) response.shipmentAssignment = result.shipmentAssignment;
+    if (result.warnings && result.warnings.length > 0) response.warnings = result.warnings;
+    
+    return NextResponse.json(response, { 
+      status: result.temporaryId ? 200 : 201 
+    });
 
   } catch (error) {
-    console.error('Error submitting order:', error);
+    console.error('💥 Order API error:', error);
     return NextResponse.json(
-      { error: 'Failed to submit order' },
+      { error: 'Failed to submit order', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

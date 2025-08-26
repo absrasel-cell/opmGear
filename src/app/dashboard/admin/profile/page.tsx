@@ -59,6 +59,23 @@ interface AdminProfile {
     marketingEmails: boolean;
     adminNotifications: boolean;
     systemAlerts: boolean;
+    accountType?: string;
+    wholesale?: {
+      companyName?: string;
+      businessType?: string;
+      interestedProducts?: string;
+      estAnnualPurchase?: string;
+      website?: string;
+      taxId?: string;
+    };
+    supplier?: {
+      factoryName?: string;
+      location?: string;
+      productCategories?: string;
+      website?: string;
+      monthlyCapacity?: string;
+      certifications?: string;
+    };
   };
   createdAt: string;
   lastLoginAt?: string;
@@ -210,14 +227,31 @@ export default function AdminProfilePage() {
 
   const handleInputChange = (field: string, value: any) => {
     if (field.includes('.')) {
-      const [parent, child] = field.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...((prev as any)[parent] || {}),
-          [child]: value
-        }
-      }));
+      const keys = field.split('.');
+      
+      if (keys.length === 2) {
+        const [parent, child] = keys;
+        setFormData(prev => ({
+          ...prev,
+          [parent]: {
+            ...((prev as any)[parent] || {}),
+            [child]: value
+          }
+        }));
+      } else if (keys.length === 3) {
+        // Handle nested preferences like preferences.wholesale.companyName
+        const [parent, subParent, child] = keys;
+        setFormData(prev => ({
+          ...prev,
+          [parent]: {
+            ...((prev as any)[parent] || {}),
+            [subParent]: {
+              ...((prev as any)[parent]?.[subParent] || {}),
+              [child]: value
+            }
+          }
+        }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
     }
@@ -685,6 +719,245 @@ export default function AdminProfilePage() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Account-Specific Information */}
+                        {user.customerRole !== 'RETAIL' && (
+                          <div className="md:col-span-2 space-y-6">
+                            <h3 className="flex items-center gap-2 text-lg font-semibold text-white border-b border-white/10 pb-2">
+                              <Building className="w-5 h-5" />
+                              {user.customerRole === 'WHOLESALE' ? 'Wholesale Information' : 'Supplier Information'}
+                            </h3>
+                            
+                            {user.customerRole === 'WHOLESALE' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Company Name */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Company Name</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.wholesale?.companyName || ''}
+                                      onChange={(e) => handleInputChange('preferences.wholesale.companyName', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Enter company name"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.wholesale?.companyName || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Business Type */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Business Type</label>
+                                  {isEditing ? (
+                                    <select
+                                      value={formData.preferences?.wholesale?.businessType || ''}
+                                      onChange={(e) => handleInputChange('preferences.wholesale.businessType', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                    >
+                                      <option value="">Select business type</option>
+                                      <option value="Retailer">Retailer</option>
+                                      <option value="Team / Booster Club">Team / Booster Club</option>
+                                      <option value="Distributor">Distributor</option>
+                                      <option value="Agency">Agency</option>
+                                      <option value="Other">Other</option>
+                                    </select>
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.wholesale?.businessType || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Interested Products */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Interested Products</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.wholesale?.interestedProducts || ''}
+                                      onChange={(e) => handleInputChange('preferences.wholesale.interestedProducts', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Product categories"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.wholesale?.interestedProducts || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Annual Purchase */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Est. Annual Purchase</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.wholesale?.estAnnualPurchase || ''}
+                                      onChange={(e) => handleInputChange('preferences.wholesale.estAnnualPurchase', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Annual volume"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.wholesale?.estAnnualPurchase || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Tax ID */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Tax ID</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.wholesale?.taxId || ''}
+                                      onChange={(e) => handleInputChange('preferences.wholesale.taxId', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Resale/Tax ID"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.wholesale?.taxId || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Website */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Website</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="url"
+                                      value={formData.preferences?.wholesale?.website || ''}
+                                      onChange={(e) => handleInputChange('preferences.wholesale.website', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="https://example.com"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.wholesale?.website || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {user.customerRole === 'SUPPLIER' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Factory Name */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Factory/Manufacturer Name</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.supplier?.factoryName || ''}
+                                      onChange={(e) => handleInputChange('preferences.supplier.factoryName', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Enter factory name"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.supplier?.factoryName || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Location */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Primary Location</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.supplier?.location || ''}
+                                      onChange={(e) => handleInputChange('preferences.supplier.location', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="City, Country"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.supplier?.location || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Product Categories */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Product Categories</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.supplier?.productCategories || ''}
+                                      onChange={(e) => handleInputChange('preferences.supplier.productCategories', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Primary products"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.supplier?.productCategories || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Monthly Capacity */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Monthly Capacity</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.supplier?.monthlyCapacity || ''}
+                                      onChange={(e) => handleInputChange('preferences.supplier.monthlyCapacity', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Production capacity"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.supplier?.monthlyCapacity || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Certifications */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Certifications</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={formData.preferences?.supplier?.certifications || ''}
+                                      onChange={(e) => handleInputChange('preferences.supplier.certifications', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="Certifications held"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.supplier?.certifications || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Website */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Website</label>
+                                  {isEditing ? (
+                                    <input
+                                      type="url"
+                                      value={formData.preferences?.supplier?.website || ''}
+                                      onChange={(e) => handleInputChange('preferences.supplier.website', e.target.value)}
+                                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all"
+                                      placeholder="https://factory.com"
+                                    />
+                                  ) : (
+                                    <div className="px-4 py-3 bg-white/5 rounded-xl text-white border border-white/10">
+                                      {profileData?.preferences?.supplier?.website || 'Not provided'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

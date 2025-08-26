@@ -33,26 +33,26 @@ export async function POST(request: NextRequest) {
 
     // Prepare update data based on account type
     const updateData: {
-      role: string;
+      customerRole: string;
       company?: string;
       preferences: Record<string, unknown>;
     } = {
-      role: 'MEMBER',
+      customerRole: 'RETAIL',
       preferences: {}
     };
 
-    // Set role based on account type
+    // Set customerRole based on account type
     switch (accountType.toUpperCase()) {
       case 'WHOLESALE':
-        updateData.role = 'WHOLESALE';
+        updateData.customerRole = 'WHOLESALE';
         updateData.company = wholesale.companyName;
         break;
       case 'SUPPLIER':
-        updateData.role = 'SUPPLIER';  
+        updateData.customerRole = 'SUPPLIER';  
         updateData.company = supplier.factoryName;
         break;
       default:
-        updateData.role = 'MEMBER';
+        updateData.customerRole = 'RETAIL';
     }
 
     // Store additional data in preferences JSON field
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       notifications: true, // default
       emailUpdates: true, // default
       marketingEmails: true, // default
-      ...(accountType === 'Wholesale' && {
+      ...(accountType.toUpperCase() === 'WHOLESALE' && {
         wholesale: {
           interestedProducts: wholesale.interestedProducts,
           businessType: wholesale.businessType,
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
           taxId: wholesale.taxId
         }
       }),
-      ...(accountType === 'Supplier' && {
+      ...(accountType.toUpperCase() === 'SUPPLIER' && {
         supplier: {
           factoryName: supplier.factoryName,
           location: supplier.location,
@@ -91,11 +91,11 @@ export async function POST(request: NextRequest) {
       data: updateData
     });
 
-    console.log('User intake data updated for:', email, 'role:', updatedUser.role);
+    console.log('User intake data updated for:', email, 'customerRole:', updatedUser.customerRole);
 
     return NextResponse.json({
       message: 'Account details updated successfully',
-      accountType: updatedUser.role
+      accountType: updatedUser.customerRole
     });
 
   } catch (error) {

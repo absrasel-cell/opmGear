@@ -52,12 +52,30 @@
       "Bash(done)",
       "Bash(for file in \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\quotes\\page.tsx\" \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\billing\\invoices\\page.tsx\" \"F:\\Custom Cap - github\\customcap\\src\\app\\dashboard\\admin\\shipments\\analytics\\page.tsx\")",
       "Bash(for:*)",
-      "Bash(do echo \"=== Updating $file ===\")"
+      "Bash(do echo \"=== Updating $file ===\")",
+      "Bash(vercel:*)",
+      "WebFetch(domain:vercel.com)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "Read(/F:\\Custom Cap - github\\customcap/**)",
+      "Bash(npx tsx:*)",
+      "Bash(tasklist)",
+      "Bash(echo:*)",
+      "Bash(cmd /c:*)",
+      "Bash(npm start)",
+      "Bash(powershell:*)",
+      "Bash(cd:*)",
+      "Bash(python:*)",
+      "Bash(dos2unix:*)",
+      "Bash(git stash:*)",
+      "Read(/F:\\Custom Cap - github\\USCC - Copy\\src\\app\\dashboard\\admin\\billing/**)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
-      "F:\\Custom Cap - github\\Claude Instruction"
+      "F:\\Custom Cap - github\\Claude Instruction",
+      "F:\\f\\Custom Cap - github",
+      "F:\\Custom Cap - github\\USCC - Copy\\src\\app\\dashboard\\admin\\billing"
     ]
   }
 }

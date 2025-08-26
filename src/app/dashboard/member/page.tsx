@@ -25,7 +25,8 @@ import {
   Search,
   Shield,
   CheckCircle,
-  Download
+  Download,
+  Settings
 } from 'lucide-react';
 
 // Import our design system components
@@ -48,7 +49,7 @@ interface Order {
   id: string;
   productName: string;
   status: string;
-  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' | 'QUOTE_CONVERSION';
+  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' | 'CHECKOUT_ORDER' | 'QUOTE_CONVERSION';
   isDraft?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -307,7 +308,7 @@ export default function NewMemberDashboard() {
         // Calculate stats
         const totalOrders = allOrders.length;
         const savedOrders = allOrders.filter((order: Order) => order.orderSource === 'PRODUCT_CUSTOMIZATION').length;
-        const checkoutOrders = allOrders.filter((order: Order) => order.orderSource === 'REORDER' && !order.isDraft).length;
+        const checkoutOrders = allOrders.filter((order: Order) => order.orderSource === 'CHECKOUT_ORDER' || (order.orderSource === 'REORDER' && !order.isDraft)).length;
         const completedOrders = allOrders.filter((order: Order) => ['DELIVERED', 'SHIPPED', 'CONFIRMED'].includes(order.status)).length;
         const pendingOrders = allOrders.filter((order: Order) => ['PENDING', 'PROCESSING'].includes(order.status)).length;
         
@@ -343,7 +344,7 @@ export default function NewMemberDashboard() {
       case 'saved':
         return orders.filter(order => order.orderSource === 'PRODUCT_CUSTOMIZATION');
       case 'checkout':
-        return orders.filter(order => order.orderSource === 'REORDER' && !order.isDraft);
+        return orders.filter(order => order.orderSource === 'CHECKOUT_ORDER' || (order.orderSource === 'REORDER' && !order.isDraft));
       case 'completed':
         return orders.filter(order => ['DELIVERED', 'SHIPPED', 'CONFIRMED'].includes(order.status));
       case 'pending':
@@ -386,22 +387,19 @@ export default function NewMemberDashboard() {
 
   const calculateOrderCosts = async (order: Order): Promise<CostBreakdown | null> => {
     try {
-      // Get base product pricing (using default tier)
-      const baseProductPricing = {
-        price48: 2.4,
-        price144: 1.7,
-        price576: 1.6,
-        price1152: 1.47,
-        price2880: 1.44,
-        price10000: 1.41,
-      };
+      // Import centralized pricing function for consistency
+      const { getBaseProductPricing } = await import('@/lib/pricing');
+      
+      // Use Tier 2 pricing to match source of truth ($1.60 per unit for 144+ units)
+      const baseProductPricing = getBaseProductPricing('Tier 2');
 
       const requestData = {
         selectedColors: order.selectedColors,
         logoSetupSelections: order.logoSetupSelections || {},
         multiSelectOptions: order.multiSelectOptions || {},
         selectedOptions: order.selectedOptions || {},
-        baseProductPricing
+        baseProductPricing,
+        priceTier: 'Tier 2' // Send the tier to API for consistency
       };
 
       const response = await fetch('/api/calculate-cost', {
@@ -427,29 +425,37 @@ export default function NewMemberDashboard() {
     if (!user?.id || ordersToCheck.length === 0) return;
     
     try {
-      const invoicePromises = ordersToCheck.map(async (order) => {
-        try {
-          const response = await fetch(`/api/invoices?orderId=${order.id}`, {
-            credentials: 'include'
-          });
-          if (response.ok) {
-            const data = await response.json();
-            const invoices = data.invoices || [];
-            if (invoices.length > 0) {
-              // Return the most recent invoice for this order
-              return { [order.id]: { id: invoices[0].id, number: invoices[0].number } };
-            }
-          }
-          return { [order.id]: null };
-        } catch (error) {
-          console.error(`Error fetching invoice for order ${order.id}:`, error);
-          return { [order.id]: null };
-        }
+      // Fetch all user invoices first
+      const response = await fetch('/api/user/invoices', {
+        credentials: 'include'
       });
-
-      const results = await Promise.all(invoicePromises);
-      const invoicesMap = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-      setOrderInvoices(invoicesMap);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const allInvoices = data.invoices || [];
+        
+        // Create a map from order ID to invoice info
+        const invoicesMap: Record<string, { id: string; number: string; } | null> = {};
+        
+        // Initialize all orders as having no invoices
+        ordersToCheck.forEach(order => {
+          invoicesMap[order.id] = null;
+        });
+        
+        // Map invoices to their orders
+        allInvoices.forEach((invoice: any) => {
+          if (invoice.orderId && invoicesMap.hasOwnProperty(invoice.orderId)) {
+            invoicesMap[invoice.orderId] = {
+              id: invoice.id,
+              number: invoice.number
+            };
+          }
+        });
+        
+        setOrderInvoices(invoicesMap);
+      } else {
+        console.warn('Failed to fetch user invoices:', response.status, response.statusText);
+      }
     } catch (error) {
       console.error('Error fetching order invoices:', error);
     }
@@ -553,9 +559,16 @@ export default function NewMemberDashboard() {
                       <Bell className="h-5 w-5" />
                     </button>
 
-                                         {/* Profile Icon - Clickable */}
+                                         {/* Settings Icon */}
+                     <Link href="/dashboard/member/settings">
+                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/10" title="Settings">
+                         <Settings className="h-5 w-5" />
+                       </button>
+                     </Link>
+
+                     {/* Profile Icon - Clickable */}
                      <Link href="/dashboard/member/profile">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/10">
+                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/10" title="Profile">
                          {user.avatarUrl ? (
                            <img 
                              src={user.avatarUrl} 
@@ -849,7 +862,9 @@ export default function NewMemberDashboard() {
                               <dl className="space-y-2 text-sm text-slate-300/90">
                                 <div className="flex justify-between">
                                   <dt className="opacity-80">Type</dt>
-                                  <dd>{order.orderSource === 'PRODUCT_CUSTOMIZATION' ? 'Saved Order' : 'Checkout Order'}</dd>
+                                  <dd>{order.orderSource === 'PRODUCT_CUSTOMIZATION' ? 'Saved Order' : 
+                                       order.orderSource === 'CHECKOUT_ORDER' ? 'Checkout Order' :
+                                       order.orderSource === 'REORDER' ? 'Reorder' : 'Other'}</dd>
                                 </div>
                                 <div className="flex justify-between">
                                   <dt className="opacity-80">Status</dt>
@@ -902,7 +917,7 @@ export default function NewMemberDashboard() {
                                 <div className="flex justify-between">
                                   <dt className="opacity-80">Payment</dt>
                                   <dd>
-                                    {order.paymentProcessed ? 'Paid' : 
+                                    {order.paymentProcessed || order.orderSource === 'CHECKOUT_ORDER' ? 'Paid' : 
                                      order.orderSource === 'PRODUCT_CUSTOMIZATION' ? 'Saved (No Payment)' : 
                                      'Pending'
                                     }
@@ -1312,18 +1327,21 @@ export default function NewMemberDashboard() {
                                  </Link>
                                )}
                               
-                              {order.orderSource === 'PRODUCT_CUSTOMIZATION' && (
+                              {/* Show Checkout button for saved orders that are NOT confirmed yet */}
+                              {order.orderSource === 'PRODUCT_CUSTOMIZATION' && 
+                               !['CONFIRMED', 'SHIPPED', 'DELIVERED'].includes(order.status) && (
                                 <Link href={`/dashboard/member/checkout?orderId=${order.id}`}>
                                   <Button variant="secondary">Checkout</Button>
                                 </Link>
                               )}
                               
-                              {/* Download Invoice Button */}
-                              {orderInvoices[order.id] && (
+                              {/* Show Download Invoice button for confirmed orders (regardless of source) OR any order with invoice */}
+                              {((['CONFIRMED', 'SHIPPED', 'DELIVERED'].includes(order.status) && orderInvoices[order.id]) || 
+                                (orderInvoices[order.id] && order.orderSource !== 'PRODUCT_CUSTOMIZATION')) && (
                                 <Button 
-                                  variant="ghost"
+                                  variant="secondary"
                                   onClick={() => downloadInvoice(orderInvoices[order.id]!.id, orderInvoices[order.id]!.number)}
-                                  className="bg-white/7.5 border border-white/10 hover:bg-white/10"
+                                  className="bg-lime-500/20 border border-lime-400/30 hover:bg-lime-500/30 text-lime-100"
                                 >
                                   <Download className="w-4 h-4 mr-2" />
                                   Download Invoice

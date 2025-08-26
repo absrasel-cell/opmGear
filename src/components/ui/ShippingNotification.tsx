@@ -116,10 +116,7 @@ export function ShippingNotification({
       {/* Scrolling Content */}
       <div className="p-2">
         <div
-          className="text-slate-300 whitespace-nowrap overflow-hidden"
-          style={{
-            animation: 'scroll-left 60s linear infinite'
-          }}
+          className="text-slate-300 whitespace-nowrap overflow-hidden animate-scroll-left"
           onMouseEnter={(e) => {
             (e.target as HTMLElement).style.animationPlayState = 'paused';
           }}
@@ -252,10 +249,7 @@ export function MinimalShippingNotification({ className = '' }: { className?: st
       </div>
       <div className="p-2">
         <div
-          className="text-slate-300 whitespace-nowrap overflow-hidden"
-          style={{
-            animation: 'scroll-left 60s linear infinite'
-          }}
+          className="text-slate-300 whitespace-nowrap overflow-hidden animate-scroll-left"
           onMouseEnter={(e) => {
             (e.target as HTMLElement).style.animationPlayState = 'paused';
           }}
@@ -407,21 +401,23 @@ export function PersonalizedShippingNotification({
         )}
       </div>
       
+      {/* Always show sliding notification */}
+      <div className="p-2 border-b border-white/10">
+        <div
+          className="text-slate-300 whitespace-nowrap overflow-hidden animate-scroll-left"
+          onMouseEnter={(e) => {
+            (e.target as HTMLElement).style.animationPlayState = 'paused';
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLElement).style.animationPlayState = 'running';
+          }}
+        >
+          🚚 Shipping Build <span className="text-orange-400 font-medium">{currentBuild.buildNumber}</span> departs <span className="text-cyan-400 font-bold sparkle-text">{currentBuild.departureDate}</span>, arrives by <span className="text-lime-400 font-medium">{currentBuild.expectedDelivery}</span> • {hasOrdersInBuild ? `You have ${ordersInCurrentBuild.length} ${ordersInCurrentBuild.length === 1 ? 'order' : 'orders'} in this build!` : 'No orders in this build yet - place an order to secure your spot!'} ✨
+        </div>
+      </div>
+
       {hasOrdersInBuild ? (
         <div className="p-4">
-          <div className="mb-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-300">Build</span>
-              <span className="text-orange-400 font-medium">{currentBuild.buildNumber}</span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-300">Departing</span>
-              <span className="text-cyan-400 font-bold">{currentBuild.departureDate}</span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-300">Arriving by</span>
-              <span className="text-lime-400 font-medium">{currentBuild.expectedDelivery}</span>
-            </div>
-          </div>
-          
           <div className="space-y-2">
             <div className="text-xs font-medium text-slate-300/80 mb-2">Your orders in this build:</div>
             {ordersInCurrentBuild.map((order) => (
@@ -449,24 +445,7 @@ export function PersonalizedShippingNotification({
             </div>
           </div>
         </div>
-      ) : (
-        <div className="p-2">
-          <div
-            className="text-slate-300 whitespace-nowrap overflow-hidden"
-            style={{
-              animation: 'scroll-left 60s linear infinite'
-            }}
-            onMouseEnter={(e) => {
-              (e.target as HTMLElement).style.animationPlayState = 'paused';
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLElement).style.animationPlayState = 'running';
-            }}
-          >
-            🚚 Next Shipping: Build <span className="text-orange-400 font-medium">{currentBuild.buildNumber}</span> departs <span className="text-cyan-400 font-bold sparkle-text">{currentBuild.departureDate}</span>, arrives by <span className="text-lime-400 font-medium">{currentBuild.expectedDelivery}</span> • No orders in this build yet - place an order to secure your spot! ✨
-          </div>
-        </div>
-      )}
+      ) : null}
       
       <style jsx>{`
         @keyframes scroll-left {

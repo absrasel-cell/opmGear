@@ -493,7 +493,7 @@ export default function CheckoutPage() {
         itemTotal: subtotal,
         status: 'CONFIRMED', // Mark as confirmed order
         isDraft: false, // Final order, not a draft
-        orderSource: (isReorderCheckout ? 'REORDER' : 'PRODUCT_CUSTOMIZATION'),
+        orderSource: (isReorderCheckout ? 'REORDER' : 'CHECKOUT_ORDER'),
         paymentProcessed: true, // Indicate payment was processed
         processedAt: new Date().toISOString(),
         // Include shipment assignment if all items have the same shipment

@@ -1,14 +1,15 @@
 # CLAUDE.md - Project Context for OPM Gear
-read current main Task from ""F:\Custom Cap - github\Claude Instruction\currentTask.txt""
-read current errors and follow up requests from "F:\Custom Cap - github\Claude Instruction\errorReport.txt"
-read screenshot (only if I tell you to) at "F:\Custom Cap - github\Claude Instruction\Screenshots"
+read current main Task from "\Claude Instruction\currentTask.txt"
+read current errors and follow up requests from "\Claude Instruction\errorReport.txt"
+read screenshot (only if I tell you to) at "\Claude Instruction\Screenshots"
 
 
 Dashboard Admin product page "src\app\dashboard\admin\products\create\page.tsx"
-**do not touch unless I tell explicitly, Advanced Product Page  "F:\Custom Cap - github\customcap\src\app\customize\[slug]"
+**do not touch unless I tell explicitly, Advanced Product Page  "\src\app\customize\[slug]"
+
 
 ## 🎯 Project Overview
-OPM Gear is a comprehensive Next.js 15 e-commerce platform for custom baseball cap customization and ordering. This is a production-ready application with advanced user management, real-time messaging, sophisticated order management, and modern UI with volume-based pricing systems.
+US Custom Cap is a comprehensive Next.js 15 e-commerce platform for custom baseball cap customization and ordering. This is a production-ready application with advanced user management, real-time messaging, sophisticated order management, and modern UI with volume-based pricing systems.
 
 **Status**: Production Ready (Version 3.3.0)  
 **Completion**: 96% - Core platform complete, marketplace expansion phase initiated

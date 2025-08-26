@@ -144,12 +144,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
 
-    // Only allow deletion of DRAFT or VOID invoices
-    if (invoice.status !== 'DRAFT' && invoice.status !== 'VOID') {
-      return NextResponse.json({ 
-        error: 'Only DRAFT or VOID invoices can be deleted' 
-      }, { status: 400 });
-    }
+    // Allow deletion of any invoice for cleanup purposes
+    console.log(`Admin ${profile.email} deleting invoice ${invoice.number} with status ${invoice.status}`);
 
     // Delete invoice items first (cascade should handle this, but being explicit)
     await prisma.invoiceItem.deleteMany({

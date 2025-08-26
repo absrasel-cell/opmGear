@@ -19,18 +19,18 @@ model User {
   phone            String?
   company          String?
   avatarUrl        String?
-  address          Json?        // Store address as JSON with street, city, state, zipCode, country
-  preferences      Json?        // Store preferences as JSON with notifications, emailUpdates, marketingEmails
+  address          Json?
+  preferences      Json?
   isBanned         Boolean      @default(false)
   lastLoginAt      DateTime?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   carts            Cart[]
+  invoices         Invoice[]
   sentMessages     Message[]    @relation("SentMessages")
   receivedMessages Message[]    @relation("ReceivedMessages")
   orders           Order[]
   quotes           Quote[]
-  invoices         Invoice[]
 
   @@index([email])
   @@index([isBanned])
@@ -39,32 +39,32 @@ model User {
 }
 
 model Order {
-  id                     String      @id @default(uuid())
+  id                     String       @id @default(uuid())
   productName            String
   selectedColors         Json
   logoSetupSelections    Json
   selectedOptions        Json
   multiSelectOptions     Json
   customerInfo           Json
-  uploadedLogoFiles      Json?       // Legacy field - kept for backward compatibility
-  additionalInstructions String?     // Legacy field - kept for backward compatibility
-  additionalInstruction  String?     @db.Text  // New field for additional instructions
+  uploadedLogoFiles      Json?
+  additionalInstructions String?
+  additionalInstruction  String?
   userId                 String?
   userEmail              String?
   orderType              OrderType
-  orderSource            OrderSource @default(PRODUCT_CUSTOMIZATION)
-  status                 OrderStatus @default(PENDING)
-  createdAt              DateTime    @default(now())
-  updatedAt              DateTime    @updatedAt
+  orderSource            OrderSource  @default(PRODUCT_CUSTOMIZATION)
+  status                 OrderStatus  @default(PENDING)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
   ipAddress              String?
   userAgent              String?
   trackingNumber         String?
   lastEditedBy           Json?
-  shipmentId             String?     // Reference to assigned shipment
-  user                   User?       @relation(fields: [userId], references: [id])
-  shipment               Shipment?   @relation(fields: [shipmentId], references: [id])
-  assets                 OrderAsset[]
+  shipmentId             String?
   invoices               Invoice[]
+  shipment               Shipment?    @relation(fields: [shipmentId], references: [id])
+  user                   User?        @relation(fields: [userId], references: [id])
+  assets                 OrderAsset[]
 
   @@index([userId])
   @@index([userEmail])
@@ -133,19 +133,19 @@ model Cart {
 }
 
 model Shipment {
-  id                  String         @id @default(uuid())
-  buildNumber         String         @unique
-  shippingMethod      ShippingMethod
-  estimatedDeparture  DateTime?
-  estimatedDelivery   DateTime?
-  actualDeparture     DateTime?
-  actualDelivery      DateTime?
-  status              ShipmentStatus @default(PREPARING)
-  notes               String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  createdBy           String?        // Admin user who created the shipment
-  orders              Order[]
+  id                 String         @id @default(uuid())
+  buildNumber        String         @unique
+  shippingMethod     ShippingMethod
+  estimatedDeparture DateTime?
+  estimatedDelivery  DateTime?
+  actualDeparture    DateTime?
+  actualDelivery     DateTime?
+  status             ShipmentStatus @default(PREPARING)
+  notes              String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  createdBy          String?
+  orders             Order[]
 
   @@index([status])
   @@index([shippingMethod])
@@ -153,22 +153,64 @@ model Shipment {
 }
 
 model OrderAsset {
-  id             String       @id @default(cuid())
-  orderId        String
-  userId         String
-  kind           AssetKind    // LOGO | ACCESSORY | OTHER
-  position       String?      // e.g., "Front Center" (optional tag)
-  bucket         String       // "order-assets"
-  path           String       // "orderId/uuid-filename.ext"
-  mimeType       String
-  sizeBytes      Int
-  width          Int?         // if image
-  height         Int?         // if image
-  checksum       String?      // optional integrity check
-  uploadedAt     DateTime     @default(now())
+  id         String    @id @default(cuid())
+  orderId    String
+  userId     String
+  kind       AssetKind
+  position   String?
+  bucket     String
+  path       String
+  mimeType   String
+  sizeBytes  Int
+  width      Int?
+  height     Int?
+  checksum   String?
+  uploadedAt DateTime  @default(now())
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   @@index([orderId])
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  number     String        @unique
+  orderId    String
+  customerId String
+  status     InvoiceStatus @default(DRAFT)
+  issueDate  DateTime      @default(now())
+  dueDate    DateTime?
+  currency   String        @default("USD")
+  subtotal   Decimal       @db.Decimal(12, 2)
+  discount   Decimal       @default(0) @db.Decimal(12, 2)
+  shipping   Decimal       @default(0) @db.Decimal(12, 2)
+  tax        Decimal       @default(0) @db.Decimal(12, 2)
+  total      Decimal       @db.Decimal(12, 2)
+  notes      String?
+  pdfUrl     String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  customer   User          @relation(fields: [customerId], references: [id])
+  order      Order         @relation(fields: [orderId], references: [id])
+  items      InvoiceItem[]
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([status])
+  @@index([issueDate])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  orderItemId String?
+  name        String
+  description String?
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  total       Decimal @db.Decimal(12, 2)
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
 }
 
 enum AssetKind {
@@ -203,6 +245,7 @@ enum OrderType {
 enum OrderSource {
   PRODUCT_CUSTOMIZATION
   REORDER
+  CHECKOUT_ORDER
   QUOTE_CONVERSION
 }
 
@@ -240,10 +283,10 @@ enum MessagePriority {
 }
 
 enum ShippingMethod {
-  PRIORITY_FEDEX      // 4-5 days
-  SAVER_UPS          // 8-12 days  
-  AIR_FREIGHT        // 15-20 days
-  SEA_FREIGHT        // 2-3 months
+  PRIORITY_FEDEX
+  SAVER_UPS
+  AIR_FREIGHT
+  SEA_FREIGHT
 }
 
 enum ShipmentStatus {
@@ -252,48 +295,6 @@ enum ShipmentStatus {
   IN_TRANSIT
   DELIVERED
   CANCELLED
-}
-
-model Invoice {
-  id         String        @id @default(cuid())
-  number     String        @unique
-  orderId    String
-  order      Order         @relation(fields: [orderId], references: [id])
-  customerId String        // User.id (order owner)
-  customer   User          @relation(fields: [customerId], references: [id])
-  status     InvoiceStatus @default(DRAFT)
-  issueDate  DateTime      @default(now())
-  dueDate    DateTime?
-  currency   String        @default("USD")
-  subtotal   Decimal       @db.Decimal(12,2)
-  discount   Decimal       @db.Decimal(12,2) @default(0)
-  shipping   Decimal       @db.Decimal(12,2) @default(0)
-  tax        Decimal       @db.Decimal(12,2) @default(0)
-  total      Decimal       @db.Decimal(12,2)
-  notes      String?
-  pdfUrl     String?       // optional file storage later
-  items      InvoiceItem[]
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-
-  @@index([orderId])
-  @@index([customerId])
-  @@index([status])
-  @@index([issueDate])
-}
-
-model InvoiceItem {
-  id          String  @id @default(cuid())
-  invoiceId   String
-  invoice     Invoice @relation(fields: [invoiceId], references: [id])
-  orderItemId String?
-  name        String
-  description String?
-  quantity    Int     @default(1)
-  unitPrice   Decimal @db.Decimal(12,2)
-  total       Decimal @db.Decimal(12,2)
-
-  @@index([invoiceId])
 }
 
 enum InvoiceStatus {
