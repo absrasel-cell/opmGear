@@ -385,9 +385,24 @@ function calculateLogoSetupCost(
        'direct-print': 'Print Woven Patch',
        'flat embroidery': 'Size Embroidery',
        'flat-embroidery': 'Size Embroidery',
+       // Add rubber patch mappings
+       'small-rubber-patch': 'Rubber Patch',
+       'medium-rubber-patch': 'Rubber Patch',
+       'large-rubber-patch': 'Rubber Patch',
+       'small rubber patch': 'Rubber Patch',
+       'medium rubber patch': 'Rubber Patch',
+       'large rubber patch': 'Rubber Patch',
+       // Add leather patch mappings
+       'small-leather-patch': 'Leather Patch',
+       'medium-leather-patch': 'Leather Patch',
+       'large-leather-patch': 'Leather Patch',
+       'small leather patch': 'Leather Patch',
+       'medium leather patch': 'Leather Patch',
+       'large leather patch': 'Leather Patch',
      };
      
      const mappedLogoType = logoTypeMapping[logoValue.toLowerCase()] || logoValue;
+     
      
      // For patch types, find Size + Type combination
      const sizeWithMappedType = `${size} ${mappedLogoType}`;
@@ -395,6 +410,7 @@ function calculateLogoSetupCost(
      const basePricing = pricingData.find(p => 
        p.Name.toLowerCase() === sizeWithMappedType.toLowerCase()
      );
+     
 
      if (basePricing) {
        const baseUnitPrice = getPriceForQuantity(basePricing, totalQuantity);
@@ -574,12 +590,17 @@ export async function POST(request: NextRequest) {
         let originalLogoType = logoValue;
         if (logoValue.includes('-')) {
           const parts = logoValue.split('-');
-          if (parts.length === 2) {
-            // For cases like "direct-print" -> "direct print"
-            originalLogoType = `${parts[0]} ${parts[1]}`;
-          } else {
+          // Check if the last part is a timestamp/ID (all digits)
+          const lastPart = parts[parts.length - 1];
+          const isTimestampSuffix = /^\d+$/.test(lastPart);
+          
+          if (isTimestampSuffix) {
             // For duplicated cases like "flat-embroidery-123456" -> "flat embroidery"
-            originalLogoType = `${parts[0]} ${parts[1]}`;
+            // Remove the timestamp and join the rest with spaces
+            originalLogoType = parts.slice(0, -1).join(' ');
+          } else {
+            // For normal cases like "direct-print" or "large-rubber-patch" -> "direct print" or "large rubber patch"
+            originalLogoType = parts.join(' ');
           }
         }
         const logoCost = calculateLogoSetupCost(originalLogoType, logoConfig, pricingData, totalUnits);
@@ -588,28 +609,28 @@ export async function POST(request: NextRequest) {
           const baseLogoCost = calculateLogoSetupCost(originalLogoType, logoConfig, pricingData, 48);
           const baseUnitPrice = baseLogoCost.unitPrice;
           
-          // Store base costs (margins will be applied later via simplified system)
-          const customerLogoCost = logoCost.cost;
-          const customerLogoUnitPrice = logoCost.unitPrice;
+          // Store RAW costs (margins will be applied later via simplified system)
+          // Do NOT apply margins here - keep original CSV costs
+          const rawLogoCost = logoCost.cost;
+          const rawLogoUnitPrice = logoCost.unitPrice;
           
-          console.log('🔧 Logo cost calculation:', {
+          console.log('🔧 Logo cost calculation (RAW):', {
             logoType: originalLogoType,
-            originalCost: logoCost.cost,
-            originalUnitPrice: logoCost.unitPrice,
-            customerCost: customerLogoCost,
-            customerUnitPrice: customerLogoUnitPrice
+            rawCost: rawLogoCost,
+            rawUnitPrice: rawLogoUnitPrice,
+            baseUnitPrice: baseUnitPrice
           });
           
           logoSetupCosts.push({
             name: logoCost.details, // Use the details as the name
-            cost: customerLogoCost,
-            unitPrice: customerLogoUnitPrice,
+            cost: rawLogoCost, // Raw cost before margins
+            unitPrice: rawLogoUnitPrice, // Raw unit price before margins
             details: logoCost.details,
             baseUnitPrice: baseUnitPrice, // Add base unit price for discount calculation
-            originalCost: logoCost.cost,
-            originalUnitPrice: logoCost.unitPrice
+            originalCost: rawLogoCost,
+            originalUnitPrice: rawLogoUnitPrice
           });
-          totalCost += customerLogoCost;
+          totalCost += rawLogoCost; // Add raw cost to total
         }
       }
     });
@@ -622,17 +643,26 @@ export async function POST(request: NextRequest) {
       
       if (logoConfig.position && logoConfig.size) {
         // Extract original logo type from potentially duplicated key
+        // For hyphenated values, try to reconstruct the full name
         let originalLogoType = logoValue;
         if (logoValue.includes('-')) {
           const parts = logoValue.split('-');
-          if (parts.length === 2) {
-            originalLogoType = `${parts[0]} ${parts[1]}`;
+          // Check if the last part is a timestamp/ID (all digits)
+          const lastPart = parts[parts.length - 1];
+          const isTimestampSuffix = /^\d+$/.test(lastPart);
+          
+          if (isTimestampSuffix) {
+            // For duplicated cases like "flat-embroidery-123456" -> "flat embroidery"
+            // Remove the timestamp and join the rest with spaces
+            originalLogoType = parts.slice(0, -1).join(' ');
           } else {
-            originalLogoType = `${parts[0]} ${parts[1]}`;
+            // For normal cases like "direct-print" or "large-rubber-patch" -> "direct print" or "large rubber patch"
+            originalLogoType = parts.join(' ');
           }
         }
         
         const moldCharge = calculateMoldCharge(originalLogoType, logoConfig, pricingData, previousOrderNumber);
+        
         
         if (moldCharge.name) {
           moldChargeCosts.push({
@@ -662,26 +692,24 @@ export async function POST(request: NextRequest) {
         const unitPrice = getPriceForQuantity(accessoryPricing, totalUnits);
         const cost = unitPrice * totalUnits;
         
-        // Store base costs (margins will be applied later via simplified system)
-        const customerAccessoryCost = cost;
-        const customerAccessoryUnitPrice = unitPrice;
+        // Store RAW costs (margins will be applied later via simplified system)
+        const rawAccessoryCost = cost;
+        const rawAccessoryUnitPrice = unitPrice;
         
-        console.log('🔧 Accessory cost calculation:', {
+        console.log('🔧 Accessory cost calculation (RAW):', {
           accessoryName: accessoryPricing.Name,
-          originalCost: cost,
-          originalUnitPrice: unitPrice,
-          customerCost: customerAccessoryCost,
-          customerUnitPrice: customerAccessoryUnitPrice
+          rawCost: rawAccessoryCost,
+          rawUnitPrice: rawAccessoryUnitPrice
         });
         
         accessoriesCosts.push({
           name: accessoryPricing.Name,
-          cost: customerAccessoryCost,
-          unitPrice: customerAccessoryUnitPrice,
-          originalCost: cost,
-          originalUnitPrice: unitPrice
+          cost: rawAccessoryCost, // Raw cost before margins
+          unitPrice: rawAccessoryUnitPrice, // Raw unit price before margins
+          originalCost: rawAccessoryCost,
+          originalUnitPrice: rawAccessoryUnitPrice
         });
-        totalCost += customerAccessoryCost;
+        totalCost += rawAccessoryCost; // Add raw cost to total
       }
     });
 
@@ -701,26 +729,24 @@ export async function POST(request: NextRequest) {
         const unitPrice = getPriceForQuantity(closurePricing, totalUnits);
         const cost = unitPrice * totalUnits;
         
-        // Store base costs (margins will be applied later via simplified system)
-        const customerClosureCost = cost;
-        const customerClosureUnitPrice = unitPrice;
+        // Store RAW costs (margins will be applied later via simplified system)
+        const rawClosureCost = cost;
+        const rawClosureUnitPrice = unitPrice;
         
-        console.log('🔧 Closure cost calculation:', {
+        console.log('🔧 Closure cost calculation (RAW):', {
           closureName: closurePricing.Name,
-          originalCost: cost,
-          originalUnitPrice: unitPrice,
-          customerCost: customerClosureCost,
-          customerUnitPrice: customerClosureUnitPrice
+          rawCost: rawClosureCost,
+          rawUnitPrice: rawClosureUnitPrice
         });
         
         closureCosts.push({
           name: closurePricing.Name,
-          cost: customerClosureCost,
-          unitPrice: customerClosureUnitPrice,
-          originalCost: cost,
-          originalUnitPrice: unitPrice
+          cost: rawClosureCost, // Raw cost before margins
+          unitPrice: rawClosureUnitPrice, // Raw unit price before margins
+          originalCost: rawClosureCost,
+          originalUnitPrice: rawClosureUnitPrice
         });
-        totalCost += customerClosureCost;
+        totalCost += rawClosureCost; // Add raw cost to total
       }
       // If no pricing found, no cost is added (as per requirement)
     }
@@ -779,26 +805,24 @@ export async function POST(request: NextRequest) {
             // Check if this premium fabric is already added (avoid duplicates)
             const existingFabric = premiumFabricCosts.find(f => f.name === premiumFabricPricing.Name);
             if (!existingFabric) {
-              // Store base costs (margins will be applied later via simplified system)
-              const customerFabricCost = cost;
-              const customerFabricUnitPrice = unitPrice;
+              // Store RAW costs (margins will be applied later via simplified system)
+              const rawFabricCost = cost;
+              const rawFabricUnitPrice = unitPrice;
               
-              console.log('🔧 Premium fabric cost calculation:', {
+              console.log('🔧 Premium fabric cost calculation (RAW):', {
                 fabricName: premiumFabricPricing.Name,
-                originalCost: cost,
-                originalUnitPrice: unitPrice,
-                customerCost: customerFabricCost,
-                customerUnitPrice: customerFabricUnitPrice
+                rawCost: rawFabricCost,
+                rawUnitPrice: rawFabricUnitPrice
               });
               
               premiumFabricCosts.push({
                 name: premiumFabricPricing.Name,
-                cost: customerFabricCost,
-                unitPrice: customerFabricUnitPrice,
-                originalCost: cost,
-                originalUnitPrice: unitPrice
+                cost: rawFabricCost, // Raw cost before margins
+                unitPrice: rawFabricUnitPrice, // Raw unit price before margins
+                originalCost: rawFabricCost,
+                originalUnitPrice: rawFabricUnitPrice
               });
-              totalCost += customerFabricCost;
+              totalCost += rawFabricCost; // Add raw cost to total
               console.log('🔧 API Debug - Added premium fabric cost:', {
                 name: premiumFabricPricing.Name,
                 cost,
@@ -858,21 +882,18 @@ export async function POST(request: NextRequest) {
         const unitPrice = getPriceForQuantity(deliveryPricing, pricingQuantity);
         const cost = unitPrice * totalUnits;
         
-        // Store base costs (margins will be applied later via simplified system)
-        const customerDeliveryCost = cost;
-        const customerDeliveryUnitPrice = unitPrice;
+        // Store RAW costs (margins will be applied later via simplified system)
+        const rawDeliveryCost = cost;
+        const rawDeliveryUnitPrice = unitPrice;
         
-        console.log('🔧 Delivery cost calculation:', {
-          deliveryType: deliveryPricing.Name,
+        console.log('🔧 Delivery cost calculation (RAW):', {
           deliveryType: deliveryPricing.Name,
           totalUnits,
           shipmentQuantity,
           combinedQuantity,
           pricingQuantity,
-          originalUnitPrice: unitPrice,
-          originalCost: cost,
-          customerCost: customerDeliveryCost,
-          customerUnitPrice: customerDeliveryUnitPrice,
+          rawUnitPrice: rawDeliveryUnitPrice,
+          rawCost: rawDeliveryCost,
           isShipmentBased: shipmentQuantity > 0,
           deliveryTiers: {
             price48: deliveryPricing.price48,
@@ -888,18 +909,21 @@ export async function POST(request: NextRequest) {
           name: shipmentQuantity > 0 
             ? `${deliveryPricing.Name} (Combined: ${combinedQuantity} units)`
             : deliveryPricing.Name,
-          cost: customerDeliveryCost,
-          unitPrice: customerDeliveryUnitPrice,
-          originalCost: cost,
-          originalUnitPrice: unitPrice
+          cost: rawDeliveryCost, // Raw cost before margins
+          unitPrice: rawDeliveryUnitPrice, // Raw unit price before margins
+          originalCost: rawDeliveryCost,
+          originalUnitPrice: rawDeliveryUnitPrice
         });
-        totalCost += customerDeliveryCost;
+        totalCost += rawDeliveryCost; // Add raw cost to total
       }
     }
 
-    // Add base product cost to total cost (this was missing - causing the $172.80 discrepancy)
-    totalCost += baseProductCost;
+    // Note: Base product cost will be included in the final total calculation by applySimplifiedMarginsToBreakdown()
+    // Do NOT add baseProductCost to totalCost here to avoid double-counting
 
+    // Calculate the correct total cost including base product cost
+    const correctTotalCost = baseProductCost + totalCost;
+    
     const costBreakdown: CostBreakdown = {
       baseProductCost: baseProductCost,
       logoSetupCosts,
@@ -908,20 +932,26 @@ export async function POST(request: NextRequest) {
       premiumFabricCosts,
       deliveryCosts,
       moldChargeCosts,
-      totalCost,
+      totalCost: correctTotalCost,
       totalUnits,
       originalBaseProductCost
     };
     
-    console.log('🔧 Final cost breakdown before margins:', {
-      originalBaseProductCost,
-      baseProductCost,
-      totalLogoCosts: logoSetupCosts.reduce((sum, item) => sum + item.cost, 0),
-      totalAccessoryCosts: accessoriesCosts.reduce((sum, item) => sum + item.cost, 0),
-      totalClosureCosts: closureCosts.reduce((sum, item) => sum + item.cost, 0),
-      totalFabricCosts: premiumFabricCosts.reduce((sum, item) => sum + item.cost, 0),
-      totalDeliveryCosts: deliveryCosts.reduce((sum, item) => sum + item.cost, 0),
-      finalTotalCost: totalCost
+    console.log('🔧 Final cost breakdown before margins (RAW COSTS):', {
+      rawBaseProductCost: baseProductCost,
+      totalRawLogoCosts: logoSetupCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalRawAccessoryCosts: accessoriesCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalRawClosureCosts: closureCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalRawFabricCosts: premiumFabricCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalRawDeliveryCosts: deliveryCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalRawMoldCosts: moldChargeCosts.reduce((sum, item) => sum + item.cost, 0),
+      rawTotalCost: correctTotalCost,
+      breakdown: {
+        baseProductCost: baseProductCost,
+        nonBaseCosts: totalCost,
+        calculatedTotal: correctTotalCost
+      },
+      marginsWillBeAppliedNext: !skipMarginApplication
     });
 
 
@@ -931,7 +961,7 @@ export async function POST(request: NextRequest) {
       totalAccessoryCosts: costBreakdown.accessoriesCosts.reduce((sum, item) => sum + item.cost, 0),
       totalClosureCosts: costBreakdown.closureCosts.reduce((sum, item) => sum + item.cost, 0),
       totalDeliveryCosts: costBreakdown.deliveryCosts.reduce((sum, item) => sum + item.cost, 0),
-      finalTotalCost: costBreakdown.totalCost
+      correctedTotalCost: costBreakdown.totalCost
     });
 
     // Apply simplified margins to the entire cost breakdown (unless skipped)
@@ -939,9 +969,44 @@ export async function POST(request: NextRequest) {
     
     if (!skipMarginApplication) {
       try {
-        console.log('🔧 Applying simplified margins:', simplifiedMargins);
+        console.log('🔧 ==> APPLYING SIMPLIFIED MARGINS <==' );
+        console.log('🔧 Margin settings to apply:', {
+          blankCaps: `${simplifiedMargins.blankCaps.marginPercent}% + $${simplifiedMargins.blankCaps.flatMargin}`,
+          customizations: `${simplifiedMargins.customizations.marginPercent}% + $${simplifiedMargins.customizations.flatMargin}`,
+          delivery: `${simplifiedMargins.delivery.marginPercent}% + $${simplifiedMargins.delivery.flatMargin}`
+        });
+        
+        console.log('🔧 BEFORE MARGIN APPLICATION:', {
+          baseProductCost: costBreakdown.baseProductCost,
+          logoSetupTotal: costBreakdown.logoSetupCosts.reduce((sum, item) => sum + item.cost, 0),
+          accessoriesTotal: costBreakdown.accessoriesCosts.reduce((sum, item) => sum + item.cost, 0),
+          closureCostsTotal: costBreakdown.closureCosts.reduce((sum, item) => sum + item.cost, 0),
+          premiumFabricTotal: costBreakdown.premiumFabricCosts.reduce((sum, item) => sum + item.cost, 0),
+          deliveryTotal: costBreakdown.deliveryCosts.reduce((sum, item) => sum + item.cost, 0),
+          moldChargeTotal: costBreakdown.moldChargeCosts?.reduce((sum, item) => sum + item.cost, 0) || 0,
+          totalBeforeMargins: costBreakdown.totalCost
+        });
+        
         finalCostBreakdown = applySimplifiedMarginsToBreakdown(costBreakdown, simplifiedMargins);
-        console.log('🔧 Final cost breakdown after simplified margins applied successfully');
+        
+        console.log('🔧 AFTER MARGIN APPLICATION:', {
+          baseProductCost: finalCostBreakdown.baseProductCost,
+          logoSetupTotal: finalCostBreakdown.logoSetupCosts.reduce((sum, item) => sum + (item as any).customerCost || item.cost, 0),
+          accessoriesTotal: finalCostBreakdown.accessoriesCosts.reduce((sum, item) => sum + (item as any).customerCost || item.cost, 0),
+          closureCostsTotal: finalCostBreakdown.closureCosts.reduce((sum, item) => sum + (item as any).customerCost || item.cost, 0),
+          premiumFabricTotal: finalCostBreakdown.premiumFabricCosts.reduce((sum, item) => sum + (item as any).customerCost || item.cost, 0),
+          deliveryTotal: finalCostBreakdown.deliveryCosts.reduce((sum, item) => sum + (item as any).customerCost || item.cost, 0),
+          moldChargeTotal: finalCostBreakdown.moldChargeCosts?.reduce((sum, item) => sum + (item as any).customerCost || item.cost, 0) || 0,
+          totalAfterMargins: finalCostBreakdown.totalCost
+        });
+        
+        console.log('🔧 MARGIN IMPACT SUMMARY:', {
+          originalTotal: costBreakdown.totalCost,
+          finalTotal: finalCostBreakdown.totalCost,
+          differenceAmount: finalCostBreakdown.totalCost - costBreakdown.totalCost,
+          differencePercent: `${(((finalCostBreakdown.totalCost - costBreakdown.totalCost) / costBreakdown.totalCost) * 100).toFixed(2)}%`
+        });
+        
       } catch (marginError) {
         console.error('Error applying simplified margins:', marginError);
         console.error('Margin error stack:', marginError.stack);
