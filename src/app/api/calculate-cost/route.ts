@@ -1,7 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { getBaseProductPricing, calculateUnitPrice } from '@/lib/pricing';
+import { getBaseProductPricing, calculateUnitPrice, calculateMarginPrice, applySimplifiedMarginsToBreakdown } from '@/lib/pricing';
+import { PrismaClient } from '@prisma/client';
+import { pricingValidationEngine } from '@/lib/pricing-engine/validation';
+import { pricingAuditTrail } from '@/lib/pricing-engine/audit-trail';
+
+const prisma = new PrismaClient();
+
+// Server-side function to get simplified margin settings from database
+async function getSimplifiedMarginSettings(): Promise<any> {
+  try {
+    console.log('🔧 Fetching simplified margin settings from database...');
+    
+    const dbSettings = await prisma.simplifiedMarginSetting.findMany({
+      where: { isActive: true },
+      orderBy: { category: 'asc' }
+    });
+    
+    console.log('🔧 Found simplified margin settings in DB:', dbSettings.length, 'active settings');
+    
+    // Transform database settings to expected format
+    const settings = {
+      blankCaps: { marginPercent: 60, flatMargin: 0.00 },
+      customizations: { marginPercent: 65, flatMargin: 0.10 },
+      delivery: { marginPercent: 50, flatMargin: 0.25 }
+    };
+    
+    dbSettings.forEach(setting => {
+      const marginPercent = Number(setting.marginPercent);
+      const flatMargin = Number(setting.flatMargin);
+      
+      switch (setting.category) {
+        case 'BLANK_CAPS':
+          settings.blankCaps = { marginPercent, flatMargin };
+          break;
+        case 'CUSTOMIZATIONS':
+          settings.customizations = { marginPercent, flatMargin };
+          break;
+        case 'DELIVERY':
+          settings.delivery = { marginPercent, flatMargin };
+          break;
+      }
+    });
+    
+    console.log('🔧 Applied margin settings from database:', {
+      blankCaps: `${settings.blankCaps.marginPercent}% + $${settings.blankCaps.flatMargin}`,
+      customizations: `${settings.customizations.marginPercent}% + $${settings.customizations.flatMargin}`,
+      delivery: `${settings.delivery.marginPercent}% + $${settings.delivery.flatMargin}`
+    });
+    
+    return settings;
+  } catch (error) {
+    console.error('Error fetching simplified margin settings from database:', error);
+    console.log('🔧 Falling back to default margin settings');
+    
+    // Return default settings as fallback
+    return {
+      blankCaps: { marginPercent: 60, flatMargin: 0.00 },
+      customizations: { marginPercent: 65, flatMargin: 0.10 },
+      delivery: { marginPercent: 50, flatMargin: 0.25 }
+    };
+  }
+}
+
+// Legacy function (kept for backwards compatibility)
+async function getMarginSettingsFromDB(): Promise<any> {
+  try {
+    const marginSettings = await prisma.marginSetting.findMany({
+      where: { isActive: true },
+      include: {
+        overrides: false  // For now, just get global settings
+      }
+    });
+
+    // Transform to the expected format
+    const settings: any = {};
+    marginSettings.forEach(setting => {
+      settings[setting.productType] = {
+        marginPercent: Number(setting.marginPercent),
+        flatMargin: Number(setting.flatMargin),
+        category: setting.category.toLowerCase()
+      };
+    });
+
+    console.log('🔧 Loaded margin settings from DB:', settings);
+    return settings;
+  } catch (error) {
+    console.error('Error fetching margin settings from DB:', error);
+    return {};
+  }
+}
 
 interface CustomizationPricing {
   Name: string;
@@ -22,7 +111,7 @@ interface LogoSetupSelection {
 }
 
 interface CostCalculationRequest {
-  selectedColors?: Record<string, number>;
+  selectedColors?: Record<string, { sizes: Record<string, number> }>;
   selectedSizes?: Record<string, number>;
   logoSetupSelections: Record<string, LogoSetupSelection>;
   multiSelectOptions: Record<string, string[]>;
@@ -49,32 +138,43 @@ interface CostCalculationRequest {
 
 interface CostBreakdown {
   baseProductCost: number;
+  originalBaseProductCost?: number;
   logoSetupCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
     details: string;
     baseUnitPrice?: number;
+    originalCost?: number;
+    originalUnitPrice?: number;
   }>;
   accessoriesCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
+    originalCost?: number;
+    originalUnitPrice?: number;
   }>;
   closureCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
+    originalCost?: number;
+    originalUnitPrice?: number;
   }>;
   premiumFabricCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
+    originalCost?: number;
+    originalUnitPrice?: number;
   }>;
   deliveryCosts: Array<{
     name: string;
     cost: number;
     unitPrice: number;
+    originalCost?: number;
+    originalUnitPrice?: number;
   }>;
   moldChargeCosts: Array<{
     name: string;
@@ -323,9 +423,33 @@ function calculateLogoSetupCost(
 }
 
 export async function POST(request: NextRequest) {
+  const calculationStartTime = Date.now();
+  
   try {
+    console.log('🔧 API - Received request');
     const body: CostCalculationRequest = await request.json();
+    
+    // Extract context for audit trail
+    const context = (body as any).calculationContext || 'CART';
+    const skipMarginApplication = (body as any).skipMarginApplication || false;
+    
+    console.log('🔧 API - Request body:', {
+      selectedColors: body.selectedColors,
+      baseProductPricing: body.baseProductPricing,
+      logoSetupSelections: body.logoSetupSelections,
+      multiSelectOptions: body.multiSelectOptions,
+      selectedOptions: body.selectedOptions,
+      hasShipmentData: !!body.shipmentData,
+      fabricSetup: body.fabricSetup,
+      productType: body.productType,
+      context,
+      skipMarginApplication
+    });
+    
     const pricingData = await loadCustomizationPricing();
+
+    // Fetch simplified margin settings to apply to all costs
+    const simplifiedMargins = await getSimplifiedMarginSettings();
 
     const {
       selectedColors,
@@ -337,6 +461,19 @@ export async function POST(request: NextRequest) {
       shipmentData,
       previousOrderNumber
     } = body;
+    
+    // Validate required fields
+    if (!baseProductPricing) {
+      throw new Error('baseProductPricing is required');
+    }
+    
+    if (!baseProductPricing.price48) {
+      throw new Error('baseProductPricing.price48 is required');
+    }
+    
+    if (!selectedColors || Object.keys(selectedColors).length === 0) {
+      throw new Error('selectedColors is required and must not be empty');
+    }
 
 
     let totalCost = 0;
@@ -371,6 +508,7 @@ export async function POST(request: NextRequest) {
     
     // Calculate base product cost using centralized pricing logic
     let baseProductCost = 0;
+    let originalBaseProductCost = 0;
     
     // Determine the price tier if available in the request (for future consistency)
     const priceTier = (body as any).priceTier || 'Tier 1';
@@ -400,6 +538,7 @@ export async function POST(request: NextRequest) {
         // Use product-specific pricing if available
         const unitPrice = getUnitPrice(totalUnits);
         baseProductCost += colorTotalQuantity * unitPrice;
+        originalBaseProductCost += colorTotalQuantity * unitPrice;
       });
     } else if (selectedSizes) {
       // Fallback to old structure
@@ -409,16 +548,22 @@ export async function POST(request: NextRequest) {
         // Use product-specific pricing if available
         const unitPrice = getUnitPrice(totalUnits);
         baseProductCost += qty * unitPrice;
+        originalBaseProductCost += qty * unitPrice;
       });
     } else {
       // If no color/size structure, use total units
       const unitPrice = getUnitPrice(totalUnits);
       baseProductCost = totalUnits * unitPrice;
+      originalBaseProductCost = totalUnits * unitPrice;
     }
-    totalCost += baseProductCost;
+    
+    console.log('🔧 Base product cost calculation (before margins):', {
+      originalCost: baseProductCost,
+      totalUnits: totalUnits
+    });
 
     // Calculate logo setup costs
-    const logoSetupCosts: Array<{ name: string; cost: number; unitPrice: number; details: string }> = [];
+    const logoSetupCosts: Array<{ name: string; cost: number; unitPrice: number; details: string; baseUnitPrice?: number; originalCost?: number; originalUnitPrice?: number }> = [];
     const selectedLogoValues = multiSelectOptions['logo-setup'] || [];
     
     selectedLogoValues.forEach(logoValue => {
@@ -443,14 +588,28 @@ export async function POST(request: NextRequest) {
           const baseLogoCost = calculateLogoSetupCost(originalLogoType, logoConfig, pricingData, 48);
           const baseUnitPrice = baseLogoCost.unitPrice;
           
+          // Store base costs (margins will be applied later via simplified system)
+          const customerLogoCost = logoCost.cost;
+          const customerLogoUnitPrice = logoCost.unitPrice;
+          
+          console.log('🔧 Logo cost calculation:', {
+            logoType: originalLogoType,
+            originalCost: logoCost.cost,
+            originalUnitPrice: logoCost.unitPrice,
+            customerCost: customerLogoCost,
+            customerUnitPrice: customerLogoUnitPrice
+          });
+          
           logoSetupCosts.push({
             name: logoCost.details, // Use the details as the name
-            cost: logoCost.cost,
-            unitPrice: logoCost.unitPrice,
+            cost: customerLogoCost,
+            unitPrice: customerLogoUnitPrice,
             details: logoCost.details,
-            baseUnitPrice: baseUnitPrice // Add base unit price for discount calculation
+            baseUnitPrice: baseUnitPrice, // Add base unit price for discount calculation
+            originalCost: logoCost.cost,
+            originalUnitPrice: logoCost.unitPrice
           });
-          totalCost += logoCost.cost;
+          totalCost += customerLogoCost;
         }
       }
     });
@@ -489,7 +648,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Calculate accessories costs
-    const accessoriesCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
+    const accessoriesCosts: Array<{ name: string; cost: number; unitPrice: number; originalCost?: number; originalUnitPrice?: number }> = [];
     const selectedAccessories = multiSelectOptions.accessories || [];
     
     selectedAccessories.forEach(accessoryValue => {
@@ -502,17 +661,32 @@ export async function POST(request: NextRequest) {
       if (accessoryPricing) {
         const unitPrice = getPriceForQuantity(accessoryPricing, totalUnits);
         const cost = unitPrice * totalUnits;
+        
+        // Store base costs (margins will be applied later via simplified system)
+        const customerAccessoryCost = cost;
+        const customerAccessoryUnitPrice = unitPrice;
+        
+        console.log('🔧 Accessory cost calculation:', {
+          accessoryName: accessoryPricing.Name,
+          originalCost: cost,
+          originalUnitPrice: unitPrice,
+          customerCost: customerAccessoryCost,
+          customerUnitPrice: customerAccessoryUnitPrice
+        });
+        
         accessoriesCosts.push({
           name: accessoryPricing.Name,
-          cost,
-          unitPrice
+          cost: customerAccessoryCost,
+          unitPrice: customerAccessoryUnitPrice,
+          originalCost: cost,
+          originalUnitPrice: unitPrice
         });
-        totalCost += cost;
+        totalCost += customerAccessoryCost;
       }
     });
 
     // Calculate closure type costs
-    const closureCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
+    const closureCosts: Array<{ name: string; cost: number; unitPrice: number; originalCost?: number; originalUnitPrice?: number }> = [];
     const selectedClosure = selectedOptions['closure-type'];
     
     if (selectedClosure) {
@@ -526,18 +700,33 @@ export async function POST(request: NextRequest) {
       if (closurePricing) {
         const unitPrice = getPriceForQuantity(closurePricing, totalUnits);
         const cost = unitPrice * totalUnits;
+        
+        // Store base costs (margins will be applied later via simplified system)
+        const customerClosureCost = cost;
+        const customerClosureUnitPrice = unitPrice;
+        
+        console.log('🔧 Closure cost calculation:', {
+          closureName: closurePricing.Name,
+          originalCost: cost,
+          originalUnitPrice: unitPrice,
+          customerCost: customerClosureCost,
+          customerUnitPrice: customerClosureUnitPrice
+        });
+        
         closureCosts.push({
           name: closurePricing.Name,
-          cost,
-          unitPrice
+          cost: customerClosureCost,
+          unitPrice: customerClosureUnitPrice,
+          originalCost: cost,
+          originalUnitPrice: unitPrice
         });
-        totalCost += cost;
+        totalCost += customerClosureCost;
       }
       // If no pricing found, no cost is added (as per requirement)
     }
 
     // Calculate premium fabric costs
-    const premiumFabricCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
+    const premiumFabricCosts: Array<{ name: string; cost: number; unitPrice: number; originalCost?: number; originalUnitPrice?: number }> = [];
     
     // Get fabric setup from selectedOptions (for cart) or direct body properties (for product page)
     const fabricSetup = selectedOptions?.['fabric-setup'] || body.fabricSetup;
@@ -590,12 +779,26 @@ export async function POST(request: NextRequest) {
             // Check if this premium fabric is already added (avoid duplicates)
             const existingFabric = premiumFabricCosts.find(f => f.name === premiumFabricPricing.Name);
             if (!existingFabric) {
+              // Store base costs (margins will be applied later via simplified system)
+              const customerFabricCost = cost;
+              const customerFabricUnitPrice = unitPrice;
+              
+              console.log('🔧 Premium fabric cost calculation:', {
+                fabricName: premiumFabricPricing.Name,
+                originalCost: cost,
+                originalUnitPrice: unitPrice,
+                customerCost: customerFabricCost,
+                customerUnitPrice: customerFabricUnitPrice
+              });
+              
               premiumFabricCosts.push({
                 name: premiumFabricPricing.Name,
-                cost,
-                unitPrice
+                cost: customerFabricCost,
+                unitPrice: customerFabricUnitPrice,
+                originalCost: cost,
+                originalUnitPrice: unitPrice
               });
-              totalCost += cost;
+              totalCost += customerFabricCost;
               console.log('🔧 API Debug - Added premium fabric cost:', {
                 name: premiumFabricPricing.Name,
                 cost,
@@ -612,7 +815,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate delivery type costs
-    const deliveryCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
+    const deliveryCosts: Array<{ name: string; cost: number; unitPrice: number; originalCost?: number; originalUnitPrice?: number }> = [];
     const selectedDelivery = selectedOptions['delivery-type'];
     
     if (selectedDelivery) {
@@ -655,14 +858,21 @@ export async function POST(request: NextRequest) {
         const unitPrice = getPriceForQuantity(deliveryPricing, pricingQuantity);
         const cost = unitPrice * totalUnits;
         
-        console.log('🔧 API Debug - Delivery pricing calculation:', {
+        // Store base costs (margins will be applied later via simplified system)
+        const customerDeliveryCost = cost;
+        const customerDeliveryUnitPrice = unitPrice;
+        
+        console.log('🔧 Delivery cost calculation:', {
+          deliveryType: deliveryPricing.Name,
           deliveryType: deliveryPricing.Name,
           totalUnits,
           shipmentQuantity,
           combinedQuantity,
           pricingQuantity,
-          unitPrice,
-          totalCost: cost,
+          originalUnitPrice: unitPrice,
+          originalCost: cost,
+          customerCost: customerDeliveryCost,
+          customerUnitPrice: customerDeliveryUnitPrice,
           isShipmentBased: shipmentQuantity > 0,
           deliveryTiers: {
             price48: deliveryPricing.price48,
@@ -674,20 +884,24 @@ export async function POST(request: NextRequest) {
           }
         });
         
-        
         deliveryCosts.push({
           name: shipmentQuantity > 0 
             ? `${deliveryPricing.Name} (Combined: ${combinedQuantity} units)`
             : deliveryPricing.Name,
-          cost,
-          unitPrice
+          cost: customerDeliveryCost,
+          unitPrice: customerDeliveryUnitPrice,
+          originalCost: cost,
+          originalUnitPrice: unitPrice
         });
-        totalCost += cost;
+        totalCost += customerDeliveryCost;
       }
     }
 
+    // Add base product cost to total cost (this was missing - causing the $172.80 discrepancy)
+    totalCost += baseProductCost;
+
     const costBreakdown: CostBreakdown = {
-      baseProductCost,
+      baseProductCost: baseProductCost,
       logoSetupCosts,
       accessoriesCosts,
       closureCosts,
@@ -695,15 +909,110 @@ export async function POST(request: NextRequest) {
       deliveryCosts,
       moldChargeCosts,
       totalCost,
-      totalUnits
+      totalUnits,
+      originalBaseProductCost
     };
+    
+    console.log('🔧 Final cost breakdown before margins:', {
+      originalBaseProductCost,
+      baseProductCost,
+      totalLogoCosts: logoSetupCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalAccessoryCosts: accessoriesCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalClosureCosts: closureCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalFabricCosts: premiumFabricCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalDeliveryCosts: deliveryCosts.reduce((sum, item) => sum + item.cost, 0),
+      finalTotalCost: totalCost
+    });
 
 
-    return NextResponse.json(costBreakdown);
+    console.log('🔧 Final cost breakdown (raw costs before margins):', {
+      baseProductCost: costBreakdown.baseProductCost,
+      totalLogoCosts: costBreakdown.logoSetupCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalAccessoryCosts: costBreakdown.accessoriesCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalClosureCosts: costBreakdown.closureCosts.reduce((sum, item) => sum + item.cost, 0),
+      totalDeliveryCosts: costBreakdown.deliveryCosts.reduce((sum, item) => sum + item.cost, 0),
+      finalTotalCost: costBreakdown.totalCost
+    });
+
+    // Apply simplified margins to the entire cost breakdown (unless skipped)
+    let finalCostBreakdown = costBreakdown;
+    
+    if (!skipMarginApplication) {
+      try {
+        console.log('🔧 Applying simplified margins:', simplifiedMargins);
+        finalCostBreakdown = applySimplifiedMarginsToBreakdown(costBreakdown, simplifiedMargins);
+        console.log('🔧 Final cost breakdown after simplified margins applied successfully');
+      } catch (marginError) {
+        console.error('Error applying simplified margins:', marginError);
+        console.error('Margin error stack:', marginError.stack);
+        // Return the original cost breakdown without margins as fallback
+        console.log('🔧 Returning original cost breakdown as fallback');
+        finalCostBreakdown = costBreakdown;
+      }
+    } else {
+      console.log('🔧 Skipping margin application as requested');
+    }
+    
+    // ENTERPRISE VALIDATION & AUDIT TRAIL
+    const calculationTime = Date.now() - calculationStartTime;
+    
+    // Validate pricing consistency
+    const validation = pricingValidationEngine.validate(finalCostBreakdown, context);
+    
+    // Record audit trail
+    const auditEventId = pricingAuditTrail.recordCalculation(
+      context as any,
+      finalCostBreakdown,
+      validation,
+      calculationTime,
+      {
+        productName: body.productType,
+        priceTier: (body as any).priceTier || 'Tier 1',
+        marginSettings: simplifiedMargins,
+        apiCallCount: 1
+      }
+    );
+    
+    // Log validation results
+    if (!validation.isValid) {
+      console.error('🚨 PRICING VALIDATION FAILED:', {
+        auditEventId,
+        context,
+        errors: validation.errors,
+        validationScore: validation.summary.validationScore
+      });
+    } else if (validation.warnings.length > 0) {
+      console.warn('⚠️ PRICING WARNINGS:', {
+        auditEventId,
+        context,
+        warnings: validation.warnings,
+        validationScore: validation.summary.validationScore
+      });
+    }
+    
+    // Add audit metadata to response
+    const responseWithAudit = {
+      ...finalCostBreakdown,
+      _audit: {
+        eventId: auditEventId,
+        calculationTime,
+        validationScore: validation.summary.validationScore,
+        hasValidationErrors: !validation.isValid,
+        context
+      }
+    };
+    
+    return NextResponse.json(responseWithAudit);
   } catch (error) {
     console.error('Error calculating cost:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error details:', errorMessage);
     return NextResponse.json(
-      { error: 'Failed to calculate cost' },
+      { 
+        error: 'Failed to calculate cost',
+        details: errorMessage,
+        type: error instanceof Error ? error.constructor.name : 'Unknown'
+      },
       { status: 500 }
     );
   }
