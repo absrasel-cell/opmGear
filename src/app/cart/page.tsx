@@ -8,178 +8,89 @@ import CustomerInfoForm from '@/components/forms/CustomerInfoForm';
 import { useRouter } from 'next/navigation';
 import { calculateGrandTotal, CostBreakdown } from '@/lib/pricing';
 
-// Helper function to calculate volume discount information
-function calculateVolumeDiscount(unitPrice: number, totalUnits: number, pricingData: any) {
-  // Find the pricing tier that matches the unit price
-  const pricingTiers = [
-    { name: '48+', price: pricingData.price48, minQty: 48 },
-    { name: '144+', price: pricingData.price144, minQty: 144 },
-    { name: '576+', price: pricingData.price576, minQty: 576 },
-    { name: '1152+', price: pricingData.price1152, minQty: 1152 },
-    { name: '2880+', price: pricingData.price2880, minQty: 2880 },
-    { name: '10000+', price: pricingData.price10000, minQty: 10000 }
-  ];
 
-  // Find current tier
-  const currentTier = pricingTiers.find(tier => Math.abs(tier.price - unitPrice) < 0.01);
-  const regularPrice = pricingData.price48; // Regular price is always 48+ pricing
-  
-  if (!currentTier || currentTier.minQty <= 48) {
-    return null; // No discount
-  }
-
-  const savings = regularPrice - unitPrice;
-  const savingsPercentage = ((savings / regularPrice) * 100);
-  const totalSavings = savings * totalUnits;
-
-  return {
-    regularPrice,
-    discountedPrice: unitPrice,
-    savings,
-    savingsPercentage,
-    totalSavings,
-    tierName: currentTier.name
-  };
-}
-
-// Component to display discounted pricing with savings notification
-function DiscountedPriceDisplay({ 
+// Component to display margin-adjusted pricing (already includes volume discounts from server)
+function MarginAdjustedPriceDisplay({ 
   unitPrice, 
   totalUnits, 
-  pricingData, 
   cost, 
   name,
+  originalUnitPrice,
+  originalCost,
   baseUnitPrice 
 }: {
   unitPrice: number;
   totalUnits: number;
-  pricingData: any;
   cost: number;
   name: string;
+  originalUnitPrice?: number;
+  originalCost?: number;
   baseUnitPrice?: number;
 }) {
-  const [customizationPricing, setCustomizationPricing] = useState<any>(null);
-  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
+  // Check if margins were applied by comparing original vs current prices
+  const marginsApplied = originalUnitPrice && originalUnitPrice !== unitPrice;
+  const volumeDiscountApplied = baseUnitPrice && baseUnitPrice > unitPrice;
 
-  // Load customization pricing for this specific item
-  useEffect(() => {
-    const loadCustomizationPricing = async () => {
-      setIsLoadingPricing(true);
-      try {
-        const response = await fetch('/api/customization-pricing', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemName: name }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setCustomizationPricing(data);
-        }
-      } catch (error) {
-        console.error('Error loading customization pricing:', error);
-      } finally {
-        setIsLoadingPricing(false);
-      }
-    };
-
-    loadCustomizationPricing();
-  }, [name]);
-
-  // For logo setup costs with baseUnitPrice, calculate discount manually
-  if (baseUnitPrice && baseUnitPrice > unitPrice) {
-    const savings = baseUnitPrice - unitPrice;
-    const savingsPercentage = ((savings / baseUnitPrice) * 100);
-    const totalSavings = savings * totalUnits;
+  // Show different UI based on what adjustments were made
+  if (marginsApplied || volumeDiscountApplied) {
+    // Determine which original price to show (baseUnitPrice for volume discounts, originalUnitPrice for margin comparison)
+    const displayOriginalPrice = baseUnitPrice || originalUnitPrice;
+    const displayOriginalCost = baseUnitPrice ? (baseUnitPrice * totalUnits) : originalCost;
     
-    // Determine tier name based on total units
-    let tierName = '48+';
-    if (totalUnits >= 10000) tierName = '10000+';
-    else if (totalUnits >= 2880) tierName = '2880+';
-    else if (totalUnits >= 1152) tierName = '1152+';
-    else if (totalUnits >= 576) tierName = '576+';
-    else if (totalUnits >= 144) tierName = '144+';
+    if (displayOriginalPrice && displayOriginalPrice > unitPrice) {
+      const savings = displayOriginalPrice - unitPrice;
+      const totalSavings = (displayOriginalCost || 0) - cost;
+      const savingsPercentage = ((savings / displayOriginalPrice) * 100);
+      
+      // Determine what type of savings this is
+      let savingsType = 'Volume + Margin';
+      if (volumeDiscountApplied && marginsApplied) {
+        savingsType = 'Volume discount + margin pricing';
+      } else if (volumeDiscountApplied) {
+        savingsType = 'Volume discount applied';
+      } else if (marginsApplied) {
+        savingsType = 'Margin-adjusted pricing';
+      }
 
-    return (
-      <div className="text-right">
-        {/* Regular price crossed out */}
-        <div className="text-slate-400 line-through text-xs">
-          ${baseUnitPrice.toFixed(2)} each
-        </div>
-        {/* Discounted price in bold */}
-        <span className="text-lime-300 font-semibold">
-          ${unitPrice.toFixed(2)} each
-        </span>
-        <div className="font-bold text-lime-300">
-          ${cost.toFixed(2)}
-        </div>
-        {/* Savings notification */}
-        <div className="mt-1 p-2 bg-lime-400/10 border border-lime-400/20 rounded-md">
-          <div className="flex items-center space-x-1">
-            <span className="text-lime-300 text-xs">💰</span>
-            <span className="text-xs font-medium text-lime-200">
-              Save ${totalSavings.toFixed(2)} ({savingsPercentage.toFixed(0)}% off)
-            </span>
+      return (
+        <div className="text-right">
+          {/* Original price crossed out */}
+          <div className="text-slate-400 line-through text-xs">
+            ${displayOriginalPrice.toFixed(2)} each
           </div>
-          <div className="text-xs text-lime-300 mt-1">
-            {tierName} volume discount applied
+          {/* Final price in bold */}
+          <span className="text-lime-300 font-semibold">
+            ${unitPrice.toFixed(2)} each
+          </span>
+          <div className="font-bold text-lime-300">
+            ${cost.toFixed(2)}
+          </div>
+          {/* Savings notification */}
+          <div className="mt-1 p-2 bg-lime-400/10 border border-lime-400/20 rounded-md">
+            <div className="flex items-center space-x-1">
+              <span className="text-lime-300 text-xs">✨</span>
+              <span className="text-xs font-medium text-lime-200">
+                Final price: ${totalSavings.toFixed(2)} adjustment
+              </span>
+            </div>
+            <div className="text-xs text-lime-300 mt-1">
+              {savingsType}
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
-  // Use customization pricing if available, otherwise fall back to base product pricing
-  const pricingToUse = customizationPricing || pricingData;
-  const discountInfo = calculateVolumeDiscount(unitPrice, totalUnits, pricingToUse);
-
-  if (isLoadingPricing) {
-    return (
-      <div className="text-right">
-        <div className="animate-pulse">
-          <div className="h-3 bg-slate-700 rounded w-16 mb-1"></div>
-          <div className="h-4 bg-slate-700 rounded w-20"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!discountInfo) {
-    // No discount, show regular pricing
-    return (
-      <div className="text-right">
-        <span className="text-slate-300">${unitPrice.toFixed(2)} each</span>
-        <div className="font-medium text-white">
-          ${cost.toFixed(2)}
-        </div>
-      </div>
-    );
-  }
-
+  // No discounts or margins applied, show regular pricing
   return (
     <div className="text-right">
-      {/* Regular price crossed out */}
-      <div className="text-slate-400 line-through text-xs">
-        ${discountInfo.regularPrice.toFixed(2)} each
-      </div>
-      {/* Discounted price in bold */}
-      <span className="text-lime-300 font-semibold">
-        ${discountInfo.discountedPrice.toFixed(2)} each
-      </span>
-      <div className="font-bold text-lime-300">
+      <span className="text-slate-300">${unitPrice.toFixed(2)} each</span>
+      <div className="font-medium text-white">
         ${cost.toFixed(2)}
       </div>
-      {/* Savings notification */}
-      <div className="mt-1 p-2 bg-lime-400/10 border border-lime-400/20 rounded-md">
-        <div className="flex items-center space-x-1">
-          <span className="text-lime-300 text-xs">💰</span>
-          <span className="text-xs font-medium text-lime-200">
-            Save ${discountInfo.totalSavings.toFixed(2)} ({discountInfo.savingsPercentage.toFixed(0)}% off)
-          </span>
-        </div>
-        <div className="text-xs text-lime-300 mt-1">
-          {discountInfo.tierName} volume discount applied
-        </div>
+      <div className="text-xs text-slate-400 mt-1">
+        Margin-adjusted price
       </div>
     </div>
   );
@@ -324,12 +235,11 @@ export default function CartPage() {
       const { getBaseProductPricing: getCentralizedPricing } = await import('@/lib/pricing');
       const baseProductPricing = getCentralizedPricing(item.priceTier || 'Tier 1');
 
-
       const shipmentData = item.shipmentId ? await getShipmentData(item.shipmentId) : undefined;
       
       console.log('🛒 Cart Debug - API request for:', item.productName, {
         fabricSetup: item.selectedOptions?.['fabric-setup'],
-        customFabricSetup: item.selectedOptions?.['custom-fabric'], // Fix: use correct field name
+        customFabricSetup: item.selectedOptions?.['custom-fabric'],
         deliveryType: item.selectedOptions?.['delivery-type'],
         priceTier: item.priceTier || 'Tier 1',
         shipmentId: item.shipmentId,
@@ -352,7 +262,7 @@ export default function CartPage() {
           priceTier: item.priceTier || 'Tier 1',
           // Add fabric setup for premium fabric costs
           fabricSetup: item.selectedOptions?.['fabric-setup'],
-          customFabricSetup: item.selectedOptions?.['custom-fabric'], // Fix: use 'custom-fabric' not 'custom-fabric-setup'
+          customFabricSetup: item.selectedOptions?.['custom-fabric'],
           // Add shipment data if item is assigned to a shipment for bulk pricing
           shipmentData: shipmentData,
         }),
@@ -363,20 +273,38 @@ export default function CartPage() {
       }
 
       const result = await response.json();
-      console.log('🛒 Cart Debug - API response for:', item.productName, {
-        premiumFabricCosts: result.premiumFabricCosts?.map((f: any) => ({
-          name: f.name,
-          unitPrice: f.unitPrice,
-          cost: f.cost
+      console.log('🛒 Cart Debug - API response with margin-adjusted pricing for:', item.productName, {
+        baseProductCost: result.baseProductCost,
+        originalBaseProductCost: result.originalBaseProductCost,
+        logoSetupCosts: result.logoSetupCosts?.map((l: any) => ({
+          name: l.name,
+          cost: l.cost,
+          unitPrice: l.unitPrice,
+          customerCost: l.customerCost,
+          customerUnitPrice: l.customerUnitPrice,
+          originalCost: l.originalCost,
+          originalUnitPrice: l.originalUnitPrice
         })) || [],
-        premiumFabricCount: result.premiumFabricCosts?.length || 0,
         deliveryCosts: result.deliveryCosts?.map((d: any) => ({
           name: d.name,
+          cost: d.cost,
           unitPrice: d.unitPrice,
-          cost: d.cost
+          customerCost: d.customerCost,
+          customerUnitPrice: d.customerUnitPrice,
+          originalCost: d.originalCost,
+          originalUnitPrice: d.originalUnitPrice
+        })) || [],
+        moldChargeCosts: result.moldChargeCosts?.map((m: any) => ({
+          name: m.name,
+          cost: m.cost,
+          unitPrice: m.unitPrice,
+          customerCost: m.customerCost,
+          customerUnitPrice: m.customerUnitPrice,
+          waived: m.waived
         })) || [],
         totalCost: result.totalCost,
-        totalUnits: result.totalUnits
+        totalUnits: result.totalUnits,
+        marginsApplied: result.baseProductCost !== result.originalBaseProductCost
       });
 
       return result;
@@ -513,12 +441,24 @@ export default function CartPage() {
                           <h3 className="text-lg md:text-xl font-semibold text-white">{item.productName}</h3>
                           <div className="text-right">
                             <div className="text-xs md:text-sm text-slate-300">{item.pricing.volume} units</div>
-                            <div className="text-sm md:text-base font-semibold text-slate-200">
-                              Base: {formatPrice(item.pricing.totalPrice)}
-                            </div>
-                            {itemCostBreakdowns[item.id] && (
-                              <div className="mt-1 text-base md:text-lg font-bold text-lime-300">
-                                Total: {formatPrice(itemCostBreakdowns[item.id].totalCost)}
+                            {itemCostBreakdowns[item.id] ? (
+                              <>
+                                {itemCostBreakdowns[item.id].originalBaseProductCost && 
+                                 itemCostBreakdowns[item.id].originalBaseProductCost !== itemCostBreakdowns[item.id].baseProductCost ? (
+                                  <div className="text-xs text-slate-400 line-through">
+                                    Base: {formatPrice(itemCostBreakdowns[item.id].originalBaseProductCost!)}
+                                  </div>
+                                ) : null}
+                                <div className="text-sm md:text-base font-semibold text-slate-200">
+                                  Base: {formatPrice(itemCostBreakdowns[item.id].baseProductCost)}
+                                </div>
+                                <div className="mt-1 text-base md:text-lg font-bold text-lime-300">
+                                  Total: {formatPrice(itemCostBreakdowns[item.id].totalCost)}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm md:text-base font-semibold text-slate-200">
+                                Base: {formatPrice(item.pricing.totalPrice)}
                               </div>
                             )}
                           </div>
@@ -585,7 +525,7 @@ export default function CartPage() {
                                 ) : itemCostBreakdowns[item.id] ? (
                                   <div className="text-right">
                                     <div className="text-sm font-bold text-lime-300">
-                                      {formatPrice(itemCostBreakdowns[item.id].logoSetupCosts.reduce((s, c) => s + c.cost, 0))}
+                                      {formatPrice(itemCostBreakdowns[item.id].logoSetupCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0))}
                                     </div>
                                     <div className="text-xs text-lime-200/80">Total Logo Cost</div>
                                   </div>
@@ -602,12 +542,13 @@ export default function CartPage() {
                                           <p className="font-medium text-white">{logoCost.name}</p>
                                           <p className="text-xs text-slate-300">{logoCost.details}</p>
                                         </div>
-                                        <DiscountedPriceDisplay
-                                          unitPrice={logoCost.unitPrice}
+                                        <MarginAdjustedPriceDisplay
+                                          unitPrice={(logoCost as any).customerUnitPrice || logoCost.unitPrice}
                                           totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                                          pricingData={baseProductPricing}
-                                          cost={logoCost.cost}
+                                          cost={(logoCost as any).customerCost || logoCost.cost}
                                           name={logoCost.name}
+                                          originalUnitPrice={logoCost.unitPrice}
+                                          originalCost={logoCost.cost}
                                           baseUnitPrice={(logoCost as any).baseUnitPrice}
                                         />
                                       </div>
@@ -640,7 +581,7 @@ export default function CartPage() {
                                 ) : itemCostBreakdowns[item.id] ? (
                                   <div className="text-right">
                                     <div className="text-sm font-bold text-purple-300">
-                                      {formatPrice(itemCostBreakdowns[item.id].accessoriesCosts.reduce((s, c) => s + c.cost, 0))}
+                                      {formatPrice(itemCostBreakdowns[item.id].accessoriesCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0))}
                                     </div>
                                     <div className="text-xs text-purple-200/80">Total Accessories Cost</div>
                                   </div>
@@ -656,12 +597,13 @@ export default function CartPage() {
                                           <p className="font-medium text-white">{acc.name}</p>
                                           <p className="text-xs text-slate-300">{item.pricing.volume} units</p>
                                         </div>
-                                        <DiscountedPriceDisplay
-                                          unitPrice={acc.unitPrice}
+                                        <MarginAdjustedPriceDisplay
+                                          unitPrice={(acc as any).customerUnitPrice || acc.unitPrice}
                                           totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                                          pricingData={baseProductPricing}
-                                          cost={acc.cost}
+                                          cost={(acc as any).customerCost || acc.cost}
                                           name={acc.name}
+                                          originalUnitPrice={acc.unitPrice}
+                                          originalCost={acc.cost}
                                         />
                                       </div>
                                     ))
@@ -688,7 +630,7 @@ export default function CartPage() {
                                 ) : itemCostBreakdowns[item.id] ? (
                                   <div className="text-right">
                                     <div className="text-sm font-bold text-purple-300">
-                                      {formatPrice(itemCostBreakdowns[item.id].premiumFabricCosts.reduce((s, c) => s + c.cost, 0))}
+                                      {formatPrice(itemCostBreakdowns[item.id].premiumFabricCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0))}
                                     </div>
                                     <div className="text-xs text-purple-200/80">Total Premium Fabric Cost</div>
                                   </div>
@@ -704,13 +646,82 @@ export default function CartPage() {
                                       <p className="font-medium text-white">{fabric.name}</p>
                                       <p className="text-xs text-slate-300">Premium fabric upgrade</p>
                                     </div>
-                                    <DiscountedPriceDisplay
-                                      unitPrice={fabric.unitPrice}
+                                    <MarginAdjustedPriceDisplay
+                                      unitPrice={(fabric as any).customerUnitPrice || fabric.unitPrice}
                                       totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                                      pricingData={baseProductPricing}
-                                      cost={fabric.cost}
+                                      cost={(fabric as any).customerCost || fabric.cost}
                                       name={fabric.name}
+                                      originalUnitPrice={fabric.unitPrice}
+                                      originalCost={fabric.cost}
                                     />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mold Charges */}
+                          {itemCostBreakdowns[item.id] && itemCostBreakdowns[item.id].moldChargeCosts && itemCostBreakdowns[item.id].moldChargeCosts.length > 0 && (
+                            <div className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-5 ring-1 ring-white/5">
+                              <div className="mb-3 flex items-center justify-between">
+                                <SectionTitle icon="🔨" accent="text-amber-200">Mold Development Charges</SectionTitle>
+                                {isCalculatingCosts ? (
+                                  <div className="flex items-center gap-2 text-sm text-amber-200">
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-300 border-t-transparent" />
+                                    Calculating...
+                                  </div>
+                                ) : itemCostBreakdowns[item.id] ? (
+                                  <div className="text-right">
+                                    <div className="text-sm font-bold text-amber-300">
+                                      {formatPrice(itemCostBreakdowns[item.id].moldChargeCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0))}
+                                    </div>
+                                    <div className="text-xs text-amber-200/80">Total Mold Charges</div>
+                                  </div>
+                                ) : (
+                                  <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-amber-200">Development Cost</span>
+                                )}
+                              </div>
+
+                              <div className="space-y-3">
+                                {itemCostBreakdowns[item.id].moldChargeCosts.map((mold, i) => (
+                                  <div key={i} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-3">
+                                    <div>
+                                      <p className="font-medium text-white">{mold.name}</p>
+                                      <p className="text-xs text-slate-300">
+                                        {mold.waived ? (
+                                          <span className="text-green-300">Waived - {mold.waiverReason}</span>
+                                        ) : (
+                                          'One-time development cost for new mold'
+                                        )}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      {mold.waived ? (
+                                        <div>
+                                          <div className="text-slate-400 line-through text-xs">
+                                            ${((mold as any).customerUnitPrice || mold.unitPrice).toFixed(2)}
+                                          </div>
+                                          <span className="text-green-300 font-semibold">
+                                            $0.00
+                                          </span>
+                                          <div className="font-bold text-green-300">
+                                            $0.00
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          <span className="text-amber-300 font-semibold">
+                                            ${((mold as any).customerUnitPrice || mold.unitPrice).toFixed(2)}
+                                          </span>
+                                          <div className="font-bold text-amber-300">
+                                            ${((mold as any).customerCost || mold.cost).toFixed(2)}
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="text-xs text-slate-400 mt-1">
+                                        One-time charge
+                                      </div>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -730,7 +741,7 @@ export default function CartPage() {
                                 ) : itemCostBreakdowns[item.id] ? (
                                   <div className="text-right">
                                     <div className="text-sm font-bold text-orange-300">
-                                      {formatPrice(itemCostBreakdowns[item.id].deliveryCosts.reduce((s, c) => s + c.cost, 0))}
+                                      {formatPrice(itemCostBreakdowns[item.id].deliveryCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0))}
                                     </div>
                                     <div className="text-xs text-orange-200/80">Total Delivery Cost</div>
                                   </div>
@@ -747,12 +758,13 @@ export default function CartPage() {
                                         <p className="font-medium text-white">{d.name}</p>
                                         <p className="text-xs text-slate-300">Express delivery service</p>
                                       </div>
-                                      <DiscountedPriceDisplay
-                                        unitPrice={d.unitPrice}
+                                      <MarginAdjustedPriceDisplay
+                                        unitPrice={(d as any).customerUnitPrice || d.unitPrice}
                                         totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                                        pricingData={baseProductPricing}
-                                        cost={d.cost}
+                                        cost={(d as any).customerCost || d.cost}
                                         name={d.name}
+                                        originalUnitPrice={d.unitPrice}
+                                        originalCost={d.cost}
                                       />
                                     </div>
                                   ))
@@ -782,7 +794,7 @@ export default function CartPage() {
                                 ) : itemCostBreakdowns[item.id] ? (
                                   <div className="text-right">
                                     <div className="text-sm font-bold text-cyan-300">
-                                      {formatPrice(itemCostBreakdowns[item.id].closureCosts.reduce((s, c) => s + c.cost, 0))}
+                                      {formatPrice(itemCostBreakdowns[item.id].closureCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0))}
                                     </div>
                                     <div className="text-xs text-cyan-200/80">Total Services Cost</div>
                                   </div>
@@ -799,12 +811,13 @@ export default function CartPage() {
                                         <p className="font-medium text-white">{s.name}</p>
                                         <p className="text-xs text-slate-300">Premium service add-on</p>
                                       </div>
-                                      <DiscountedPriceDisplay
-                                        unitPrice={s.unitPrice}
+                                      <MarginAdjustedPriceDisplay
+                                        unitPrice={(s as any).customerUnitPrice || s.unitPrice}
                                         totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                                        pricingData={baseProductPricing}
-                                        cost={s.cost}
+                                        cost={(s as any).customerCost || s.cost}
                                         name={s.name}
+                                        originalUnitPrice={s.unitPrice}
+                                        originalCost={s.cost}
                                       />
                                     </div>
                                   ))
@@ -906,7 +919,12 @@ export default function CartPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between rounded-lg bg-transparent p-2">
                       <span className="text-sm text-slate-300">Base Products</span>
-                      <span className="text-sm font-semibold text-white">{formatPrice(getCartTotal())}</span>
+                      <span className="text-sm font-semibold text-white">
+                        {Object.keys(itemCostBreakdowns).length > 0 
+                          ? formatPrice(Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.baseProductCost, 0))
+                          : formatPrice(getCartTotal())
+                        }
+                      </span>
                     </div>
 
                     {Object.keys(itemCostBreakdowns).length > 0 && (
@@ -916,7 +934,7 @@ export default function CartPage() {
                             <span className="text-sm text-slate-300">Logo Setup</span>
                             <span className="text-sm font-semibold text-white">
                               {formatPrice(
-                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.logoSetupCosts.reduce((s, c) => s + c.cost, 0), 0)
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.logoSetupCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0), 0)
                               )}
                             </span>
                           </div>
@@ -926,7 +944,7 @@ export default function CartPage() {
                             <span className="text-sm text-slate-300">Accessories</span>
                             <span className="text-sm font-semibold text-white">
                               {formatPrice(
-                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.accessoriesCosts.reduce((s, c) => s + c.cost, 0), 0)
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.accessoriesCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0), 0)
                               )}
                             </span>
                           </div>
@@ -936,7 +954,7 @@ export default function CartPage() {
                             <span className="text-sm text-slate-300">Delivery</span>
                             <span className="text-sm font-semibold text-white">
                               {formatPrice(
-                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.deliveryCosts.reduce((s, c) => s + c.cost, 0), 0)
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.deliveryCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0), 0)
                               )}
                             </span>
                           </div>
@@ -946,7 +964,27 @@ export default function CartPage() {
                             <span className="text-sm text-slate-300">Services</span>
                             <span className="text-sm font-semibold text-white">
                               {formatPrice(
-                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.closureCosts.reduce((s, c) => s + c.cost, 0), 0)
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + b.closureCosts.reduce((s, c) => s + ((c as any).customerCost || c.cost), 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.premiumFabricCosts && b.premiumFabricCosts.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Premium Fabric</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.premiumFabricCosts || []).reduce((s, c) => s + ((c as any).customerCost || c.cost), 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.moldChargeCosts && b.moldChargeCosts.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Mold Charges</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.moldChargeCosts || []).reduce((s, c) => s + ((c as any).customerCost || c.cost), 0), 0)
                               )}
                             </span>
                           </div>
@@ -962,57 +1000,24 @@ export default function CartPage() {
                     )}
                   </div>
 
-                  {/* Total Savings Summary */}
-                  {(() => {
-                    if (!baseProductPricing || Object.keys(itemCostBreakdowns).length === 0) return null;
-                    
-                    const allCosts = Object.values(itemCostBreakdowns).flatMap((breakdown) => [
-                      ...breakdown.logoSetupCosts,
-                      ...breakdown.accessoriesCosts,
-                      ...breakdown.closureCosts,
-                      ...(breakdown.premiumFabricCosts || []),
-                      ...breakdown.deliveryCosts,
-                      ...(breakdown.moldChargeCosts || [])
-                    ]);
-                    
-                    const totalSavings = allCosts.reduce((total, cost) => {
-                      // For logo setup costs with baseUnitPrice, calculate savings manually
-                      if ((cost as any).baseUnitPrice) {
-                        const savings = (cost as any).baseUnitPrice - cost.unitPrice;
-                        const itemBreakdown = Object.values(itemCostBreakdowns).find(b => 
-                          b.logoSetupCosts.some(l => l.name === cost.name)
-                        );
-                        const totalSavings = savings * (itemBreakdown?.totalUnits || 0);
-                        return total + totalSavings;
-                      }
-                      
-                      // For other costs, use the standard discount calculation
-                      const discountInfo = calculateVolumeDiscount(cost.unitPrice, getItemCount(), baseProductPricing);
-                      return total + (discountInfo?.totalSavings || 0);
-                    }, 0);
-
-                    if (totalSavings <= 0) return null;
-
-                    return (
-                      <div className="rounded-xl border border-lime-400/20 bg-lime-400/10 p-4 ring-1 ring-lime-400/10">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lime-300 text-lg">💰</span>
-                            <div>
-                              <h4 className="text-sm font-semibold text-lime-200">Total Volume Savings</h4>
-                              <p className="text-xs text-lime-300/80">Applied to all customizations</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-lime-300">
-                              ${totalSavings.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-lime-200/80">total savings</div>
+                  {/* Margin Pricing Indicator */}
+                  {Object.keys(itemCostBreakdowns).length > 0 && (
+                    <div className="rounded-xl border border-lime-400/20 bg-lime-400/10 p-4 ring-1 ring-lime-400/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lime-300 text-lg">✨</span>
+                          <div>
+                            <h4 className="text-sm font-semibold text-lime-200">Professional Pricing</h4>
+                            <p className="text-xs text-lime-300/80">Margin-adjusted with volume discounts included</p>
                           </div>
                         </div>
+                        <div className="text-right">
+                          <div className="text-xs text-lime-200/80">All costs</div>
+                          <div className="text-xs text-lime-200/80">optimized</div>
+                        </div>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
                   {/* Grand Total */}
                   <div className="border-t border-white/10 pt-4">
@@ -1025,7 +1030,9 @@ export default function CartPage() {
                               ⏱️ Changes pending - click away to update
                             </span>
                           ) : (
-                            Object.keys(itemCostBreakdowns).length > 0 ? 'Including all additional costs' : 'Base products only'
+                            Object.keys(itemCostBreakdowns).length > 0 
+                              ? 'Margin-adjusted pricing with all costs included' 
+                              : 'Base products only (calculating margins...)'
                           )}
                         </p>
                       </div>
