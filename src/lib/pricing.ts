@@ -1,40 +1,41 @@
-// Centralized base product pricing tiers to ensure consistency across all pages
+// Updated pricing tiers to match CSV file values (src/app/csv/Blank Cap Pricings.csv)
+// These values now match the CSV exactly for consistency across all systems
 export const BASE_PRODUCT_PRICING_TIERS = {
-  'Tier 1': {
-    price48: 1.80,
-    price144: 1.50,
-    price576: 1.45,
-    price1152: 1.42,
-    price2880: 1.38,
-    price10000: 1.35,
+  'Tier 1': { 
+    price48: 3.6,    // CSV: 3.6 (was 3.60)
+    price144: 3,     // CSV: 3 (was 3.00) 
+    price576: 2.9,   // CSV: 2.9 (was 2.90)
+    price1152: 2.84, // CSV: 2.84 (was 2.84)
+    price2880: 2.76, // CSV: 2.76 (was 2.76)
+    price10000: 2.7, // CSV: 2.7 (was 2.70)
   },
-  'Tier 2': {
-    price48: 2.20,
-    price144: 1.60,
-    price576: 1.50,
-    price1152: 1.45,
-    price2880: 1.40,
-    price10000: 1.35,
+  'Tier 2': { 
+    price48: 4.4,    // CSV: 4.4 (was 4.40)
+    price144: 3.2,   // CSV: 3.2 (was 3.20) 
+    price576: 3,     // CSV: 3 (was 3.00)
+    price1152: 2.9,  // CSV: 2.9 (was 2.90)
+    price2880: 2.8,  // CSV: 2.8 (was 2.80)
+    price10000: 2.7, // CSV: 2.7 (was 2.70)
   },
-  'Tier 3': {
-    price48: 2.40,
-    price144: 1.70,
-    price576: 1.60,
-    price1152: 1.47,
-    price2880: 1.44,
-    price10000: 1.41,
+  'Tier 3': { 
+    price48: 4.8,    // CSV: 4.8 (was 4.80)
+    price144: 3.4,   // CSV: 3.4 (was 3.40)
+    price576: 3.2,   // CSV: 3.2 (was 3.20)
+    price1152: 2.94, // CSV: 2.94 (was 2.94)
+    price2880: 2.88, // CSV: 2.88 (was 2.88)
+    price10000: 2.82, // CSV: 2.82 (was 2.82)
   }
 };
 
-// Default tier for fallbacks (most conservative pricing)
-export const DEFAULT_PRICING_TIER = BASE_PRODUCT_PRICING_TIERS['Tier 1'];
+// Default tier for fallbacks
+export const DEFAULT_PRICING_TIER = BASE_PRODUCT_PRICING_TIERS['Tier 1']; // Default to Tier 1 (most affordable)
 
-// Get pricing for a specific tier or default tier
+// Get pricing for a specific tier or default to Tier 1
 export function getBaseProductPricing(tierName?: string) {
   if (tierName && tierName in BASE_PRODUCT_PRICING_TIERS) {
     return BASE_PRODUCT_PRICING_TIERS[tierName as keyof typeof BASE_PRODUCT_PRICING_TIERS];
   }
-  return DEFAULT_PRICING_TIER;
+  return BASE_PRODUCT_PRICING_TIERS['Tier 1']; // Default to Tier 1 (most affordable)
 }
 
 // Calculate unit price based on quantity using tier pricing
@@ -91,6 +92,11 @@ export interface CostBreakdown {
     cost: number;
     unitPrice: number;
   }>;
+  servicesCosts: Array<{
+    name: string;
+    cost: number;
+    unitPrice: number;
+  }>;
   moldChargeCosts?: Array<{
     name: string;
     cost: number;
@@ -130,84 +136,4 @@ export function getDisplayTotal(items: any[], costBreakdowns: Record<string, Cos
   }
   
   return calculateBaseTotal(items);
-}
-
-/**
- * Apply global margin settings to factory pricing
- * This function integrates with the Global Margin Settings from the admin dashboard
- */
-export interface GlobalMarginSetting {
-  category: 'blank_caps' | 'customization' | 'delivery';
-  marginPercent: number;
-  flatMargin: number;
-}
-
-/**
- * Calculate price with global margins applied to factory cost
- */
-export function applyGlobalMargins(
-  factoryCost: number,
-  category: 'blank_caps' | 'customization' | 'delivery',
-  margins?: GlobalMarginSetting[]
-): number {
-  if (!margins || margins.length === 0) {
-    return factoryCost; // No margins applied
-  }
-  
-  const applicableMargin = margins.find(m => m.category === category);
-  if (!applicableMargin) {
-    return factoryCost; // No margin for this category
-  }
-  
-  const marginAmount = (factoryCost * applicableMargin.marginPercent / 100) + applicableMargin.flatMargin;
-  return Math.max(0, factoryCost + marginAmount);
-}
-
-/**
- * Batch apply margins to multiple cost items
- */
-export function applyMarginsToBreakdown(
-  breakdown: CostBreakdown,
-  margins?: GlobalMarginSetting[]
-): CostBreakdown {
-  if (!margins || margins.length === 0) {
-    return breakdown; // Return original if no margins
-  }
-  
-  // Apply margins to each cost category
-  const updatedBreakdown: CostBreakdown = {
-    ...breakdown,
-    baseProductCost: applyGlobalMargins(breakdown.baseProductCost, 'blank_caps', margins),
-    logoSetupCosts: breakdown.logoSetupCosts.map(cost => ({
-      ...cost,
-      cost: applyGlobalMargins(cost.cost, 'customization', margins)
-    })),
-    accessoriesCosts: breakdown.accessoriesCosts.map(cost => ({
-      ...cost,
-      cost: applyGlobalMargins(cost.cost, 'customization', margins)
-    })),
-    closureCosts: breakdown.closureCosts.map(cost => ({
-      ...cost,
-      cost: applyGlobalMargins(cost.cost, 'customization', margins)
-    })),
-    premiumFabricCosts: breakdown.premiumFabricCosts.map(cost => ({
-      ...cost,
-      cost: applyGlobalMargins(cost.cost, 'customization', margins)
-    })),
-    deliveryCosts: breakdown.deliveryCosts.map(cost => ({
-      ...cost,
-      cost: applyGlobalMargins(cost.cost, 'delivery', margins)
-    }))
-  };
-  
-  // Recalculate total cost
-  updatedBreakdown.totalCost = 
-    updatedBreakdown.baseProductCost +
-    updatedBreakdown.logoSetupCosts.reduce((sum, cost) => sum + cost.cost, 0) +
-    updatedBreakdown.accessoriesCosts.reduce((sum, cost) => sum + cost.cost, 0) +
-    updatedBreakdown.closureCosts.reduce((sum, cost) => sum + cost.cost, 0) +
-    updatedBreakdown.premiumFabricCosts.reduce((sum, cost) => sum + cost.cost, 0) +
-    updatedBreakdown.deliveryCosts.reduce((sum, cost) => sum + cost.cost, 0);
-    
-  return updatedBreakdown;
 }

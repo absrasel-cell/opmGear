@@ -882,6 +882,27 @@ function CostCalculator({
         </div>
       )}
 
+      {/* Services Costs */}
+      {costBreakdown.servicesCosts && costBreakdown.servicesCosts.length > 0 && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Services</h4>
+          <div className="space-y-2">
+            {costBreakdown.servicesCosts.map((serviceCost, index) => (
+              <div key={index} className="flex justify-between items-start text-sm">
+                <span className="text-gray-700 dark:text-gray-300">
+                  {serviceCost.name}
+                </span>
+                <div className="text-right">
+                  <div className="font-bold text-purple-700 dark:text-purple-300">
+                    ${serviceCost.cost.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Mold Charges */}
       {costBreakdown.moldChargeCosts && costBreakdown.moldChargeCosts.length > 0 && (
         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
@@ -1000,7 +1021,10 @@ function CostCalculator({
 export default function ProductClient({ product, prefillOrderId, reorder = false }: ProductClientProps) {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<string>('');
-  const [selectedColors, setSelectedColors] = useState<Record<string, { sizes: Record<string, number> }>>({}); // Color name -> { sizes: { sizeValue: quantity } }
+  const [selectedColors, setSelectedColors] = useState<Record<string, { sizes: Record<string, number>; customName?: string; isCustom?: boolean }>>({}); // Color name -> { sizes: { sizeValue: quantity }, customName?: string, isCustom?: boolean }
+  const [customColorInputs, setCustomColorInputs] = useState<Record<string, string>>({}); // Color key -> custom name input
+  const [standaloneCustomColors, setStandaloneCustomColors] = useState<string[]>([]); // For creating colors directly with custom names
+  const [newCustomColorInput, setNewCustomColorInput] = useState<string>(''); // Input for new standalone custom color
   const [mainImage, setMainImage] = useState<ImageWithAlt>(product.mainImage);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [logoSetupSelections, setLogoSetupSelections] = useState<Record<string, {
@@ -1017,12 +1041,8 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
   const [cartMessage, setCartMessage] = useState<string>('');
   const [cartError, setCartError] = useState<string>('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string>('');
   const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
-  const [isUploading, setIsUploading] = useState<boolean>(false);
   const [showCapStyleSetup, setShowCapStyleSetup] = useState<boolean>(false);
-  // Removed draft order functionality - no longer needed
-  // const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
   // Holds files returned from the upload API; fixes missing setter error
   const [uploadedLogoFiles, setUploadedLogoFiles] = useState<any[]>([]);
   const [showCustomizeOptions, setShowCustomizeOptions] = useState<boolean>(false);
@@ -1042,7 +1062,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     error: null
   });
   const [availableShipments, setAvailableShipments] = useState<any[]>([]);
-  const [autoConfigFastestShipment, setAutoConfigFastestShipment] = useState<boolean>(true);
+  const [autoConfigFastestShipment, setAutoConfigFastestShipment] = useState<boolean>(false);
   const [showShipmentSuggestions, setShowShipmentSuggestions] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
   const [uploadSuccess, setUploadSuccess] = useState<string>('');
@@ -1066,7 +1086,6 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
   const logoPositions = ['Front', 'Left', 'Right', 'Back', 'Upper Bill', 'Under Bill', 'Velcro'];
   const logoSizes = ['Large', 'Medium', 'Small'];
   const logoApplications = ['Run', 'Satin', 'Direct'];
-  const quantityOptions = [48, 144, 576, 1152, 2880, 5760, 11520, 23040, 46080];
 
   // Logo defaults based on position and decoration type
   const getDefaultLogoSize = (position: string) => position === 'Front' ? 'Large' : 'Small';
@@ -1223,6 +1242,120 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
         shipment.buildNumber.toLowerCase().includes(query.toLowerCase())
       )
       .slice(0, 5);
+  };
+
+  // Helper function to check if Leather Patch or Rubber Patch is selected
+  const hasLeatherOrRubberPatchSelected = () => {
+    const logoSetupOptions = multiSelectOptions['logo-setup'] || [];
+    return logoSetupOptions.some(option => 
+      option === 'Leather Patch' || option === 'Rubber Patch'
+    );
+  };
+
+  // Helper functions for custom color names
+  const handleCustomColorNameChange = (colorKey: string, customName: string) => {
+    setCustomColorInputs(prev => ({
+      ...prev,
+      [colorKey]: customName
+    }));
+  };
+
+  const applyCustomColorName = (colorKey: string) => {
+    const customName = customColorInputs[colorKey];
+    if (!customName || !customName.trim()) return;
+
+    setSelectedColors(prev => {
+      const updatedColors = { ...prev };
+      const colorData = updatedColors[colorKey];
+      
+      if (colorData) {
+        updatedColors[colorKey] = {
+          ...colorData,
+          customName: customName.trim(),
+          isCustom: true
+        };
+      }
+      
+      return updatedColors;
+    });
+
+    // Clear the input after applying
+    setCustomColorInputs(prev => {
+      const updated = { ...prev };
+      delete updated[colorKey];
+      return updated;
+    });
+  };
+
+  const removeCustomColorName = (colorKey: string) => {
+    setSelectedColors(prev => {
+      const updatedColors = { ...prev };
+      const colorData = updatedColors[colorKey];
+      
+      if (colorData) {
+        const { customName, isCustom, ...rest } = colorData;
+        updatedColors[colorKey] = rest;
+      }
+      
+      return updatedColors;
+    });
+  };
+
+  const getDisplayColorName = (colorKey: string, colorData: any) => {
+    return colorData?.customName || colorKey;
+  };
+
+  // Helper functions for standalone custom colors
+  const addStandaloneCustomColor = () => {
+    const colorName = newCustomColorInput.trim();
+    if (!colorName) return;
+    
+    // Check if color already exists
+    if (selectedColors.hasOwnProperty(colorName)) {
+      alert('A color with this name already exists. Please choose a different name.');
+      return;
+    }
+    
+    // Add the custom color with default size and quantity
+    const sizeOption = product.productOptions.find(option => option.slug === 'size');
+    let defaultSize = 'medium';
+    
+    // Find the exact value for Medium size from the product options
+    if (sizeOption) {
+      const mediumChoice = sizeOption.choices.find(choice => 
+        choice.label.toLowerCase().includes('medium') || 
+        choice.label.toLowerCase().includes('m') ||
+        choice.value.toLowerCase().includes('medium')
+      );
+      if (mediumChoice) {
+        defaultSize = mediumChoice.value;
+      } else if (sizeOption.choices.length > 0) {
+        defaultSize = sizeOption.choices[0].value;
+      }
+    }
+    
+    setSelectedColors(prev => ({
+      ...prev,
+      [colorName]: {
+        sizes: { [defaultSize]: 48 },
+        customName: colorName,
+        isCustom: true
+      }
+    }));
+    
+    // Clear the input
+    setNewCustomColorInput('');
+    
+    // Move to step 2 if on step 1
+    if (currentStep === 1) setCurrentStep(2);
+  };
+
+  const removeStandaloneCustomColor = (colorName: string) => {
+    setSelectedColors(prev => {
+      const newColors = { ...prev };
+      delete newColors[colorName];
+      return newColors;
+    });
   };
 
   // Helper functions for color-size selection
@@ -1589,7 +1722,6 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
   const handleFileUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
-    setIsUploading(true);
     const uploadPromises = Array.from(files).map(async (file) => {
       try {
         const formData = new FormData();
@@ -1618,8 +1750,6 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
     } catch (error) {
       console.error('Failed to upload files:', error);
       // You could show an error message to the user here
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -1631,16 +1761,6 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
 
   // Handle upload completion
   // Handle logo file selection (legacy)
-  const handleLogoFileChange = (file: File | null) => {
-    setLogoFile(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => setLogoPreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setLogoPreview('');
-    }
-  };
 
   // Handle TempLogoUploader completion
   const handleLogoUploadComplete = (files: any[]) => {
@@ -1837,6 +1957,8 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
         orderSource: 'PRODUCT_CUSTOMIZATION' as const,
         status: 'PENDING' as const,
         shipmentId: shipmentValidation.isValid && shipmentValidation.shipmentData ? shipmentValidation.shipmentData.id : null,
+        // ✅ Include product tier for proper pricing in invoices
+        priceTier: product.priceTier || 'Tier 1',
       };
       
       console.log('=== PRODUCT CLIENT DEBUG ===');
@@ -2591,6 +2713,83 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
           </div>
         )}
 
+        {/* Standalone Custom Color Input Section */}
+        <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-indigo-900/20 rounded-2xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg backdrop-blur-sm">
+          {/* Section Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
+                <span className="text-white text-sm">+</span>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-purple-400 dark:to-pink-400">
+                  Add Custom Color
+                </h4>
+                <p className="text-xs text-purple-600/80 dark:text-purple-300/80">
+                  Create your own color option with a custom name
+                </p>
+              </div>
+            </div>
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg px-3 py-1 border border-white/50 dark:border-gray-700/50 shadow-sm">
+              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                Direct Input
+              </span>
+            </div>
+          </div>
+
+          {/* Custom Color Input */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={newCustomColorInput}
+                onChange={(e) => setNewCustomColorInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    addStandaloneCustomColor();
+                  }
+                }}
+                placeholder="Enter custom color name (e.g., Forest Green, Sky Blue, etc.)"
+                className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors placeholder-gray-500 dark:placeholder-gray-400"
+              />
+            </div>
+            <button
+              onClick={addStandaloneCustomColor}
+              disabled={!newCustomColorInput.trim()}
+              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium text-sm rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              + Add Color
+            </button>
+          </div>
+
+          {/* Show custom colors added */}
+          {Object.entries(selectedColors).filter(([_, colorData]) => colorData.isCustom).length > 0 && (
+            <div className="mt-4 pt-4 border-t border-purple-200/30 dark:border-purple-700/30">
+              <p className="text-xs text-purple-600/80 dark:text-purple-300/80 mb-2">Custom colors added:</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(selectedColors)
+                  .filter(([_, colorData]) => colorData.isCustom)
+                  .map(([colorName, colorData]) => {
+                    const totalQuantity = Object.values(colorData.sizes).reduce((sum, qty) => sum + qty, 0);
+                    return (
+                      <div key={colorName} className="flex items-center gap-2 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg px-3 py-1.5 border border-white/30 dark:border-gray-700/30 shadow-sm">
+                        <div className="w-3 h-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{colorName}</span>
+                        <span className="text-xs text-purple-600 dark:text-purple-400">({totalQuantity})</span>
+                        <button
+                          onClick={() => removeStandaloneCustomColor(colorName)}
+                          className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </div>
+
             {/* Color Options */}
             {selectedType && (
           <div>
@@ -2638,14 +2837,27 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                         )}
                       </div>
                       <div className="p-2 bg-white dark:bg-gray-800">
-                        <p className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 truncate">
-                          {optionName}
-                        </p>
-                        {isSelected && (
-                          <p className="text-xs text-center text-blue-600 dark:text-blue-400 font-semibold">
-                            {totalQuantity} units
+                        <div className="space-y-1">
+                          {/* Display custom name if available, otherwise original name */}
+                          <p className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 truncate">
+                            {getDisplayColorName(optionName, colorData)}
                           </p>
-                        )}
+                          
+                          {/* Show custom name badge if this is a custom color */}
+                          {colorData?.isCustom && (
+                            <div className="flex items-center justify-center">
+                              <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">
+                                Custom
+                              </span>
+                            </div>
+                          )}
+                          
+                          {isSelected && (
+                            <p className="text-xs text-center text-blue-600 dark:text-blue-400 font-semibold">
+                              {totalQuantity} units
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -2674,6 +2886,119 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                   }
                   return null;
                 })()}
+
+                {/* Custom Color Names Section */}
+                {Object.keys(selectedColors).length > 0 && (
+                  <div className="mt-6 p-4 bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-indigo-900/20 rounded-2xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg backdrop-blur-sm">
+                    {/* Section Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
+                          <span className="text-white text-sm">✨</span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-purple-400 dark:to-pink-400">
+                            Custom Color Names
+                          </h4>
+                          <p className="text-xs text-purple-600/80 dark:text-purple-300/80">
+                            Give your colors personalized names
+                          </p>
+                        </div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg px-3 py-1 border border-white/50 dark:border-gray-700/50 shadow-sm">
+                        <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                          Optional
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Custom Color Input Grid */}
+                    <div className="grid gap-3">
+                      {Object.entries(selectedColors).map(([colorKey, colorData]) => {
+                        const totalQuantity = Object.values(colorData.sizes).reduce((sum, qty) => sum + qty, 0);
+                        const hasCustomInput = customColorInputs.hasOwnProperty(colorKey);
+                        
+                        return (
+                          <div key={colorKey} className="flex items-center gap-3 p-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-xl border border-white/30 dark:border-gray-700/30 shadow-sm">
+                            {/* Color Preview */}
+                            <div className="w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 flex-shrink-0">
+                              <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                                <span className="text-xs text-gray-600">🎨</span>
+                              </div>
+                            </div>
+
+                            {/* Color Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                  {getDisplayColorName(colorKey, colorData)}
+                                </span>
+                                {colorData.isCustom && (
+                                  <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">
+                                    Custom
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {totalQuantity} units selected
+                              </span>
+                            </div>
+
+                            {/* Custom Input or Edit Button */}
+                            {!colorData.isCustom ? (
+                              hasCustomInput ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={customColorInputs[colorKey] || ''}
+                                    onChange={(e) => handleCustomColorNameChange(colorKey, e.target.value)}
+                                    placeholder="Custom name..."
+                                    className="w-32 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                                    onKeyPress={(e) => {
+                                      if (e.key === 'Enter') {
+                                        applyCustomColorName(colorKey);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => applyCustomColorName(colorKey)}
+                                    className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-md"
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                    onClick={() => setCustomColorInputs(prev => {
+                                      const updated = { ...prev };
+                                      delete updated[colorKey];
+                                      return updated;
+                                    })}
+                                    className="px-2 py-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setCustomColorInputs(prev => ({ ...prev, [colorKey]: '' }))}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 dark:from-purple-900/30 dark:to-pink-900/30 dark:hover:from-purple-800/30 dark:hover:to-pink-800/30 text-purple-700 dark:text-purple-300 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-sm border border-purple-200/50 dark:border-purple-700/50"
+                                >
+                                  + Custom Name
+                                </button>
+                              )
+                            ) : (
+                              <button
+                                onClick={() => removeCustomColorName(colorKey)}
+                                className="px-3 py-1.5 bg-gradient-to-r from-red-100 to-pink-100 hover:from-red-200 hover:to-pink-200 dark:from-red-900/30 dark:to-pink-900/30 dark:hover:from-red-800/30 dark:hover:to-pink-800/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-sm border border-red-200/50 dark:border-red-700/50"
+                              >
+                                Remove Custom Name
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Redesigned Color & Size Configuration */}
                 {Object.keys(selectedColors).length > 0 && (
@@ -2719,7 +3044,16 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                               <div className="flex items-center space-x-3">
                                 <div className="w-8 h-8 rounded-full border-2 border-white shadow-lg" style={{ backgroundColor: colorName.toLowerCase() }}></div>
                                 <div>
-                                  <h5 className="text-lg font-bold text-gray-900 dark:text-gray-100">{colorName}</h5>
+                                  <div className="flex items-center gap-2">
+                                    <h5 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                      {getDisplayColorName(colorName, colorData)}
+                                    </h5>
+                                    {colorData.isCustom && (
+                                      <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">
+                                        Custom
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-gray-500 dark:text-gray-400">Select sizes and quantities</p>
                                 </div>
                               </div>
@@ -3311,125 +3645,6 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                       );
                     })()}
 
-                    {/* Shipment Number Input */}
-                    <div className="space-y-3">
-                      {/* Auto-config checkbox */}
-                      <div className="flex items-center space-x-3 mb-4">
-                        <input
-                          type="checkbox"
-                          id="autoConfigFastestShipment"
-                          checked={autoConfigFastestShipment}
-                          onChange={(e) => handleAutoConfigChange(e.target.checked)}
-                          className="w-4 h-4 text-lime-600 bg-gray-100 border-gray-300 rounded focus:ring-lime-500 dark:focus:ring-lime-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                        />
-                        <label htmlFor="autoConfigFastestShipment" className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
-                          Automatically Configured to Fastest Shipment Build
-                        </label>
-                      </div>
-
-                      <div className="flex items-center space-x-3">
-                        <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center space-x-2">
-                          <span>🚢</span>
-                          <span>Shipment Number</span>
-                        </label>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={shipmentNumber}
-                          disabled={autoConfigFastestShipment}
-                          onChange={(e) => {
-                            if (!autoConfigFastestShipment) {
-                              setShipmentNumber(e.target.value);
-                              setShowShipmentSuggestions(e.target.value.length > 0);
-                            }
-                          }}
-                          onBlur={() => setTimeout(() => setShowShipmentSuggestions(false), 200)}
-                          onFocus={() => setShowShipmentSuggestions(shipmentNumber.length > 0)}
-                          placeholder={autoConfigFastestShipment ? "Auto-configured to fastest shipment" : "Enter existing shipment number (e.g., SB-2024-001)"}
-                          className={`w-full px-4 py-3 border rounded-xl transition-all duration-200 pr-12 ${
-                            autoConfigFastestShipment 
-                              ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed' 
-                              : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:border-blue-500'
-                          } ${
-                            !autoConfigFastestShipment && (
-                              shipmentValidation.isValid === true 
-                                ? 'border-green-500 dark:border-green-500 focus:ring-green-500' 
-                                : shipmentValidation.isValid === false 
-                                ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
-                                : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500'
-                            )
-                          }`}
-                        />
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
-                          {shipmentValidation.isValidating ? (
-                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                          ) : shipmentValidation.isValid === true ? (
-                            <span className="text-green-500 text-lg">✅</span>
-                          ) : shipmentValidation.isValid === false ? (
-                            <span className="text-red-500 text-lg">❌</span>
-                          ) : (
-                            <span className="text-blue-500 text-lg">🚢</span>
-                          )}
-                        </div>
-                        
-                        {/* Autocomplete Suggestions */}
-                        {showShipmentSuggestions && shipmentNumber && !autoConfigFastestShipment && (
-                          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
-                            {getShipmentSuggestions(shipmentNumber).map((shipment) => (
-                              <div
-                                key={shipment.id}
-                                onClick={() => {
-                                  setShipmentNumber(shipment.buildNumber);
-                                  setShowShipmentSuggestions(false);
-                                }}
-                                className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1">
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                                      {shipment.buildNumber}
-                                    </div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      {shipment.shippingMethod} • {shipment._count?.orders || 0} orders
-                                    </div>
-                                  </div>
-                                  <span className="text-blue-500 text-sm">Select</span>
-                                </div>
-                              </div>
-                            ))}
-                            {getShipmentSuggestions(shipmentNumber).length === 0 && (
-                              <div className="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">
-                                No matching shipments found
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Validation Messages */}
-                      {shipmentValidation.error && (
-                        <p className="text-xs text-red-600 dark:text-red-400 flex items-center space-x-1">
-                          <span>⚠️</span>
-                          <span>{shipmentValidation.error}</span>
-                        </p>
-                      )}
-                      
-                      {shipmentValidation.isValid && shipmentValidation.shipmentData && (
-                        <div className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-                          <p className="flex items-center space-x-1 mb-1">
-                            <span>✅</span>
-                            <span><strong>Valid shipment found!</strong></span>
-                          </p>
-                          <p>Method: {shipmentValidation.shipmentData.shippingMethod}</p>
-                          <p>Orders: {shipmentValidation.shipmentData._count?.orders || 0}</p>
-                        </div>
-                      )}
-                      
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        💡 <strong>Tip:</strong> Enter a shipment number to combine this order with existing shipments for better delivery pricing based on total volume.
-                      </p>
-                    </div>
 
                     {/* Services - Multi Select */}
                     {(() => {
@@ -3629,7 +3844,7 @@ export default function ProductClient({ product, prefillOrderId, reorder = false
                 )}
 
                 {/* Previous Order Number Input */}
-                {Object.keys(selectedColors).length > 0 && (
+                {Object.keys(selectedColors).length > 0 && hasLeatherOrRubberPatchSelected() && (
                   <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-2xl p-6 shadow-lg border border-amber-200 dark:border-amber-700 hover:shadow-xl transition-all duration-300 backdrop-blur-sm mb-6">
                     <div className="flex items-center space-x-4 mb-4">
                       <div className="relative">

@@ -210,6 +210,7 @@ export default function CheckoutPage() {
               accessoriesCosts: [],
               closureCosts: [],
               deliveryCosts: [],
+              servicesCosts: [],
               totalCost: item.pricing.totalPrice,
               totalUnits: item.pricing.volume
             }
@@ -259,6 +260,7 @@ export default function CheckoutPage() {
               accessoriesCosts: [],
               closureCosts: [],
               deliveryCosts: [],
+              servicesCosts: [],
               totalCost: baseProductCost,
               totalUnits: item.pricing.volume || 1
             };
@@ -276,6 +278,7 @@ export default function CheckoutPage() {
             accessoriesCosts: [],
             closureCosts: [],
             deliveryCosts: [],
+            servicesCosts: [],
             totalCost: baseProductCost,
             totalUnits: item.pricing.volume || 1
           };
@@ -312,7 +315,8 @@ export default function CheckoutPage() {
         (breakdown.accessoriesCosts?.reduce((accSum: number, cost: any) => accSum + cost.cost, 0) || 0) +
         (breakdown.closureCosts?.reduce((servSum: number, cost: any) => servSum + cost.cost, 0) || 0) +
         (breakdown.premiumFabricCosts?.reduce((fabricSum: number, cost: any) => fabricSum + cost.cost, 0) || 0) +
-        (breakdown.deliveryCosts?.reduce((delSum: number, cost: any) => delSum + cost.cost, 0) || 0);
+        (breakdown.deliveryCosts?.reduce((delSum: number, cost: any) => delSum + cost.cost, 0) || 0) +
+        (breakdown.servicesCosts?.reduce((servSum: number, cost: any) => servSum + cost.cost, 0) || 0);
     }, 0);
   }, [hasAllBreakdowns, itemCostBreakdowns]);
 
@@ -440,12 +444,19 @@ export default function CheckoutPage() {
         consolidatedShipmentId 
       });
 
+      // Extract pricing tier from cart items (prioritize first item's tier)
+      const consolidatedPriceTier = firstItem.priceTier || cart.items.find(item => item.priceTier)?.priceTier || 'Tier 1';
+      
       // Consolidate all cart items into a single order
       const consolidatedOrderData = {
         productName: cart.items.length === 1 ? firstItem.productName : `Custom Order (${cart.items.length} items)`,
+        priceTier: consolidatedPriceTier,
         selectedColors: cart.items.reduce((acc, item) => ({ ...acc, ...item.selectedColors }), {}),
         logoSetupSelections: cart.items.reduce((acc, item) => ({ ...acc, ...item.logoSetupSelections }), {}),
-        selectedOptions: cart.items.reduce((acc, item) => ({ ...acc, ...item.selectedOptions }), {}),
+        selectedOptions: { 
+          ...cart.items.reduce((acc, item) => ({ ...acc, ...item.selectedOptions }), {}),
+          priceTier: consolidatedPriceTier // Ensure priceTier is in selectedOptions
+        },
         multiSelectOptions: cart.items.reduce((acc, item) => ({ ...acc, ...item.multiSelectOptions }), {}),
         tempLogoFiles: allUploadedLogoFiles, // Add uploaded logo files for processing
         additionalInstructions: cart.items.map(item => item.additionalInstructions).filter(Boolean).join(' | '), // Consolidate additional instructions
@@ -456,6 +467,7 @@ export default function CheckoutPage() {
           closureCosts: allCostBreakdowns.flatMap(breakdown => breakdown.closureCosts || []),
           premiumFabricCosts: allCostBreakdowns.flatMap(breakdown => breakdown.premiumFabricCosts || []),
           deliveryCosts: allCostBreakdowns.flatMap(breakdown => breakdown.deliveryCosts || []),
+          servicesCosts: allCostBreakdowns.flatMap(breakdown => breakdown.servicesCosts || []),
           totalCost: total,
           totalUnits: allCostBreakdowns.reduce((sum, breakdown) => sum + (breakdown.totalUnits || 0), 0)
         } : {
@@ -465,6 +477,7 @@ export default function CheckoutPage() {
           closureCosts: [],
           premiumFabricCosts: [],
           deliveryCosts: [],
+          servicesCosts: [],
           totalCost: total,
           totalUnits: cart.items.reduce((sum, item) => sum + (item.pricing.volume || 1), 0)
         },
@@ -1309,10 +1322,20 @@ export default function CheckoutPage() {
                         )}
                         {Object.values(itemCostBreakdowns).some((b) => b.closureCosts?.length > 0) && (
                           <div className="flex items-center justify-between rounded-lg p-2">
-                            <span className="text-sm text-slate-300">Services</span>
+                            <span className="text-sm text-slate-300">Premium Closures</span>
                             <span className="text-sm font-semibold text-white">
                               {formatPrice(
                                 Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.closureCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {Object.values(itemCostBreakdowns).some((b) => b.servicesCosts && b.servicesCosts.length > 0) && (
+                          <div className="flex items-center justify-between rounded-lg p-2">
+                            <span className="text-sm text-slate-300">Services</span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatPrice(
+                                Object.values(itemCostBreakdowns).reduce((sum, b) => sum + (b.servicesCosts?.reduce((s, c) => s + c.cost, 0) || 0), 0)
                               )}
                             </span>
                           </div>
