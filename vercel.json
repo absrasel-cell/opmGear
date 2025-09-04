@@ -1,7 +1,0 @@
-{
-  "framework": "nextjs",
-  "env": {
-    "SKIP_ENV_VALIDATION": "1",
-    "DISABLE_ESLINT": "true"
-  }
-}
