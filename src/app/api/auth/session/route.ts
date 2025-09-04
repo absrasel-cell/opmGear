@@ -6,10 +6,27 @@ import prisma from '@/lib/prisma';
 export async function GET(_request: NextRequest) {
  try {
   const cookieStore = await cookies();
-  const accessToken = cookieStore.get('sb-access-token')?.value;
+  // Try the correct Supabase cookie name first
+  let accessToken = cookieStore.get('sb-nowxzkdkaegjwfhhqoez-auth-token')?.value;
+  
+  // Fallback to the shorter name if not found
+  if (!accessToken) {
+    accessToken = cookieStore.get('sb-access-token')?.value;
+  }
 
   if (!accessToken) {
    return NextResponse.json({ user: null }, { status: 200 });
+  }
+
+  // Parse the access token from the JSON if it's stored as JSON
+  let token = accessToken;
+  try {
+    const parsedToken = JSON.parse(accessToken);
+    if (parsedToken.access_token) {
+      token = parsedToken.access_token;
+    }
+  } catch (e) {
+    // If it's not JSON, use as is
   }
 
   // Create a Supabase client with the access token
@@ -19,7 +36,7 @@ export async function GET(_request: NextRequest) {
    {
     global: {
      headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
      },
     },
    }
