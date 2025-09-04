@@ -17,8 +17,5 @@
       "OPENAI_API_KEY": "placeholder-build-key",
       "SKIP_TYPE_CHECK": "true"
     }
-  },
-  "typescript": {
-    "ignoreBuildErrors": true
   }
 }
