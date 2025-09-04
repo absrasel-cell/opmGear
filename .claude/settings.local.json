@@ -259,7 +259,9 @@
       "Read(/F:\\Custom Cap - github\\USCC/**)",
       "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\order-ai/**)",
       "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\order-ai/**)",
-      "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\order-ai/**)"
+      "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\order-ai/**)",
+      "WebFetch(domain:us-custom-39flciid2-absrasel-cells-projects.vercel.app)",
+      "Read(/F:\\Custom Cap - github\\USCC/**)"
     ],
     "deny": [],
     "ask": [],
