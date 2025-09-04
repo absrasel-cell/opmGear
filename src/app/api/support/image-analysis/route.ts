@@ -137,19 +137,36 @@ export async function POST(request: NextRequest) {
              imageUrl.startsWith('data:application/pdf');
     
     if (isPdfFile) {
-     console.log('🔴 PDF file detected, processing with PDF-to-image conversion...');
+     console.log('📄 PDF file detected, processing with PDF-to-image conversion...');
      
      try {
       // Import PDF processor
       const { PDFProcessor } = await import('@/lib/ai/pdf-processor');
       
       // Process PDF and extract images
-      const pdfResult = await PDFProcessor.processPDFFromUrl(imageUrl);
+      const pdfResult = await PDFProcessor.processPDFFromUrl(imageUrl, {
+        maxPages: 3,
+        extractEmbeddedImages: true,
+        convertPagesToImages: true,
+        outputFormat: 'png',
+        quality: 85
+      });
       
       if (pdfResult.success && pdfResult.images && pdfResult.images.length > 0) {
        // Use the first extracted image
-       imageDataUrl = pdfResult.images[0];
-       console.log('✅ Successfully extracted image from PDF');
+       imageDataUrl = pdfResult.images[0].url;
+       console.log(`✅ Successfully processed PDF (${pdfResult.images.length} images, ${pdfResult.metadata?.processingTime}ms)`);
+       
+       // For serverless environments where we get placeholder images,
+       // we can still proceed with text-based analysis
+       const isPlaceholder = pdfResult.images[0].width === 1 && pdfResult.images[0].height === 1;
+       if (isPlaceholder && pdfResult.extractedText) {
+        console.log(`📝 PDF processed with text extraction (${pdfResult.extractedText.length} chars), will enhance AI analysis with text content`);
+        
+        // Store the extracted text to enhance the AI prompt
+        (imageUrl as any)._pdfText = pdfResult.extractedText;
+        (imageUrl as any)._isPlaceholder = true;
+       }
       } else {
        console.error('❌ PDF processing failed:', pdfResult.error);
        analysisResults.push({
@@ -285,8 +302,21 @@ export async function POST(request: NextRequest) {
     
     let prompt = '';
     
+    // Check if we have PDF text content to enhance analysis
+    const pdfText = (imageUrl as any)._pdfText || '';
+    const isPlaceholder = (imageUrl as any)._isPlaceholder || false;
+    
     if (analysisType === 'logo') {
-     prompt = `Analyze this logo/artwork image and provide detailed information for custom cap production:
+     const basePrompt = `Analyze this logo/artwork ${isPlaceholder ? 'document' : 'image'} and provide detailed information for custom cap production:`;
+     
+     const textEnhancement = pdfText ? `
+
+**ADDITIONAL CONTEXT FROM PDF TEXT CONTENT:**
+${pdfText.substring(0, 1000)}${pdfText.length > 1000 ? '...' : ''}
+
+Please use this extracted text content to enhance your analysis, especially for text recognition and logo specifications.` : '';
+     
+     prompt = basePrompt + textEnhancement + `
 
 1. **TEXT RECOGNITION - CRITICAL:**
   - Read and identify ALL text/letters/words visible in the logo
@@ -339,7 +369,16 @@ Return the analysis in JSON format with these exact fields:
  }
 }`;
     } else if (analysisType === 'factory_artwork') {
-     prompt = `Analyze this factory-ready artwork/mockup and extract all cap production specifications:
+     const basePrompt = `Analyze this factory-ready artwork/mockup ${isPlaceholder ? 'document' : 'image'} and extract all cap production specifications:`;
+     
+     const textEnhancement = pdfText ? `
+
+**ADDITIONAL CONTEXT FROM PDF TEXT CONTENT:**
+${pdfText.substring(0, 1000)}${pdfText.length > 1000 ? '...' : ''}
+
+Please use this extracted text content to identify cap specifications, style information, and production details.` : '';
+     
+     prompt = basePrompt + textEnhancement + `
 
 1. **Cap Style Information:**
   - Cap style/model (if visible)
