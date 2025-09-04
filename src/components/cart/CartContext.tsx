@@ -142,19 +142,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const loadCartFromLocalStorage = () => {
     try {
       const savedCart = localStorage.getItem('customcap_cart');
-      console.log('💾 Cart Debug - loading from localStorage:', savedCart ? 'data found' : 'no data');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('💾 Cart Debug - loading from localStorage:', savedCart ? 'data found' : 'no data');
+      }
       
       if (savedCart) {
         const parsedCart = JSON.parse(savedCart);
-        console.log('💾 Cart Debug - parsed cart:', {
-          itemsCount: parsedCart.items?.length || 0,
-          totalItems: parsedCart.totalItems,
-          items: parsedCart.items?.map((item: any) => ({
-            id: item.id,
-            name: item.productName,
-            volume: item.pricing?.volume
-          })) || []
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('💾 Cart Debug - parsed cart:', {
+            itemsCount: parsedCart.items?.length || 0,
+            totalItems: parsedCart.totalItems,
+            items: parsedCart.items?.map((item: any) => ({
+              id: item.id,
+              name: item.productName,
+              volume: item.pricing?.volume
+            })) || []
+          });
+        }
         
         setCart({
           ...parsedCart,
@@ -218,22 +222,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     let totalPrice = 0;
 
     items.forEach(item => {
-      console.log('📊 Cart Debug - calculating totals for item:', {
-        itemName: item.productName,
-        volume: item.pricing.volume,
-        price: item.pricing.totalPrice,
-        isValidVolume: typeof item.pricing.volume === 'number' && !isNaN(item.pricing.volume)
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📊 Cart Debug - calculating totals for item:', {
+          itemName: item.productName,
+          volume: item.pricing.volume,
+          price: item.pricing.totalPrice,
+          isValidVolume: typeof item.pricing.volume === 'number' && !isNaN(item.pricing.volume)
+        });
+      }
       
       totalItems += item.pricing.volume || 0;
       totalPrice += item.pricing.totalPrice || 0;
     });
 
-    console.log('📊 Cart Debug - calculateTotals result:', {
-      itemCount: items.length,
-      totalItems,
-      totalPrice
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Cart Debug - calculateTotals result:', {
+        itemCount: items.length,
+        totalItems,
+        totalPrice
+      });
+    }
 
     return { totalItems, totalPrice };
   };
@@ -319,18 +327,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromCart = (itemId: string) => {
-    console.log('🗑️ Cart Debug - removeFromCart called:', {
-      itemIdToRemove: itemId,
-      currentItems: cart.items.length,
-      itemExists: cart.items.some(item => item.id === itemId)
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🗑️ Cart Debug - removeFromCart called:', {
+        itemIdToRemove: itemId,
+        currentItems: cart.items.length,
+        itemExists: cart.items.some(item => item.id === itemId)
+      });
+    }
     
     const updatedItems = cart.items.filter(item => item.id !== itemId);
-    console.log('🗑️ Cart Debug - after filter:', {
-      originalLength: cart.items.length,
-      newLength: updatedItems.length,
-      removed: cart.items.length - updatedItems.length
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🗑️ Cart Debug - after filter:', {
+        originalLength: cart.items.length,
+        newLength: updatedItems.length,
+        removed: cart.items.length - updatedItems.length
+      });
+    }
     
     const { totalItems, totalPrice } = calculateTotals(updatedItems);
 
@@ -341,10 +353,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       totalPrice
     };
 
-    console.log('🗑️ Cart Debug - saving updated cart:', {
-      newTotalItems: totalItems,
-      newItemsLength: updatedItems.length
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🗑️ Cart Debug - saving updated cart:', {
+        newTotalItems: totalItems,
+        newItemsLength: updatedItems.length
+      });
+    }
 
     saveCart(updatedCart);
   };
@@ -408,7 +422,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const clearCart = () => {
-    console.log('🧹 Cart Debug - clearCart called');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🧹 Cart Debug - clearCart called');
+    }
     
     const clearedCart: CartState = {
       items: [],
@@ -420,13 +436,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       updatedAt: new Date()
     };
 
-    console.log('🧹 Cart Debug - clearing cart, new state:', clearedCart);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🧹 Cart Debug - clearing cart, new state:', clearedCart);
+    }
     saveCart(clearedCart);
   };
 
   // Debug function to force clear localStorage
   const debugClearLocalStorage = () => {
-    console.log('🔧 Cart Debug - Clearing localStorage');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 Cart Debug - Clearing localStorage');
+    }
     localStorage.removeItem('customcap_cart');
     setCart({
       items: [],
@@ -442,15 +462,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const getCartTotal = () => cart.totalPrice;
 
   const getItemCount = () => {
-    console.log('🛒 Cart Debug - getItemCount called:', {
-      totalItems: cart.totalItems,
-      itemsLength: cart.items.length,
-      items: cart.items.map(item => ({
-        id: item.id,
-        name: item.productName,
-        volume: item.pricing.volume
-      }))
-    });
+    // Removed debug logging to prevent build noise - this gets called frequently during SSR/SSG
     return cart.totalItems;
   };
 

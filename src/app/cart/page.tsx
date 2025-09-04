@@ -225,16 +225,18 @@ export default function CartPage() {
   setIsCalculatingCosts(true);
   const newCostBreakdowns: Record<string, CostBreakdown> = {};
 
-  console.log('🛒 Cart Debug - Starting cost calculation for items:', cart.items.map(item => ({
-   id: item.id,
-   productName: item.productName,
-   shipmentId: item.shipmentId,
-   hasShipment: !!item.shipment,
-   deliveryType: item.selectedOptions?.['delivery-type'],
-   fabricSetup: item.selectedOptions?.['fabric-setup'],
-   customFabric: item.selectedOptions?.['custom-fabric'],
-   allFabricKeys: Object.keys(item.selectedOptions || {}).filter(k => k.includes('fabric'))
-  })));
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🛒 Cart Debug - Starting cost calculation for items:', cart.items.map(item => ({
+     id: item.id,
+     productName: item.productName,
+     shipmentId: item.shipmentId,
+     hasShipment: !!item.shipment,
+     deliveryType: item.selectedOptions?.['delivery-type'],
+     fabricSetup: item.selectedOptions?.['fabric-setup'],
+     customFabric: item.selectedOptions?.['custom-fabric'],
+     allFabricKeys: Object.keys(item.selectedOptions || {}).filter(k => k.includes('fabric'))
+    })));
+  }
 
   try {
    for (const item of cart.items) {
@@ -248,7 +250,9 @@ export default function CartPage() {
    // Save cost breakdowns to session storage for checkout page consistency
    if (Object.keys(newCostBreakdowns).length > 0) {
     sessionStorage.setItem('cart_cost_breakdowns', JSON.stringify(newCostBreakdowns));
-    console.log('💾 Saved cost breakdowns to session storage for checkout consistency');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('💾 Saved cost breakdowns to session storage for checkout consistency');
+    }
    }
   } catch (error) {
    console.error('Error calculating costs:', error);
@@ -262,25 +266,33 @@ export default function CartPage() {
   if (!shipmentId) return undefined;
   
   try {
-   console.log('🚢 Cart Debug - Fetching shipment data for ID:', shipmentId);
+   if (process.env.NODE_ENV === 'development') {
+     console.log('🚢 Cart Debug - Fetching shipment data for ID:', shipmentId);
+   }
    const response = await fetch(`/api/shipments/${shipmentId}`);
    if (response.ok) {
     const result = await response.json();
     const shipment = result.shipment; // Extract the shipment from the response
-    console.log('🚢 Cart Debug - Retrieved shipment data:', {
-     id: shipment.id,
-     buildNumber: shipment.buildNumber,
-     shippingMethod: shipment.shippingMethod,
-     ordersCount: shipment.orders?.length || 0,
-     totalQuantity: shipment.totalQuantity,
-     hasOrders: !!shipment.orders
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🚢 Cart Debug - Retrieved shipment data:', {
+       id: shipment.id,
+       buildNumber: shipment.buildNumber,
+       shippingMethod: shipment.shippingMethod,
+       ordersCount: shipment.orders?.length || 0,
+       totalQuantity: shipment.totalQuantity,
+       hasOrders: !!shipment.orders
+      });
+    }
     return shipment;
    } else {
-    console.warn('🚢 Cart Debug - Shipment not found or error:', response.status);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('🚢 Cart Debug - Shipment not found or error:', response.status);
+    }
    }
   } catch (error) {
-   console.error('🚢 Cart Debug - Error fetching shipment data:', error);
+   if (process.env.NODE_ENV === 'development') {
+     console.error('🚢 Cart Debug - Error fetching shipment data:', error);
+   }
   }
   return undefined;
  };
@@ -294,16 +306,18 @@ export default function CartPage() {
 
    const shipmentData = item.shipmentId ? await getShipmentData(item.shipmentId) : undefined;
    
-   console.log('🛒 Cart Debug - API request for:', item.productName, {
-    fabricSetup: item.selectedOptions?.['fabric-setup'],
-    customFabricSetup: item.selectedOptions?.['custom-fabric'], // Fix: use correct field name
-    deliveryType: item.selectedOptions?.['delivery-type'],
-    priceTier: item.priceTier || 'Tier 1',
-    shipmentId: item.shipmentId,
-    hasShipmentData: !!shipmentData,
-    shipmentOrders: shipmentData?.orders?.length || 0,
-    allSelectedOptions: item.selectedOptions
-   });
+   if (process.env.NODE_ENV === 'development') {
+     console.log('🛒 Cart Debug - API request for:', item.productName, {
+      fabricSetup: item.selectedOptions?.['fabric-setup'],
+      customFabricSetup: item.selectedOptions?.['custom-fabric'], // Fix: use correct field name
+      deliveryType: item.selectedOptions?.['delivery-type'],
+      priceTier: item.priceTier || 'Tier 1',
+      shipmentId: item.shipmentId,
+      hasShipmentData: !!shipmentData,
+      shipmentOrders: shipmentData?.orders?.length || 0,
+      allSelectedOptions: item.selectedOptions
+     });
+   }
 
    const response = await fetch('/api/calculate-cost', {
     method: 'POST',
@@ -330,26 +344,28 @@ export default function CartPage() {
    }
 
    const result = await response.json();
-   console.log('🛒 Cart Debug - API response for:', item.productName, {
-    premiumFabricCosts: result.premiumFabricCosts?.map((f: any) => ({
-     name: f.name,
-     unitPrice: f.unitPrice,
-     cost: f.cost
-    })) || [],
-    premiumFabricCount: result.premiumFabricCosts?.length || 0,
-    deliveryCosts: result.deliveryCosts?.map((d: any) => ({
-     name: d.name,
-     unitPrice: d.unitPrice,
-     cost: d.cost
-    })) || [],
-    servicesCosts: result.servicesCosts?.map((s: any) => ({
-     name: s.name,
-     unitPrice: s.unitPrice,
-     cost: s.cost
-    })) || [],
-    totalCost: result.totalCost,
-    totalUnits: result.totalUnits
-   });
+   if (process.env.NODE_ENV === 'development') {
+     console.log('🛒 Cart Debug - API response for:', item.productName, {
+      premiumFabricCosts: result.premiumFabricCosts?.map((f: any) => ({
+       name: f.name,
+       unitPrice: f.unitPrice,
+       cost: f.cost
+      })) || [],
+      premiumFabricCount: result.premiumFabricCosts?.length || 0,
+      deliveryCosts: result.deliveryCosts?.map((d: any) => ({
+       name: d.name,
+       unitPrice: d.unitPrice,
+       cost: d.cost
+      })) || [],
+      servicesCosts: result.servicesCosts?.map((s: any) => ({
+       name: s.name,
+       unitPrice: s.unitPrice,
+       cost: s.cost
+      })) || [],
+      totalCost: result.totalCost,
+      totalUnits: result.totalUnits
+     });
+   }
 
    return result;
   } catch (error) {

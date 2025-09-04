@@ -154,7 +154,7 @@ export async function getShipmentRecommendations(orderData: {
     }
 
     // Sort shipments based on preferences
-    let sortedShipments = [...activeShipments];
+    const sortedShipments = [...activeShipments];
     
     if (orderData.urgency === 'high') {
       // Prioritize fastest shipping methods and earliest departure

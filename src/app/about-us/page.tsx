@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Navbar from "@/components/Navbar";
 import Link from "next/link";
 
 export default function AboutUsPage() {
@@ -187,7 +186,7 @@ export default function AboutUsPage() {
                     <div>
                       <h3 className="text-2xl font-semibold text-white mb-3 font-bricolage">Fast 7-Day Production</h3>
                       <p className="text-stone-300 leading-relaxed mb-4">
-                        In an industry where 2-3 weeks is standard, we've revolutionized our manufacturing process to deliver 
+                        In an industry where 2-3 weeks is standard, we&apos;ve revolutionized our manufacturing process to deliver 
                         completed orders in just 7 working days. Combined with express shipping options, you can have your 
                         custom caps in hand within 11-15 working days total.
                       </p>
@@ -416,7 +415,7 @@ export default function AboutUsPage() {
                         <div className="text-stone-400 text-xs">Local Sports Team</div>
                       </div>
                     </div>
-                    <p className="text-stone-300 text-sm italic">"The 48-unit minimum was perfect for our team. Quality exceeded expectations and the 7-day turnaround saved our season!"</p>
+                    <p className="text-stone-300 text-sm italic">&quot;The 48-unit minimum was perfect for our team. Quality exceeded expectations and the 7-day turnaround saved our season!&quot;</p>
                   </div>
                   <div className="glass-card-md p-6 border border-orange-500/20">
                     <div className="flex items-center gap-3 mb-3">
@@ -428,7 +427,7 @@ export default function AboutUsPage() {
                         <div className="text-stone-400 text-xs">Corporate Events</div>
                       </div>
                     </div>
-                    <p className="text-stone-300 text-sm italic">"Amazing customization options! The 3D embroidery looks professional and the pricing was unbeatable for our volume."</p>
+                    <p className="text-stone-300 text-sm italic">&quot;Amazing customization options! The 3D embroidery looks professional and the pricing was unbeatable for our volume.&quot;</p>
                   </div>
                   <div className="glass-card-md p-6 border border-purple-500/20">
                     <div className="flex items-center gap-3 mb-3">
@@ -440,7 +439,7 @@ export default function AboutUsPage() {
                         <div className="text-stone-400 text-xs">Startup Founder</div>
                       </div>
                     </div>
-                    <p className="text-stone-300 text-sm italic">"The design service was incredible - they brought our logo to life better than we imagined. Will definitely order again!"</p>
+                    <p className="text-stone-300 text-sm italic">&quot;The design service was incredible - they brought our logo to life better than we imagined. Will definitely order again!&quot;</p>
                   </div>
                 </div>
               </div>
