@@ -1,5 +1,19 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "functions": {
+    "src/app/api/support/image-analysis/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "VERCEL": "1"
+  },
+  "build": {
+    "env": {
+      "DATABASE_URL": "postgresql://placeholder:placeholder@localhost:5432/placeholder",
+      "DIRECT_URL": "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+    }
+  }
 }
