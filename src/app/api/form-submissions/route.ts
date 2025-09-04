@@ -3,7 +3,16 @@ import { PrismaClient } from '@prisma/client';
 import { Resend } from 'resend';
 
 const prisma = new PrismaClient();
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Lazy initialize Resend to avoid build-time errors
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('RESEND_API_KEY is not configured. Email functionality will be disabled.');
+    return null;
+  }
+  return new Resend(apiKey);
+}
 
 // POST - Submit a new form
 export async function POST(req: NextRequest) {
@@ -159,6 +168,12 @@ async function sendUserConfirmationEmail({
   submissionId: string;
 }) {
   try {
+    const resend = getResendClient();
+    if (!resend) {
+      console.warn('Skipping user confirmation email - Resend not configured');
+      return;
+    }
+
     await resend.emails.send({
       from: 'US Custom Cap <noreply@uscustomcap.com>',
       to: [email],
@@ -244,6 +259,12 @@ async function sendAdminNotificationEmail({
   company?: string;
 }) {
   try {
+    const resend = getResendClient();
+    if (!resend) {
+      console.warn('Skipping admin notification email - Resend not configured');
+      return;
+    }
+
     await resend.emails.send({
       from: 'US Custom Cap Forms <forms@uscustomcap.com>',
       to: ['admin@uscustomcap.com'], // TODO: Make this configurable
