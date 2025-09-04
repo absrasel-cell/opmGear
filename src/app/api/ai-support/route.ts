@@ -34,6 +34,11 @@ function getOpenAIClient() {
   if (!openai) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      // During build time, return null instead of throwing error
+      if (process.env.NODE_ENV !== 'production' || process.env.VERCEL_ENV === undefined) {
+        console.warn('OPENAI_API_KEY not available during build - this is normal');
+        return null;
+      }
       throw new Error('OPENAI_API_KEY environment variable is not configured');
     }
     openai = new OpenAI({ apiKey });

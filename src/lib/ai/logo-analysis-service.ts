@@ -8,9 +8,19 @@ import { LogoAnalysisResult, LogoCustomizationRecommendation, LogoCostBreakdown,
 import OpenAI from 'openai';
 import { PDFProcessor } from './pdf-processor';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI client lazily to handle missing env vars during build
+let openai: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not configured');
+    }
+    openai = new OpenAI({ apiKey });
+  }
+  return openai;
+}
 
 // Logo CSV data (should match the actual CSV structure)
 interface LogoOption {
@@ -162,7 +172,7 @@ export class LogoAnalysisService {
       // Use GPT-4V for image analysis
       const analysisPrompt = this.buildAnalysisPrompt(additionalContext);
       
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAIClient().chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
@@ -406,7 +416,7 @@ Extract and format as:
 
 Provide structured JSON-like response with all details.`;
 
-    const structureResponse = await openai.chat.completions.create({
+    const structureResponse = await getOpenAIClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "Parse and structure logo analysis data accurately." },

@@ -7,9 +7,19 @@
 import { ArtworkAnalysisResult, CapSpecification, ArtworkAsset, CapAccessory, ArtworkProcessingOptions } from './artwork-analysis-types';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI client lazily to handle missing env vars during build
+let openai: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not configured');
+    }
+    openai = new OpenAI({ apiKey });
+  }
+  return openai;
+}
 
 export class ArtworkAnalysisService {
   
@@ -163,7 +173,7 @@ export class ArtworkAnalysisService {
           
           console.log('📄 Using GPT-4 Vision to analyze extracted PDF image...');
           
-          const response = await openai.chat.completions.create({
+          const response = await getOpenAIClient().chat.completions.create({
             model: "gpt-4o",
             messages: [
               {
@@ -275,7 +285,7 @@ Be systematic and comprehensive - don't miss secondary logos, side elements, or 
     const systemPrompt = this.buildSystemPrompt();
     const imageAnalysisPrompt = this.buildImageAnalysisPrompt();
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
@@ -346,7 +356,7 @@ Be systematic and comprehensive - don't miss secondary logos, side elements, or 
     const systemPrompt = this.buildSystemPrompt();
     const analysisPrompt = this.buildAnalysisPrompt(cleanedText);
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
