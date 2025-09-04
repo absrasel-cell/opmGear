@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { supabaseAdmin } from '@/lib/supabase';
 
-const openai = new OpenAI({
- apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client lazily to handle missing env vars during build
+let openai: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not configured');
+    }
+    openai = new OpenAI({ apiKey });
+  }
+  return openai;
+}
 
 // Helper function to parse text analysis when JSON parsing fails
 function parseTextAnalysis(analysisText: string) {
@@ -365,7 +375,7 @@ Return complete cap specifications in JSON format.`;
       `base64 data (${imageDataUrl.substring(0, 50)}...)` : 
       imageDataUrl.substring(0, 100) + '...');
     
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
      model: "gpt-4o",
      messages: [
       {

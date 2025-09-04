@@ -38,10 +38,19 @@ import {
 } from '@/lib/order-ai-core';
 import { parseComplexOrder, convertToApiFormat } from '@/lib/enhanced-order-parser';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
- apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client lazily to handle missing env vars during build
+let openai: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not configured');
+    }
+    openai = new OpenAI({ apiKey });
+  }
+  return openai;
+}
 
 // Conversation management for context
 interface LocalConversationContext {
@@ -1592,7 +1601,7 @@ ${conversationContext}`;
    userPrompt += `\n\n[Logo files uploaded: ${uploadedFiles.map(f => `${f.name}`).join(', ')}]`;
   }
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
    messages: [
     { role: 'system', content: systemPrompt },
@@ -1751,7 +1760,7 @@ You can track your order status in your dashboard!"
 
 Keep under 200 words. Be enthusiastic but professional.`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
    messages: [
     { role: 'system', content: systemPrompt },
@@ -1848,7 +1857,7 @@ Be helpful and guide them toward order completion. Keep responses focused and un
 
 ${conversationContext}`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
    messages: [
     { role: 'system', content: systemPrompt },
@@ -1900,7 +1909,7 @@ Be friendly, helpful, and guide them toward providing specific order details. Ke
 
 ${conversationContext}`;
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
    messages: [
     { role: 'system', content: systemPrompt },

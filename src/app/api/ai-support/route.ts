@@ -27,9 +27,19 @@ import {
  type OrderRequirements
 } from '@/lib/order-ai-core';
 
-const openai = new OpenAI({
- apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client lazily to handle missing env vars during build
+let openai: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (!openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not configured');
+    }
+    openai = new OpenAI({ apiKey });
+  }
+  return openai;
+}
 
 export async function POST(request: NextRequest) {
  const startTime = Date.now();
@@ -245,7 +255,7 @@ If user mentions "quote" or pricing after logo analysis, check if logo analysis 
 
 Respond with JSON: {"intent": "INTENT_NAME", "confidence": 0.0-1.0, "reasoning": "explanation"}`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o-mini",
    messages: [
     { role: "system", content: intentPrompt },
@@ -382,7 +392,7 @@ Customer Role: ${userProfile?.customerRole || 'RETAIL'}
 Provide professional logo analysis with clear next steps for quote generation.`;
 
  try {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o",
    messages: [
     { role: "system", content: logoExpertPrompt },
@@ -567,7 +577,7 @@ Customer Role: ${userProfile?.customerRole || 'RETAIL'}
 Focus on converting inquiries into orders with comprehensive, accurate quotes that seamlessly incorporate LogoCraft Pro's analysis.`;
 
  try {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o-mini", 
    messages: [
     { role: "system", content: quoteExpertPrompt },
@@ -632,7 +642,7 @@ Customer Role: ${userProfile?.customerRole || 'RETAIL'}
 Provide helpful, accurate support responses. If the customer needs logo analysis or quotes, mention our specialist AIs.`;
 
  try {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o-mini",
    messages: [
     { role: "system", content: supportPrompt },
