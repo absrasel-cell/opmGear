@@ -155,7 +155,22 @@ export default function SupportPage() {
   const [currentAssistant, setCurrentAssistant] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [sessionId] = useState<string>(() => `support-${Date.now()}-${Math.random().toString(36).substring(7)}`);
+  const [sessionId] = useState<string>(() => {
+    // Try to get existing session from localStorage first
+    if (typeof window !== 'undefined') {
+      const existingSession = localStorage.getItem('support_session_id');
+      if (existingSession) {
+        return existingSession;
+      }
+    }
+    
+    // Create new session and store it
+    const newSession = `support-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('support_session_id', newSession);
+    }
+    return newSession;
+  });
   // Guest contact information state
   const [guestContactInfo, setGuestContactInfo] = useState<GuestContactInfo | null>(null);
   const [showGuestContactForm, setShowGuestContactForm] = useState(false);
@@ -166,6 +181,7 @@ export default function SupportPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const conversationsInitialized = useRef(false);
+
   
   // File upload state
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
@@ -504,13 +520,18 @@ export default function SupportPage() {
           },
           body: JSON.stringify({
             sessionId: sessionId,
-            userId: authUser?.id
+            userId: authUser?.id,
+            findOnly: true // Only find existing conversations, don't create new ones
           })
         });
 
         if (response.ok) {
           const data = await response.json();
-          setConversationId(data.conversationId);
+          
+          // Only set conversation ID if one was found (not null)
+          if (data.conversationId) {
+            setConversationId(data.conversationId);
+          }
           
           // Load existing messages if any
           if (data.messages && data.messages.length > 0) {
@@ -532,14 +553,6 @@ export default function SupportPage() {
     };
 
     // Only load conversation after auth is settled
-    console.log('🔄 useEffect triggered:', { 
-      authLoading, 
-      sessionId, 
-      authUserId: authUser?.id,
-      isAuthenticated,
-      willLoadConversations: !authLoading
-    });
-    
     if (!authLoading) {
       loadConversationHistory();
     }
@@ -1560,23 +1573,9 @@ Would you like me to save this quote or would you like to modify any specificati
       }
     });
     
-    // Create new conversation
-    fetch('/api/support/conversation', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sessionId: newSessionId,
-        userId: authUser?.id
-      })
-    }).then(response => response.json())
-    .then(data => {
-      setConversationId(data.conversationId);
-    })
-    .catch(error => {
-      console.error('Failed to create new conversation:', error);
-    });
+    // Set sessionId for future conversation creation when user sends first message
+    // Don't create conversation until user actually sends a message
+    setSessionId(newSessionId);
   };
 
   // Delete a conversation
@@ -1799,8 +1798,8 @@ Would you like me to save this quote or would you like to modify any specificati
     };
 
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-stone-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 w-full max-w-md">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+        <div className="bg-stone-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-6 w-full max-w-sm sm:max-w-md mx-auto">
           <div className="text-center mb-6">
             <h3 className="text-xl font-semibold text-white mb-2">Contact Information Required</h3>
             <p className="text-stone-300 text-sm">
@@ -2005,55 +2004,55 @@ Would you like me to save this quote or would you like to modify any specificati
       {showGuestContactForm && <GuestContactForm />}
       
       {/* Page Wrapper */}
-      <div className={`w-full transition-all duration-300 ${showConversationHistory ? 'pl-96' : ''}`}>
-        {/* Customer Guidelines Header */}
-        <header className="border-b border-stone-600">
-          <div className="max-w-[1500px] mx-auto px-6 py-6">
-            <div className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-6">
+      <div className={`w-full transition-all duration-300 flex flex-col lg:block ${showConversationHistory ? 'lg:pl-96' : ''}`}>
+        {/* Customer Guidelines Header - Move to end on mobile */}
+        <header className="border-b border-stone-600 order-last lg:order-none">
+          <div className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 py-3 sm:py-6`}>
+            <div className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/20 to-lime-600/10 border border-lime-400/30 grid place-items-center">
                   <SparklesIcon className="h-5 w-5 text-lime-400" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-semibold text-white tracking-tight">AI Support Center</h1>
-                  <p className="text-sm text-white/60">Get instant help with orders, quotes, and customization</p>
+                  <h1 className="text-lg sm:text-xl font-semibold text-white tracking-tight">AI Support Center</h1>
+                  <p className="text-sm sm:text-sm text-white/60">Get instant help with orders, quotes, and customization</p>
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
                   <div className="h-8 w-8 rounded-lg bg-blue-400/20 border border-blue-400/30 grid place-items-center flex-shrink-0">
                     <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-white mb-1">Quick Questions</h3>
-                    <p className="text-xs text-white/60">"What's my order status?" or "How much for 50 caps?"</p>
+                    <h3 className="text-base sm:text-sm font-medium text-white mb-1">Quick Questions</h3>
+                    <p className="text-sm sm:text-xs text-white/60">"What's my order status?" or "How much for 50 caps?"</p>
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
                   <div className="h-8 w-8 rounded-lg bg-purple-400/20 border border-purple-400/30 grid place-items-center flex-shrink-0">
                     <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v12a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10M10 11v6M14 11v6" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-white mb-1">Upload Files</h3>
-                    <p className="text-xs text-white/60">Share artwork, logos, or reference images for quotes</p>
+                    <h3 className="text-base sm:text-sm font-medium text-white mb-1">Upload Files</h3>
+                    <p className="text-sm sm:text-xs text-white/60">Share artwork, logos, or reference images for quotes</p>
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
                   <div className="h-8 w-8 rounded-lg bg-green-400/20 border border-green-400/30 grid place-items-center flex-shrink-0">
                     <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-white mb-1">Instant Quotes</h3>
-                    <p className="text-xs text-white/60">Get pricing for custom caps with quantities and options</p>
+                    <h3 className="text-base sm:text-sm font-medium text-white mb-1">Instant Quotes</h3>
+                    <p className="text-sm sm:text-xs text-white/60">Get pricing for custom caps with quantities and options</p>
                   </div>
                 </div>
               </div>
@@ -2062,18 +2061,18 @@ Would you like me to save this quote or would you like to modify any specificati
         </header>
 
         {/* Main Grid */}
-        <main className="max-w-[1500px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
+        <main className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6 lg:mr-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 py-3 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6`}>
           {/* Chat Panel */}
-          <section className="col-span-12 lg:col-span-8 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden">
+          <section className="lg:col-span-8 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden order-2 lg:order-1">
             {/* Chat Header */}
-            <div className="px-5 py-4 border-b border-stone-600 flex items-center justify-between">
+            <div className="px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-600 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-black/30 backdrop-blur-sm border border-stone-600 grid place-items-center text-stone-200">
                   <CpuChipIcon className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base md:text-lg tracking-tight font-semibold text-white">
+                    <h2 className="text-lg sm:text-base md:text-lg tracking-tight font-semibold text-white">
                       {currentAssistant?.displayName || 'AI Support'} {currentAssistant?.icon || ''}
                     </h2>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] ${getModelBadgeColor(currentModel)}`}>
@@ -2083,25 +2082,36 @@ Would you like me to save this quote or would you like to modify any specificati
                   <p className="text-xs text-white/50">Ask about orders, shipments, and quotes</p>
                 </div>
               </div>
-              <div className="hidden md:flex items-center gap-2">
-                <button 
-                  onClick={() => setShowConversationHistory(!showConversationHistory)}
-                  className={`px-3 py-1.5 rounded-full text-xs border transition-colors flex items-center gap-1.5 ${
-                    showConversationHistory 
-                      ? 'border-blue-400/30 bg-blue-400/10 text-blue-300'
-                      : 'border-stone-600 text-stone-300 hover:border-stone-500 hover:text-stone-200'
-                  }`}
-                >
-                  <ChatBubbleLeftRightIcon className="h-3 w-3" />
-                  History
-                </button>
-                <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">Secure</div>
-                <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">24/7</div>
+              <div className="flex items-center gap-2">
+                {!showConversationHistory && (
+                  <button
+                    onClick={() => setShowConversationHistory(true)}
+                    className="lg:hidden h-9 w-9 rounded-xl bg-black/30 backdrop-blur-sm border border-stone-600 grid place-items-center text-stone-300 hover:text-white hover:bg-black/40 transition-all duration-200"
+                    title="Show conversation history"
+                  >
+                    <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  </button>
+                )}
+                <div className="hidden md:flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowConversationHistory(!showConversationHistory)}
+                    className={`px-3 py-1.5 rounded-full text-xs border transition-colors flex items-center gap-1.5 ${
+                      showConversationHistory 
+                        ? 'border-blue-400/30 bg-blue-400/10 text-blue-300'
+                        : 'border-stone-600 text-stone-300 hover:border-stone-500 hover:text-stone-200'
+                    }`}
+                  >
+                    <ChatBubbleLeftRightIcon className="h-3 w-3" />
+                    History
+                  </button>
+                  <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">Secure</div>
+                  <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">24/7</div>
+                </div>
               </div>
             </div>
 
             {/* Chat Scroll Area */}
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
               {/* Welcome message */}
               {messages.length === 0 && (
                 <div className="flex items-center gap-3 text-sm italic text-stone-300">
@@ -2131,7 +2141,7 @@ Would you like me to save this quote or would you like to modify any specificati
                             }) : ''}
                           </span>
                         </div>
-                        <div className="rounded-[20px] border border-orange-400/30 bg-gradient-to-br from-orange-600/20 via-orange-500/15 to-orange-400/10 backdrop-blur-xl p-4 text-sm md:text-base text-white shadow-[0_8px_30px_rgba(218,141,38,0.25)] ring-1 ring-orange-400/20">
+                        <div className="rounded-[20px] border border-orange-400/30 bg-gradient-to-br from-orange-600/20 via-orange-500/15 to-orange-400/10 backdrop-blur-xl p-3 sm:p-4 text-base sm:text-sm md:text-base text-white shadow-[0_8px_30px_rgba(218,141,38,0.25)] ring-1 ring-orange-400/20 w-full">
                           {message.content}
                         </div>
                       </div>
@@ -2156,7 +2166,7 @@ Would you like me to save this quote or would you like to modify any specificati
                             }) : ''}
                           </span>
                         </div>
-                        <div className="rounded-[20px] border border-purple-400/30 bg-gradient-to-br from-purple-600/20 via-purple-500/15 to-purple-400/10 backdrop-blur-xl p-4 text-sm md:text-base text-white shadow-[0_8px_30px_rgba(147,51,234,0.25)] ring-1 ring-purple-400/20">
+                        <div className="rounded-[20px] border border-purple-400/30 bg-gradient-to-br from-purple-600/20 via-purple-500/15 to-purple-400/10 backdrop-blur-xl p-3 sm:p-4 text-base sm:text-sm md:text-base text-white shadow-[0_8px_30px_rgba(147,51,234,0.25)] ring-1 ring-purple-400/20 w-full">
                           <div 
                             className="whitespace-pre-wrap"
                             dangerouslySetInnerHTML={{
@@ -2187,19 +2197,19 @@ Would you like me to save this quote or would you like to modify any specificati
 
             {/* Uploaded Files Preview */}
             {uploadedFiles.length > 0 && (
-              <div className="px-4 md:px-5 py-2 border-t border-stone-600 bg-black/20">
-                <div className="flex flex-wrap gap-2">
+              <div className="px-3 sm:px-4 md:px-5 py-2 border-t border-stone-600 bg-black/20">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                   {uploadedFiles.map((fileUrl, index) => (
                     <div key={index} className="relative group">
                       <img 
                         src={fileUrl} 
                         alt={`Uploaded ${index + 1}`}
-                        className="w-12 h-12 object-cover rounded-lg border border-stone-500"
+                        className="w-14 h-14 sm:w-12 sm:h-12 object-cover rounded-lg border border-stone-500 touch-manipulation"
                       />
                       <button
                         type="button"
                         onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
-                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        className="absolute -top-2 -right-2 w-6 h-6 sm:w-5 sm:h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 transition-colors opacity-70 sm:opacity-0 sm:group-hover:opacity-100 touch-manipulation"
                       >
                         ×
                       </button>
@@ -2209,14 +2219,15 @@ Would you like me to save this quote or would you like to modify any specificati
               </div>
             )}
 
+
             {/* Input Bar */}
-            <form onSubmit={sendMessage} className="px-4 md:px-5 py-4 border-t border-stone-600 bg-black/20 ">
-              <div className="flex items-center gap-2">
+            <form onSubmit={sendMessage} className="px-3 sm:px-4 md:px-5 py-3 sm:py-4 border-t border-stone-600 bg-black/20">
+              <div className="flex items-end gap-2 sm:gap-3">
                 <button 
                   type="button"
                   onClick={triggerFileUpload}
                   disabled={isUploading}
-                  className="h-10 w-10 shrink-0 rounded-full border border-stone-600 bg-black/30 backdrop-blur-sm grid place-items-center text-white/70 hover:text-white hover:bg-black/40 transition-all duration-200 disabled:opacity-50" 
+                  className="h-11 w-11 sm:h-10 sm:w-10 shrink-0 rounded-full border border-stone-600 bg-black/30 backdrop-blur-sm grid place-items-center text-white/70 hover:text-white hover:bg-black/40 transition-all duration-200 disabled:opacity-50 touch-manipulation" 
                   title="Attach files"
                 >
                   <PaperClipIcon className={`h-5 w-5 ${isUploading ? 'animate-spin' : ''}`} />
@@ -2235,7 +2246,7 @@ Would you like me to save this quote or would you like to modify any specificati
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Describe your request or ask about orders, shipments, quotes…" 
-                    className="w-full h-11 md:h-12 rounded-full bg-black/30 backdrop-blur-sm border border-stone-600 focus:border-stone-400 focus:bg-black/40 outline-none px-4 md:px-5 text-sm md:text-base placeholder:text-white/40 text-white transition-all duration-200"
+                    className="w-full h-12 sm:h-11 md:h-12 rounded-full bg-black/30 backdrop-blur-sm border border-stone-600 focus:border-stone-400 focus:bg-black/40 outline-none px-4 sm:px-4 md:px-5 text-base sm:text-sm md:text-base placeholder:text-white/40 text-white transition-all duration-200 touch-manipulation"
                     disabled={isLoading}
                   />
                   <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
@@ -2244,7 +2255,7 @@ Would you like me to save this quote or would you like to modify any specificati
                 <button 
                   type="submit"
                   disabled={isLoading || isUploading || (!inputMessage.trim() && uploadedFiles.length === 0)}
-                  className="h-10 md:h-12 px-4 md:px-5 rounded-full bg-lime-400 text-black hover:bg-lime-500 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_-10px_rgba(132,204,22,0.6)] hover:-translate-y-0.5"
+                  className="h-12 sm:h-10 md:h-12 px-4 sm:px-4 md:px-5 rounded-full bg-lime-400 text-black hover:bg-lime-500 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_-10px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 touch-manipulation"
                 >
                   <span className="hidden sm:inline">Send</span>
                   <ArrowUpRightIcon className="h-5 w-5 -mr-0.5" />
@@ -2253,10 +2264,9 @@ Would you like me to save this quote or would you like to modify any specificati
             </form>
           </section>
 
-          {/* Right Column */}
-          <aside className="col-span-12 lg:col-span-4 flex-col space-y-6">
-            {/* Profile Card */}
-            <section className={`rounded-2xl border p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
+          {/* Profile Block - First on mobile */}
+          <section className="lg:col-span-4 order-1 lg:order-2">
+            <div className={`rounded-2xl border p-3 sm:p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
               authUser 
                 ? 'border-green-400/30 bg-black/40 bg-gradient-to-br from-green-400/10 to-transparent' 
                 : 'border-yellow-400/30 bg-black/40 bg-gradient-to-br from-yellow-400/10 to-transparent'
@@ -2277,8 +2287,11 @@ Would you like me to save this quote or would you like to modify any specificati
                   </div>
                 )}
               </div>
-            </section>
+            </div>
+          </section>
 
+          {/* Upload Artwork Block - Second on mobile */}
+          <section className="lg:col-span-4 order-3 lg:order-2">
             {/* Upload Artwork Component */}
             <UploadArtworkComponent 
               onAnalysisComplete={(analysis) => {
@@ -2321,7 +2334,10 @@ Please provide a detailed quote with cost breakdown.`;
               userId={authUser?.id}
               sessionId={`artwork-${Date.now()}`}
             />
+          </section>
 
+          {/* Order Builder Block - Fourth on mobile */}
+          <section className="lg:col-span-4 order-4 lg:order-2">
             {/* Order Builder Status Card - Sticky - Conditional Visibility */}
             {isOrderBuilderVisible && (
               <section className="sticky top-6 z-10 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4">
@@ -2893,14 +2909,19 @@ Please provide a detailed quote with cost breakdown.`;
               </div>
               </section>
             )}
-          </aside>
+          </section>
         </main>
 
         {/* Conversation History Sidebar */}
         {showConversationHistory && (
-          <div className="fixed left-0 top-0 bottom-0 z-50 w-96 animate-in slide-in-from-left duration-300">
+          <div className="fixed inset-0 lg:left-0 lg:top-0 lg:bottom-0 lg:right-auto z-50 lg:w-96 bg-black/50 lg:bg-transparent animate-in slide-in-from-left duration-300">
+            {/* Mobile backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm lg:hidden" 
+              onClick={() => setShowConversationHistory(false)}
+            ></div>
             {/* Sidebar */}
-            <div className="h-full bg-gradient-to-br from-black/40 via-black/35 to-black/30 backdrop-blur-xl border-r border-stone-500/30 overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+            <div className="relative h-full w-full max-w-sm lg:max-w-none lg:w-96 bg-gradient-to-br from-black/95 lg:from-black/40 via-black/90 lg:via-black/35 to-black/85 lg:to-black/30 backdrop-blur-xl border-r border-stone-500/30 overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)]">
               {/* Header */}
               <div className="p-4 border-b border-stone-500/30 bg-gradient-to-r from-black/30 to-black/20 backdrop-blur-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -2935,7 +2956,7 @@ Please provide a detailed quote with cost breakdown.`;
                       onClick={() => setShowConversationHistory(false)}
                       className="p-2 rounded-xl border border-stone-500/30 bg-black/30 backdrop-blur-sm hover:bg-red-400/10 hover:border-red-400/30 text-stone-300 hover:text-red-400 transition-all duration-200 hover:shadow-lg"
                     >
-                      <span className="text-sm font-semibold">×</span>
+                      <span className="text-lg lg:text-sm font-semibold">×</span>
                     </button>
                   </div>
                 </div>

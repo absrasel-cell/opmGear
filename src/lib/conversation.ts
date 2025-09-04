@@ -37,6 +37,41 @@ export class ConversationService {
   }
 
   /**
+   * Find an existing conversation without creating one
+   */
+  static async findExistingConversation(data: ConversationData) {
+    try {
+      console.log('Looking for existing conversation with:', { 
+        sessionId: data.sessionId, 
+        context: data.context, 
+        userId: data.userId 
+      });
+
+      // Try to find existing conversation by sessionId
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          sessionId: data.sessionId,
+          context: data.context,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      if (conversation) {
+        console.log('Found existing conversation:', conversation.id, 'for user:', conversation.userId);
+      } else {
+        console.log('No existing conversation found');
+      }
+
+      return conversation;
+    } catch (error) {
+      console.error('Failed to find existing conversation:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get or create a conversation for a user/session
    */
   static async getOrCreateConversation(data: ConversationData) {

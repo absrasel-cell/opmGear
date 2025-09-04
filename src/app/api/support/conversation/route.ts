@@ -7,12 +7,13 @@ interface ConversationRequest {
  userId?: string;
  action?: 'create' | 'get' | 'history';
  conversationId?: string;
+ findOnly?: boolean; // New parameter to only find existing conversations
 }
 
 export async function POST(request: NextRequest) {
  try {
   const body: ConversationRequest = await request.json();
-  const { sessionId, userId, action = 'get', conversationId } = body;
+  const { sessionId, userId, action = 'get', conversationId, findOnly = false } = body;
 
   if (!sessionId) {
    return NextResponse.json(
@@ -38,17 +39,40 @@ export async function POST(request: NextRequest) {
    // Get all messages for the specific conversation
    messages = await ConversationService.getConversationHistory(conversationId, 100);
   } else {
-   // Get or create conversation for support context
-   conversation = await ConversationService.getOrCreateConversation({
-    sessionId,
-    userId,
-    context: ConversationContext.SUPPORT,
-    metadata: {
-     source: 'ai-support-system',
-     userAgent: request.headers.get('user-agent'),
-     createdAt: new Date().toISOString()
+   // Use findOnly mode if requested to avoid creating blank conversations
+   if (findOnly) {
+    conversation = await ConversationService.findExistingConversation({
+     sessionId,
+     userId,
+     context: ConversationContext.SUPPORT,
+     metadata: {
+      source: 'ai-support-system',
+      userAgent: request.headers.get('user-agent'),
+      createdAt: new Date().toISOString()
+     }
+    });
+
+    // If no conversation found in findOnly mode, return empty result
+    if (!conversation) {
+     return NextResponse.json({
+      conversationId: null,
+      messages: [],
+      status: 'no_conversation_found'
+     });
     }
-   });
+   } else {
+    // Get or create conversation for support context
+    conversation = await ConversationService.getOrCreateConversation({
+     sessionId,
+     userId,
+     context: ConversationContext.SUPPORT,
+     metadata: {
+      source: 'ai-support-system',
+      userAgent: request.headers.get('user-agent'),
+      createdAt: new Date().toISOString()
+     }
+    });
+   }
 
    // Get conversation history (last 20 messages for comprehensive context)
    messages = await ConversationService.getConversationHistory(
@@ -58,8 +82,8 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-   conversationId: conversation.id,
-   messages: messages,
+   conversationId: conversation?.id || null,
+   messages: messages || [],
    status: 'success'
   });
 
