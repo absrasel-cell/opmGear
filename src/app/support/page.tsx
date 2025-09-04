@@ -155,7 +155,7 @@ export default function SupportPage() {
   const [currentAssistant, setCurrentAssistant] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [sessionId] = useState<string>(() => {
+  const [sessionId, setSessionId] = useState<string>(() => {
     // Try to get existing session from localStorage first
     if (typeof window !== 'undefined') {
       const existingSession = localStorage.getItem('support_session_id');
@@ -1576,6 +1576,11 @@ Would you like me to save this quote or would you like to modify any specificati
     // Set sessionId for future conversation creation when user sends first message
     // Don't create conversation until user actually sends a message
     setSessionId(newSessionId);
+    
+    // Update localStorage with new sessionId
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('support_session_id', newSessionId);
+    }
   };
 
   // Delete a conversation
@@ -1583,6 +1588,9 @@ Would you like me to save this quote or would you like to modify any specificati
     if (!confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
       return;
     }
+    
+    // Immediately remove from UI for instant feedback (optimistic update)
+    setConversations(prev => prev.filter(conv => conv.id !== conversationIdToDelete));
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1597,15 +1605,18 @@ Would you like me to save this quote or would you like to modify any specificati
       });
 
       if (response.ok) {
-        // Refresh conversation list without resetting flag
-        await loadUserConversations();
-        
         // If the deleted conversation was the current one, start a new conversation
         if (conversationId === conversationIdToDelete) {
           startNewConversation();
         }
+      } else {
+        // If deletion failed, restore the conversation to the list
+        await loadUserConversations();
+        console.error('Failed to delete conversation on server');
       }
     } catch (error) {
+      // If deletion failed, restore the conversation to the list
+      await loadUserConversations();
       console.error('Failed to delete conversation:', error);
     }
   };
@@ -2005,65 +2016,124 @@ Would you like me to save this quote or would you like to modify any specificati
       
       {/* Page Wrapper */}
       <div className={`w-full transition-all duration-300 flex flex-col lg:block ${showConversationHistory ? 'lg:pl-96' : ''}`}>
-        {/* Customer Guidelines Header - Move to end on mobile */}
-        <header className="border-b border-stone-600 order-last lg:order-none">
-          <div className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 py-3 sm:py-6`}>
-            <div className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4 sm:p-6">
-              <div className="flex items-center gap-3 mb-4">
+
+        {/* AI Support Center - Now at top of main content */}
+        <div className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6 lg:mr-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 pt-3 sm:pt-6`}>
+          {/* Combined AI Support Center & Profile Block */}
+          <div className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4 sm:p-6 mb-3 sm:mb-6">
+            {/* Header Section with AI Support Center and Profile */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6 items-start mb-6">
+              {/* AI Support Center Header */}
+              <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/20 to-lime-600/10 border border-lime-400/30 grid place-items-center">
                   <SparklesIcon className="h-5 w-5 text-lime-400" />
                 </div>
                 <div>
                   <h1 className="text-lg sm:text-xl font-semibold text-white tracking-tight">AI Support Center</h1>
-                  <p className="text-sm sm:text-sm text-white/60">Get instant help with orders, quotes, and customization</p>
+                  <p className="text-sm text-white/60">Get instant help with orders, quotes, and customization</p>
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                  <div className="h-8 w-8 rounded-lg bg-blue-400/20 border border-blue-400/30 grid place-items-center flex-shrink-0">
-                    <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+              {/* Profile Section */}
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-sm transition-all duration-300 ${authUser ? 'border-green-400/30 bg-green-400/5' : 'border-yellow-400/30 bg-yellow-400/5'}`}>
+                <img 
+                  src={authUser?.avatarUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=256&auto=format&fit=crop"} 
+                  alt="Profile avatar" 
+                  className="h-10 w-10 rounded-xl border border-stone-600 object-cover"
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-medium text-white">
+                      {(() => {
+                        if (authUser) {
+                          return userProfile?.name || authUser.name || authUser.email?.split('@')[0] || 'Authenticated User';
+                        }
+                        if (guestContactInfo) {
+                          return guestContactInfo.name;
+                        }
+                        return 'Guest User';
+                      })()}
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] border ${
+                      authUser 
+                        ? 'border-green-400/30 bg-green-400/10 text-green-300' 
+                        : 'border-yellow-400/30 bg-yellow-400/10 text-yellow-300'
+                    }`}>
+                      {authUser ? 'Auth' : 'Guest'}
+                    </span>
                   </div>
-                  <div>
-                    <h3 className="text-base sm:text-sm font-medium text-white mb-1">Quick Questions</h3>
-                    <p className="text-sm sm:text-xs text-white/60">"What's my order status?" or "How much for 50 caps?"</p>
-                  </div>
+                  <p className="text-xs text-white/60">
+                    {authUser ? (authUser.email || 'no-email@example.com') : (guestContactInfo?.email || 'guest@example.com')}
+                  </p>
                 </div>
-                
-                <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                  <div className="h-8 w-8 rounded-lg bg-purple-400/20 border border-purple-400/30 grid place-items-center flex-shrink-0">
-                    <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v12a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10M10 11v6M14 11v6" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-sm font-medium text-white mb-1">Upload Files</h3>
-                    <p className="text-sm sm:text-xs text-white/60">Share artwork, logos, or reference images for quotes</p>
-                  </div>
+              </div>
+            </div>
+            
+            {/* Features Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="h-8 w-8 rounded-lg bg-blue-400/20 border border-blue-400/30 grid place-items-center flex-shrink-0">
+                  <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                 </div>
-                
-                <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                  <div className="h-8 w-8 rounded-lg bg-green-400/20 border border-green-400/30 grid place-items-center flex-shrink-0">
-                    <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-sm font-medium text-white mb-1">Instant Quotes</h3>
-                    <p className="text-sm sm:text-xs text-white/60">Get pricing for custom caps with quantities and options</p>
-                  </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-1">Quick Questions</h3>
+                  <p className="text-xs text-white/60">"What's my order status?"</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="h-8 w-8 rounded-lg bg-purple-400/20 border border-purple-400/30 grid place-items-center flex-shrink-0">
+                  <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v12a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10M10 11v6M14 11v6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-1">Upload Files</h3>
+                  <p className="text-xs text-white/60">Share artwork & logos</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="h-8 w-8 rounded-lg bg-green-400/20 border border-green-400/30 grid place-items-center flex-shrink-0">
+                  <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-1">Instant Quotes</h3>
+                  <p className="text-xs text-white/60">Get pricing instantly</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="h-8 w-8 rounded-lg bg-cyan-400/20 border border-cyan-400/30 grid place-items-center flex-shrink-0">
+                  <ClipboardDocumentListIcon className="h-4 w-4 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-1">My Orders</h3>
+                  <p className="text-xs text-white/60">View order history</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="h-8 w-8 rounded-lg bg-orange-400/20 border border-orange-400/30 grid place-items-center flex-shrink-0">
+                  <ChatBubbleLeftRightIcon className="h-4 w-4 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white mb-1">Quick Support</h3>
+                  <p className="text-xs text-white/60">Get help fast</p>
                 </div>
               </div>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* Main Grid */}
-        <main className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6 lg:mr-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 py-3 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6`}>
+        <main className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6 lg:mr-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 pb-3 sm:pb-6 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 sm:gap-6`}>
           {/* Chat Panel */}
-          <section className="lg:col-span-8 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden order-2 lg:order-1">
+          <section className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden order-1 lg:order-1">
             {/* Chat Header */}
             <div className="px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-600 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2252,6 +2322,17 @@ Would you like me to save this quote or would you like to modify any specificati
                   <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                   </div>
                 </div>
+                {canQuoteOrder() && (
+                  <button 
+                    type="button"
+                    onClick={handleQuoteOrder}
+                    disabled={!canQuoteOrder()}
+                    className="h-12 sm:h-10 md:h-12 px-4 sm:px-4 md:px-5 rounded-full bg-orange-300 text-black hover:bg-orange-400 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_-10px_rgba(251,146,60,0.4)] hover:-translate-y-0.5 touch-manipulation"
+                  >
+                    <span className="hidden sm:inline">Quote</span>
+                    <ArrowUpRightIcon className="h-5 w-5 -mr-0.5" />
+                  </button>
+                )}
                 <button 
                   type="submit"
                   disabled={isLoading || isUploading || (!inputMessage.trim() && uploadedFiles.length === 0)}
@@ -2264,49 +2345,26 @@ Would you like me to save this quote or would you like to modify any specificati
             </form>
           </section>
 
-          {/* Profile Block - First on mobile */}
-          <section className="lg:col-span-4 order-1 lg:order-2">
-            <div className={`rounded-2xl border p-3 sm:p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
-              authUser 
-                ? 'border-green-400/30 bg-black/40 bg-gradient-to-br from-green-400/10 to-transparent' 
-                : 'border-yellow-400/30 bg-black/40 bg-gradient-to-br from-yellow-400/10 to-transparent'
-            }`}>
-              {formatUserProfile()}
-              <div className="mt-4 pt-4 border-t border-stone-600">
-                <div className="flex items-center gap-2 text-xs text-stone-300">
-                  <CpuChipIcon className="h-3.5 w-3.5 text-white/50" />
-                  {authUser && userProfile 
-                    ? 'Full Profile Loaded' 
-                    : authUser 
-                    ? 'Auth Only (No DB Profile)' 
-                    : 'Guest Profile'}
-                </div>
-                {authUser && !userProfile && (
-                  <div className="mt-1 text-xs text-yellow-400/80">
-                    Using auth data fallback
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
 
-          {/* Upload Artwork Block - Second on mobile */}
-          <section className="lg:col-span-4 order-3 lg:order-2">
-            {/* Upload Artwork Component */}
-            <UploadArtworkComponent 
-              onAnalysisComplete={(analysis) => {
-                console.log('🎨 Artwork analysis completed:', analysis);
-                // Optionally show analysis results or auto-trigger order builder visibility
-              }}
-              onGenerateQuote={async (analysis) => {
-                console.log('📋 Generating quote from artwork analysis:', analysis);
-                
-                // Convert artwork analysis to CapCraft format and trigger order creation
-                const capCraftData = analysis.capCraftFormat || {};
-                
-                // Create an order creation message with the analysis data
-                const orderMessage = `Generate a complete quote for this SINGLE cap style based on artwork analysis:
-                
+          {/* Right Column - Upload Artwork and Order Builder */}
+          <div className="order-2 lg:order-2 space-y-3 sm:space-y-6">
+            {/* Upload Artwork Block */}
+            <section>
+              {/* Upload Artwork Component */}
+              <UploadArtworkComponent 
+                onAnalysisComplete={(analysis) => {
+                  console.log('🎨 Artwork analysis completed:', analysis);
+                  // Optionally show analysis results or auto-trigger order builder visibility
+                }}
+                onGenerateQuote={async (analysis) => {
+                  console.log('📋 Generating quote from artwork analysis:', analysis);
+                  
+                  // Convert artwork analysis to CapCraft format and trigger order creation
+                  const capCraftData = analysis.capCraftFormat || {};
+                  
+                  // Create an order creation message with the analysis data
+                  const orderMessage = `Generate a complete quote for this SINGLE cap style based on artwork analysis:
+                  
 Cap Specifications:
 - Style: ${analysis.capSpec.shape}
 - Bill Shape: ${analysis.capSpec.billShape}
@@ -2322,22 +2380,22 @@ ${analysis.accessories.map(acc => `- ${acc.type}: ${acc.details}`).join('\n')}` 
 
 Please provide a detailed quote with cost breakdown.`;
 
-                // Add the message to conversation and trigger CapCraft AI using the normal flow
-                setInputMessage(orderMessage);
-                
-                // Use the normal sendMessage flow but with a timeout to prevent hanging
-                setTimeout(() => {
-                  const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-                  sendMessage(fakeEvent);
-                }, 100); // Small delay to ensure state is set
-              }}
-              userId={authUser?.id}
-              sessionId={`artwork-${Date.now()}`}
-            />
-          </section>
+                  // Add the message to conversation and trigger CapCraft AI using the normal flow
+                  setInputMessage(orderMessage);
+                  
+                  // Use the normal sendMessage flow but with a timeout to prevent hanging
+                  setTimeout(() => {
+                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                    sendMessage(fakeEvent);
+                  }, 100); // Small delay to ensure state is set
+                }}
+                userId={authUser?.id}
+                sessionId={`artwork-${Date.now()}`}
+              />
+            </section>
 
-          {/* Order Builder Block - Fourth on mobile */}
-          <section className="lg:col-span-4 order-4 lg:order-2">
+            {/* Order Builder Block - Under Upload Artwork */}
+            <section>
             {/* Order Builder Status Card - Sticky - Conditional Visibility */}
             {isOrderBuilderVisible && (
               <section className="sticky top-6 z-10 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4">
@@ -2770,7 +2828,7 @@ Please provide a detailed quote with cost breakdown.`;
 
               {/* Professional Lead Time Calculator & Box Interface */}
               {orderBuilderStatus.costBreakdown.available && (
-                <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-[#8F5E25]/80 via-[#8F5E25]/60 to-[#8F5E25]/40 border border-stone-600">
+                <div className="mt-4 p-4 rounded-xl bg-black/40 backdrop-blur-xl border border-stone-600">
                   <div className="flex items-center gap-2 mb-3">
                     <CalendarDaysIcon className="w-4 h-4 text-[#D4A574]" />
                     <span className="text-sm font-medium text-white">Production Timeline & Packaging</span>
@@ -2783,14 +2841,14 @@ Please provide a detailed quote with cost breakdown.`;
                     <div className="space-y-4">
                       {/* Lead Time Display */}
                       {leadTimeData.leadTime && (
-                        <div className="p-3 rounded-lg  bg-gradient-to-r from-blue-900 to-purple-900 border border-stone-700">
+                        <div className="p-3 rounded-lg  bg-gradient-to-r from-red-900 to-orange-900 border border-stone-700">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <CalendarDaysIcon className="w-4 h-4 text-blue-400" />
+                              <CalendarDaysIcon className="w-4 h-4 text-orange-400" />
                               <span className="text-sm font-medium text-white">Delivery Timeline</span>
                             </div>
                             <div className="text-right">
-                              <div className="text-lg font-semibold text-blue-300">
+                              <div className="text-lg font-semibold text-orange-300">
                                 {leadTimeData.leadTime.totalDays} Days
                               </div>
                               <div className="text-xs text-stone-300">
@@ -2909,7 +2967,8 @@ Please provide a detailed quote with cost breakdown.`;
               </div>
               </section>
             )}
-          </section>
+            </section>
+          </div>
         </main>
 
         {/* Conversation History Sidebar */}
