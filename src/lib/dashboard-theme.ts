@@ -46,13 +46,13 @@ export const dashboardTheme = {
       linear: 'linear-gradient(180deg, #000 0%, #05070e 50%, #000 100%)'
     },
     
-    // Glass System
-    glass: {
-      primary: 'rgba(255, 255, 255, 0.05)',    // bg-white/5
-      secondary: 'rgba(255, 255, 255, 0.10)',  // bg-white/10
-      border: 'rgba(255, 255, 255, 0.10)',     // border-white/10
-      borderHover: 'rgba(255, 255, 255, 0.20)', // border-white/20
-      ring: 'rgba(255, 255, 255, 0.05)',       // ring-white/5
+    // Solid System (replaces glass)
+    solid: {
+      primary: 'rgba(68, 64, 60, 1)',    // bg-stone-700
+      secondary: 'rgba(87, 83, 78, 1)',  // bg-stone-600
+      border: 'rgba(120, 113, 108, 1)',     // border-stone-500
+      borderHover: 'rgba(168, 162, 158, 1)', // border-stone-400
+      ring: 'rgba(68, 64, 60, 1)',       // ring-stone-700
     },
     
     // Text System
@@ -168,46 +168,46 @@ export const dashboardTheme = {
   components: {
     // Glass Card System
     card: {
-      base: 'rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl',
-      hover: 'hover:-translate-y-0.5 transition-all duration-300',
+      base: 'rounded-2xl glass-morphism',
+      hover: 'glass-hover hover:-translate-y-0.5 transition-all duration-300',
       shadow: 'shadow-[0_10px_40px_-10px_rgba(0,0,0,0.6)]',
       shadowHover: 'hover:shadow-[0_20px_50px_rgba(132,204,22,0.10)]',
-      ring: 'ring-1 ring-white/5'
+      ring: 'ring-1 ring-white/10'
     },
     
     // Button System
     button: {
-      primary: 'px-4 py-2 rounded-full bg-lime-400 text-black font-medium shadow-[0_0_30px_rgba(132,204,22,0.25)] hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-10px_rgba(132,204,22,0.65)] transition',
-      secondary: 'px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white hover:bg-white/10 transition',
-      ghost: 'px-3 py-2 rounded-xl hover:bg-white/10 transition'
+      primary: 'px-4 py-2 rounded-full glass-button-primary text-white font-medium shadow-[0_0_30px_rgba(132,204,22,0.25)] hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-10px_rgba(132,204,22,0.65)] transition',
+      secondary: 'px-4 py-2 rounded-full glass-button glass-hover text-white transition',
+      ghost: 'px-3 py-2 rounded-xl glass-hover transition'
     },
     
     // Navigation
     nav: {
-      item: 'group flex items-center gap-3 px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition will-change-transform',
-      itemActive: 'group flex items-center gap-3 px-3 py-2 rounded-xl bg-white/10 border border-white/10',
+      item: 'group flex items-center gap-3 px-3 py-2 rounded-xl glass-button glass-hover hover:-translate-y-0.5 transition will-change-transform',
+      itemActive: 'group flex items-center gap-3 px-3 py-2 rounded-xl glass-badge',
       icon: 'w-5 h-5',
       text: 'text-sm font-medium'
     },
 
     // Status Badges
     badge: {
-      base: 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border',
-      success: 'bg-lime-400/10 border-lime-400/20 text-lime-200',
-      warning: 'bg-orange-400/10 border-orange-400/20 text-orange-200',
-      error: 'bg-red-500/10 border-red-500/20 text-red-300',
-      info: 'bg-cyan-400/10 border-cyan-400/20 text-cyan-300',
-      pending: 'bg-slate-400/10 border-slate-400/20 text-slate-200'
+      base: 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium glass-badge',
+      success: 'glass-alert-success text-lime-200',
+      warning: 'border-orange-400/20 text-orange-200',
+      error: 'glass-alert text-red-300',
+      info: 'border-cyan-400/20 text-cyan-300',
+      pending: 'border-slate-400/20 text-slate-200'
     }
   },
 
-  // Backdrop Effects
-  backdrop: {
-    blur: {
-      sm: 'backdrop-blur-sm',
-      md: 'backdrop-blur-md',
-      lg: 'backdrop-blur-lg',
-      xl: 'backdrop-blur-xl'
+  // Glass Effects
+  effects: {
+    glass: {
+      sm: 'glass-morphism-subtle',
+      md: 'glass-morphism',
+      lg: 'glass-morphism-strong',
+      xl: 'glass-morphism-light'
     }
   },
 

@@ -97,7 +97,7 @@ export async function requireAdmin(request: NextRequest) {
   const user = await requireAuth(request);
   const profile = await getUserProfile(user.id);
   
-  const isMasterAdmin = profile?.email === 'absrasel@gmail.com' || profile?.email === 'vic@onpointmarketing.com';
+  const isMasterAdmin = profile?.email === 'absrasel@gmail.com';
   if (!profile || (profile.accessRole !== 'SUPER_ADMIN' && profile.accessRole !== 'MASTER_ADMIN' && !isMasterAdmin)) {
     throw new Error('Forbidden: Admin access required');
   }

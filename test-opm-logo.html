@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Convert SVG to PNG</title>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="200"></canvas>
+    <script>
+        // Create a simple test image with "OPM GEAR" text
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Fill background
+        ctx.fillStyle = '#a8ff00'; // Lime green background like in SVG
+        ctx.fillRect(0, 0, 400, 200);
+        
+        // Add text
+        ctx.fillStyle = '#000000'; // Black text
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('OPM', 200, 80);
+        ctx.fillText('GEAR', 200, 140);
+        
+        // Convert to blob and download
+        canvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'opm-gear-logo.png';
+            a.click();
+        }, 'image/png');
+    </script>
+</body>
+</html>

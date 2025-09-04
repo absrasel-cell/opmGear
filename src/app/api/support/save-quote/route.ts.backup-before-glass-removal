@@ -1,0 +1,304 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
+import prisma from '@/lib/prisma';
+import { nanoid } from 'nanoid';
+import { renderQuotePdfBuffer, updateQuoteOrderPdfUrl } from '@/lib/pdf/renderQuote';
+import { emailNotificationService } from '@/lib/email/notification-service';
+
+export async function POST(request: NextRequest) {
+  console.log('=== SAVE QUOTE REQUEST START ===');
+  console.log('Request timestamp:', new Date().toISOString());
+  
+  try {
+    const { quoteData, conversationId, sessionId, userProfile, uploadedFiles = [] } = await request.json();
+
+    console.log('Request payload received:', {
+      hasQuoteData: !!quoteData,
+      conversationId,
+      sessionId,
+      hasUserProfile: !!userProfile,
+      uploadedFilesCount: uploadedFiles.length
+    });
+
+    if (!quoteData) {
+      console.log('❌ Missing quote data');
+      return NextResponse.json(
+        { error: 'Quote data is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('Quote data structure:', {
+      hasCapDetails: !!quoteData.capDetails,
+      hasCustomization: !!quoteData.customization,
+      hasDelivery: !!quoteData.delivery,
+      hasPricing: !!quoteData.pricing
+    });
+
+    // Get user from auth header
+    const authHeader = request.headers.get('authorization');
+    let user = null;
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user: authUser }, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error) {
+        user = authUser;
+      }
+    }
+
+    // Generate unique quote ID
+    const quoteId = `QUO-${nanoid(8).toUpperCase()}`;
+
+    // Extract key information from quote data
+    const { capDetails, customization, delivery, pricing } = quoteData;
+
+    // Process uploaded files for storage
+    const processedFiles = uploadedFiles.map((fileUrl: string, index: number) => {
+      // Extract filename from URL
+      const urlParts = fileUrl.split('/');
+      const filename = urlParts[urlParts.length - 1] || `file_${index + 1}`;
+      
+      return {
+        originalName: filename,
+        fileName: filename,
+        fileType: filename.includes('.') ? (() => {
+          const ext = filename.split('.').pop()?.toLowerCase();
+          switch (ext) {
+            case 'pdf': return 'application/pdf';
+            case 'png': return 'image/png';
+            case 'jpg': 
+            case 'jpeg': return 'image/jpeg';
+            case 'gif': return 'image/gif';
+            case 'svg': return 'image/svg+xml';
+            case 'ai': return 'application/illustrator';
+            case 'eps': return 'application/postscript';
+            case 'txt': return 'text/plain';
+            default: return `file/${ext}`;
+          }
+        })() : 'unknown',
+        fileSize: 0, // We don't have size info from URL
+        filePath: fileUrl,
+        bucket: 'uploads',
+        category: filename.toLowerCase().includes('logo') || 
+                  ['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(filename.split('.').pop()?.toLowerCase() || '') 
+                  ? 'LOGO' as const : 'OTHER' as const,
+        isLogo: filename.toLowerCase().includes('logo') || 
+                ['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(filename.split('.').pop()?.toLowerCase() || ''),
+        description: `File uploaded via support chat`,
+        metadata: { uploadSource: 'support_chat' }
+      };
+    });
+
+    // Check if QuoteOrder already exists for this session
+    console.log('Checking for existing quote order with sessionId:', sessionId);
+    let quoteOrder = await prisma.quoteOrder.findUnique({
+      where: { sessionId: sessionId },
+      include: { QuoteOrderFile: true }
+    });
+    console.log('Existing quote order found:', !!quoteOrder);
+
+    if (quoteOrder) {
+      // Update existing quote order
+      quoteOrder = await prisma.quoteOrder.update({
+        where: { id: quoteOrder.id },
+        data: {
+          status: 'QUOTED',
+          title: `Quote for ${capDetails?.productName || 'Custom Cap'}`,
+          productType: capDetails?.productName || 'Custom Cap',
+          quantities: { quantity: pricing?.quantity || 1 },
+          colors: { colors: capDetails?.colors || [] },
+          logoRequirements: {
+            logos: customization?.logos || []
+          },
+          customizationOptions: {
+            accessories: customization?.accessories || [],
+            moldCharges: customization?.totalMoldCharges || 0,
+            delivery: delivery || {}
+          },
+          extractedSpecs: {
+            profile: capDetails?.profile,
+            billShape: capDetails?.billShape,
+            structure: capDetails?.structure,
+            closure: capDetails?.closure,
+            fabric: capDetails?.fabric,
+            sizes: capDetails?.sizes || []
+          },
+          estimatedCosts: {
+            baseProductCost: pricing?.baseProductCost || 0,
+            logosCost: pricing?.logosCost || 0,
+            deliveryCost: pricing?.deliveryCost || 0,
+            total: pricing?.total || 0
+          },
+          aiSummary: `Quote generated for ${pricing?.quantity || 1} ${capDetails?.productName || 'Custom Cap'}(s) with total cost of $${pricing?.total || 0}`,
+          uploadedFiles: uploadedFiles,
+          logoFiles: uploadedFiles.filter((url: string) => 
+            ['png', 'jpg', 'jpeg', 'gif', 'svg'].some(ext => url.toLowerCase().includes(ext))
+          ),
+          attachments: uploadedFiles.map((url: string) => ({ url, type: 'file' })),
+          lastActivityAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+
+      // Delete existing QuoteOrderFile entries and create new ones
+      if (processedFiles.length > 0) {
+        await prisma.quoteOrderFile.deleteMany({
+          where: { quoteOrderId: quoteOrder.id }
+        });
+
+        await prisma.quoteOrderFile.createMany({
+          data: processedFiles.map(file => ({
+            id: nanoid(),
+            quoteOrderId: quoteOrder.id,
+            ...file
+          }))
+        });
+      }
+    } else {
+      // Create new quote order
+      quoteOrder = await prisma.quoteOrder.create({
+        data: {
+          id: quoteId,
+          sessionId: sessionId,
+          status: 'QUOTED',
+          title: `Quote for ${capDetails?.productName || 'Custom Cap'}`,
+          customerEmail: userProfile?.email || user?.email,
+          customerName: userProfile?.name || user?.user_metadata?.name,
+          customerPhone: userProfile?.phone,
+          customerAddress: typeof userProfile?.address === 'string' ? userProfile.address : 
+            (userProfile?.address ? `${userProfile.address.street || ''} ${userProfile.address.city || ''} ${userProfile.address.state || ''}`.trim() : null),
+          customerCompany: userProfile?.company,
+          productType: capDetails?.productName || 'Custom Cap',
+          quantities: { quantity: pricing?.quantity || 1 },
+          colors: { colors: capDetails?.colors || [] },
+          logoRequirements: {
+            logos: customization?.logos || []
+          },
+          customizationOptions: {
+            accessories: customization?.accessories || [],
+            moldCharges: customization?.totalMoldCharges || 0,
+            delivery: delivery || {}
+          },
+          extractedSpecs: {
+            profile: capDetails?.profile,
+            billShape: capDetails?.billShape,
+            structure: capDetails?.structure,
+            closure: capDetails?.closure,
+            fabric: capDetails?.fabric,
+            sizes: capDetails?.sizes || []
+          },
+          estimatedCosts: {
+            baseProductCost: pricing?.baseProductCost || 0,
+            logosCost: pricing?.logosCost || 0,
+            deliveryCost: pricing?.deliveryCost || 0,
+            total: pricing?.total || 0
+          },
+          aiSummary: `Quote generated for ${pricing?.quantity || 1} ${capDetails?.productName || 'Custom Cap'}(s) with total cost of $${pricing?.total || 0}`,
+          uploadedFiles: uploadedFiles,
+          logoFiles: uploadedFiles.filter((url: string) => 
+            ['png', 'jpg', 'jpeg', 'gif', 'svg'].some(ext => url.toLowerCase().includes(ext))
+          ),
+          attachments: uploadedFiles.map((url: string) => ({ url, type: 'file' })),
+          complexity: 'SIMPLE',
+          priority: 'NORMAL'
+        }
+      });
+
+      // Create QuoteOrderFile entries for uploaded files
+      if (processedFiles.length > 0) {
+        await prisma.quoteOrderFile.createMany({
+          data: processedFiles.map(file => ({
+            id: nanoid(),
+            quoteOrderId: quoteOrder.id,
+            ...file
+          }))
+        });
+      }
+    }
+
+    console.log('✅ Quote saved successfully:', quoteOrder.id);
+    
+    // Auto-generate PDF for the quote (run in background, don't block response)
+    try {
+      console.log('📄 Generating PDF for quote order:', quoteOrder.id);
+      const pdfBuffer = await renderQuotePdfBuffer(quoteOrder.id);
+      
+      if (pdfBuffer && pdfBuffer.length > 0) {
+        // Update the quote order with PDF URL
+        const pdfUrl = `/api/quotes/${quoteOrder.id}/pdf`;
+        await updateQuoteOrderPdfUrl(quoteOrder.id, pdfUrl);
+        console.log('✅ PDF generated and URL updated for quote:', quoteOrder.id);
+      }
+    } catch (pdfError) {
+      // Don't fail the quote save if PDF generation fails
+      console.error('⚠️ PDF generation failed for quote order:', quoteOrder.id, pdfError);
+      console.error('PDF Error details:', {
+        message: pdfError?.message,
+        name: pdfError?.name,
+        stack: pdfError?.stack
+      });
+    }
+    
+    // Send email notifications using enhanced notification service (run in background, don't block response)
+    setImmediate(async () => {
+      try {
+        const notificationResult = await emailNotificationService.sendAIQuoteNotifications({
+          id: quoteOrder.id,
+          sessionId: quoteOrder.sessionId,
+          productType: quoteOrder.productType || 'Custom Cap',
+          customerName: quoteOrder.customerName,
+          customerEmail: quoteOrder.customerEmail,
+          customerPhone: quoteOrder.customerPhone,
+          customerCompany: quoteOrder.customerCompany,
+          status: quoteOrder.status,
+          quantities: quoteOrder.quantities,
+          estimatedCosts: quoteOrder.estimatedCosts,
+          uploadedFiles: quoteOrder.uploadedFiles,
+          logoFiles: quoteOrder.logoFiles,
+          logoRequirements: quoteOrder.logoRequirements,
+          extractedSpecs: quoteOrder.extractedSpecs,
+          aiSummary: quoteOrder.aiSummary,
+          createdAt: quoteOrder.createdAt ? quoteOrder.createdAt.toISOString() : new Date().toISOString()
+        }, uploadedFiles);
+
+        // Send fallback notification if both emails failed
+        if (!notificationResult.customerSuccess && !notificationResult.adminSuccess && notificationResult.errors.length > 0) {
+          await emailNotificationService.sendFallbackNotification('ai', quoteOrder.id, notificationResult.errors);
+        }
+      } catch (error) {
+        console.error('❌ Email notification service failed for AI quote:', quoteOrder.id, error);
+      }
+    });
+    
+    console.log('=== SAVE QUOTE REQUEST END ===');
+    
+    return NextResponse.json({
+      success: true,
+      quoteId: quoteOrder.id,
+      message: 'Quote saved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error saving quote:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
+    
+    // More specific error message
+    const errorMessage = error.message || 'Unknown error occurred';
+    
+    return NextResponse.json(
+      { 
+        error: 'Failed to save quote',
+        details: errorMessage,
+        timestamp: new Date().toISOString()
+      },
+      { status: 500 }
+    );
+  }
+}
+

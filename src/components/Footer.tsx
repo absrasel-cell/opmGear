@@ -1,198 +1,88 @@
-"use client";
-
-import Link from "next/link";
-import React, { useState } from "react";
+import React from "react";
 
 export default function Footer() {
-  const year = new Date().getFullYear();
-  const [email, setEmail] = useState("");
-  const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-
-  const handleNewsletterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    
-    setSubscribeStatus("loading");
-    // Simulate API call
-    setTimeout(() => {
-      setSubscribeStatus("success");
-      setEmail("");
-      setTimeout(() => setSubscribeStatus("idle"), 3000);
-    }, 1000);
-  };
-
-  const nav = {
-    Shop: [
-      { label: "All Products", href: "/store" },
-      { label: "Custom Caps", href: "/customize" },
-      { label: "Bulk Orders", href: "/store" },
-      { label: "Size Guide", href: "/size-guide" },
-      { label: "Design Gallery", href: "/gallery" },
-    ],
-    "Customer Service": [
-      { label: "Contact Us", href: "/contact" },
-      { label: "Order Status", href: "/dashboard" },
-      { label: "Shipping Info", href: "/shipping" },
-      { label: "Returns & Exchanges", href: "/returns" },
-      { label: "FAQ", href: "/faq" },
-    ],
-    Company: [
-      { label: "About OPM Gear", href: "/about" },
-      { label: "Our Story", href: "/story" },
-      { label: "Careers", href: "/careers" },
-      { label: "Press Kit", href: "/press" },
-      { label: "Sustainability", href: "/sustainability" },
-    ],
-    Legal: [
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "Terms of Service", href: "/terms" },
-      { label: "Refund Policy", href: "/refunds" },
-      { label: "Cookie Policy", href: "/cookies" },
-    ],
-  } as const;
-
   return (
-    <footer className="relative w-full bg-black/95 backdrop-blur-sm border-t border-lime-400/20 text-white">
-      {/* Background effects */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute -top-20 left-1/4 w-40 h-40 bg-lime-400/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-20 right-1/4 w-40 h-40 bg-lime-400/3 rounded-full blur-3xl" />
-      </div>
-
-      <div className="max-w-[1800px] mx-auto px-6 md:px-10 py-16">
-        
-        {/* Top Footer Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
-            
-          {/* Company Info */}
-          <div className="col-span-1 md:col-span-2 lg:col-span-1">
-            <div className="flex items-center mb-6">
-              <div className="relative h-16 w-auto">
-                <img 
-                  src="/opmLogo.svg" 
-                  alt="OPM Gear" 
-                  className="h-16 w-auto object-contain filter drop-shadow-[0_0_20px_rgba(132,204,22,0.4)]"
-                />
+    <footer className="relative glass-footer rounded-3xl border-t border-white/20 max-w-[1850px] mx-auto">
+      <div className="rounded-3xl px-6 pt-16 pb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+          <div className="lg:col-span-1">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-600 to-red-600 flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white" style={{ strokeWidth: 1.5 }}>
+                  <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
+                </svg>
               </div>
+              <span className="font-semibold text-xl tracking-tight text-white font-sans">US Custom Cap</span>
             </div>
-            <p className="text-gray-400 font-light mb-6 text-sm leading-relaxed">
-              We are a premium custom headwear company focused on quality, creativity, and customer satisfaction, working globally with teams, schools, and creators.
+            <p className="text-stone-400 mb-6 leading-relaxed font-sans">
+              Premium custom baseball caps and headwear designed with professional quality and personalized branding for teams, businesses, and individuals.
             </p>
-            
-            {/* Newsletter Signup */}
-            <div className="mb-6">
-              <h4 className="text-white font-medium mb-3">Stay Updated</h4>
-              <form onSubmit={handleNewsletterSubmit} className="space-y-2">
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-lg border border-gray-600 bg-gray-900/50 px-3 py-2 text-white placeholder:text-gray-500 focus:border-lime-400 focus:outline-none text-sm"
-                  disabled={subscribeStatus === "loading"}
-                />
-                <button
-                  type="submit"
-                  disabled={subscribeStatus === "loading" || !email.trim()}
-                  className="w-full rounded-lg bg-lime-400 px-3 py-2 font-medium text-black transition-colors hover:bg-lime-300 disabled:opacity-50 text-sm"
-                >
-                  {subscribeStatus === "loading" ? "Subscribing..." : "Subscribe"}
-                </button>
-              </form>
-              {subscribeStatus === "success" && (
-                <p className="mt-2 text-lime-400 text-sm">✓ Successfully subscribed!</p>
-              )}
-            </div>
-            
-            {/* Social Media */}
-            <div className="flex space-x-4">
-              <a href="https://facebook.com/opmgear" className="text-gray-400 hover:text-lime-400 transition-colors">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd"></path>
+            <div className="flex items-center gap-4">
+              <a href="#" className="w-10 h-10 rounded-full glass-button glass-hover flex items-center justify-center transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400 hover:text-white">
+                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
                 </svg>
               </a>
-              <a href="https://x.com/opmgear" className="text-gray-400 hover:text-lime-400 transition-colors">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
+              <a href="#" className="w-10 h-10 rounded-full glass-button glass-hover flex items-center justify-center transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400 hover:text-white">
+                  <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path>
                 </svg>
               </a>
-              <a href="https://instagram.com/opmgear" className="text-gray-400 hover:text-lime-400 transition-colors">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clipRule="evenodd"></path>
+              <a href="#" className="w-10 h-10 rounded-full glass-button glass-hover flex items-center justify-center transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400 hover:text-white">
+                  <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+                  <path d="m16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                  <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
                 </svg>
               </a>
-              <a href="https://youtube.com/@opmgear" className="text-gray-400 hover:text-lime-400 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M22.54 6.42a2.78 2.78 0 0 0-1.95-2C18.88 3.87 12 3.87 12 3.87s-6.88 0-8.59.55a2.78 2.78 0 0 0-1.95 2 29.94 29.94 0 0 0-.46 5.08 29.94 29.94 0 0 0 .46 5.08 2.78 2.78 0 0 0 1.95 2c1.71.55 8.59.55 8.59.55s6.88 0 8.59-.55a2.78 2.78 0 0 0 1.95-2 29.94 29.94 0 0 0 .46-5.08 29.94 29.94 0 0 0-.46-5.08Z"></path>
-                  <polygon points="9.75,15.02 15.5,11.13 9.75,7.23"></polygon>
+              <a href="#" className="w-10 h-10 rounded-full glass-button glass-hover flex items-center justify-center transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-stone-400 hover:text-white">
+                  <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path>
+                  <path d="m10 15 5-3-5-3z"></path>
                 </svg>
               </a>
             </div>
           </div>
-          
-          {/* Quick Links */}
-          <div>
-            <h3 className="text-lg font-medium mb-4 text-white">Quick Links</h3>
-            <ul className="space-y-2">
-              <li><Link href="/" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Home</Link></li>
-              <li><Link href="/about" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">About Us</Link></li>
-              <li><Link href="/store" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Shop</Link></li>
-              <li><Link href="/customize" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Custom Design</Link></li>
-              <li><Link href="/contact" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Contact</Link></li>
+
+          <div className="">
+            <h3 className="text-white font-semibold mb-6 tracking-tight font-sans">Products</h3>
+            <ul className="space-y-4">
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">6-Panel Caps</a></li>
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">FlatBill Caps</a></li>
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">Bucket Hats</a></li>
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">Visor Caps</a></li>
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">Sandwich Caps</a></li>
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">Curved Bill Caps</a></li>
             </ul>
           </div>
-          
-          {/* Products */}
-          <div>
-            <h3 className="text-lg font-medium mb-4 text-white">Products</h3>
-            <ul className="space-y-2">
-              <li><Link href="/store" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Custom Caps</Link></li>
-              <li><Link href="/store" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Team Headwear</Link></li>
-              <li><Link href="/store" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">School Spirit</Link></li>
-              <li><Link href="/store" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Bulk Orders</Link></li>
-              <li><Link href="/store" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Design Gallery</Link></li>
+
+          <div className="">
+            <h3 className="text-white font-semibold mb-6 tracking-tight font-sans">Services</h3>
+            <ul className="space-y-4">
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">Custom Embroidery</a></li>
+              <li><a href="/quote-request" className="text-stone-400 hover:text-white transition-colors font-sans">Bulk Orders</a></li>
+              <li><a href="/quote-request" className="text-stone-400 hover:text-white transition-colors font-sans">Logo Design</a></li>
+              <li><a href="/customize/baseball-cap" className="text-stone-400 hover:text-white transition-colors font-sans">Heat Transfer</a></li>
+              <li><a href="/quote-request" className="text-stone-400 hover:text-white transition-colors font-sans">Corporate Branding</a></li>
+              <li><a href="/quote-request" className="text-stone-400 hover:text-white transition-colors font-sans">Team Uniforms</a></li>
             </ul>
           </div>
-          
-          {/* Contact */}
-          <div>
-            <h3 className="text-lg font-medium mb-4 text-white">Contact Us</h3>
-            <ul className="space-y-3">
-              <li className="flex items-start">
-                <svg className="w-5 h-5 text-lime-400 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                <span className="text-gray-400 text-sm">123 Custom Avenue, Design City, DC 12345</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-5 h-5 text-lime-400 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                </svg>
-                <span className="text-gray-400 text-sm">support@opmgear.com</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-5 h-5 text-lime-400 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
-                </svg>
-                <span className="text-gray-400 text-sm">1-800-OPM-GEAR (676-4327)</span>
-              </li>
+
+          <div className="">
+            <h3 className="text-white font-semibold mb-6 tracking-tight font-sans">Support</h3>
+            <ul className="space-y-4 mb-6">
+              <li><a href="/messages" className="text-stone-400 hover:text-white transition-colors font-sans">Help Center</a></li>
+              <li><a href="/messages" className="text-stone-400 hover:text-white transition-colors font-sans">Contact Support</a></li>
+              <li><a href="/quote-request" className="text-stone-400 hover:text-white transition-colors font-sans">Get Quote</a></li>
+              <li><a href="/cart" className="text-stone-400 hover:text-white transition-colors font-sans">Order Tracking</a></li>
+              <li><a href="/messages" className="text-stone-400 hover:text-white transition-colors font-sans">Technical Help</a></li>
             </ul>
-          </div>
-        </div>
-        
-        {/* Divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-lime-400/30 to-transparent my-8"></div>
-        
-        {/* Bottom Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <p className="text-gray-400 text-sm mb-4 md:mb-0">
-            © {year} <span className="text-lime-400 font-medium">OPM Gear</span>. All rights reserved.
-          </p>
-          <div className="flex space-x-6">
-            <Link href="/privacy" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Privacy Policy</Link>
-            <Link href="/terms" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Terms of Service</Link>
-            <Link href="/cookies" className="text-gray-400 hover:text-lime-400 transition-colors text-sm">Cookies</Link>
+            <div className="flex items-center gap-2 text-sm text-stone-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <span className="font-sans">24/7 Support Available</span>
+            </div>
           </div>
         </div>
       </div>

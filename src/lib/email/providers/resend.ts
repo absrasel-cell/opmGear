@@ -14,9 +14,9 @@ export class ResendProvider implements EmailProvider {
   async sendInvoiceEmail(payload: InvoiceEmailPayload): Promise<void> {
     try {
       const { data, error } = await this.resend.emails.send({
-        from: 'OPM Gear <noreply@opmgear.com>',
+        from: 'US Custom Cap <noreply@uscustomcap.com>',
         to: [payload.to],
-        subject: `Invoice ${payload.invoiceNumber || payload.invoiceId} - OPM Gear`,
+        subject: `Invoice ${payload.invoiceNumber || payload.invoiceId} - US Custom Cap`,
         html: this.generateEmailHtml(payload),
         text: this.generateEmailText(payload)
       });
@@ -37,7 +37,7 @@ export class ResendProvider implements EmailProvider {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">OPM Gear</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">US Custom Cap</h1>
           <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Custom Baseball Caps</p>
         </div>
         
@@ -65,7 +65,7 @@ export class ResendProvider implements EmailProvider {
           </p>
           
           <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 12px;">
-            <p>This email was sent by OPM Gear. If you have any questions, please contact our support team.</p>
+            <p>This email was sent by US Custom Cap. If you have any questions, please contact our support team.</p>
           </div>
         </div>
       </div>
@@ -74,7 +74,7 @@ export class ResendProvider implements EmailProvider {
 
   private generateEmailText(payload: InvoiceEmailPayload): string {
     return `
-OPM Gear - Your Invoice is Ready
+US Custom Cap - Your Invoice is Ready
 
 Hi${payload.customerName ? ` ${payload.customerName}` : ''},
 
@@ -86,7 +86,7 @@ Download your invoice: ${payload.downloadLink}
 If you have any questions about this invoice, please don't hesitate to contact us.
 
 Best regards,
-The OPM Gear Team
+The US Custom Cap Team
     `.trim();
   }
 }

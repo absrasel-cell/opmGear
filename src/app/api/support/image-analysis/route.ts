@@ -1,0 +1,492 @@
+import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
+import { supabaseAdmin } from '@/lib/supabase';
+
+const openai = new OpenAI({
+ apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Helper function to parse text analysis when JSON parsing fails
+function parseTextAnalysis(analysisText: string) {
+ console.log('Parsing text analysis:', analysisText.substring(0, 300));
+ 
+ const analysis = {
+  logoType: "logo",
+  detectedText: "Unable to detect text",
+  textDescription: "Text recognition failed, please provide text manually",
+  colorCount: 1,
+  colors: ["Unknown"],
+  recommendedMethod: "embroidery",
+  recommendedSize: "Large",
+  recommendedPosition: "Front",
+  complexity: "Medium",
+  moldChargeRequired: false,
+  estimatedMoldCharge: 0,
+  productionNotes: analysisText,
+  capSpecifications: {
+   style: null,
+   profile: null,
+   colors: null,
+   accessories: null,
+   fabric: null,
+   closure: null
+  }
+ };
+
+ const text = analysisText.toLowerCase();
+
+ // Parse color count from text
+ const colorNumbers = text.match(/(\d+)\s*colors?/);
+ if (colorNumbers) {
+  analysis.colorCount = parseInt(colorNumbers[1]);
+ }
+
+ // Parse recommended method
+ if (text.includes('screen print') || text.includes('screenprint')) {
+  analysis.recommendedMethod = 'screen_print';
+ } else if (text.includes('rubber patch') || text.includes('rubber')) {
+  analysis.recommendedMethod = 'rubber_patch';
+  analysis.moldChargeRequired = true;
+  analysis.estimatedMoldCharge = 80;
+ } else if (text.includes('sublimated') || text.includes('sublimation')) {
+  analysis.recommendedMethod = 'sublimated_patch';
+ } else if (text.includes('woven')) {
+  analysis.recommendedMethod = 'woven_patch';
+ }
+
+ // Parse recommended size
+ if (text.includes('small')) {
+  analysis.recommendedSize = 'Small';
+ } else if (text.includes('medium')) {
+  analysis.recommendedSize = 'Medium';
+ } else if (text.includes('large')) {
+  analysis.recommendedSize = 'Large';
+ }
+
+ // Parse recommended position
+ if (text.includes('back')) {
+  analysis.recommendedPosition = 'Back';
+ } else if (text.includes('left')) {
+  analysis.recommendedPosition = 'Left';
+ } else if (text.includes('right')) {
+  analysis.recommendedPosition = 'Right';
+ } else if (text.includes('upper bill') || text.includes('bill')) {
+  analysis.recommendedPosition = 'Upper Bill';
+ } else if (text.includes('under bill')) {
+  analysis.recommendedPosition = 'Under Bill';
+ }
+
+ // Parse complexity
+ if (text.includes('complex') || text.includes('detailed')) {
+  analysis.complexity = 'Complex';
+ } else if (text.includes('simple') || text.includes('basic')) {
+  analysis.complexity = 'Simple';
+ }
+
+ console.log('Parsed text analysis result:', {
+  colorCount: analysis.colorCount,
+  recommendedMethod: analysis.recommendedMethod,
+  recommendedSize: analysis.recommendedSize,
+  recommendedPosition: analysis.recommendedPosition,
+  complexity: analysis.complexity
+ });
+
+ return analysis;
+}
+
+export async function POST(request: NextRequest) {
+ try {
+  const { imageUrls, analysisType = 'logo' } = await request.json();
+
+  if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+   return NextResponse.json({ error: 'No image URLs provided' }, { status: 400 });
+  }
+
+  const analysisResults = [];
+
+  for (const imageUrl of imageUrls) {
+   try {
+    console.log('Processing image URL:', imageUrl);
+    
+    // Skip null, undefined, or invalid URLs
+    if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim().length === 0) {
+     console.error('❌ Invalid image URL:', imageUrl, 'Type:', typeof imageUrl);
+     analysisResults.push({
+      imageUrl: String(imageUrl || 'null'),
+      error: 'Invalid image URL - URL is null, undefined, or empty',
+      analysis: null
+     });
+     continue;
+    }
+    
+    let imageDataUrl = imageUrl;
+    
+    // Check if this is a PDF file first
+    const isPdfFile = imageUrl.toLowerCase().includes('.pdf') || 
+             imageUrl.includes('application/pdf') ||
+             imageUrl.startsWith('data:application/pdf');
+    
+    if (isPdfFile) {
+     console.log('🔴 PDF file detected, processing with PDF-to-image conversion...');
+     
+     try {
+      // Import PDF processor
+      const { PDFProcessor } = await import('@/lib/ai/pdf-processor');
+      
+      // Process PDF and extract images
+      const pdfResult = await PDFProcessor.processPDFFromUrl(imageUrl);
+      
+      if (pdfResult.success && pdfResult.images && pdfResult.images.length > 0) {
+       // Use the first extracted image
+       imageDataUrl = pdfResult.images[0];
+       console.log('✅ Successfully extracted image from PDF');
+      } else {
+       console.error('❌ PDF processing failed:', pdfResult.error);
+       analysisResults.push({
+        imageUrl: imageUrl,
+        error: `PDF processing failed: ${pdfResult.error || 'Could not extract images from PDF'}`,
+        analysis: null
+       });
+       continue;
+      }
+     } catch (pdfError) {
+      console.error('❌ PDF processor error:', pdfError);
+      analysisResults.push({
+       imageUrl: imageUrl,
+       error: `PDF analysis error: ${pdfError instanceof Error ? pdfError.message : 'PDF processing failed'}`,
+       analysis: null
+      });
+      continue;
+     }
+    }
+    
+    // Convert ALL URLs to base64 for better OpenAI compatibility
+    // Check if it's already a data URL (base64 encoded)
+    else if (!imageUrl.startsWith('data:')) {
+     // If it's a Supabase URL, use Supabase storage API
+     const isSupabaseUrl = imageUrl.includes('supabase.co') || 
+                imageUrl.includes('nowxzkdkaegjwfhhqoez') ||
+                imageUrl.includes('/storage/v1/object/');
+     
+     if (isSupabaseUrl) {
+     try {
+      console.log('🔧 Supabase URL detected, converting to base64 (FIXED VERSION)...');
+      console.log('Original URL:', imageUrl);
+      
+      // Extract the file path from the URL - handle both storage/v1/object and direct bucket URLs
+      let filePath = '';
+      const urlParts = imageUrl.split('/');
+      console.log('URL parts breakdown:', urlParts);
+      
+      // Look for storage/v1/object pattern first (typical Supabase public URLs)
+      const objectIndex = urlParts.findIndex(part => part === 'object');
+      console.log('Object index found at:', objectIndex);
+      
+      if (objectIndex !== -1 && urlParts[objectIndex + 1] === 'public' && urlParts[objectIndex + 2] === 'uploads') {
+       // Pattern: .../storage/v1/object/public/uploads/messages/filename
+       filePath = urlParts.slice(objectIndex + 3).join('/');
+       console.log('Using storage/v1/object pattern, extracted path:', filePath);
+      } else {
+       // Fallback: look for uploads bucket directly
+       const bucketIndex = urlParts.findIndex(part => part === 'uploads');
+       console.log('Bucket index found at:', bucketIndex);
+       if (bucketIndex !== -1 && bucketIndex < urlParts.length - 1) {
+        filePath = urlParts.slice(bucketIndex + 1).join('/');
+        console.log('Using direct uploads pattern, extracted path:', filePath);
+       } else {
+        console.log('Neither pattern matched - URL structure:', {
+         hasObject: urlParts.includes('object'),
+         hasPublic: urlParts.includes('public'),
+         hasUploads: urlParts.includes('uploads'),
+         urlParts: urlParts
+        });
+       }
+      }
+      
+      console.log('Extracted file path:', filePath);
+      
+      if (filePath) {
+       // Download the file from Supabase
+       const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+        .from('uploads')
+        .download(filePath);
+       
+       if (downloadError || !fileData) {
+        throw new Error(`Failed to download file: ${downloadError?.message || 'No data'}`);
+       }
+        
+        // Convert to base64
+        const arrayBuffer = await fileData.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        
+        // Determine MIME type from file extension or Blob type
+        let mimeType = fileData.type || 'image/jpeg';
+        if (filePath.toLowerCase().endsWith('.png')) mimeType = 'image/png';
+        if (filePath.toLowerCase().endsWith('.jpg') || filePath.toLowerCase().endsWith('.jpeg')) mimeType = 'image/jpeg';
+        if (filePath.toLowerCase().endsWith('.gif')) mimeType = 'image/gif';
+        if (filePath.toLowerCase().endsWith('.webp')) mimeType = 'image/webp';
+        if (filePath.toLowerCase().endsWith('.pdf')) mimeType = 'application/pdf';
+        
+        imageDataUrl = `data:${mimeType};base64,${base64}`;
+        console.log(`Successfully converted to base64 (${base64.length} chars, type: ${mimeType})`);
+      } else {
+       console.log('Could not extract file path from URL parts:', urlParts);
+       console.log('Will try original URL as fallback');
+      }
+     } catch (supabaseError) {
+      console.error('Error processing Supabase URL:', supabaseError);
+      console.log('Falling back to original URL');
+     }
+     } else {
+      // Handle regular web URLs by downloading and converting to base64
+      try {
+       console.log('🌐 Regular web URL detected, converting to base64...');
+       console.log('Fetching URL:', imageUrl);
+       
+       const response = await fetch(imageUrl);
+       if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+       }
+       
+       const arrayBuffer = await response.arrayBuffer();
+       const base64 = Buffer.from(arrayBuffer).toString('base64');
+       
+       // Determine MIME type from response headers or URL extension
+       let mimeType = response.headers.get('content-type') || 'image/jpeg';
+       if (!mimeType.startsWith('image/') && !mimeType.startsWith('application/pdf')) {
+        // Fallback to extension-based detection
+        if (imageUrl.toLowerCase().includes('.png')) mimeType = 'image/png';
+        else if (imageUrl.toLowerCase().includes('.jpg') || imageUrl.toLowerCase().includes('.jpeg')) mimeType = 'image/jpeg';
+        else if (imageUrl.toLowerCase().includes('.gif')) mimeType = 'image/gif';
+        else if (imageUrl.toLowerCase().includes('.webp')) mimeType = 'image/webp';
+        else if (imageUrl.toLowerCase().includes('.pdf')) mimeType = 'application/pdf';
+        else mimeType = 'image/jpeg'; // Default fallback
+       }
+       
+       imageDataUrl = `data:${mimeType};base64,${base64}`;
+       console.log(`Successfully converted web URL to base64 (${base64.length} chars, type: ${mimeType})`);
+      } catch (fetchError) {
+       console.error('Error fetching and converting web URL:', fetchError);
+       console.log('Will try using original URL directly');
+       // Keep original URL as fallback
+      }
+     }
+    }
+    
+    let prompt = '';
+    
+    if (analysisType === 'logo') {
+     prompt = `Analyze this logo/artwork image and provide detailed information for custom cap production:
+
+1. **TEXT RECOGNITION - CRITICAL:**
+  - Read and identify ALL text/letters/words visible in the logo
+  - Provide the exact text content you see (this is the most important part)
+  - Note the font style and text arrangement
+
+2. **Logo Type Detection:**
+  - Is this a factory-ready artwork with complete cap specifications?
+  - Is this just a logo file that needs positioning?
+
+3. **Color Analysis:**
+  - Count the exact number of distinct colors in the logo
+  - List each color (name or hex if possible)
+  - Determine the best printing method based on colors:
+   * 1-6 colors: Embroidery (recommended)
+   * 7-15 colors: Screen Print (economic) or Rubber Patch (premium)
+   * 16+ colors or photo-like: Sublimated Patch
+
+4. **Logo Specifications:**
+  - Suggested size (Small/Medium/Large)
+  - Recommended position (Front/Back/Left/Right/Upper Bill/Under Bill)
+  - Design complexity (Simple/Medium/Complex)
+
+5. **Production Notes:**
+  - Any special considerations for manufacturing
+  - Estimated mold charges if applicable (Leather/Rubber patches)
+  - Recommended fabric compatibility
+
+Return the analysis in JSON format with these exact fields:
+{
+ "logoType": "logo" | "factory_ready_artwork",
+ "detectedText": string,
+ "textDescription": string,
+ "colorCount": number,
+ "colors": [string],
+ "recommendedMethod": "embroidery" | "screen_print" | "rubber_patch" | "sublimated_patch" | "woven_patch",
+ "recommendedSize": "Small" | "Medium" | "Large",
+ "recommendedPosition": "Front" | "Back" | "Left" | "Right" | "Upper Bill" | "Under Bill",
+ "complexity": "Simple" | "Medium" | "Complex",
+ "moldChargeRequired": boolean,
+ "estimatedMoldCharge": number,
+ "productionNotes": string,
+ "capSpecifications": {
+  "style": string | null,
+  "profile": string | null,
+  "colors": [string] | null,
+  "accessories": [string] | null,
+  "fabric": string | null,
+  "closure": string | null
+ }
+}`;
+    } else if (analysisType === 'factory_artwork') {
+     prompt = `Analyze this factory-ready artwork/mockup and extract all cap production specifications:
+
+1. **Cap Style Information:**
+  - Cap style/model (if visible)
+  - Profile: High/Mid/Low
+  - Bill shape: Flat/Slight Curved/Curved
+  - Panel count: 4/5/6/7-Panel
+  - Structure: Structured/Unstructured/Foam
+
+2. **Color & Fabric:**
+  - Primary cap colors (up to 3 colors)
+  - Fabric types (if identifiable)
+  - Premium fabric indicators
+
+3. **Logo/Design Details:**
+  - Logo positions and sizes
+  - Logo types (embroidery/patch/print)
+  - Number of logo colors
+
+4. **Accessories & Features:**
+  - Closure type (snapback/fitted/adjustable)
+  - Any accessories (tags, buttons, etc.)
+  - Premium features
+
+5. **Quantity & Specifications:**
+  - Any quantity information visible
+  - Size range information
+
+Return complete cap specifications in JSON format.`;
+    }
+
+    console.log('Sending request to OpenAI with image data:', 
+     imageDataUrl.startsWith('data:') ? 
+      `base64 data (${imageDataUrl.substring(0, 50)}...)` : 
+      imageDataUrl.substring(0, 100) + '...');
+    
+    const response = await openai.chat.completions.create({
+     model: "gpt-4o",
+     messages: [
+      {
+       role: "system",
+       content: "You are a professional logo and artwork analyzer for custom cap production. You MUST respond with ONLY valid JSON format. No markdown, no code blocks, no explanatory text - just the raw JSON object. Analyze the image thoroughly and provide accurate specifications."
+      },
+      {
+       role: "user",
+       content: [
+        {
+         type: "text",
+         text: prompt
+        },
+        {
+         type: "image_url",
+         image_url: {
+          url: imageDataUrl,
+          detail: "high"
+         }
+        }
+       ]
+      }
+     ],
+     max_tokens: 1000,
+     temperature: 0.1, // Lower temperature for more consistent analysis
+     response_format: { type: "json_object" }
+    });
+
+    const analysisText = response.choices[0]?.message?.content;
+    
+    // Try to parse JSON from the response
+    let analysis;
+    try {
+     console.log('Raw analysis response:', analysisText?.substring(0, 500));
+     
+     // Multiple extraction methods for better JSON parsing
+     let jsonString = null;
+     
+     // Method 1: Look for JSON wrapped in markdown code blocks
+     const markdownMatch = analysisText?.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+     if (markdownMatch) {
+      jsonString = markdownMatch[1].trim();
+      console.log('Found JSON in markdown:', jsonString.substring(0, 200));
+     }
+     
+     // Method 2: Look for JSON object pattern (more flexible)
+     if (!jsonString) {
+      const jsonMatch = analysisText?.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+       jsonString = jsonMatch[0].trim();
+       console.log('Found JSON object:', jsonString.substring(0, 200));
+      }
+     }
+     
+     // Method 3: Try to extract JSON from the entire response if it starts with {
+     if (!jsonString && analysisText?.trim().startsWith('{')) {
+      jsonString = analysisText.trim();
+      console.log('Using entire response as JSON:', jsonString.substring(0, 200));
+     }
+     
+     if (jsonString) {
+      analysis = JSON.parse(jsonString);
+      console.log('Successfully parsed JSON analysis:', {
+       logoType: analysis.logoType,
+       colorCount: analysis.colorCount,
+       recommendedMethod: analysis.recommendedMethod,
+       recommendedSize: analysis.recommendedSize,
+       recommendedPosition: analysis.recommendedPosition
+      });
+     } else {
+      console.log('No JSON found in response, creating structured fallback');
+      // Create a more informed fallback by parsing the text response
+      analysis = parseTextAnalysis(analysisText || "");
+     }
+    } catch (parseError) {
+     console.error('Error parsing analysis JSON:', parseError);
+     console.error('Failed JSON string:', jsonString);
+     // Create more informed fallback analysis
+     analysis = parseTextAnalysis(analysisText || "Analysis completed but couldn't parse structured data");
+    }
+
+    analysisResults.push({
+     imageUrl,
+     analysis,
+     rawResponse: analysisText
+    });
+
+   } catch (imageError) {
+    console.error('Error analyzing image:', imageUrl, imageError);
+    
+    // Provide more specific error information
+    let errorMessage = 'Failed to analyze image';
+    if (imageError instanceof Error) {
+     if (imageError.message.includes('Invalid image URL')) {
+      errorMessage = 'Invalid or inaccessible image URL';
+     } else if (imageError.message.includes('rate_limit')) {
+      errorMessage = 'API rate limit exceeded, please try again later';
+     } else {
+      errorMessage = `Analysis failed: ${imageError.message}`;
+     }
+    }
+    
+    analysisResults.push({
+     imageUrl,
+     error: errorMessage,
+     analysis: null
+    });
+   }
+  }
+
+  return NextResponse.json({ 
+   success: true, 
+   results: analysisResults,
+   totalImages: imageUrls.length
+  });
+
+ } catch (error) {
+  console.error('Image analysis error:', error);
+  return NextResponse.json({ 
+   error: 'Failed to analyze images', 
+   details: error instanceof Error ? error.message : 'Unknown error'
+  }, { status: 500 });
+ }
+}

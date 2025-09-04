@@ -1,0 +1,791 @@
+'use client';
+
+import React, { useState, useMemo, useCallback } from 'react';
+import { useAuth } from '@/components/auth/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebounced } from '@/hooks/useDebounced';
+import Link from 'next/link';
+import {
+ Package,
+ Search,
+ Filter,
+ Download,
+ Eye,
+ Edit,
+ Truck,
+ CheckCircle,
+ Clock,
+ AlertCircle,
+ ChevronDown,
+ ChevronUp,
+ MoreHorizontal,
+ Calendar,
+ User,
+ Mail,
+ Phone,
+ Building,
+ DollarSign,
+ FileText,
+ RefreshCw,
+ Trash2,
+ Ship,
+ X,
+ Receipt,
+ ChevronLeft,
+ ChevronRight
+} from 'lucide-react';
+
+import {
+ DashboardShell,
+ DashboardContent,
+ GlassCard,
+ Button,
+ Table,
+ TableHeader,
+ TableBody,
+ TableRow,
+ TableCell,
+ TableHeaderCell,
+ StatusBadge,
+ SearchInput
+} from '@/components/ui/dashboard';
+import Sidebar from '@/components/ui/dashboard/Sidebar';
+import DashboardHeader from '@/components/ui/dashboard/DashboardHeader';
+import ShipmentBuilder from '@/components/ui/dashboard/ShipmentBuilder';
+import AdminLogoAssetsDisplay from '@/components/dashboard/AdminLogoAssetsDisplay';
+import { queryKeys, fetchOrders, cacheUtils } from '@/lib/react-query';
+
+interface Order {
+ id: string;
+ productName: string;
+ status: string;
+ orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER';
+ isDraft?: boolean;
+ createdAt: string;
+ updatedAt: string;
+ customerInfo: {
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+ };
+ orderTotal?: number;
+ itemTotal?: number;
+ userId?: string;
+ userEmail?: string;
+ orderType: 'AUTHENTICATED' | 'GUEST';
+ selectedColors: Record<string, any>;
+ selectedOptions: Record<string, string>;
+ multiSelectOptions: Record<string, string[]>;
+ logoSetupSelections: Record<string, {
+  position?: string;
+  size?: string;
+  application?: string;
+ }>;
+ paymentProcessed?: boolean;
+ trackingNumber?: string;
+ estimatedDelivery?: string;
+ lastEditedBy?: {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  editedAt: string;
+ };
+ uploadedLogoFiles?: Array<{url: string, name: string, size: number, type: string}>;
+ additionalInstructions?: string;
+ shipmentId?: string;
+ totalUnits?: number;
+ shipment?: {
+  id: string;
+  buildNumber: string;
+  shippingMethod: string;
+  status: string;
+  estimatedDeparture?: string;
+  estimatedDelivery?: string;
+  createdAt: string;
+ };
+}
+
+type OrderStatus = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'assigned' | 'unassigned';
+type OrderSource = 'all' | 'PRODUCT_CUSTOMIZATION' | 'REORDER';
+
+interface OrderStats {
+ totalOrders: number;
+ pendingOrders: number;
+ processingOrders: number;
+ shippedOrders: number;
+ deliveredOrders: number;
+ cancelledOrders: number;
+ totalRevenue: number;
+ averageOrderValue: number;
+ assignedOrders: number;
+ unassignedOrders: number;
+}
+
+export default function AdminOrdersPageOptimized() {
+ const { user, loading, isAuthenticated } = useAuth();
+ const router = useRouter();
+ const queryClient = useQueryClient();
+ 
+ // UI State
+ const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+ const [searchQuery, setSearchQuery] = useState('');
+ const [statusFilter, setStatusFilter] = useState<OrderStatus>('all');
+ const [sourceFilter, setSourceFilter] = useState<OrderSource>('all');
+ const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+ const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+ const [showShipmentBuilder, setShowShipmentBuilder] = useState(false);
+ const [isExporting, setIsExporting] = useState(false);
+ 
+ // Pagination State
+ const [currentPage, setCurrentPage] = useState(1);
+ const [pageSize, setPageSize] = useState(25);
+ 
+ // Debounced search for better performance
+ const debouncedSearch = useDebounced(searchQuery, 300);
+
+ // Build query parameters
+ const queryParams = useMemo(() => ({
+  page: currentPage,
+  pageSize,
+  search: debouncedSearch || undefined,
+  status: statusFilter !== 'all' ? statusFilter : undefined,
+  source: sourceFilter !== 'all' ? sourceFilter : undefined,
+  all: false // Use pagination
+ }), [currentPage, pageSize, debouncedSearch, statusFilter, sourceFilter]);
+
+ // Orders query with React Query
+ const {
+  data: ordersData,
+  isLoading,
+  isError,
+  error,
+  isFetching,
+  refetch
+ } = useQuery({
+  ...queryKeys.orders.list(queryParams),
+  queryFn: () => fetchOrders(queryParams),
+  enabled: isAuthenticated && !!user,
+  staleTime: 2 * 60 * 1000, // 2 minutes
+  refetchOnWindowFocus: true,
+  refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
+ });
+
+ const orders = ordersData?.orders || [];
+ const pagination = ordersData?.pagination;
+
+ // Calculate stats from current orders
+ const stats = useMemo(() => {
+  if (!orders.length) {
+   return {
+    totalOrders: 0,
+    pendingOrders: 0,
+    processingOrders: 0,
+    shippedOrders: 0,
+    deliveredOrders: 0,
+    cancelledOrders: 0,
+    totalRevenue: 0,
+    averageOrderValue: 0,
+    assignedOrders: 0,
+    unassignedOrders: 0
+   };
+  }
+
+  const totalOrders = orders.length;
+  const totalRevenue = orders.reduce((sum, order) => sum + (order.orderTotal || 0), 0);
+  
+  return {
+   totalOrders,
+   pendingOrders: orders.filter(o => o.status === 'PENDING').length,
+   processingOrders: orders.filter(o => o.status === 'PROCESSING').length,
+   shippedOrders: orders.filter(o => o.status === 'SHIPPED').length,
+   deliveredOrders: orders.filter(o => o.status === 'DELIVERED').length,
+   cancelledOrders: orders.filter(o => o.status === 'CANCELLED').length,
+   totalRevenue,
+   averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+   assignedOrders: orders.filter(o => o.shipmentId).length,
+   unassignedOrders: orders.filter(o => !o.shipmentId).length
+  };
+ }, [orders]);
+
+ // Handle search with immediate UI update
+ const handleSearchChange = useCallback((value: string) => {
+  setSearchQuery(value);
+  setCurrentPage(1); // Reset to first page when searching
+ }, []);
+
+ // Handle filter changes
+ const handleStatusFilterChange = useCallback((status: OrderStatus) => {
+  setStatusFilter(status);
+  setCurrentPage(1);
+ }, []);
+
+ const handleSourceFilterChange = useCallback((source: OrderSource) => {
+  setSourceFilter(source);
+  setCurrentPage(1);
+ }, []);
+
+ // Pagination handlers
+ const goToPage = useCallback((page: number) => {
+  setCurrentPage(page);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+ }, []);
+
+ const nextPage = useCallback(() => {
+  if (pagination?.hasNext) {
+   goToPage(currentPage + 1);
+  }
+ }, [currentPage, pagination?.hasNext, goToPage]);
+
+ const prevPage = useCallback(() => {
+  if (pagination?.hasPrev) {
+   goToPage(currentPage - 1);
+  }
+ }, [currentPage, pagination?.hasPrev, goToPage]);
+
+ // Refresh data
+ const handleRefresh = useCallback(() => {
+  refetch();
+  cacheUtils.invalidateOrders(); // Invalidate cache to ensure fresh data
+ }, [refetch]);
+
+ // Export functionality (optimized to use server-side generation)
+ const handleExportOrders = useCallback(async () => {
+  try {
+   setIsExporting(true);
+   showNotification('Preparing export...', 'success');
+   
+   const response = await fetch('/api/orders/export', {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+     'Content-Type': 'application/json',
+    },
+   });
+   
+   if (response.ok) {
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `orders_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    showNotification('Orders exported successfully!', 'success');
+   } else {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    const errorMessage = errorData.error || 'Failed to export orders';
+    
+    if (response.status === 401) {
+     showNotification('Authentication required. Please refresh and try again.', 'error');
+    } else if (response.status === 403) {
+     showNotification('Admin access required to export orders.', 'error');
+    } else {
+     showNotification(`Export failed: ${errorMessage}`, 'error');
+    }
+   }
+  } catch (error) {
+   console.error('Error exporting orders:', error);
+   showNotification('Failed to export orders. Please try again.', 'error');
+  } finally {
+   setIsExporting(false);
+  }
+ }, []);
+
+ // Order selection handlers
+ const toggleOrderSelection = useCallback((orderId: string) => {
+  setSelectedOrders(prev => 
+   prev.includes(orderId) 
+    ? prev.filter(id => id !== orderId)
+    : [...prev, orderId]
+  );
+ }, []);
+
+ const selectAllOrders = useCallback(() => {
+  setSelectedOrders(orders.map(order => order.id));
+ }, [orders]);
+
+ const clearSelection = useCallback(() => {
+  setSelectedOrders([]);
+ }, []);
+
+ // Notification system (simplified)
+ const showNotification = useCallback((message: string, type: 'success' | 'error') => {
+  // You can integrate with your existing notification system here
+  console.log(`${type.toUpperCase()}: ${message}`);
+ }, []);
+
+ // Loading states
+ if (loading || !isAuthenticated) {
+  return (
+   <div className="flex items-center justify-center min-h-screen">
+    <div className="flex items-center space-x-2">
+     <RefreshCw className="h-6 w-6 animate-spin" />
+     <span>Loading...</span>
+    </div>
+   </div>
+  );
+ }
+
+ // Access control
+ if (!user?.accessRole || !['STAFF', 'SUPER_ADMIN', 'MASTER_ADMIN'].includes(user.accessRole)) {
+  return (
+   <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+     <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+     <p className="text-gray-400 mb-4">You need admin privileges to access this page.</p>
+     <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+    </div>
+   </div>
+  );
+ }
+
+ return (
+  <DashboardShell>
+   <Sidebar collapsed={sidebarCollapsed} onToggle={setSidebarCollapsed} />
+   <DashboardContent collapsed={sidebarCollapsed}>
+    <DashboardHeader 
+     title="Order Management" 
+     description={`${pagination?.total || 0} total orders`}
+     actions={
+      <div className="flex items-center space-x-3">
+       <Button
+        variant="outline"
+        size="sm"
+        onClick={handleRefresh}
+        disabled={isFetching}
+       >
+        <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+        Refresh
+       </Button>
+       <Button
+        variant="outline"
+        size="sm"
+        onClick={handleExportOrders}
+        disabled={isExporting}
+       >
+        <Download className="h-4 w-4 mr-2" />
+        {isExporting ? 'Exporting...' : 'Export'}
+       </Button>
+       {selectedOrders.length > 0 && (
+        <Button
+         variant="outline"
+         size="sm"
+         onClick={() => setShowShipmentBuilder(true)}
+        >
+         <Ship className="h-4 w-4 mr-2" />
+         Assign to Shipment ({selectedOrders.length})
+        </Button>
+       )}
+      </div>
+     }
+    />
+
+    {/* Stats Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+     <GlassCard className="p-6">
+      <div className="flex items-center justify-between">
+       <div>
+        <p className="text-sm font-medium text-gray-400">Total Orders</p>
+        <p className="text-2xl font-bold text-white">{stats.totalOrders}</p>
+       </div>
+       <Package className="h-8 w-8 text-lime-400" />
+      </div>
+     </GlassCard>
+     
+     <GlassCard className="p-6">
+      <div className="flex items-center justify-between">
+       <div>
+        <p className="text-sm font-medium text-gray-400">Total Revenue</p>
+        <p className="text-2xl font-bold text-white">${stats.totalRevenue.toFixed(2)}</p>
+       </div>
+       <DollarSign className="h-8 w-8 text-green-400" />
+      </div>
+     </GlassCard>
+     
+     <GlassCard className="p-6">
+      <div className="flex items-center justify-between">
+       <div>
+        <p className="text-sm font-medium text-gray-400">Pending Orders</p>
+        <p className="text-2xl font-bold text-white">{stats.pendingOrders}</p>
+       </div>
+       <Clock className="h-8 w-8 text-yellow-400" />
+      </div>
+     </GlassCard>
+     
+     <GlassCard className="p-6">
+      <div className="flex items-center justify-between">
+       <div>
+        <p className="text-sm font-medium text-gray-400">Shipped Orders</p>
+        <p className="text-2xl font-bold text-white">{stats.shippedOrders}</p>
+       </div>
+       <Truck className="h-8 w-8 text-blue-400" />
+      </div>
+     </GlassCard>
+    </div>
+
+    {/* Filters and Search */}
+    <GlassCard className="p-6 mb-6">
+     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+      <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+       <SearchInput
+        value={searchQuery}
+        onChange={handleSearchChange}
+        placeholder="Search orders, customers, emails..."
+        className="w-full sm:w-80"
+       />
+       
+       <select
+        value={statusFilter}
+        onChange={(e) => handleStatusFilterChange(e.target.value as OrderStatus)}
+        className="px-3 py-2 bg-black/20 border border-stone-600 rounded-lg text-white focus:ring-2 focus:ring-lime-400"
+       >
+        <option value="all">All Status</option>
+        <option value="pending">Pending</option>
+        <option value="processing">Processing</option>
+        <option value="shipped">Shipped</option>
+        <option value="delivered">Delivered</option>
+        <option value="cancelled">Cancelled</option>
+        <option value="assigned">Assigned</option>
+        <option value="unassigned">Unassigned</option>
+       </select>
+       
+       <select
+        value={sourceFilter}
+        onChange={(e) => handleSourceFilterChange(e.target.value as OrderSource)}
+        className="px-3 py-2 bg-black/20 border border-stone-600 rounded-lg text-white focus:ring-2 focus:ring-lime-400"
+       >
+        <option value="all">All Sources</option>
+        <option value="PRODUCT_CUSTOMIZATION">Product Customization</option>
+        <option value="REORDER">Reorder</option>
+       </select>
+      </div>
+
+      {/* Selection Actions */}
+      {selectedOrders.length > 0 && (
+       <div className="flex items-center space-x-2">
+        <span className="text-sm text-gray-400">
+         {selectedOrders.length} selected
+        </span>
+        <Button variant="outline" size="sm" onClick={clearSelection}>
+         Clear
+        </Button>
+        <Button variant="outline" size="sm" onClick={selectAllOrders}>
+         Select All ({orders.length})
+        </Button>
+       </div>
+      )}
+     </div>
+    </GlassCard>
+
+    {/* Orders Table */}
+    <GlassCard>
+     {isLoading ? (
+      <div className="flex items-center justify-center py-12">
+       <RefreshCw className="h-8 w-8 animate-spin text-lime-400" />
+       <span className="ml-2">Loading orders...</span>
+      </div>
+     ) : isError ? (
+      <div className="flex items-center justify-center py-12 text-red-400">
+       <AlertCircle className="h-8 w-8 mr-2" />
+       <span>Error loading orders: {error?.message}</span>
+      </div>
+     ) : orders.length === 0 ? (
+      <div className="text-center py-12">
+       <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+       <h3 className="text-lg font-semibold text-white mb-2">No orders found</h3>
+       <p className="text-gray-400">
+        {debouncedSearch || statusFilter !== 'all' || sourceFilter !== 'all'
+         ? 'Try adjusting your filters'
+         : 'Orders will appear here when customers place them'}
+       </p>
+      </div>
+     ) : (
+      <>
+       <Table>
+        <TableHeader>
+         <TableRow>
+          <TableHeaderCell>
+           <input
+            type="checkbox"
+            checked={selectedOrders.length === orders.length}
+            onChange={selectedOrders.length === orders.length ? clearSelection : selectAllOrders}
+            className="rounded border-gray-600 bg-gray-800 text-lime-400 focus:ring-lime-400"
+           />
+          </TableHeaderCell>
+          <TableHeaderCell>Order</TableHeaderCell>
+          <TableHeaderCell>Customer</TableHeaderCell>
+          <TableHeaderCell>Status</TableHeaderCell>
+          <TableHeaderCell>Total</TableHeaderCell>
+          <TableHeaderCell>Units</TableHeaderCell>
+          <TableHeaderCell>Date</TableHeaderCell>
+          <TableHeaderCell>Actions</TableHeaderCell>
+         </TableRow>
+        </TableHeader>
+        <TableBody>
+         {orders.map((order) => (
+          <React.Fragment key={order.id}>
+           <TableRow 
+            className={`cursor-pointer hover:bg-stone-700 transition-colors ${
+             selectedOrders.includes(order.id) ? 'bg-lime-400/10' : ''
+            }`}
+            onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+           >
+            <TableCell onClick={(e) => e.stopPropagation()}>
+             <input
+              type="checkbox"
+              checked={selectedOrders.includes(order.id)}
+              onChange={() => toggleOrderSelection(order.id)}
+              className="rounded border-gray-600 bg-gray-800 text-lime-400 focus:ring-lime-400"
+             />
+            </TableCell>
+            
+            <TableCell>
+             <div className="flex flex-col">
+              <span className="font-mono text-sm text-lime-400">
+               {order.id.slice(-8)}
+              </span>
+              <span className="text-xs text-gray-400 truncate max-w-32">
+               {order.productName}
+              </span>
+             </div>
+            </TableCell>
+            
+            <TableCell>
+             <div className="flex flex-col">
+              <span className="font-medium text-white">
+               {order.customerInfo.name}
+              </span>
+              <span className="text-xs text-gray-400">
+               {order.customerInfo.email}
+              </span>
+             </div>
+            </TableCell>
+            
+            <TableCell>
+             <StatusBadge status={order.status.toLowerCase()}>
+              {order.status}
+             </StatusBadge>
+            </TableCell>
+            
+            <TableCell>
+             <span className="font-semibold text-green-400">
+              ${(order.orderTotal || 0).toFixed(2)}
+             </span>
+            </TableCell>
+            
+            <TableCell>
+             <span className="text-gray-300">
+              {order.totalUnits || 0}
+             </span>
+            </TableCell>
+            
+            <TableCell>
+             <div className="flex flex-col text-sm">
+              <span className="text-gray-300">
+               {new Date(order.createdAt).toLocaleDateString()}
+              </span>
+              <span className="text-xs text-gray-400">
+               {new Date(order.createdAt).toLocaleTimeString()}
+              </span>
+             </div>
+            </TableCell>
+            
+            <TableCell onClick={(e) => e.stopPropagation()}>
+             <div className="flex items-center space-x-2">
+              <Button
+               variant="ghost"
+               size="sm"
+               onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+              >
+               {expandedOrder === order.id ? (
+                <ChevronUp className="h-4 w-4" />
+               ) : (
+                <ChevronDown className="h-4 w-4" />
+               )}
+              </Button>
+              
+              <Link href={`/dashboard/admin/orders/${order.id}`}>
+               <Button variant="ghost" size="sm">
+                <Eye className="h-4 w-4" />
+               </Button>
+              </Link>
+              
+              <Button variant="ghost" size="sm">
+               <MoreHorizontal className="h-4 w-4" />
+              </Button>
+             </div>
+            </TableCell>
+           </TableRow>
+           
+           {/* Expanded Order Details */}
+           {expandedOrder === order.id && (
+            <TableRow>
+             <TableCell colSpan={8}>
+              <div className="bg-black/20 rounded-lg p-6 m-4">
+               {/* Order details implementation */}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div>
+                 <h4 className="font-semibold text-white mb-2">Customer Details</h4>
+                 <div className="space-y-1 text-sm">
+                  <p className="text-gray-300">
+                   <User className="h-4 w-4 inline mr-2" />
+                   {order.customerInfo.name}
+                  </p>
+                  <p className="text-gray-300">
+                   <Mail className="h-4 w-4 inline mr-2" />
+                   {order.customerInfo.email}
+                  </p>
+                  {order.customerInfo.phone && (
+                   <p className="text-gray-300">
+                    <Phone className="h-4 w-4 inline mr-2" />
+                    {order.customerInfo.phone}
+                   </p>
+                  )}
+                  {order.customerInfo.company && (
+                   <p className="text-gray-300">
+                    <Building className="h-4 w-4 inline mr-2" />
+                    {order.customerInfo.company}
+                   </p>
+                  )}
+                 </div>
+                </div>
+                
+                <div>
+                 <h4 className="font-semibold text-white mb-2">Order Info</h4>
+                 <div className="space-y-1 text-sm">
+                  <p className="text-gray-300">
+                   Source: {order.orderSource.replace('_', ' ')}
+                  </p>
+                  <p className="text-gray-300">
+                   Type: {order.orderType}
+                  </p>
+                  {order.trackingNumber && (
+                   <p className="text-gray-300">
+                    Tracking: {order.trackingNumber}
+                   </p>
+                  )}
+                  {order.shipment && (
+                   <p className="text-gray-300">
+                    Shipment: {order.shipment.buildNumber}
+                   </p>
+                  )}
+                 </div>
+                </div>
+                
+                <div>
+                 <h4 className="font-semibold text-white mb-2">Quick Actions</h4>
+                 <div className="flex flex-wrap gap-2">
+                  <Link href={`/dashboard/admin/orders/${order.id}`}>
+                   <Button size="sm" variant="outline">
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                   </Button>
+                  </Link>
+                  <Button size="sm" variant="outline">
+                   <Edit className="h-4 w-4 mr-2" />
+                   Edit
+                  </Button>
+                  <Button size="sm" variant="outline">
+                   <Receipt className="h-4 w-4 mr-2" />
+                   Invoice
+                  </Button>
+                 </div>
+                </div>
+               </div>
+               
+               {order.additionalInstructions && (
+                <div className="mt-4">
+                 <h4 className="font-semibold text-white mb-2">Additional Instructions</h4>
+                 <p className="text-sm text-gray-300 bg-black/30 rounded p-3">
+                  {order.additionalInstructions}
+                 </p>
+                </div>
+               )}
+              </div>
+             </TableCell>
+            </TableRow>
+           )}
+          </React.Fragment>
+         ))}
+        </TableBody>
+       </Table>
+
+       {/* Pagination */}
+       {pagination && pagination.pages > 1 && (
+        <div className="flex items-center justify-between px-6 py-4 border-t border-stone-600">
+         <div className="text-sm text-gray-400">
+          Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} orders
+         </div>
+         
+         <div className="flex items-center space-x-2">
+          <Button
+           variant="outline"
+           size="sm"
+           onClick={prevPage}
+           disabled={!pagination.hasPrev}
+          >
+           <ChevronLeft className="h-4 w-4" />
+           Previous
+          </Button>
+          
+          <div className="flex items-center space-x-1">
+           {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+            const page = i + 1;
+            if (pagination.pages <= 5) {
+             return (
+              <Button
+               key={page}
+               variant={currentPage === page ? 'default' : 'ghost'}
+               size="sm"
+               onClick={() => goToPage(page)}
+              >
+               {page}
+              </Button>
+             );
+            }
+            // Complex pagination logic for larger page counts
+            return null;
+           })}
+          </div>
+          
+          <Button
+           variant="outline"
+           size="sm"
+           onClick={nextPage}
+           disabled={!pagination.hasNext}
+          >
+           Next
+           <ChevronRight className="h-4 w-4" />
+          </Button>
+         </div>
+        </div>
+       )}
+      </>
+     )}
+    </GlassCard>
+   </DashboardContent>
+
+   {/* Shipment Builder Modal */}
+   {showShipmentBuilder && (
+    <ShipmentBuilder
+     isOpen={showShipmentBuilder}
+     onClose={() => setShowShipmentBuilder(false)}
+     selectedOrderIds={selectedOrders}
+     onShipmentCreated={() => {
+      setShowShipmentBuilder(false);
+      clearSelection();
+      handleRefresh();
+     }}
+    />
+   )}
+  </DashboardShell>
+ );
+}

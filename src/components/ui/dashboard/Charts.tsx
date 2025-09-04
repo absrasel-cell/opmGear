@@ -54,7 +54,7 @@ function BaseChart({
       },
       tooltip: { 
         backgroundColor: 'rgba(0,0,0,0.8)', 
-        borderColor: dashboardTheme.colors.glass.border, 
+        borderColor: dashboardTheme.colors.solid.border, 
         borderWidth: 1,
         titleColor: dashboardTheme.colors.text.primary,
         bodyColor: dashboardTheme.colors.text.secondary,
@@ -64,7 +64,7 @@ function BaseChart({
     scales: type !== 'doughnut' ? {
       x: { 
         grid: { 
-          color: dashboardTheme.colors.glass.border,
+          color: dashboardTheme.colors.solid.border,
           display: type === 'bar' 
         },
         ticks: { 
@@ -77,7 +77,7 @@ function BaseChart({
       y: { 
         beginAtZero: true,
         grid: { 
-          color: dashboardTheme.colors.glass.border 
+          color: dashboardTheme.colors.solid.border 
         },
         ticks: { 
           color: dashboardTheme.colors.text.tertiary,
@@ -486,7 +486,7 @@ export function UsersChart({
       y: { 
         beginAtZero: true,
         grid: {
-          color: dashboardTheme.colors.glass.border
+          color: dashboardTheme.colors.solid.border
         }
       }
     }

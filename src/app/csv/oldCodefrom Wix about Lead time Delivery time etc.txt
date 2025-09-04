@@ -1,0 +1,447 @@
+import wixWindowFrontend from 'wix-window-frontend';
+import { normalizeString } from 'public/productPageUtils.js';
+import { prepareDeliveryLeadTimeData } from 'backend/leadTimeCalculation.jsw';
+import { fetchProductOptionImages } from 'backend/products.jsw';
+
+// Debounce function to prevent multiple rapid clicks
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+$w.onReady(async function () {
+    console.log('Frontend: deliveryLightbox started at', new Date().toString());
+    try {
+        // Receive data passed from the product page
+        console.log('Frontend: Attempting to get lightbox context');
+        const lightboxData = wixWindowFrontend.lightbox.getContext();
+        if (!lightboxData || typeof lightboxData !== 'object') {
+            throw new Error('Invalid lightbox context data');
+        }
+        console.log('Frontend: Received lightbox data:', JSON.stringify(lightboxData, null, 2));
+
+        // Validate and store received data
+        const receivedData = {
+            leadTime: lightboxData?.leadTime || 'N/A',
+            selectedColors: Array.isArray(lightboxData?.selectedColors) ? lightboxData.selectedColors : [],
+            logoSetup: lightboxData?.logoSetup || 'Blank',
+            totalQuantity: Number.isInteger(lightboxData?.totalQuantity) && lightboxData.totalQuantity >= 48 ? lightboxData.totalQuantity : 144,
+            deliveryType: lightboxData?.deliveryType || 'Regular',
+            accessoriesSelections: Array.isArray(lightboxData?.accessoriesSelections) ? lightboxData.accessoriesSelections : [],
+            capSetupSelections: Array.isArray(lightboxData?.capSetupSelections) ? lightboxData.capSetupSelections : [],
+            productId: lightboxData?.productId || 'N/A',
+            styleId: lightboxData?.styleId || 'N/A'
+        };
+        console.log('Frontend: Validated and stored data:', JSON.stringify(receivedData, null, 2));
+
+        // Fetch Delivery Type option images from CMS
+        let deliveryImages = {};
+        try {
+            deliveryImages = await fetchProductOptionImages(receivedData.styleId, ['Delivery Type']);
+            console.log('Frontend: Fetched Delivery Type option images:', JSON.stringify(deliveryImages, null, 2));
+        } catch (error) {
+            console.error('Frontend: Error fetching Delivery Type option images:', JSON.stringify({
+                message: error.message,
+                stack: error.stack
+            }, null, 2));
+            deliveryImages = { 'Delivery Type': [] }; // Fallback to empty array
+        }
+
+        // Configure #particularsText to display the data
+        if ($w('#particularsText').type === '$w.Text') {
+            let particulars = `Delivery Particulars:\n`;
+            particulars += `Lead Time: ${receivedData.leadTime}\n`;
+            particulars += `Logo Setup: ${receivedData.logoSetup}\n`;
+            particulars += `Total Quantity: ${receivedData.totalQuantity}\n`;
+            particulars += `Delivery Type: ${receivedData.deliveryType}\n`;
+            particulars += `Accessories Selections: ${receivedData.accessoriesSelections.length > 0 ? receivedData.accessoriesSelections.join(', ') : 'None'}\n`;
+            particulars += `Cap Setup Selections: ${receivedData.capSetupSelections.length > 0 ? receivedData.capSetupSelections.join(', ') : 'None'}\n`;
+            particulars += `Selected Colors:\n`;
+            
+            if (receivedData.selectedColors.length > 0) {
+                receivedData.selectedColors.forEach((color, index) => {
+                    const colorDetails = `  ${index + 1}. ${color.displayColor} (Qty: ${color.quantity}, Order#: ${color.orderNumber || 'N/A'})`;
+                    particulars += `${colorDetails}\n`;
+                    console.log(`Frontend: Added color ${index + 1}: ${colorDetails}`);
+                });
+            } else {
+                particulars += `  No colors selected\n`;
+                console.log('Frontend: No colors selected for display');
+            }
+
+            $w('#particularsText').text = particulars;
+            $w('#particularsText').show();
+            console.log(`Frontend: Set #particularsText to:\n${particulars}`);
+        } else {
+            console.error('Frontend: #particularsText is not a valid Text element');
+            if ($w('#messageText').type === '$w.Text') {
+                $w('#messageText').text = 'Error displaying delivery particulars';
+                $w('#messageText').show();
+                setTimeout(() => $w('#messageText').text = '', 3000);
+            }
+        }
+
+        // Initialize date variables with validation
+        const today = new Date();
+        if (!(today instanceof Date) || isNaN(today.getTime())) {
+            throw new Error('Failed to initialize today Date object');
+        }
+        const minDate = new Date(today.getTime());
+        minDate.setDate(today.getDate() + 7);
+        if (!(minDate instanceof Date) || isNaN(minDate.getTime())) {
+            throw new Error('Failed to initialize minDate Date object');
+        }
+        console.log(`Frontend: Initialized today: ${today.toString()}, minDate: ${minDate.toString()}`);
+
+        // Helper function to close lightbox with fallback
+        function closeLightbox(data) {
+            try {
+                if (wixWindowFrontend.lightbox && typeof wixWindowFrontend.lightbox.close === 'function') {
+                    wixWindowFrontend.lightbox.close(data);
+                    console.log('Frontend: Lightbox closed successfully with data:', JSON.stringify(data, null, 2));
+                } else {
+                    throw new Error('wixWindowFrontend.lightbox.close is not available');
+                }
+            } catch (error) {
+                console.error('Frontend: Error closing lightbox:', JSON.stringify({
+                    message: error.message,
+                    stack: error.stack
+                }, null, 2));
+                if ($w('#messageText').type === '$w.Text') {
+                    $w('#messageText').text = 'Error closing selection window';
+                    $w('#messageText').show();
+                    setTimeout(() => $w('#messageText').text = '', 3000);
+                }
+                try {
+                    wixWindowFrontend.postMessage(data, '*');
+                    console.log('Frontend: Fallback postMessage sent:', JSON.stringify(data, null, 2));
+                } catch (postError) {
+                    console.error('Frontend: Fallback postMessage failed:', postError);
+                }
+            }
+        }
+
+        // Track selected delivery option
+        let selectedDeliveryId = null;
+
+        // Fetch and configure #deliveryLeadTimeRepeater
+        if ($w('#deliveryLeadTimeRepeater').type === '$w.Repeater') {
+            console.log('Frontend: Attempting to prepare delivery lead time data');
+            let repeaterData;
+            try {
+                repeaterData = await prepareDeliveryLeadTimeData(receivedData);
+                console.log('Frontend: Successfully prepared repeater data:', JSON.stringify(repeaterData, null, 2));
+                if (!Array.isArray(repeaterData) || repeaterData.length !== 3) {
+                    throw new Error('Invalid repeater data structure from backend');
+                }
+                // Ensure showButton is true for Pick a Date
+                repeaterData = repeaterData.map(item => 
+                    item._id === 'pick-a-date' ? { ...item, showButton: true } : item
+                );
+            } catch (backendError) {
+                console.error('Frontend: Error in prepareDeliveryLeadTimeData:', JSON.stringify({
+                    message: backendError.message,
+                    stack: backendError.stack
+                }, null, 2));
+                if ($w('#messageText').type === '$w.Text') {
+                    $w('#messageText').text = 'Error loading delivery options from backend: ' + backendError.message;
+                    $w('#messageText').show();
+                    setTimeout(() => $w('#messageText').text = '', 5000);
+                }
+                // Fallback to default repeater data if backend fails
+                repeaterData = [
+                    { _id: 'regular', deliveryType: 'Regular', totalLeadTime: 15, leadTimeDetails: ['Base Lead Time: 7 days (Blank)', 'Regular Delivery (Blank): +8 days'], deliveryDate: new Date(today.getTime() + 15 * 24 * 60 * 60 * 1000), showButton: true },
+                    { _id: 'priority', deliveryType: 'Priority', totalLeadTime: 11, leadTimeDetails: ['Base Lead Time: 7 days (Blank)', 'Priority Delivery (Blank): +4 days'], deliveryDate: new Date(today.getTime() + 11 * 24 * 60 * 60 * 1000), showButton: true },
+                    { _id: 'pick-a-date', deliveryType: 'Pick a Date', totalLeadTime: 7, leadTimeDetails: [], deliveryDate: minDate, showButton: true }
+                ];
+                console.log('Frontend: Using fallback repeater data:', JSON.stringify(repeaterData, null, 2));
+            }
+            $w('#deliveryLeadTimeRepeater').data = repeaterData;
+            console.log(`Frontend: Set #deliveryLeadTimeRepeater with ${repeaterData.length} items`);
+
+            $w('#deliveryLeadTimeRepeater').onItemReady(($item, itemData) => {
+                console.log(`Frontend: Configuring repeater item for ${itemData.deliveryType}`);
+
+                // Configure #deliveryTypeText
+                if ($item('#deliveryTypeText').type === '$w.Text') {
+                    $item('#deliveryTypeText').text = itemData.deliveryType;
+                    $item('#deliveryTypeText').show();
+                    console.log(`Frontend: Set #deliveryTypeText to ${itemData.deliveryType}`);
+                } else {
+                    console.warn('Frontend: #deliveryTypeText is not a valid Text element');
+                }
+
+                // Configure #deliveryOptionImage
+                if ($item('#deliveryOptionImage').type === '$w.Image') {
+                    if (itemData.deliveryType === 'Regular' || itemData.deliveryType === 'Priority') {
+                        const matchingImage = deliveryImages['Delivery Type']?.find(img => normalizeString(img.title) === normalizeString(itemData.deliveryType));
+                        if (matchingImage && matchingImage.src && (matchingImage.src.startsWith('wix:image://') || matchingImage.src.startsWith('http'))) {
+                            $item('#deliveryOptionImage').src = matchingImage.src;
+                            $item('#deliveryOptionImage').alt = itemData.deliveryType;
+                            $item('#deliveryOptionImage').show();
+                            console.log(`Frontend: Set #deliveryOptionImage to ${matchingImage.src} for ${itemData.deliveryType}`);
+                        } else {
+                            $item('#deliveryOptionImage').src = 'https://static.wixstatic.com/media/placeholder.jpg';
+                            $item('#deliveryOptionImage').hide();
+                            console.log(`Frontend: Hid #deliveryOptionImage for ${itemData.deliveryType} (no valid image)`);
+                        }
+                    } else {
+                        $item('#deliveryOptionImage').hide();
+                        console.log(`Frontend: Hid #deliveryOptionImage for ${itemData.deliveryType}`);
+                    }
+                } else {
+                    console.warn('Frontend: #deliveryOptionImage is not a valid Image element');
+                }
+
+                // Configure #deliveryDatePicker
+                if ($item('#deliveryDatePicker').type === '$w.DatePicker') {
+                    $item('#deliveryDatePicker').minDate = minDate;
+
+                    if (itemData.deliveryType === 'Pick a Date') {
+                        $item('#deliveryDatePicker').enable();
+                        $item('#deliveryDatePicker').show();
+                        $item('#deliveryDatePicker').value = itemData.deliveryDate || minDate;
+                        console.log(`Frontend: Enabled #deliveryDatePicker for Pick a Date, minDate: ${minDate.toString()}, value: ${$item('#deliveryDatePicker').value.toString()}`);
+
+                        $item('#deliveryDatePicker').onChange(() => {
+                            const selectedDate = $item('#deliveryDatePicker').value;
+                            if (selectedDate instanceof Date && !isNaN(selectedDate.getTime()) && $item('#totalLeadTime').type === '$w.Text') {
+                                const daysDiff = Math.ceil((selectedDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                                $item('#totalLeadTime').text = `${daysDiff} working days`;
+                                itemData.totalLeadTime = daysDiff; // Update repeater item data
+                                itemData.deliveryDate = selectedDate; // Update deliveryDate
+                                console.log(`Frontend: Updated #totalLeadTime to ${daysDiff} working days for selected date: ${selectedDate.toString()}`);
+                                if ($item('#deliveryLeadTimeButton').type === '$w.Button') {
+                                    $item('#deliveryLeadTimeButton').show();
+                                    $item('#deliveryLeadTimeButton').enable();
+                                    $item('#deliveryLeadTimeButton').label = 'Confirm Date';
+                                    console.log('Frontend: Enabled #deliveryLeadTimeButton for Pick a Date');
+                                }
+                            } else {
+                                console.warn('Frontend: Invalid selectedDate or #totalLeadTime element');
+                                if ($w('#messageText').type === '$w.Text') {
+                                    $w('#messageText').text = 'Invalid date selected';
+                                    $w('#messageText').show();
+                                    setTimeout(() => $w('#messageText').text = '', 3000);
+                                }
+                            }
+                        });
+                    } else {
+                        if (itemData.deliveryDate instanceof Date && !isNaN(itemData.deliveryDate.getTime())) {
+                            $item('#deliveryDatePicker').value = itemData.deliveryDate;
+                            $item('#deliveryDatePicker').disable();
+                            $item('#deliveryDatePicker').show();
+                            console.log(`Frontend: Set #deliveryDatePicker to ${itemData.deliveryDate.toString()} (disabled)`);
+                        } else if (typeof itemData.deliveryDate === 'string') {
+                            const parsedDate = new Date(itemData.deliveryDate);
+                            if (!isNaN(parsedDate.getTime())) {
+                                $item('#deliveryDatePicker').value = parsedDate;
+                                $item('#deliveryDatePicker').disable();
+                                $item('#deliveryDatePicker').show();
+                                console.log(`Frontend: Set #deliveryDatePicker to parsed string ${itemData.deliveryDate} (disabled)`);
+                            } else {
+                                console.warn('Frontend: Invalid deliveryDate string, hiding #deliveryDatePicker');
+                                $item('#deliveryDatePicker').hide();
+                            }
+                        } else {
+                            console.log(`Frontend: Hiding #deliveryDatePicker for ${itemData.deliveryType}`);
+                            $item('#deliveryDatePicker').hide();
+                        }
+                    }
+                } else {
+                    console.warn('Frontend: #deliveryDatePicker is not a valid DatePicker element');
+                }
+
+                // Configure #deliveryLeadTimeInfo
+                if ($item('#deliveryLeadTimeInfo').type === '$w.Text') {
+                    if (itemData.deliveryType !== 'Pick a Date' && Array.isArray(itemData.leadTimeDetails)) {
+                        $item('#deliveryLeadTimeInfo').text = itemData.leadTimeDetails.join('\n');
+                        $item('#deliveryLeadTimeInfo').show();
+                        console.log(`Frontend: Set #deliveryLeadTimeInfo to:\n${itemData.leadTimeDetails.join('\n')}`);
+                    } else {
+                        $item('#deliveryLeadTimeInfo').text = '';
+                        $item('#deliveryLeadTimeInfo').hide();
+                        console.log('Frontend: Hid #deliveryLeadTimeInfo for Pick a Date');
+                    }
+                } else {
+                    console.warn('Frontend: #deliveryLeadTimeInfo is not a valid Text element');
+                }
+
+                // Configure #totalLeadTime
+                if ($item('#totalLeadTime').type === '$w.Text') {
+                    if (itemData.deliveryType !== 'Pick a Date') {
+                        $item('#totalLeadTime').text = `${itemData.totalLeadTime} working days`;
+                        $item('#totalLeadTime').show();
+                        console.log(`Frontend: Set #totalLeadTime to ${itemData.totalLeadTime} working days`);
+                    } else {
+                        const initialDays = itemData.totalLeadTime || Math.ceil((minDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        $item('#totalLeadTime').text = `${initialDays} working days`;
+                        $item('#totalLeadTime').show();
+                        console.log(`Frontend: Set #totalLeadTime to ${initialDays} working days (initial for Pick a Date)`);
+                    }
+                } else {
+                    console.warn('Frontend: #totalLeadTime is not a valid Text element');
+                }
+
+                // Configure #deliveryLeadTimeButton
+                if ($item('#deliveryLeadTimeButton').type === '$w.Button') {
+                    if (itemData.showButton || itemData.deliveryType === 'Pick a Date') {
+                        $item('#deliveryLeadTimeButton').label = itemData.deliveryType === 'Pick a Date' ? 'Confirm Date' : `Select ${itemData.deliveryType}`;
+                        $item('#deliveryLeadTimeButton').show();
+                        // Enable button if deliveryType does not match selectedDeliveryId
+                        const isSelected = selectedDeliveryId === itemData._id;
+                        $item('#deliveryLeadTimeButton')[isSelected ? 'disable' : 'enable']();
+                        console.log(`Frontend: ${isSelected ? 'Disabled' : 'Enabled'} #deliveryLeadTimeButton for ${itemData.deliveryType}`);
+
+                        $item('#deliveryLeadTimeButton').onClick(() => {
+                            console.log(`Frontend: Selected ${itemData.deliveryType} with lead time ${itemData.totalLeadTime} days`);
+                            selectedDeliveryId = itemData._id; // Track selected delivery
+                            // Update button states in repeater
+                            $w('#deliveryLeadTimeRepeater').forEachItem(($subItem, subItemData) => {
+                                if ($subItem('#deliveryLeadTimeButton').type === '$w.Button') {
+                                    if (subItemData._id === selectedDeliveryId) {
+                                        $subItem('#deliveryLeadTimeButton').disable();
+                                        console.log(`Frontend: Disabled #deliveryLeadTimeButton for ${subItemData.deliveryType}`);
+                                    } else {
+                                        $subItem('#deliveryLeadTimeButton').enable();
+                                        console.log(`Frontend: Enabled #deliveryLeadTimeButton for ${subItemData.deliveryType}`);
+                                    }
+                                }
+                            });
+                        });
+                    } else {
+                        $item('#deliveryLeadTimeButton').hide();
+                        console.log(`Frontend: Hid #deliveryLeadTimeButton for ${itemData.deliveryType}`);
+                    }
+                } else {
+                    console.warn('Frontend: #deliveryLeadTimeButton is not a valid Button element');
+                }
+            });
+        } else {
+            console.error('Frontend: #deliveryLeadTimeRepeater is not a valid Repeater element');
+            if ($w('#messageText').type === '$w.Text') {
+                $w('#messageText').text = 'Error loading delivery options';
+                $w('#messageText').show();
+                setTimeout(() => $w('#messageText').text = '', 3000);
+            }
+        }
+
+        // Configure #saveCloseButton with debouncing
+        if ($w('#saveCloseButton').type === '$w.Button') {
+            $w('#saveCloseButton').onClick(debounce(() => {
+                console.log('Frontend: #saveCloseButton clicked, preparing to close deliveryLightbox');
+                
+                // Find the selected delivery option
+                let selectedDelivery = null;
+                const repeaterData = $w('#deliveryLeadTimeRepeater').data;
+                if (selectedDeliveryId && repeaterData) {
+                    selectedDelivery = repeaterData.find(item => item._id === selectedDeliveryId);
+                }
+                if (!selectedDelivery) {
+                    // Fallback to the received deliveryType or first item
+                    selectedDelivery = repeaterData.find(item => normalizeString(item.deliveryType) === normalizeString(receivedData.deliveryType)) || (repeaterData.length > 0 ? repeaterData[0] : null);
+                    console.log(`Frontend: No delivery selected, using ${selectedDelivery ? selectedDelivery.deliveryType : 'none'}`);
+                }
+
+                if (!selectedDelivery) {
+                    console.warn('Frontend: No delivery options available in repeater');
+                    if ($w('#messageText').type === '$w.Text') {
+                        $w('#messageText').text = 'Please select a delivery option';
+                        $w('#messageText').show();
+                        setTimeout(() => $w('#messageText').text = '', 3000);
+                    }
+                    return;
+                }
+
+                // Get totalLeadTime for the selected delivery
+                let leadTimeDays = selectedDelivery.totalLeadTime;
+                let effectiveDeliveryType = selectedDelivery.deliveryType;
+
+                if (selectedDelivery.deliveryType === 'Pick a Date') {
+                    // Access datePicker directly from repeater item
+                    let datePickerValue = null;
+                    $w('#deliveryLeadTimeRepeater').forEachItem(($item, itemData) => {
+                        if (itemData._id === selectedDelivery._id && $item('#deliveryDatePicker').type === '$w.DatePicker') {
+                            datePickerValue = $item('#deliveryDatePicker').value;
+                        }
+                    });
+
+                    if (datePickerValue && datePickerValue instanceof Date && !isNaN(datePickerValue.getTime())) {
+                        leadTimeDays = Math.ceil((datePickerValue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        console.log(`Frontend: Pick a Date selected, calculated leadTimeDays: ${leadTimeDays}`);
+                        // Determine closest delivery type
+                        const regularLeadTime = 15;
+                        const priorityLeadTime = 11;
+                        effectiveDeliveryType = Math.abs(leadTimeDays - regularLeadTime) <= Math.abs(leadTimeDays - priorityLeadTime) ? 'Regular' : 'Priority';
+                        console.log(`Frontend: Selected Pick a Date with ${leadTimeDays} days, mapped to ${effectiveDeliveryType}`);
+                    } else {
+                        console.warn('Frontend: Invalid date for Pick a Date or datePicker not found');
+                        if ($w('#messageText').type === '$w.Text') {
+                            $w('#messageText').text = 'Please select a valid date';
+                            $w('#messageText').show();
+                            setTimeout(() => $w('#messageText').text = '', 3000);
+                        }
+                        return;
+                    }
+                }
+
+                // Close lightbox with selected delivery data
+                closeLightbox({
+                    message: `Saved and closed with ${selectedDelivery.deliveryType} delivery`,
+                    updatedSelections: {
+                        deliveryType: effectiveDeliveryType,
+                        leadTimeDays: leadTimeDays,
+                        isCustomDate: selectedDelivery.deliveryType === 'Pick a Date'
+                    }
+                });
+            }, 500)); // Debounce with 500ms delay
+            $w('#saveCloseButton').show();
+            console.log('Frontend: Configured #saveCloseButton');
+        } else {
+            console.warn('Frontend: #saveCloseButton not found or invalid');
+            if ($w('#messageText').type === '$w.Text') {
+                $w('#messageText').text = 'Save and close button unavailable';
+                $w('#messageText').show();
+                setTimeout(() => $w('#messageText').text = '', 3000);
+            }
+        }
+
+        // Configure #closeButton
+        if ($w('#closeButton').type === '$w.Button') {
+            $w('#closeButton').onClick(() => {
+                console.log('Frontend: #closeButton clicked, closing deliveryLightbox');
+                closeLightbox({
+                    message: 'Delivery lightbox closed',
+                    updatedSelections: {}
+                });
+            });
+            $w('#closeButton').show();
+            console.log('Frontend: Configured #closeButton');
+        } else {
+            console.warn('Frontend: #closeButton not found or invalid');
+            if ($w('#messageText').type === '$w.Text') {
+                $w('#messageText').text = 'Close button unavailable';
+                $w('#messageText').show();
+                setTimeout(() => $w('#messageText').text = '', 3000);
+            }
+        }
+
+    } catch (error) {
+        console.error('Frontend: Error in deliveryLightbox onReady:', JSON.stringify({
+            message: error.message,
+            stack: error.stack
+        }, null, 2));
+        if ($w('#messageText').type === '$w.Text') {
+            $w('#messageText').text = 'Error loading delivery options: ' + error.message;
+            $w('#messageText').show();
+            setTimeout(() => $w('#messageText').text = '', 5000);
+        }
+    }
+});

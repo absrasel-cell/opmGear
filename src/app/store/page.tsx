@@ -262,10 +262,10 @@ export default function StorePage() {
   // Handle empty products
   if (!loading && products.length === 0) {
     return (
-      <div className="min-h-screen bg-black text-slate-200">
-        {/* Background Layers */}
+      <div className="min-h-screen text-slate-200">
+        {/* Background Layers - leveraging site-wide background */}
         <div className="fixed inset-0 -z-50">
-          <div className="absolute inset-0 bg-gradient-to-b from-black via-[#05070e] to-black"></div>
+          <div className="absolute inset-0 bg-black/20"></div>
           <div className="absolute inset-0 opacity-30 mix-blend-soft-light pointer-events-none" style={{
             backgroundImage: 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)',
             backgroundSize: '12px 12px',
@@ -299,10 +299,10 @@ export default function StorePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-slate-200">
-      {/* Background Layers */}
+    <div className="min-h-screen text-slate-200">
+      {/* Background Layers - leveraging site-wide background */}
       <div className="fixed inset-0 -z-50">
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-[#05070e] to-black"></div>
+        <div className="absolute inset-0 bg-black/20"></div>
         <div className="absolute inset-0 opacity-30 mix-blend-soft-light pointer-events-none" style={{
           backgroundImage: 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)',
           backgroundSize: '12px 12px',
@@ -316,7 +316,7 @@ export default function StorePage() {
 
       <div className="relative z-10">
         {/* Page Header */}
-        <section className="max-w-[1950px] mx-auto px-6 lg:px-10 pt-16 md:pt-24 lg:pt-28">
+        <section className="max-w-[1950px] mx-auto px-6 lg:px-10 pt-4 md:pt-10 lg:pt-14">
           <div className="flex items-end justify-between gap-6">
             <div>
               <h1 className="text-5xl md:text-6xl lg:text-6xl font-extrabold tracking-tight text-white font-inter">Caps & Hats</h1>
@@ -1139,18 +1139,14 @@ export default function StorePage() {
                       <select 
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value)}
-                        className="appearance-none h-10 pl-3 pr-9 rounded-xl bg-white/[0.08] backdrop-blur-md border border-white/20 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/50 focus:border-[#84cc16]/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-white/30"
-                        style={{
-                          backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-                        }}
+                        className="appearance-none h-10 pl-3 pr-9 rounded-xl glass-morphism-strong text-sm text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-[#84cc16]/50 focus:border-[#84cc16]/40 transition-all duration-300 shadow-2xl hover:glass-morphism glass-hover cursor-pointer text-shadow-soft"
                       >
-                        <option value="featured" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Sort: Featured</option>
-                        <option value="name-asc" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Name: A to Z</option>
-                        <option value="name-desc" className="bg-gray-900/95 backdrop-blur-sm text-white border-b border-white/10">Name: Z to A</option>
-                        <option value="newest" className="bg-gray-900/95 backdrop-blur-sm text-white">Newest</option>
+                        <option value="featured" className="bg-stone-900/95 backdrop-blur-xl text-white border-b border-white/10 font-medium">Sort: Featured</option>
+                        <option value="name-asc" className="bg-stone-900/95 backdrop-blur-xl text-white border-b border-white/10 font-medium">Name: A to Z</option>
+                        <option value="name-desc" className="bg-stone-900/95 backdrop-blur-xl text-white border-b border-white/10 font-medium">Name: Z to A</option>
+                        <option value="newest" className="bg-stone-900/95 backdrop-blur-xl text-white font-medium">Newest</option>
                       </select>
-                      <svg className="pointer-events-none w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="pointer-events-none w-4 h-4 text-slate-300 absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>

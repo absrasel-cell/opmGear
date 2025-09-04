@@ -1,0 +1,345 @@
+next steps:
+
+creating separate Dashboard page for "Supplier"
+1) I will copy the Admin dashboard, and remove Admin level features from it, allow them to upload their products and sell into my Platform.
+2) Their products will be visible into a seperated Store page and Product page, which will be more simpler/for inventory products, and for customized cap products, we can use the existing one.
+3) "Resale" members, will be able to access some additional Sidebar button within their dashboards.
+4) Need to work with Store Page and the Filters.
+5) Generate Order invoice at Checkout. 
+6) Work on Billing & Accounts page for final implementation of pricing as Resale side.
+7) further testing on how Orders are being saved, if it matches all data with dashboard and input.
+
+
+in vercel, https://opm-gear-r6ljt79qw-absrasel-cells-projects.vercel.app/dashboard/admin/products show all the product that Admin created, but in "https://opm-gear-r6ljt79qw-absrasel-cells-projects.vercel.app/store" no products are loading. I connected API keys for everything correctly in vercel, there are no issue with authentication, supabase working fine, sanity working fine because it is in sync with my localhost, correctly showing all created products in Admin dashboard.
+ Store is working fine from localhost.
+ 
+ working on "Product Management" from Admin dashboard, for "Resale Products" only:
+
+1) Fix UI to match with the existing setup for "Inventory Information" Form block.
+2) in Supplier Information: include profile photo, their profile photo will be visible as Brand Image at "Store Page"
+3) add Category/Tag, input field that will represent as Filter that used in Store Page.
+
+current live web url "https://opm-gear-dk7lce111-absrasel-cells-projects.vercel.app"
+
+** update the interface of Cap Color option. Keeping the existing multi images upload with text (color name) input feature, I would like to include antoher way to put Color option, similar to "custom Category" just by typing the color names with comma, and later they could upload image if they want.
+
+** include another way to refer to an existing "Factory Products" , that has all color options, by using it's field "Front Color Images".
+
+** If the "Product Readiness", unchecks "Customizable", hide/collapse "Custom Option Categories". 
+
+** change text color for "Main Image *", "Stock/Inventory", "Customizable", so that they are better visible on dark background.
+
+Implement "Cap Style Setup" Dropdown names and choices in Product Management for both Factory Products, and Resale Products: 
+
+1) "Bill Shape" - choices "Slight Curved", "Curved", "Flat"
+2) "Profile" - choices "High", "Mid", "Low"
+3) "Closure Type" - choices "Snapback", "Velcro", "Fitted", "Stretched"
+4) "Structure" - choices "Structured", "Unstructured", "Foam"
+5) Fabric Setup - option list are as below:
+Chino Twill/Trucker Mesh
+Chino Twill
+Cotton Polyester Mix
+Acrylic
+Polyester
+Ripstop
+Denim
+Suede Cotton
+Genuine Leather
+PU Leather
+Camo
+Spandex
+Cotton Corduroy
+Ribbed Corduroy
+Polyester 97% Spandex 3%
+100% Polyester Jersey
+Canvas
+Cotton Polyester Mix/Trucker Mesh
+Chino Twill/Air Mesh
+Cotton Polyester Mix/Air Mesh
+Polyester/Laser Cut
+Cotton Polyester Mix/Laser Cut
+let user add "Other" and type their custom fabric setup.
+
+for the Fabric setup option, show the option data around Product Description box, note that Fabric setup are also considered as Customization option. thus if any option value matches with "\src\app\csv\Customization Pricings.csv" will add cost as "Premium Fabric Cost" at Cost Calculation Section.
+
+Make sure these new dropdown elements are well planned and placed for easy, smooth and informative UI at product management page.
+
+
+
+http://localhost:3000/api/auth/signout
+
+whole product page UI is now messed up. Premium Fabric Options holding the full 2nd column. it would be best
+   if you could place it under Cap Style Setup. also, Premium Fabric is not showing the full fabric setup 
+  list, "Chino Twill/Trucker Mesh
+  Chino Twill
+  Cotton Polyester Mix
+  Acrylic
+  Polyester
+  Ripstop
+  Denim
+  Suede Cotton
+  Genuine Leather
+  PU Leather
+  Camo
+  Spandex
+  Cotton Corduroy
+  Ribbed Corduroy
+  Polyester 97% Spandex 3%
+  100% Polyester Jersey
+  Canvas
+  Cotton Polyester Mix/Trucker Mesh
+  Chino Twill/Air Mesh
+  Cotton Polyester Mix/Air Mesh
+  Polyester/Laser Cut
+  Cotton Polyester Mix/Laser Cut
+  let user add "Other" and type their custom fabric setup." here as example if a fabric setup has Two fabric 
+  name like "Polyester/Laser Cut" mean, Polyester will be used on front and Laser cut fabric will be used on 
+  Back side. Single Fabric names like "Chino Twill", mean full cap is chino twill. if any fabric name is 
+  present in either single or double fabric names, PRemium price will be included and I expect New Premium 
+  Fabric dropdown to autoselect as per set Fabric setup from Prodcut Management.
+  
+  
+  Testing Cost output and matching with proudct page to cart page to Checkout:
+Advanced Product Page cost details:
+Cost Calculator
+Base Product Cost
+Black × 144
+$1.70 each
+$244.80
+Logo Setup Costs
+Large Rubber Patch + Run × 144
+Large Rubber Patch + Run
+$1.80 each
+$1.45 each
+$208.80
+💰
+Save $50.40 (19% off)
+144+ volume discount applied
+Premium Fabric
+Laser Cut × 144
+$0.50 each
+$0.40 each
+$57.60
+💰
+Save $14.40 (20% off)
+144+ volume discount applied
+Delivery
+Regular Delivery (Combined: 912 units) × 144
+$1.90 each
+$273.60
+Mold Development Charges
+Large Mold Charge (Rubber Patch)
+$80.00
+One-time development cost for new mold
+🎉
+Total Volume Savings
+Applied across all options
+-$50.40
+Volume discount applied
+Total Cost
+$864.80
+144 total units
+
+
+Cart Page Cost:
+AirFrame 7
+144 units
+Base: $244.80
+Total: $864.80
+🎨
+Colors & Quantities
+Black
+1 sizes
+Medium(Min: 48)
+144
+⚙️
+Logo Setup
+$208.80
+Total Logo Cost
+Large Rubber Patch + Run
+
+Large Rubber Patch + Run
+
+$208.80
+
+$1.45 per unit
+
+🚚
+Delivery Type
+$331.20
+Total Delivery Cost
+Regular Delivery
+
+Express delivery service
+
+$331.20
+
+$2.30 per unit
+
+🧢
+Cap Style Setup
+Included
+Bill Shape
+
+Flat
+
+Profile
+
+Mid
+
+Closure Type
+
+Snapback
+
+Structure
+
+Structured
+
+Order Summary
+1
+Cart Summary
+144 total units
+
+Base Products
+$244.80
+Logo Setup
+$208.80
+Delivery
+$331.20
+Total
+Including all additional costs
+
+$864.80
+
+Checkout Page:
+Order Summary
+1
+Cart Summary
+144 total units
+
+AirFrame 7
+
+Qty: 144
+
+Black
+
+$864.80
+
+Base Products
+$864.80
+Shipping
+$0.00
+Total
+Including all costs
+
+$864.80
+
+
+
+Everything (cart, checkout, dashboards) should follow Advanced Product Page logic, whatever or however it is setup.
+stop putting different cost calcution logic for different pages ffs.
+
+order# 702aaff9,
+Advanced Product Page, Cart Page, Checkout page showing same values:
+Cost Calculator
+Base Product Cost
+Black × 48
+$2.40 each
+$115.20
+Premium Fabric
+Laser Cut × 48
+$0.50 each
+$24.00
+Delivery
+Regular Delivery (Combined: 816 units) × 48
+$1.90 each
+$91.20
+Total Cost
+$230.40
+48 total units
+
+Order Receipt:
+Product Information
+Product:AirFrame 7
+Colors:
+Black:Medium: 48
+Options:
+profile: Mid
+structure: Structured
+bill-shape: Flat
+logo-setup: Blank
+closure-type: Snapback
+fabric-setup: Polyester/Laser Cut
+custom-fabric:
+delivery-type: Regular
+Customer Information
+Name:Rasel Miah
+Email:redxtrm02@gmail.com
+Phone:01671906866
+Address:
+33kk
+dfhd, dkfj kdfj
+United States
+Order Total:
+$105.60
+
+
+Need t
+
+Product page, Cart Page, and Checkout page cost details matches with one another except the :
+Drift 6C
+144 units
+Base: $230.40
+Total: $1,076.80
+🎨
+Colors & Quantities
+Black
+1 sizes
+Medium(Min: 48)
+⚙️
+Logo Setup
+$273.60
+Total Logo Cost
+
+Large Size Embroidery + 3D Embroidery
+
+Large Size Embroidery + 3D Embroidery
+$1.40 each
+$0.95 each
+$136.80
+💰Save $64.80 (32% off)
+144+ volume discount applied
+
+Small Rubber Patch + Run
+
+Small Rubber Patch + Run
+$1.30 each
+$0.95 each
+$136.80
+💰Save $50.40 (27% off)
+144+ volume discount applied
+⭐
+Premium Fabric
+$259.20
+Total Premium Fabric Cost
+
+Genuine Leather
+
+Premium fabric upgrade
+$2.00 each
+$1.80 each
+$259.20
+💰Save $28.80 (10% off)
+144+ volume discount applied
+🚚
+Delivery Type
+$273.60
+Total Delivery Cost
+
+Regular Delivery (Combined: 1104 units)
+
+Express delivery service
+$1.90 each
+$273.60
+
+

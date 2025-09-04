@@ -55,6 +55,62 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+// Load base product pricing from CSV (same as product pages)
+async function loadBlankCapPricingForInvoices(): Promise<Record<string, any>> {
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/csv/Blank Cap Pricings.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    const lines = csvContent.trim().split('\n');
+    
+    if (lines.length < 2) {
+      console.warn('Blank cap pricing CSV file is empty or has no data rows');
+      return {};
+    }
+    
+    const headers = parseCSVLine(lines[0]);
+    const pricingData: Record<string, any> = {};
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i]);
+      if (values.length >= 10) {
+        const tierName = (values[0] || '').replace(/"/g, '').trim();
+        if (tierName) {
+          pricingData[tierName] = {
+            price48: parseFloat(values[10]) || 0,
+            price144: parseFloat(values[11]) || 0,
+            price576: parseFloat(values[12]) || 0,
+            price1152: parseFloat(values[13]) || 0,
+            price2880: parseFloat(values[14]) || 0,
+            price10000: parseFloat(values[15]) || 0,
+          };
+        }
+      }
+    }
+    
+    return pricingData;
+  } catch (error) {
+    console.error('Error loading blank cap pricing from CSV:', error);
+    // Return current CSV values as fallback
+    return {
+      'Tier 1': { price48: 3.6, price144: 3, price576: 2.9, price1152: 2.84, price2880: 2.76, price10000: 2.7 },
+      'Tier 2': { price48: 4.4, price144: 3.2, price576: 3, price1152: 2.9, price2880: 2.8, price10000: 2.7 },
+      'Tier 3': { price48: 4.8, price144: 3.4, price576: 3.2, price1152: 2.94, price2880: 2.88, price10000: 2.82 }
+    };
+  }
+}
+
+// Calculate unit price from CSV data (same logic as product pages)
+function calculateUnitPriceFromCSV(quantity: number, tierData: any): number {
+  if (!tierData) return 3.2; // Fallback
+  
+  if (quantity >= 10000) return tierData.price10000;
+  if (quantity >= 2880) return tierData.price2880;
+  if (quantity >= 1152) return tierData.price1152;
+  if (quantity >= 576) return tierData.price576;
+  if (quantity >= 144) return tierData.price144;
+  return tierData.price48;
+}
+
 async function loadCustomizationPricing(): Promise<CustomizationPricing[]> {
   try {
     const csvPath = path.join(process.cwd(), 'src/app/csv/Customization Pricings.csv');
@@ -161,25 +217,61 @@ function calculateLogoSetupCost(
       }
     } else {
       // Handle other logo types (patches, prints, etc.)
-      const directMatch = pricingData.find(p => 
-        p.Name.toLowerCase() === logoValue.toLowerCase()
-      );
       
-      if (directMatch) {
-        unitPrice = getPriceForQuantity(directMatch, totalQuantity);
-        cost = unitPrice * totalQuantity;
-        details = logoValue;
-      } else {
-        // Try to find size-based match
+      // Special handling for rubber and leather patches with applications (Run, etc.)
+      const application = logoConfig.application || '';
+      let patchWithApplication = false;
+      
+      if ((logoValue.toLowerCase().includes('rubber patch') || logoValue.toLowerCase().includes('leather patch')) && application) {
+        // Calculate patch cost + application cost separately
         const sizeBasedName = `${size} ${logoValue}`;
-        const sizeMatch = pricingData.find(p => 
+        const patchMatch = pricingData.find(p => 
           p.Name.toLowerCase() === sizeBasedName.toLowerCase()
         );
         
-        if (sizeMatch) {
-          unitPrice = getPriceForQuantity(sizeMatch, totalQuantity);
+        const applicationMatch = pricingData.find(p => 
+          p.type === 'Application' && 
+          p.Name.toLowerCase() === application.toLowerCase()
+        );
+        
+        if (patchMatch && applicationMatch) {
+          const patchUnitPrice = getPriceForQuantity(patchMatch, totalQuantity);
+          const applicationUnitPrice = getPriceForQuantity(applicationMatch, totalQuantity);
+          unitPrice = patchUnitPrice + applicationUnitPrice;
+          cost = unitPrice * totalQuantity;
+          details = `${sizeBasedName} + ${application}`;
+          patchWithApplication = true;
+        } else if (patchMatch) {
+          // Fallback to just patch if application not found
+          unitPrice = getPriceForQuantity(patchMatch, totalQuantity);
           cost = unitPrice * totalQuantity;
           details = sizeBasedName;
+          patchWithApplication = true;
+        }
+      }
+      
+      if (!patchWithApplication) {
+        // Try direct match first
+        const directMatch = pricingData.find(p => 
+          p.Name.toLowerCase() === logoValue.toLowerCase()
+        );
+        
+        if (directMatch) {
+          unitPrice = getPriceForQuantity(directMatch, totalQuantity);
+          cost = unitPrice * totalQuantity;
+          details = logoValue;
+        } else {
+          // Try to find size-based match
+          const sizeBasedName = `${size} ${logoValue}`;
+          const sizeMatch = pricingData.find(p => 
+            p.Name.toLowerCase() === sizeBasedName.toLowerCase()
+          );
+          
+          if (sizeMatch) {
+            unitPrice = getPriceForQuantity(sizeMatch, totalQuantity);
+            cost = unitPrice * totalQuantity;
+            details = sizeBasedName;
+          }
         }
       }
     }
@@ -204,60 +296,8 @@ interface InvoiceCalculation {
 }
 
 export async function calcInvoiceFromOrder(order: OrderWithDetails): Promise<InvoiceCalculation> {
-  // Use the same /api/calculate-cost API that admin orders page uses for perfect consistency
-  try {
-    console.log('🔄 Using /api/calculate-cost API for invoice calculation consistency');
-    
-    // Parse order data
-    const selectedColors = typeof order.selectedColors === 'string' ? JSON.parse(order.selectedColors) : (order.selectedColors || {});
-    const logoSetupSelections = typeof order.logoSetupSelections === 'string' ? JSON.parse(order.logoSetupSelections) : (order.logoSetupSelections || {});
-    const selectedOptions = typeof order.selectedOptions === 'string' ? JSON.parse(order.selectedOptions) : (order.selectedOptions || {});
-    const multiSelectOptions = typeof order.multiSelectOptions === 'string' ? JSON.parse(order.multiSelectOptions) : (order.multiSelectOptions || {});
-    
-    // Prepare request data exactly like admin orders page does
-    const { getBaseProductPricing } = await import('@/lib/pricing');
-    const baseProductPricing = getBaseProductPricing('Tier 2'); // Default tier
-    
-    const requestData = {
-      selectedColors,
-      logoSetupSelections,
-      multiSelectOptions,
-      selectedOptions,
-      baseProductPricing,
-      priceTier: 'Tier 2'
-    };
-    
-    console.log('🔍 Debug - API request data:', {
-      hasSelectedColors: Object.keys(selectedColors).length > 0,
-      hasLogoSetupSelections: Object.keys(logoSetupSelections).length > 0,
-      multiSelectOptions,
-      selectedOptions
-    });
-    
-    // Make internal API call
-    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/calculate-cost`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestData)
-    });
-    
-    if (response.ok) {
-      const costBreakdown = await response.json();
-      console.log('💰 Cost breakdown result from API:', costBreakdown);
-      
-      if (costBreakdown) {
-        console.log('📊 Using /api/calculate-cost breakdown for invoice');
-        return convertCostBreakdownToInvoice(order, costBreakdown);
-      }
-    } else {
-      console.warn('API call failed:', response.status, response.statusText);
-    }
-  } catch (error) {
-    console.warn('/api/calculate-cost failed, falling back to legacy:', error);
-  }
-  
-  // Fallback to legacy calculation
-  console.log('⚠️ Using legacy calculation as fallback');
+  // Use direct calculation instead of HTTP call to avoid timeout issues
+  console.log('💰 Starting direct invoice calculation for consistency with order management');
   return calculateInvoiceFromOrderLegacy(order);
 }
 
@@ -396,6 +436,23 @@ function convertCostBreakdownToInvoice(order: OrderWithDetails, costBreakdown: a
     });
   }
 
+  // Services costs (was missing)
+  if (costBreakdown.servicesCosts && Array.isArray(costBreakdown.servicesCosts)) {
+    costBreakdown.servicesCosts.forEach((service: any) => {
+      const servicePrice = new Decimal(service.cost);
+      const serviceUnitPrice = new Decimal(service.unitPrice || service.cost); // Services are typically flat-rate
+      items.push({
+        name: 'Services',
+        description: service.name,
+        quantity: 1,
+        unitPrice: serviceUnitPrice,
+        total: servicePrice,
+        category: 'other'
+      });
+      subtotal = subtotal.add(servicePrice);
+    });
+  }
+
   // Ensure we have at least one delivery item
   const hasDeliveryItem = items.some(item => item.category === 'delivery');
   if (!hasDeliveryItem) {
@@ -416,7 +473,8 @@ function convertCostBreakdownToInvoice(order: OrderWithDetails, costBreakdown: a
       (costBreakdown.accessoriesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
       (costBreakdown.closureCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
       (costBreakdown.premiumFabricCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
-      (costBreakdown.moldChargeCosts?.reduce((sum: number, item: any) => item.waived ? sum : sum + item.cost, 0) || 0)
+      (costBreakdown.moldChargeCosts?.reduce((sum: number, item: any) => item.waived ? sum : sum + item.cost, 0) || 0) +
+      (costBreakdown.servicesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0)
     ),
     deliveryCost: new Decimal(costBreakdown.deliveryCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0)
   };
@@ -531,6 +589,23 @@ function convertOrderCostBreakdownToInvoice(order: OrderWithDetails, costBreakdo
     });
   }
 
+  // Services costs (was missing)
+  if (costBreakdown.servicesCosts && Array.isArray(costBreakdown.servicesCosts)) {
+    costBreakdown.servicesCosts.forEach((service: any) => {
+      const servicePrice = new Decimal(service.cost);
+      const serviceUnitPrice = new Decimal(service.unitPrice || service.cost); // Services are typically flat-rate
+      items.push({
+        name: 'Services',
+        description: service.name,
+        quantity: 1,
+        unitPrice: serviceUnitPrice,
+        total: servicePrice,
+        category: 'other'
+      });
+      subtotal = subtotal.add(servicePrice);
+    });
+  }
+
   // Ensure we have at least one delivery item
   const hasDeliveryItem = items.some(item => item.category === 'delivery');
   if (!hasDeliveryItem) {
@@ -547,7 +622,10 @@ function convertOrderCostBreakdownToInvoice(order: OrderWithDetails, costBreakdo
   const breakdown = {
     blankCapCost: new Decimal(costBreakdown.baseProductCost || 0),
     logoSetupCost: new Decimal(costBreakdown.logoSetupCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0),
-    accessoriesCost: new Decimal(costBreakdown.accessoriesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0),
+    accessoriesCost: new Decimal(
+      (costBreakdown.accessoriesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0) +
+      (costBreakdown.servicesCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0)
+    ),
     deliveryCost: new Decimal(costBreakdown.deliveryCosts?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0)
   };
 
@@ -595,7 +673,6 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
 
   // Calculate total quantity from selectedColors
   let totalQuantity = 0;
-  let baseUnitPrice = new Decimal(1.60); // Default tier pricing (Tier 2 to match Order Management)
   
   // Extract quantity from selectedColors structure
   Object.values(selectedColors).forEach((colorData: any) => {
@@ -611,20 +688,57 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
     totalQuantity = selectedOptions.quantity || selectedOptions.volume || 1;
   }
 
-  // Determine pricing tier from the product's embedded priceTier field
-  // This is the true source of truth - each product has its own tier set in Product Management
-  let pricingTier = 'Tier 1'; // Default fallback
+  // Load CSV pricing data and calculate accurate base unit price
+  const csvPricingData = await loadBlankCapPricingForInvoices();
   
-  // TODO: Look up the product from Sanity using order.productName to get the actual priceTier
-  // For now, we'll use Tier 1 as default to match current behavior until we implement product lookup
-  // The proper implementation would be:
-  // 1. Query Sanity for product by productName 
-  // 2. Extract product.priceTier field
-  // 3. Use that tier for pricing
+  // ✅ Extract priceTier from order data (fixes hardcoded Tier 2 issue)
+  let pricingTier = 'Tier 1'; // Default fallback (most affordable tier)
   
-  // Use centralized pricing calculation with determined tier
-  const calculatedUnitPrice = calculateUnitPrice(totalQuantity, pricingTier);
-  baseUnitPrice = new Decimal(calculatedUnitPrice);
+  // Try to extract priceTier from various order data sources - check in correct priority order
+  // 1. Check selectedOptions first (most direct)
+  if (selectedOptions.priceTier) {
+    pricingTier = selectedOptions.priceTier;
+    console.log(`📊 Found priceTier in selectedOptions: ${pricingTier}`);
+  }
+  
+  // 2. Check customerInfo for priceTier (common location)
+  if (typeof order.customerInfo === 'string') {
+    try {
+      const customerInfo = JSON.parse(order.customerInfo);
+      if (customerInfo.priceTier) {
+        pricingTier = customerInfo.priceTier;
+        console.log(`📊 Found priceTier in customerInfo: ${pricingTier}`);
+      }
+    } catch (e) {
+      // customerInfo is not JSON
+    }
+  } else if (order.customerInfo && typeof order.customerInfo === 'object') {
+    const customerInfo = order.customerInfo as any;
+    if (customerInfo.priceTier) {
+      pricingTier = customerInfo.priceTier;
+      console.log(`📊 Found priceTier in customerInfo object: ${pricingTier}`);
+    }
+  }
+  
+  // 3. Check additionalInstructions as backup
+  if (typeof order.additionalInstructions === 'string') {
+    try {
+      const parsed = JSON.parse(order.additionalInstructions);
+      if (parsed.priceTier) {
+        pricingTier = parsed.priceTier;
+        console.log(`📊 Found priceTier in additionalInstructions: ${pricingTier}`);
+      }
+    } catch (e) {
+      // additionalInstructions is not JSON, check if it contains tier info
+    }
+  }
+  
+  console.log(`📊 Using pricing tier: ${pricingTier} for invoice calculation`);
+  
+  // Get pricing data for the tier
+  const tierData = csvPricingData[pricingTier];
+  const calculatedUnitPrice = calculateUnitPriceFromCSV(totalQuantity, tierData);
+  let baseUnitPrice = new Decimal(calculatedUnitPrice);
 
   // Try to get actual pricing from order data if available
   if (selectedOptions.totalPrice) {
@@ -757,21 +871,46 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
       });
     }
 
-    // Handle closures
+    // Handle closures with proper CSV pricing
     if (multiSelectOptions.closures && Array.isArray(multiSelectOptions.closures)) {
       multiSelectOptions.closures.forEach((closure: string) => {
-        const closurePrice = new Decimal(2.00); // Default closure cost
-        breakdown.accessoriesCost = breakdown.accessoriesCost.add(closurePrice);
+        // Find pricing data for this closure type
+        const closurePricing = pricingData.find(p => 
+          p.type === 'Premium Closure' && 
+          p.Name.toLowerCase() === closure.toLowerCase()
+        );
         
-        items.push({
-          name: 'Closure Option',
-          description: closure,
-          quantity: 1,
-          unitPrice: closurePrice,
-          total: closurePrice,
-          category: 'closure'
-        });
-        subtotal = subtotal.add(closurePrice);
+        if (closurePricing) {
+          // Use per-unit pricing like Order Management
+          const unitPrice = getPriceForQuantity(closurePricing, totalQuantity);
+          const closurePrice = new Decimal(unitPrice);
+          const closureTotal = closurePrice.mul(totalQuantity);
+          breakdown.accessoriesCost = breakdown.accessoriesCost.add(closureTotal);
+          
+          items.push({
+            name: 'Closure Option',
+            description: closure,
+            quantity: totalQuantity,
+            unitPrice: closurePrice,
+            total: closureTotal,
+            category: 'closure'
+          });
+          subtotal = subtotal.add(closureTotal);
+        } else {
+          // Fallback only if no pricing found
+          const closurePrice = new Decimal(2.00);
+          breakdown.accessoriesCost = breakdown.accessoriesCost.add(closurePrice);
+          
+          items.push({
+            name: 'Closure Option',
+            description: closure,
+            quantity: 1,
+            unitPrice: closurePrice,
+            total: closurePrice,
+            category: 'closure'
+          });
+          subtotal = subtotal.add(closurePrice);
+        }
       });
     }
 
@@ -824,6 +963,77 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
     }
   }
   
+  // Handle premium fabric costs (missing critical component)
+  if (selectedOptions['fabric-setup'] || selectedOptions['custom-fabric']) {
+    const fabricSetup = selectedOptions['fabric-setup'];
+    const customFabricSetup = selectedOptions['custom-fabric'];
+    const effectiveFabricSetup = fabricSetup === 'Other' ? customFabricSetup : fabricSetup;
+    
+    if (effectiveFabricSetup) {
+      // Handle dual fabric setups (e.g., "Polyester/Laser Cut")
+      const fabricNames = effectiveFabricSetup.split('/').map(f => f.trim());
+      
+      // Check each fabric component for premium pricing
+      for (const fabricName of fabricNames) {
+        const premiumFabricPricing = pricingData.find(p => 
+          p.type === 'Premium Fabric' && 
+          p.Name.toLowerCase() === fabricName.toLowerCase()
+        );
+        
+        if (premiumFabricPricing) {
+          const unitPrice = getPriceForQuantity(premiumFabricPricing, totalQuantity);
+          const fabricPrice = new Decimal(unitPrice);
+          const fabricTotal = fabricPrice.mul(totalQuantity);
+          breakdown.accessoriesCost = breakdown.accessoriesCost.add(fabricTotal);
+          
+          items.push({
+            name: 'Premium Fabric',
+            description: fabricName,
+            quantity: totalQuantity,
+            unitPrice: fabricPrice,
+            total: fabricTotal,
+            category: 'accessory'
+          });
+          subtotal = subtotal.add(fabricTotal);
+        }
+      }
+    }
+  }
+
+  // Handle closure options from selectedOptions (critical missing component)
+  if (selectedOptions['closure-type'] || selectedOptions.closure) {
+    const closureType = selectedOptions['closure-type'] || selectedOptions.closure;
+    
+    // Check if we already processed closure from multiSelectOptions to avoid duplicates
+    const hasClosureFromMultiSelect = multiSelectOptions?.closures && Array.isArray(multiSelectOptions.closures) && multiSelectOptions.closures.length > 0;
+    
+    if (!hasClosureFromMultiSelect && closureType) {
+      // Find pricing data for this closure type
+      const closurePricing = pricingData.find(p => 
+        p.type === 'Premium Closure' && 
+        p.Name.toLowerCase() === closureType.toLowerCase()
+      );
+      
+      if (closurePricing) {
+        // Use per-unit pricing like Order Management
+        const unitPrice = getPriceForQuantity(closurePricing, totalQuantity);
+        const closurePrice = new Decimal(unitPrice);
+        const closureTotal = closurePrice.mul(totalQuantity);
+        breakdown.accessoriesCost = breakdown.accessoriesCost.add(closureTotal);
+        
+        items.push({
+          name: 'Closure Option',
+          description: closureType,
+          quantity: totalQuantity,
+          unitPrice: closurePrice,
+          total: closureTotal,
+          category: 'closure'
+        });
+        subtotal = subtotal.add(closureTotal);
+      }
+    }
+  }
+
   // Handle delivery options from selectedOptions (legacy format) - use proper per-unit pricing
   if (selectedOptions['delivery-type'] || selectedOptions.delivery) {
     const deliveryType = selectedOptions['delivery-type'] || selectedOptions.delivery;
@@ -877,6 +1087,61 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
     }
   }
 
+  // Handle services from multiSelectOptions (was missing - critical component)
+  if (multiSelectOptions && multiSelectOptions.services && Array.isArray(multiSelectOptions.services)) {
+    multiSelectOptions.services.forEach((service: string) => {
+      // Find pricing data for this service
+      const servicePricing = pricingData.find(p => 
+        p.type === 'Service' && 
+        p.Name.toLowerCase() === service.toLowerCase()
+      );
+      
+      if (servicePricing) {
+        // Services are typically flat-rate, not per-unit
+        const servicePrice = new Decimal(servicePricing.price48); // Use base price for services
+        breakdown.accessoriesCost = breakdown.accessoriesCost.add(servicePrice);
+        
+        items.push({
+          name: 'Services',
+          description: service,
+          quantity: 1,
+          unitPrice: servicePrice,
+          total: servicePrice,
+          category: 'other'
+        });
+        subtotal = subtotal.add(servicePrice);
+      } else {
+        // Fallback pricing for known services if not found in CSV
+        let fallbackPrice = new Decimal(0);
+        
+        // Common service fallback pricing
+        if (service.toLowerCase().includes('graphics')) {
+          fallbackPrice = new Decimal(50.00);
+        } else if (service.toLowerCase().includes('sampling')) {
+          fallbackPrice = new Decimal(100.00);
+        } else if (service.toLowerCase().includes('design')) {
+          fallbackPrice = new Decimal(75.00);
+        } else {
+          fallbackPrice = new Decimal(25.00); // Generic service fallback
+        }
+        
+        if (fallbackPrice.gt(0)) {
+          breakdown.accessoriesCost = breakdown.accessoriesCost.add(fallbackPrice);
+          
+          items.push({
+            name: 'Services',
+            description: service,
+            quantity: 1,
+            unitPrice: fallbackPrice,
+            total: fallbackPrice,
+            category: 'other'
+          });
+          subtotal = subtotal.add(fallbackPrice);
+        }
+      }
+    });
+  }
+
   // Handle legacy accessories from selectedOptions
   if (selectedOptions.accessories && Array.isArray(selectedOptions.accessories)) {
     for (const accessory of selectedOptions.accessories) {
@@ -896,6 +1161,42 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
         subtotal = subtotal.add(accessoryTotal);
       }
     }
+  }
+  
+  // Handle mold charge costs (critical missing component)
+  if (logoSetupSelections && Object.keys(logoSetupSelections).length > 0) {
+    Object.entries(logoSetupSelections).forEach(([logoType, logoConfig]: [string, any]) => {
+      if (logoConfig && typeof logoConfig === 'object') {
+        // Only apply mold charge for Rubber Patch and Leather Patch
+        const requiresMoldCharge = logoType.toLowerCase().includes('rubber patch') || 
+                                  logoType.toLowerCase().includes('leather patch');
+        
+        if (requiresMoldCharge) {
+          const size = logoConfig.size || 'Medium';
+          const moldChargeType = `${size} Mold Charge`;
+          
+          const moldPricing = pricingData.find(p => 
+            p.type === 'Mold' && 
+            p.Name.toLowerCase() === moldChargeType.toLowerCase()
+          );
+          
+          if (moldPricing) {
+            const moldPrice = new Decimal(moldPricing.price48); // Fixed charge regardless of quantity
+            breakdown.accessoriesCost = breakdown.accessoriesCost.add(moldPrice);
+            
+            items.push({
+              name: 'Mold Charge',
+              description: `${moldChargeType} (${logoType})`,
+              quantity: 1,
+              unitPrice: moldPrice,
+              total: moldPrice,
+              category: 'other'
+            });
+            subtotal = subtotal.add(moldPrice);
+          }
+        }
+      }
+    });
   }
 
   // Apply any discounts
@@ -932,6 +1233,9 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
       category: 'delivery'
     });
   }
+
+  // Note: Customization details are now shown in "Product Specifications & Customizations" section
+  // instead of cluttering the invoice table with zero-cost items
 
   // Calculate final total
   const total = subtotal.sub(discount).add(shipping).add(tax);

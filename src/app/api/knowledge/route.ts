@@ -1,0 +1,13 @@
+/**
+ * Knowledge API - Unified endpoint for AI knowledge access
+ * Provides optimized knowledge retrieval for all AI use cases
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth-helpers';
+// import { KnowledgeEngine } from '@/lib/knowledge/core/KnowledgeEngine';
+// import { productKnowledgeConsolidator } from '@/lib/knowledge/products/ProductKnowledgeConsolidator';
+
+export async function GET(request: NextRequest) {
+ return NextResponse.json({ error: 'Knowledge system temporarily disabled' }, { status: 503 });
+}

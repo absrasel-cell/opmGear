@@ -1,0 +1,138 @@
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+
+// N8N Webhook Handler for Message Events
+export async function POST(request: NextRequest) {
+ try {
+  const { messageId, action, category, priority, metadata } = await request.json();
+  
+  console.log('💬 N8N Message Event:', { messageId, action, category, priority });
+  
+  // Verify webhook authenticity
+  const webhookSecret = request.headers.get('x-n8n-webhook-secret');
+  if (webhookSecret !== process.env.N8N_WEBHOOK_SECRET) {
+   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Get message details from database
+  const message = await prisma.message.findUnique({
+   where: { id: messageId },
+   include: {
+    fromUser: {
+     select: { id: true, name: true, email: true, role: true }
+    },
+    toUser: {
+     select: { id: true, name: true, email: true, role: true }
+    }
+   }
+  });
+
+  if (!message) {
+   return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+  }
+
+  // Send event data to N8N for processing
+  const n8nResponse = await fetch(`${process.env.N8N_WEBHOOK_URL}/message-${action}`, {
+   method: 'POST',
+   headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': process.env.N8N_API_KEY || ''
+   },
+   body: JSON.stringify({
+    messageId: message.id,
+    content: message.content,
+    category: message.category,
+    priority: message.priority,
+    fromUserId: message.fromUserId,
+    toUserId: message.toUserId,
+    fromEmail: message.fromEmail,
+    toEmail: message.toEmail,
+    fromName: message.fromName,
+    toName: message.toName,
+    isAdminMessage: message.isAdminMessage,
+    attachments: message.attachments || [],
+    createdAt: message.createdAt.toISOString(),
+    fromUser: message.fromUser,
+    toUser: message.toUser,
+    action,
+    metadata,
+    timestamp: new Date().toISOString()
+   })
+  });
+
+  console.log('📨 N8N Message Response Status:', n8nResponse.status);
+
+  return NextResponse.json({
+   success: true,
+   messageId,
+   action,
+   n8nProcessed: n8nResponse.ok
+  });
+
+ } catch (error) {
+  console.error('❌ N8N Message Webhook Error:', error);
+  return NextResponse.json(
+   { error: 'Message webhook processing failed' },
+   { status: 500 }
+  );
+ }
+}
+
+// GET endpoint for N8N to fetch message data
+export async function GET(request: NextRequest) {
+ try {
+  const { searchParams } = new URL(request.url);
+  const messageId = searchParams.get('messageId');
+  
+  if (!messageId) {
+   return NextResponse.json({ error: 'Message ID required' }, { status: 400 });
+  }
+
+  const message = await prisma.message.findUnique({
+   where: { id: messageId },
+   include: {
+    fromUser: {
+     select: { id: true, name: true, email: true, role: true }
+    },
+    toUser: {
+     select: { id: true, name: true, email: true, role: true }
+    },
+    replyTo: true
+   }
+  });
+
+  if (!message) {
+   return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({
+   message: {
+    id: message.id,
+    content: message.content,
+    category: message.category,
+    priority: message.priority,
+    fromUserId: message.fromUserId,
+    toUserId: message.toUserId,
+    fromEmail: message.fromEmail,
+    toEmail: message.toEmail,
+    fromName: message.fromName,
+    toName: message.toName,
+    isAdminMessage: message.isAdminMessage,
+    attachments: message.attachments || [],
+    isRead: message.isRead,
+    createdAt: message.createdAt.toISOString(),
+    updatedAt: message.updatedAt.toISOString(),
+    fromUser: message.fromUser,
+    toUser: message.toUser,
+    replyTo: message.replyTo
+   }
+  });
+
+ } catch (error) {
+  console.error('❌ Message fetch error:', error);
+  return NextResponse.json(
+   { error: 'Failed to fetch message' },
+   { status: 500 }
+  );
+ }
+}

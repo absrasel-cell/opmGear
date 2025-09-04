@@ -1,0 +1,106 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
+import { OrderRecordingSystem, convertCheckoutToStandardOrder } from '@/lib/order-recording-system';
+
+/**
+ * Supplier Order Creation API
+ * Handles orders from suppliers and manufacturer partners
+ */
+export async function POST(request: NextRequest) {
+ try {
+  // Get current user
+  const user = await getCurrentUser(request);
+  if (!user) {
+   return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  
+  // Get user profile to check supplier access
+  const profile = await getUserProfile(user.id);
+  if (!profile || (profile.customerRole !== 'SUPPLIER' && profile.accessRole === 'CUSTOMER')) {
+   return NextResponse.json({ error: 'Supplier access required' }, { status: 403 });
+  }
+  
+  const rawOrderData = await request.json();
+  
+  console.log('=== SUPPLIER ORDER CREATION ===');
+  console.log('👤 Supplier user:', profile.email);
+  console.log('📄 Order data:', Object.keys(rawOrderData));
+  console.log('🏭 Production order:', rawOrderData.isProductionOrder || false);
+  
+  // Get client IP and user agent
+  const ipAddress = request.headers.get('x-forwarded-for') || 
+           request.headers.get('x-real-ip') || 
+           'supplier-dashboard';
+  const userAgent = request.headers.get('user-agent') || 'supplier-interface';
+  
+  // Convert supplier order data to standard format
+  const standardOrderData = convertCheckoutToStandardOrder({
+   ...rawOrderData,
+   userId: user.id,
+   userEmail: user.email || profile.email,
+   orderType: 'AUTHENTICATED',
+   orderSource: 'BULK_ORDER', // Supplier orders are typically bulk
+   priceTier: rawOrderData.priceTier || 'Tier 3', // Suppliers may get better pricing
+   status: 'PENDING', // Supplier orders typically require processing
+   ipAddress,
+   userAgent,
+   paymentProcessed: false, // Supplier orders use terms/invoice payment
+   supplierInfo: {
+    customerRole: profile.customerRole,
+    company: profile.company || rawOrderData.customerInfo?.company,
+    isProductionOrder: rawOrderData.isProductionOrder || false,
+    manufacturingSpecs: rawOrderData.manufacturingSpecs,
+    deliveryRequirements: rawOrderData.deliveryRequirements,
+    qualityStandards: rawOrderData.qualityStandards
+   }
+  });
+  
+  // Set up supplier-specific recording options
+  const recordingOptions = {
+   idempotencyKey: `supplier_${user.id}_${Date.now()}`,
+   skipDuplicateCheck: rawOrderData.skipDuplicateCheck || false,
+   autoCalculateCosts: true, // Calculate supplier pricing
+   createInvoice: true, // Always create invoices for suppliers
+   notifyCustomer: true, // Notify suppliers of order status
+   assignToShipment: false, // Suppliers handle their own shipping initially
+   updateInventory: rawOrderData.updateInventory !== false // Default true for suppliers
+  };
+  
+  console.log('🎯 Supplier recording options:', recordingOptions);
+  
+  // Record the order using the streamlined system
+  const result = await OrderRecordingSystem.recordOrder(standardOrderData, recordingOptions);
+  
+  if (!result.success) {
+   console.error('❌ Supplier order creation failed:', result.errors);
+   return NextResponse.json({
+    error: 'Failed to create supplier order',
+    details: result.errors
+   }, { status: 500 });
+  }
+  
+  console.log('✅ Supplier order created successfully:', result.orderId);
+  
+  // Return supplier-specific response
+  return NextResponse.json({
+   message: 'Supplier order created successfully - pending processing',
+   orderId: result.orderId,
+   order: result.order,
+   customerType: 'SUPPLIER',
+   processingRequired: true,
+   invoice: result.invoice,
+   expectedProcessingTime: rawOrderData.expectedProcessingTime || '3-5 business days',
+   warnings: result.warnings || [],
+   manufacturingNotes: rawOrderData.manufacturingSpecs ? 
+    'Custom manufacturing specifications included' : 
+    'Standard manufacturing process'
+  }, { status: 201 });
+
+ } catch (error) {
+  console.error('💥 Supplier order creation error:', error);
+  return NextResponse.json({
+   error: 'Failed to create supplier order',
+   details: error instanceof Error ? error.message : 'Unknown error'
+  }, { status: 500 });
+ }
+}

@@ -1,0 +1,130 @@
+Fabric Color availability based on Fabric types:
+Chino Twill, Polyester, Trucker Mesh are available in All the colors as below:
+Solid:
+White
+Black
+Red
+Cardinal
+Maroon
+Amber Gold
+Khaki
+Light Khaki
+Stone
+Light Grey
+Dark Grey
+Charcoal Grey
+Navy
+Light Blue
+Royal
+Carolina Blue
+Purple
+Pink
+Green
+Kelly Green
+Dark Green
+Gold
+Orange
+Burnt Orange
+Brown
+Olive
+Neon Green
+Neon Orange
+Neon Yellow
+Neon Pink
+Neon Blue
+Realtree
+MossyOak
+Kryptek Brown (Regular)
+Kryptek Brown (Skull Face version)
+Kryptek Black/Grey
+Prym 1
+Bottomland Camo
+Duck Camo (White BG + Khaki + Dark Green + Chocolate)
+Army Camo (Generic Green/Black Comb)
+Digital Camo Grey
+
+Split color options:
+Black/Charcoal
+Black/Gold
+Black/White
+Black/Yellow
+Brown/Stone
+Burnt Orange/Black
+Cardinal/Black
+Cardinal/White
+Charcoal/Black
+Charcoal/Carolina Blue
+Charcoal/Kelly
+Charcoal/Light Grey
+Charcoal/Navy
+Charcoal/Neon Blue
+Charcoal/Neon Green
+Charcoal/Neon Orange
+Charcoal/Neon Pink
+Charcoal/Neon Yellow
+Charcoal/Orange
+Charcoal/Red
+Charcoal/Royal
+Charcoal/White
+Columbia Blue/White
+Cyan/White
+Dark Green/White
+Dark Green/Yellow
+Light Grey/Black
+Heather Grey/Black
+Heather Grey/Dark Green
+Heather Grey/Navy
+Heather Grey/Royal
+Heather Grey/White
+Hot Pink/Black
+Hot Pink/White
+Kelly Green/White
+Kelly/White
+Khaki/Brown
+Khaki/Navy
+Khaki/White
+Light Grey/Light Blue
+Olive/Black
+Maroon/White
+Navy/Charcoal
+Navy/Stone
+Navy/Khaki
+Navy/Orange
+Navy/White
+Olive/Khaki
+Orange/Black
+Orange/White
+Purple/White
+Red/Black
+Red/White
+Royal/Black
+Royal/White
+
+
+Tri Color option:
+Amber Gold/Heather Grey/Stone
+Amber Gold/Stone/Navy
+Black/Light Grey/Charcoal
+Black/Orange/White
+Black/Red/White
+Black/White/Light Grey
+Heather Grey/Navy/White
+Heather Grey/Red/White
+Heather Grey/Royal/White
+Maroon/Heather Grey/Charcoal
+Navy/Carolina Blue/White
+Navy/Heather Grey/Red
+Navy/Red/White
+Olive/Heather Grey/Stone
+Olive/White/Black
+Red/Black/White
+Red/Navy/White
+Red/Royal/White
+Light Grey/Black/White
+Gold/White/Carolina Blue
+
+
+for all the other Fabric types:
+Limit to Regular Colors like: Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange.
+
+Fabric Sourcing and Arrangements of Fabric: For order above 2880+, we dye the whole Fabric or certain order as fresh from Fabric textile Factories. In that case, we do Lab Dib, as Sampling first where Textile factories shows Sample Fabric swatch with multiple color shade to match up with a specific color code/Fabric construction. Chino Twill itself has various constructions, like 16x12 (default), 20x20 (thin), 10x10 (thick).

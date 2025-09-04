@@ -1,0 +1,214 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { calculateUnifiedCosts, UnifiedCostInput } from '@/lib/cost-calculator-unified';
+
+export async function POST(request: NextRequest) {
+ const calculationStart = Date.now();
+ 
+ try {
+  console.log('🔧 [UNIFIED-API] Received unified cost calculation request');
+  
+  const body = await request.json();
+  
+  // Convert legacy API format to unified format
+  const selectedOptions = body.selectedOptions || {};
+  const multiSelectOptions = body.multiSelectOptions || {};
+  const logoSetupSelections = body.logoSetupSelections || {};
+  
+  // Map multiSelectOptions to selectedOptions for unified calculator compatibility
+  if (body.multiSelectOptions) {
+   // Map fabric-type from multiSelectOptions to fabric-setup in selectedOptions
+   if (body.multiSelectOptions['fabric-type'] && body.multiSelectOptions['fabric-type'].length > 0) {
+    selectedOptions['fabric-setup'] = body.multiSelectOptions['fabric-type'][0];
+    console.log('🧵 [UNIFIED-API] Mapped fabric-type to fabric-setup:', selectedOptions['fabric-setup']);
+   }
+   
+   // Map delivery-method from multiSelectOptions to delivery-type in selectedOptions
+   if (body.multiSelectOptions['delivery-method'] && body.multiSelectOptions['delivery-method'].length > 0) {
+    selectedOptions['delivery-type'] = body.multiSelectOptions['delivery-method'][0];
+    console.log('🚚 [UNIFIED-API] Mapped delivery-method to delivery-type:', selectedOptions['delivery-type']);
+   }
+   
+   // Map closure-type from multiSelectOptions
+   if (body.multiSelectOptions['closure-type'] && body.multiSelectOptions['closure-type'].length > 0) {
+    selectedOptions['closure-type'] = body.multiSelectOptions['closure-type'][0];
+    console.log('🔒 [UNIFIED-API] Mapped closure-type:', selectedOptions['closure-type']);
+   }
+  }
+  
+  // Map logoSetupSelections to multiSelectOptions['logo-setup'] format
+  if (body.logoSetupSelections && Object.keys(body.logoSetupSelections).length > 0) {
+   const logoSetupKeys = Object.keys(body.logoSetupSelections);
+   multiSelectOptions['logo-setup'] = logoSetupKeys;
+   
+   // Map each logo setup with position and size info
+   logoSetupKeys.forEach(logoKey => {
+    if (!logoSetupSelections[logoKey]) {
+     // Parse position and size from logo key like "Front - Rubber Patch - Large - Direct"
+     const parts = logoKey.split(' - ');
+     logoSetupSelections[logoKey] = {
+      position: parts[0] || 'Front',
+      size: parts[2] || 'Medium',
+      application: parts[3] || 'Direct'
+     };
+    }
+   });
+   
+   console.log('🎨 [UNIFIED-API] Mapped logo setup:', {
+    logoKeys: logoSetupKeys,
+    logoConfigs: logoSetupSelections
+   });
+  }
+  
+  const unifiedInput: UnifiedCostInput = {
+   selectedColors: body.selectedColors || {},
+   logoSetupSelections,
+   multiSelectOptions,
+   selectedOptions,
+   priceTier: body.priceTier || 'Tier 1',
+   baseProductPricing: body.baseProductPricing,
+   shipmentData: body.shipmentData,
+   calculationContext: body.calculationContext || 'CART',
+   orderId: body.orderId,
+   preserveStoredValues: body.preserveStoredValues || false
+  };
+  
+  console.log('🔧 [UNIFIED-API] Input validation:', {
+   hasSelectedColors: Object.keys(unifiedInput.selectedColors).length > 0,
+   hasLogoSelections: Object.keys(unifiedInput.logoSetupSelections).length > 0,
+   context: unifiedInput.calculationContext,
+   priceTier: unifiedInput.priceTier,
+   hasShipmentData: !!unifiedInput.shipmentData,
+   orderId: unifiedInput.orderId
+  });
+  
+  // Validate required fields
+  if (!unifiedInput.selectedColors || Object.keys(unifiedInput.selectedColors).length === 0) {
+   throw new Error('selectedColors is required and must not be empty');
+  }
+  
+  // Calculate costs using unified calculator
+  const result = await calculateUnifiedCosts(unifiedInput);
+  
+  console.log('✅ [UNIFIED-API] Calculation completed:', {
+   totalCost: result.totalCost,
+   totalUnits: result.totalUnits,
+   itemCount: result.items.length,
+   calculationTime: Date.now() - calculationStart
+  });
+  
+  // Convert unified format back to legacy format for compatibility
+  const legacyResponse = {
+   // Legacy base product fields
+   baseProductCost: result.baseProductTotal,
+   originalBaseProductCost: result.items.find(i => i.category === 'base_product')?.originalCost || result.baseProductTotal,
+   
+   // Legacy item arrays
+   logoSetupCosts: result.items
+    .filter(i => i.category === 'logo_setup')
+    .map(item => ({
+     name: item.name,
+     cost: item.cost,
+     unitPrice: item.unitPrice,
+     details: item.details,
+     originalCost: item.originalCost,
+     originalUnitPrice: item.originalUnitPrice,
+     customerCost: item.cost, // Final cost with margins
+     customerUnitPrice: item.unitPrice
+    })),
+   
+   accessoriesCosts: result.items
+    .filter(i => i.category === 'accessories')
+    .map(item => ({
+     name: item.name,
+     cost: item.cost,
+     unitPrice: item.unitPrice,
+     originalCost: item.originalCost,
+     originalUnitPrice: item.originalUnitPrice,
+     customerCost: item.cost,
+     customerUnitPrice: item.unitPrice
+    })),
+   
+   closureCosts: result.items
+    .filter(i => i.category === 'closure')
+    .map(item => ({
+     name: item.name,
+     cost: item.cost,
+     unitPrice: item.unitPrice,
+     originalCost: item.originalCost,
+     originalUnitPrice: item.originalUnitPrice,
+     customerCost: item.cost,
+     customerUnitPrice: item.unitPrice
+    })),
+   
+   premiumFabricCosts: result.items
+    .filter(i => i.category === 'premium_fabric')
+    .map(item => ({
+     name: item.name,
+     cost: item.cost,
+     unitPrice: item.unitPrice,
+     originalCost: item.originalCost,
+     originalUnitPrice: item.originalUnitPrice,
+     customerCost: item.cost,
+     customerUnitPrice: item.unitPrice
+    })),
+   
+   deliveryCosts: result.items
+    .filter(i => i.category === 'delivery')
+    .map(item => ({
+     name: item.name,
+     cost: item.cost,
+     unitPrice: item.unitPrice,
+     originalCost: item.originalCost,
+     originalUnitPrice: item.originalUnitPrice,
+     customerCost: item.cost,
+     customerUnitPrice: item.unitPrice
+    })),
+   
+   moldChargeCosts: result.items
+    .filter(i => i.category === 'mold_charge')
+    .map(item => ({
+     name: item.name,
+     cost: item.cost,
+     unitPrice: item.unitPrice,
+     waived: item.waived,
+     waiverReason: item.waiverReason,
+     customerCost: item.cost,
+     customerUnitPrice: item.unitPrice
+    })),
+   
+   // Legacy totals
+   totalCost: result.totalCost,
+   totalUnits: result.totalUnits,
+   
+   // Metadata
+   _unified: {
+    calculatedWith: 'unified-calculator-v1.0.0',
+    calculationTime: Date.now() - calculationStart,
+    context: result.calculationMetadata.context,
+    marginsApplied: result.calculationMetadata.marginsApplied,
+    priceTier: result.calculationMetadata.priceTier
+   }
+  };
+  
+  return NextResponse.json(legacyResponse);
+  
+ } catch (error) {
+  console.error('❌ [UNIFIED-API] Cost calculation failed:', error);
+  
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  
+  return NextResponse.json(
+   { 
+    error: 'Failed to calculate unified costs',
+    details: errorMessage,
+    type: error instanceof Error ? error.constructor.name : 'Unknown',
+    _unified: {
+     calculatedWith: 'unified-calculator-v1.0.0',
+     failed: true,
+     calculationTime: Date.now() - calculationStart
+    }
+   },
+   { status: 500 }
+  );
+ }
+}

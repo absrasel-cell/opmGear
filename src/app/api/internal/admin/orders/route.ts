@@ -1,0 +1,123 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import prisma from '@/lib/prisma';
+
+export async function GET(request: NextRequest) {
+ try {
+  const user = await getCurrentUser(request);
+  
+  if (!user) {
+   return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  // Verify admin access
+  const userProfile = await prisma.user.findUnique({
+   where: { id: user.id },
+   select: { accessRole: true, email: true }
+  });
+
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'MASTER_ADMIN', 'STAFF'].includes(userProfile?.accessRole || '') ||
+          userProfile?.email === 'absrasel@gmail.com';
+
+  if (!isAdmin) {
+   return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const status = searchParams.get('status');
+  const customerId = searchParams.get('customerId');
+
+  // Get total orders count
+  const totalOrders = await prisma.order.count();
+
+  // Get orders by status
+  const ordersByStatus = await prisma.order.groupBy({
+   by: ['status'],
+   _count: { status: true }
+  });
+
+  // Get total revenue
+  const revenueData = await prisma.order.aggregate({
+   _sum: { calculatedTotal: true },
+   where: { status: { not: 'CANCELLED' } }
+  });
+
+  // Build where clause for filtering
+  let whereClause: any = {};
+  if (status) whereClause.status = status;
+  if (customerId) whereClause.userId = customerId;
+
+  // Get recent orders with user information
+  const recentOrders = await prisma.order.findMany({
+   where: whereClause,
+   orderBy: { createdAt: 'desc' },
+   take: limit,
+   select: {
+    id: true,
+    productName: true,
+    status: true,
+    totalUnits: true,
+    calculatedTotal: true,
+    createdAt: true,
+    updatedAt: true,
+    trackingNumber: true,
+    deliveryDate: true,
+    priceTier: true,
+    specialInstructions: true,
+    user: {
+     select: {
+      id: true,
+      name: true,
+      email: true,
+      customerRole: true,
+      accessRole: true
+     }
+    }
+   }
+  });
+
+  // Get recent order activity (last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const recentActivity = await prisma.order.count({
+   where: {
+    createdAt: { gte: sevenDaysAgo }
+   }
+  });
+
+  // Get average order value
+  const avgOrderValue = await prisma.order.aggregate({
+   _avg: { calculatedTotal: true },
+   where: { 
+    calculatedTotal: { not: null },
+    status: { not: 'CANCELLED' }
+   }
+  });
+
+  return NextResponse.json({
+   totalOrders,
+   recentOrders,
+   ordersByStatus: ordersByStatus.reduce((acc, item) => {
+    acc[item.status] = item._count.status;
+    return acc;
+   }, {} as Record<string, number>),
+   totalRevenue: revenueData._sum.calculatedTotal || 0,
+   recentActivity,
+   averageOrderValue: avgOrderValue._avg.calculatedTotal || 0,
+   analytics: {
+    ordersThisWeek: recentActivity,
+    totalRevenue: revenueData._sum.calculatedTotal || 0,
+    averageOrderValue: avgOrderValue._avg.calculatedTotal || 0
+   }
+  });
+
+ } catch (error) {
+  console.error('Internal API Error - Admin Orders:', error);
+  return NextResponse.json(
+   { error: 'Failed to retrieve admin order data' },
+   { status: 500 }
+  );
+ }
+}

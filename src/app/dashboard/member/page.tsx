@@ -49,7 +49,7 @@ interface Order {
   id: string;
   productName: string;
   status: string;
-  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' | 'CHECKOUT_ORDER' | 'QUOTE_CONVERSION';
+  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' | 'CHECKOUT_ORDER';
   isDraft?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -150,10 +150,10 @@ function QuickActionCard({
   return (
     <Link
       href={href}
-      className="group relative flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+      className="group relative flex w-full items-center gap-4 rounded-2xl border border-stone-600 bg-stone-700 p-4  transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
     >
       <div className={`absolute inset-0 rounded-2xl opacity-0 blur-2xl transition-opacity duration-300 ${glowClass} group-hover:opacity-30`} />
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-black/40">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-stone-600 bg-black/40">
         <Icon className="h-6 w-6" />
       </div>
       <div className="relative">
@@ -387,20 +387,46 @@ export default function NewMemberDashboard() {
 
   const calculateOrderCosts = async (order: Order): Promise<CostBreakdown | null> => {
     try {
+      console.log(`🔧 Member Dashboard - Calculating costs for order: ${order.id}`);
+      
       // Import centralized pricing function for consistency
       const { getBaseProductPricing } = await import('@/lib/pricing');
       
-      // Use Tier 2 pricing to match source of truth ($1.60 per unit for 144+ units)
-      const baseProductPricing = getBaseProductPricing('Tier 2');
+      // ✅ Extract pricing tier from order data (fixes hardcoded Tier 2 issue)
+      let pricingTier = 'Tier 1'; // Default fallback to Tier 1
+      
+      // Try to get priceTier from order's selectedOptions
+      if (order.selectedOptions && typeof order.selectedOptions === 'object') {
+        const selectedOptions = typeof order.selectedOptions === 'string' 
+          ? JSON.parse(order.selectedOptions) 
+          : order.selectedOptions;
+          
+        if (selectedOptions.priceTier) {
+          pricingTier = selectedOptions.priceTier;
+          console.log(`📊 Member Dashboard: Using priceTier from order: ${pricingTier}`);
+        }
+      }
+      
+      const baseProductPricing = getBaseProductPricing(pricingTier);
 
+      // Enhanced request data validation
       const requestData = {
         selectedColors: order.selectedColors,
         logoSetupSelections: order.logoSetupSelections || {},
         multiSelectOptions: order.multiSelectOptions || {},
         selectedOptions: order.selectedOptions || {},
         baseProductPricing,
-        priceTier: 'Tier 2' // Send the tier to API for consistency
+        priceTier: pricingTier // Send the tier to API for consistency
       };
+
+      console.log(`🔧 Member Dashboard - Request data for order ${order.id}:`, {
+        hasSelectedColors: !!requestData.selectedColors,
+        hasLogoSetupSelections: !!requestData.logoSetupSelections,
+        hasMultiSelectOptions: !!requestData.multiSelectOptions,
+        hasSelectedOptions: !!requestData.selectedOptions,
+        hasBaseProductPricing: !!requestData.baseProductPricing,
+        priceTier: requestData.priceTier
+      });
 
       const response = await fetch('/api/calculate-cost', {
         method: 'POST',
@@ -412,11 +438,24 @@ export default function NewMemberDashboard() {
 
       if (response.ok) {
         const costBreakdown: CostBreakdown = await response.json();
+        console.log(`✅ Member Dashboard - Cost calculation successful for order ${order.id}:`, {
+          totalCost: costBreakdown.totalCost,
+          baseProductCost: costBreakdown.baseProductCost,
+          logoSetupCosts: costBreakdown.logoSetupCosts.length,
+          accessoriesCosts: costBreakdown.accessoriesCosts.length
+        });
         return costBreakdown;
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ Member Dashboard - API error for order ${order.id}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
       }
       return null;
     } catch (error) {
-      console.error('Error calculating order costs:', error);
+      console.error(`❌ Member Dashboard - Error calculating costs for order ${order.id}:`, error);
       return null;
     }
   };
@@ -533,11 +572,11 @@ export default function NewMemberDashboard() {
         {/* Main Content */}
         <DashboardContent>
           {/* Header */}
-          <header className="sticky top-0 z-20 backdrop-blur-xl mt-2">
+          <header className="sticky top-0 z-20  mt-2">
             <div className="px-6 md:px-10 pt-2">
               <GlassCard className="p-0">
                 {/* Top Row - Search and Actions */}
-                <div className="flex items-center gap-3 p-3 border-b border-white/10">
+                <div className="flex items-center gap-3 p-3 border-b border-stone-600">
                   <div className="flex-1">
                     <SearchInput
                       icon={Search}
@@ -555,20 +594,20 @@ export default function NewMemberDashboard() {
                     </div>
 
                     {/* Notification bell */}
-                    <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5">
+                    <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5">
                       <Bell className="h-5 w-5" />
                     </button>
 
                                          {/* Settings Icon */}
                      <Link href="/dashboard/member/settings">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/10" title="Settings">
+                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5 hover:bg-stone-600" title="Settings">
                          <Settings className="h-5 w-5" />
                        </button>
                      </Link>
 
                      {/* Profile Icon - Clickable */}
                      <Link href="/dashboard/member/profile">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/10" title="Profile">
+                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5 hover:bg-stone-600" title="Profile">
                          {user.avatarUrl ? (
                            <img 
                              src={user.avatarUrl} 
@@ -584,7 +623,7 @@ export default function NewMemberDashboard() {
                      {/* Refresh Session Button */}
                      <button 
                        onClick={refreshSession}
-                       className="relative grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/10"
+                       className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5 hover:bg-stone-600"
                        title="Refresh Session"
                      >
                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -602,7 +641,7 @@ export default function NewMemberDashboard() {
                     </h1>
                     
                     {/* Role Badge */}
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-sm">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-stone-700 border border-stone-600 text-sm">
                       {isMasterAdmin ? (
                         <>
                           <Shield className="w-4.5 h-4.5 text-lime-400" />
@@ -642,7 +681,7 @@ export default function NewMemberDashboard() {
             {/* Checkout Success Notification */}
             {checkoutSuccess && (
               <div className="px-6 md:px-10 mt-4">
-                <div className="overflow-hidden rounded-2xl border border-lime-300/20 bg-lime-300/15 p-4 text-lime-100 backdrop-blur-xl">
+                <div className="overflow-hidden rounded-2xl border border-lime-300/20 bg-lime-300/15 p-4 text-lime-100 ">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5" />
                     <div>
@@ -659,7 +698,7 @@ export default function NewMemberDashboard() {
             {/* Role Change Notification */}
             {roleChangeNotification && (
               <div className="px-6 md:px-10 mt-4">
-                <div className="overflow-hidden rounded-2xl border border-lime-300/20 bg-lime-300/15 p-4 text-lime-100 backdrop-blur-xl">
+                <div className="overflow-hidden rounded-2xl border border-lime-300/20 bg-lime-300/15 p-4 text-lime-100 ">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5" />
                     <p className="font-medium">Your account role has been updated! The changes are now reflected in your dashboard.</p>
@@ -671,7 +710,7 @@ export default function NewMemberDashboard() {
             {/* Database Status Banner */}
             {databaseStatus === 'unavailable' && (
               <div className="px-6 md:px-10 mt-4">
-                <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-amber-300/15 p-4 text-amber-100 backdrop-blur-xl">
+                <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-amber-300/15 p-4 text-amber-100 ">
                   <div className="flex items-center gap-3">
                     <AlertTriangle className="h-5 w-5" />
                     <p className="font-medium">Database maintenance in progress. Some data may be delayed.</p>
@@ -749,7 +788,7 @@ export default function NewMemberDashboard() {
                     <button
                       key={f}
                       onClick={() => setCurrentFilter(f)}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${currentFilter === f ? 'border-lime-400/40 bg-lime-400/20 text-white' : 'border-white/10 bg-white/5 text-slate-200/90 hover:border-white/20'}`}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${currentFilter === f ? 'border-lime-400/40 bg-lime-400/20 text-white' : 'border-stone-600 bg-stone-700 text-slate-200/90 hover:border-white/20'}`}
                     >
                       {f === 'all' ? 'All' : 
                        f === 'saved' ? 'Saved' :
@@ -764,7 +803,7 @@ export default function NewMemberDashboard() {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={fetchUserData}
-                    className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 transition hover:border-white/20"
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-stone-600 bg-stone-700 transition hover:border-white/20"
                     title="Refresh Data"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -800,7 +839,7 @@ export default function NewMemberDashboard() {
                     ))
                   ) : (
                     <GlassCard className="p-8 text-center">
-                      <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl border border-white/10 bg-white/5">
+                      <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl border border-stone-600 bg-stone-700">
                         <CircleHelp className="h-6 w-6 opacity-70" />
                       </div>
                       <p className="text-base font-semibold text-white">No quote requests yet</p>
@@ -820,7 +859,7 @@ export default function NewMemberDashboard() {
                         <div className="flex items-center gap-4 p-4">
                           <button
                             onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-black/40 transition hover:scale-105"
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-stone-600 bg-black/40 transition hover:scale-105"
                           >
                             {expandedOrder === order.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </button>
@@ -852,7 +891,7 @@ export default function NewMemberDashboard() {
                         </div>
                         
                         {expandedOrder === order.id && (
-                          <div className="grid grid-cols-1 gap-4 border-t border-white/10 p-4 md:grid-cols-3">
+                          <div className="grid grid-cols-1 gap-4 border-t border-stone-600 p-4 md:grid-cols-3">
                             {/* Order Information */}
                             <GlassCard className="p-4">
                               <div className="mb-3 flex items-center gap-2 text-white">
@@ -923,7 +962,7 @@ export default function NewMemberDashboard() {
                                     }
                                   </dd>
                                 </div>
-                                <div className="flex justify-between border-t border-white/10 pt-2 mt-2">
+                                <div className="flex justify-between border-t border-stone-600 pt-2 mt-2">
                                   <dt className="opacity-80 font-medium">Order Total</dt>
                                   <dd className="font-medium text-white">
                                     {orderCostBreakdowns[order.id] ? formatPrice(orderCostBreakdowns[order.id].totalCost) : (order.orderTotal ? formatPrice(order.orderTotal) : 'Calculating...')}
@@ -948,16 +987,29 @@ export default function NewMemberDashboard() {
                                 {order.selectedColors && Object.keys(order.selectedColors).length > 0 && (
                                   <div>
                                     <dt className="opacity-80 mb-1">Colors & Sizes</dt>
-                                    {Object.entries(order.selectedColors).map(([colorName, colorData]: [string, any]) => (
+                                    {Object.entries(order.selectedColors).map(([colorName, colorData]: [string, any]) => {
+                                      // Use custom name if available, otherwise use original color name
+                                      const displayName = colorData.customName || colorName;
+                                      const isCustom = colorData.isCustom;
+                                      
+                                      return (
                                       <div key={colorName} className="ml-2 mb-1">
-                                        <div className="text-xs font-medium text-white">{colorName}:</div>
+                                        <div className="text-xs font-medium text-white flex items-center gap-2">
+                                          <span>{displayName}:</span>
+                                          {isCustom && (
+                                            <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded-full font-bold text-[10px]">
+                                              Custom
+                                            </span>
+                                          )}
+                                        </div>
                                         <div className="ml-2 text-xs text-slate-400">
                                           {Object.entries((colorData as any).sizes || {}).map(([size, qty]: [string, any]) => (
                                             qty > 0 && <span key={size} className="mr-2">{size}: {qty}</span>
                                           ))}
                                         </div>
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 )}
                                 
@@ -975,29 +1027,6 @@ export default function NewMemberDashboard() {
                               </dl>
                             </GlassCard>
 
-                            {/* Selected Options (Single-Select) */}
-                            {order.selectedOptions && Object.keys(order.selectedOptions).length > 0 && (
-                              <GlassCard className="p-4 md:col-span-3">
-                                <div className="mb-3 flex items-center gap-2 text-white">
-                                  <svg className="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                                  </svg>
-                                  <h4 className="text-sm font-semibold">Selected Options</h4>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-slate-300/90">
-                                  {Object.entries(order.selectedOptions).map(([optionName, optionValue]: [string, string]) => (
-                                    <div key={optionName} className="border border-white/10 rounded-lg p-3">
-                                      <div className="font-medium text-white capitalize mb-1">
-                                        {optionName.replace(/[-_]/g, ' ')}
-                                      </div>
-                                      <div className="text-xs text-slate-400">
-                                        {optionValue}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </GlassCard>
-                            )}
 
                                                          {/* Logo Setup Details */}
                             {order.multiSelectOptions?.['logo-setup'] && order.multiSelectOptions['logo-setup'].length > 0 && (
@@ -1010,7 +1039,7 @@ export default function NewMemberDashboard() {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-300/90">
                                   {order.multiSelectOptions['logo-setup'].map((logoValue: string) => (
-                                    <div key={logoValue} className="border border-white/10 rounded-lg p-2">
+                                    <div key={logoValue} className="border border-stone-600 rounded-lg p-2">
                                       <div className="font-medium text-white">{logoValue}</div>
                                       {order.logoSetupSelections?.[logoValue] && (
                                         <div className="mt-1 space-y-1 text-xs text-slate-400">
@@ -1031,14 +1060,14 @@ export default function NewMemberDashboard() {
                                 
                                 {/* Additional Instructions */}
                                 {order.additionalInstructions && (
-                                  <div className="mt-4 pt-4 border-t border-white/10">
+                                  <div className="mt-4 pt-4 border-t border-stone-600">
                                     <div className="mb-2 flex items-center gap-2 text-white">
                                       <svg className="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                       </svg>
                                       <h5 className="text-sm font-medium">Additional Instructions</h5>
                                     </div>
-                                    <div className="text-sm text-slate-300/90 bg-white/5 rounded-lg p-3">
+                                    <div className="text-sm text-slate-300/90 bg-stone-700 rounded-lg p-3">
                                       {order.additionalInstructions}
                                     </div>
                                   </div>
@@ -1097,6 +1126,38 @@ export default function NewMemberDashboard() {
                               </GlassCard>
                             )}
 
+                            {/* Services Options */}
+                            {order.multiSelectOptions?.services?.length > 0 && (
+                              <GlassCard className="p-4 md:col-span-3">
+                                <div className="mb-3 flex items-center gap-2 text-white">
+                                  <svg className="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                  </svg>
+                                  <h4 className="text-sm font-semibold">Services</h4>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-300/90">
+                                  {order.multiSelectOptions.services.map((service: string) => {
+                                    // Find the cost for this service from costBreakdown
+                                    const costBreakdown = orderCostBreakdowns[order.id];
+                                    const serviceCost = costBreakdown?.servicesCosts?.find(sc => sc.name === service);
+                                    
+                                    return (
+                                      <div key={service} className="border border-lime-500/20 rounded-lg p-3 bg-lime-500/5">
+                                        <div className="flex justify-between items-center">
+                                          <div className="font-medium text-lime-400">• {service}</div>
+                                          {serviceCost && (
+                                            <div className="text-sm text-lime-300 font-medium">
+                                              {formatPrice(serviceCost.cost)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </GlassCard>
+                            )}
+
                             {/* Pricing Breakdown */}
                             {order.orderTotal && order.orderTotal > 0 && (
                               <GlassCard className="p-4 md:col-span-3">
@@ -1111,7 +1172,7 @@ export default function NewMemberDashboard() {
                                   return (
                                     <div className="space-y-3">
                                       {/* Base Product Cost */}
-                                      <div className="flex justify-between items-center py-2 border-b border-white/10">
+                                      <div className="flex justify-between items-center py-2 border-b border-stone-600">
                                         <div className="text-sm text-slate-300/90">
                                           <div className="font-medium text-white">{order.productName}</div>
                                           <div className="text-xs text-slate-400">
@@ -1173,23 +1234,6 @@ export default function NewMemberDashboard() {
                                         </div>
                                       ))}
 
-                                      {/* Selected Options Costs */}
-                                      {order.selectedOptions && Object.keys(order.selectedOptions).length > 0 && (
-                                        <div>
-                                          <div className="text-xs font-medium text-slate-300/80 mb-2">Selected Options:</div>
-                                          {Object.entries(order.selectedOptions).map(([optionName, optionValue]: [string, string]) => (
-                                            <div key={optionName} className="flex justify-between items-center py-1 text-sm">
-                                              <div className="text-slate-300/90">
-                                                <span className="capitalize">{optionName.replace(/[-_]/g, ' ')}: </span>
-                                                <span className="text-slate-400">{optionValue}</span>
-                                              </div>
-                                              <div className="text-purple-400 font-medium">
-                                                Included
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
 
                                       {/* Accessories Costs */}
                                       {costBreakdown?.accessoriesCosts && costBreakdown.accessoriesCosts.length > 0 ? (
@@ -1304,8 +1348,38 @@ export default function NewMemberDashboard() {
                                         </div>
                                       ))}
 
+                                      {/* Services Costs */}
+                                      {costBreakdown?.servicesCosts && costBreakdown.servicesCosts.length > 0 ? (
+                                        <div>
+                                          <div className="text-xs font-medium text-slate-300/80 mb-2">Services:</div>
+                                          {costBreakdown.servicesCosts.map((serviceCost, index) => (
+                                            <div key={index} className="flex justify-between items-center py-1 text-sm">
+                                              <div className="text-slate-300/90">
+                                                <div>{serviceCost.name}</div>
+                                                <div className="text-xs text-slate-400">
+                                                  Flat rate
+                                                </div>
+                                              </div>
+                                              <div className="text-lime-400 font-medium">
+                                                {formatPrice(serviceCost.cost)}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (order.multiSelectOptions?.services && order.multiSelectOptions.services.length > 0 && (
+                                        <div>
+                                          <div className="text-xs font-medium text-slate-300/80 mb-2">Services:</div>
+                                          {order.multiSelectOptions.services.map((item: string) => (
+                                            <div key={item} className="flex justify-between items-center py-1 text-sm">
+                                              <div className="text-slate-300/90">{item}</div>
+                                              <div className="text-lime-400 font-medium">Calculating...</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))}
+
                                       {/* Total */}
-                                      <div className="flex justify-between items-center pt-3 border-t border-white/10 text-base font-semibold">
+                                      <div className="flex justify-between items-center pt-3 border-t border-stone-600 text-base font-semibold">
                                         <div className="text-white">Total Order Value</div>
                                         <div className="text-lime-400">
                                           {costBreakdown ? formatPrice(costBreakdown.totalCost) : (order.orderTotal ? formatPrice(order.orderTotal) : 'Calculating...')}
@@ -1358,7 +1432,7 @@ export default function NewMemberDashboard() {
                     ))
                   ) : (
                     <GlassCard className="p-8 text-center">
-                      <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl border border-white/10 bg-white/5">
+                      <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl border border-stone-600 bg-stone-700">
                         <CircleHelp className="h-6 w-6 opacity-70" />
                       </div>
                       <p className="text-base font-semibold text-white">

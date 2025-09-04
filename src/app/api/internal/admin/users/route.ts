@@ -1,0 +1,127 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import prisma from '@/lib/prisma';
+
+export async function GET(request: NextRequest) {
+ try {
+  const user = await getCurrentUser(request);
+  
+  if (!user) {
+   return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  // Verify admin access
+  const userProfile = await prisma.user.findUnique({
+   where: { id: user.id },
+   select: { accessRole: true, email: true }
+  });
+
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN', 'MASTER_ADMIN', 'STAFF'].includes(userProfile?.accessRole || '') ||
+          userProfile?.email === 'absrasel@gmail.com';
+
+  if (!isAdmin) {
+   return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const role = searchParams.get('role');
+  const includeOrders = searchParams.get('includeOrders') === 'true';
+
+  // Get total users count
+  const totalUsers = await prisma.user.count();
+
+  // Get users by role
+  const usersByRole = await prisma.user.groupBy({
+   by: ['accessRole', 'customerRole'],
+   _count: { id: true }
+  });
+
+  // Build where clause for filtering
+  let whereClause: any = {};
+  if (role) {
+   whereClause.OR = [
+    { accessRole: role },
+    { customerRole: role }
+   ];
+  }
+
+  // Get recent users
+  const recentUsers = await prisma.user.findMany({
+   where: whereClause,
+   orderBy: { createdAt: 'desc' },
+   take: limit,
+   select: {
+    id: true,
+    name: true,
+    email: true,
+    customerRole: true,
+    accessRole: true,
+    createdAt: true,
+    updatedAt: true,
+    // Include order statistics if requested
+    ...(includeOrders && {
+     orders: {
+      select: {
+       id: true,
+       status: true,
+       calculatedTotal: true,
+       createdAt: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 3
+     }
+    })
+   }
+  });
+
+  // Get user registration activity (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const newUsersThisMonth = await prisma.user.count({
+   where: {
+    createdAt: { gte: thirtyDaysAgo }
+   }
+  });
+
+  // Get user activity statistics
+  const activeUsers = await prisma.user.count({
+   where: {
+    orders: {
+     some: {
+      createdAt: { gte: thirtyDaysAgo }
+     }
+    }
+   }
+  });
+
+  // Format user roles data
+  const roleStats = usersByRole.reduce((acc, item) => {
+   const key = item.accessRole || item.customerRole || 'UNASSIGNED';
+   acc[key] = (acc[key] || 0) + item._count.id;
+   return acc;
+  }, {} as Record<string, number>);
+
+  return NextResponse.json({
+   totalUsers,
+   recentUsers,
+   usersByRole: roleStats,
+   newUsersThisMonth,
+   activeUsers,
+   analytics: {
+    totalRegistered: totalUsers,
+    newThisMonth: newUsersThisMonth,
+    activeThisMonth: activeUsers,
+    conversionRate: totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(1) : '0'
+   }
+  });
+
+ } catch (error) {
+  console.error('Internal API Error - Admin Users:', error);
+  return NextResponse.json(
+   { error: 'Failed to retrieve admin user data' },
+   { status: 500 }
+  );
+ }
+}

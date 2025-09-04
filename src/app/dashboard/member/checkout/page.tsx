@@ -34,7 +34,7 @@ interface Order {
   id: string;
   productName: string;
   status: string;
-  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' | 'QUOTE_CONVERSION';
+  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' ;
   createdAt: string;
   updatedAt: string;
   customerInfo: {

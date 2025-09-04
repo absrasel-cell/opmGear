@@ -4,6 +4,22 @@
  */
 
 import { getBaseProductPricing, calculateUnitPrice, calculateDeliveryUnitPrice } from '@/lib/pricing';
+import { 
+  costingService, 
+  calculateCost, 
+  calculateQuickEstimate as unifiedQuickEstimate 
+} from '@/lib/unified-costing-service';
+import {
+  CostingContext,
+  BUSINESS_RULES,
+  detectFabricFromText,
+  detectLogoTypeFromText,
+  detectAllLogosFromText,
+  detectClosureFromText,
+  detectSizeFromText,
+  detectAccessoriesFromText,
+  getDefaultApplicationMethod
+} from '@/lib/costing-knowledge-base';
 
 export interface OrderRequirements {
   quantity: number;
@@ -20,6 +36,7 @@ export interface OrderRequirements {
   fabricType?: string;
   stitching?: string;
   deliveryMethod?: string;
+  accessories?: string[]; // Add accessories
   multiLogoSetup?: {
     front?: { type: string; size: string; application: string };
     right?: { type: string; size: string; application: string };
@@ -47,6 +64,80 @@ const getDefaultApplication = (decorationType: string) => {
   };
   return typeMap[decorationType] || 'Direct';
 };
+
+/**
+ * Create custom multi-logo setup based on specific user mentions
+ */
+function createCustomLogoSetup(message: string, primaryLogoType: string, primaryLogoSize: string) {
+  const lowerMessage = message.toLowerCase();
+  const setup: any = {};
+  
+  // Parse front logo (usually primary)
+  if (lowerMessage.includes('on front') || lowerMessage.includes('front')) {
+    // Check for specific front logo type
+    let frontType = primaryLogoType;
+    let frontSize = primaryLogoSize || 'Large';
+    
+    if (lowerMessage.includes('3d embroidery on front') || lowerMessage.includes('3d embroidery on the front')) {
+      frontType = '3D Embroidery';
+    } else if (lowerMessage.includes('rubber patch on front')) {
+      frontType = 'Rubber Patch';
+    } else if (lowerMessage.includes('woven patch on front')) {
+      frontType = 'Woven Patch';
+    }
+    
+    setup.front = {
+      type: frontType,
+      size: frontSize,
+      application: getDefaultApplication(frontType)
+    };
+  }
+  
+  // Parse side logos
+  if (lowerMessage.includes('on left') || lowerMessage.includes('left side')) {
+    let leftType = 'Embroidery'; // Default for sides
+    if (lowerMessage.includes('embroidery at left') || lowerMessage.includes('embroidery on left')) {
+      leftType = 'Embroidery';
+    }
+    setup.left = {
+      type: leftType,
+      size: 'Small',
+      application: getDefaultApplication(leftType)
+    };
+  }
+  
+  if (lowerMessage.includes('on right') || lowerMessage.includes('right side')) {
+    let rightType = 'Embroidery'; // Default for sides
+    if (lowerMessage.includes('screen print patch on right')) {
+      rightType = 'Screen Print Patch';
+    } else if (lowerMessage.includes('embroidery on right')) {
+      rightType = 'Embroidery';
+    }
+    setup.right = {
+      type: rightType,
+      size: 'Small',
+      application: getDefaultApplication(rightType)
+    };
+  }
+  
+  // Parse back logo
+  if (lowerMessage.includes('on back') || lowerMessage.includes('on the back')) {
+    let backType = 'Embroidery'; // Default
+    if (lowerMessage.includes('patch on back')) {
+      backType = 'Patch';
+    } else if (lowerMessage.includes('woven patch on back')) {
+      backType = 'Woven Patch';
+    }
+    setup.back = {
+      type: backType,
+      size: 'Small',
+      application: getDefaultApplication(backType)
+    };
+  }
+  
+  return setup;
+}
+
 
 /**
  * Get delivery method suggestions based on quantity for cost savings
@@ -94,148 +185,146 @@ export function getBudgetFriendlyAccessorySuggestions(): {
 }
 
 /**
- * Parse order requirements from user message with enhanced CSV-based detection and budget-friendly defaults
+ * Parse order requirements from user message using unified costing knowledge base
  */
 export function parseOrderRequirements(message: string): OrderRequirements {
   const lowerMessage = message.toLowerCase();
   
-  // Extract quantity - Enhanced to handle multiple sizes and sum totals
-  // Special handling for "total" mentions first (highest priority)
-  const totalMatch = message.match(/(\d+,?\d*)\s*(?:caps?\s*)?total/i);
+  // Extract quantity - FIXED: Better parsing for all quantity patterns including multi-color orders
   let quantity = 150; // Default fallback
   
+  // 1. First priority: explicit "total" mentions
+  const totalMatch = message.match(/(\d+,?\d*)\s*(?:caps?\s*)?total/i);
   if (totalMatch) {
     const totalStr = totalMatch[1].replace(/,/g, '');
     quantity = parseInt(totalStr);
     console.log('🎯 [ORDER-AI-CORE] Total quantity override detected:', quantity);
   } else {
-    // Look for size-based breakdowns (like "Small: 50, Medium: 100, Large: 150")
-    const sizeBreakdownMatches = message.match(/(small|medium|large)\s*:?\s*(\d+)/gi);
-    
-    if (sizeBreakdownMatches && sizeBreakdownMatches.length > 1) {
-      // Multiple size breakdowns found - sum them all
-      const quantities = sizeBreakdownMatches
-        .map(match => {
-          const num = match.match(/(\d+)/)[1];
-          return parseInt(num);
-        })
-        .filter(num => !isNaN(num));
+    // 2. MULTI-COLOR ORDERS: Detect multiple quantities (like "48, Red/White 144, and Navy 72")
+    const multiColorMatches = message.match(/\b(\d+)\b/g);
+    if (multiColorMatches && multiColorMatches.length > 1) {
+      // Check if this looks like a multi-color order (has color names and multiple numbers)
+      const hasColors = /(?:black|white|red|blue|navy|green|yellow|orange|purple|pink|brown|gray|grey)/i.test(message);
+      const hasMultipleNumbers = multiColorMatches.length >= 2;
       
-      quantity = quantities.reduce((total, qty) => total + qty, 0);
-      console.log('🧮 [ORDER-AI-CORE] Size breakdown quantities detected:', quantities, 'Total:', quantity);
-    } else {
-      // Look for multiple individual quantity mentions
-      const allQuantityMatches = message.match(/(\d+)\s*(?:caps?|pieces?|units?|large|medium|small)/gi);
-      
-      if (allQuantityMatches && allQuantityMatches.length > 1) {
-        // Multiple quantities found - sum them all
-        const quantities = allQuantityMatches
-          .map(match => {
-            const num = match.match(/(\d+)/)[1];
-            return parseInt(num);
-          })
-          .filter(num => !isNaN(num));
+      if (hasColors && hasMultipleNumbers) {
+        // Sum all detected quantities for multi-color orders
+        let totalQuantity = 0;
+        multiColorMatches.forEach(match => {
+          const num = parseInt(match);
+          // Only include reasonable cap quantities (between 10 and 10000) - excludes panel counts like "5", "6"
+          if (num >= 10 && num <= 10000) {
+            totalQuantity += num;
+          }
+        });
         
-        quantity = quantities.reduce((total, qty) => total + qty, 0);
-        console.log('🧮 [ORDER-AI-CORE] Multiple quantities detected:', quantities, 'Total:', quantity);
+        if (totalQuantity > 0) {
+          quantity = totalQuantity;
+          console.log('🎯 [ORDER-AI-CORE] Multi-color quantity detected:', quantity, 'from quantities:', multiColorMatches);
+        }
+      }
+    }
+    
+    // 3. Fallback: Try direct pattern first (like "576 pieces", "300 caps")
+    if (quantity === 150) { // Only if we haven't detected multi-color
+      const directQuantityMatch = message.match(/(\d+)\s*(?:caps?|pieces?|units?)/i);
+      if (directQuantityMatch) {
+        quantity = parseInt(directQuantityMatch[1]);
+        console.log('🎯 [ORDER-AI-CORE] Direct quantity detected:', quantity);
       } else {
-        // Single quantity or fallback
-        const singleMatch = message.match(/(\d+)\s*(?:caps?|pieces?|units?)/i);
-        quantity = singleMatch ? parseInt(singleMatch[1]) : 150;
+        // 4. Try loose pattern for cases like "576 highest end caps"
+        const looseQuantityMatch = message.match(/(\d+).*?(?:caps?|pieces?|units?)/i);
+        if (looseQuantityMatch) {
+          quantity = parseInt(looseQuantityMatch[1]);
+          console.log('🎯 [ORDER-AI-CORE] Loose quantity detected:', quantity);
+        }
       }
     }
   }
   
-  // Budget-friendly defaults for cap specifications
-  let panelCount = 6; // Default: "6-Panel"
-  let profile = "High"; // Default: "High" profile
-  let structure = "Structured"; // Default: "Structured"
-  let closureType = "snapback"; // Default: "Snapback"
-  let fabricType = "Chino Twill"; // Default: "Chino Twill" for solid
-  let stitching = "Matching"; // Default: "Matching" stitching
-  let deliveryMethod = "regular"; // Default: Regular delivery
+  // Use business rules defaults from knowledge base
+  let panelCount = BUSINESS_RULES.DEFAULTS.panelCount;
+  let profile = BUSINESS_RULES.DEFAULTS.profile;
+  let structure = BUSINESS_RULES.DEFAULTS.structure;
+  let closureType = BUSINESS_RULES.DEFAULTS.closure;
+  let fabricType = BUSINESS_RULES.DEFAULTS.fabricType;
+  let stitching = BUSINESS_RULES.DEFAULTS.stitching;
+  let deliveryMethod = BUSINESS_RULES.DEFAULTS.deliveryMethod;
   
-  // Enhanced logo type detection - Check for "no logos" first
-  let logoType = "3D Embroidery"; // Default to front logo type
+  // Use enhanced multi-logo detection from knowledge base
+  const logoDetectionResult = detectAllLogosFromText(message);
+  let logoType = logoDetectionResult.primaryLogo || "3D Embroidery";
+  
+  // SPECIAL CASE: Map 3D Embroidery to complex logo setup
+  // NOTE: This will be overridden by the multiLogoSetup logic later, but kept for backward compatibility
+  if (logoType === "3D Embroidery") {
+    logoType = "Medium Size Embroidery + 3D Embroidery"; // Use Medium as default, will be adjusted by size detection
+  }
   let logoPosition = "Front"; // Default position
-  let logoSize = "Large"; // Default to front logo size
+  let logoSize = detectSizeFromText(message, logoPosition);
   
-  // Check for explicit "no logos" requests
-  if (lowerMessage.includes('no logo') || 
-      lowerMessage.includes('no decoration') || 
-      lowerMessage.includes('without logo') || 
-      lowerMessage.includes('plain cap') || 
-      lowerMessage.includes('blank cap')) {
-    logoType = "None";
-    console.log('🚫 [ORDER-AI-CORE] No logos requested - setting logoType to None');
+  // Override logo size if detected in multi-logo analysis
+  const frontLogo = logoDetectionResult.allLogos.find(logo => logo.position === 'front');
+  if (frontLogo) {
+    logoSize = frontLogo.size;
+    logoPosition = 'Front';
   }
   
-  // Budget-friendly logo setup defaults (only if logos are wanted)
+  console.log('🎨 [ORDER-AI-CORE] Enhanced multi-logo detection results:', {
+    originalMessage: message.substring(0, 100),
+    primaryLogoType: logoType,
+    detectedSize: logoSize,
+    allLogosFound: logoDetectionResult.allLogos.length,
+    allLogos: logoDetectionResult.allLogos
+  });
+  
+  // FIXED: Create intelligent multi-logo setup based on user request
   let multiLogoSetup: any = null;
   
   if (logoType !== "None") {
-    multiLogoSetup = {
-      front: { type: "3D Embroidery", size: "Large", application: "Direct" },
-      right: { type: "Embroidery", size: "Small", application: "Direct" },
-      left: { type: "Embroidery", size: "Small", application: "Direct" },
-      back: { type: "Embroidery", size: "Small", application: "Direct" },
-      upperBill: { type: "Embroidery", size: "Medium", application: "Direct" },
-      underBill: { type: "Sublimated Print", size: "Large", application: "Direct" }
-    };
-  }
-  
-  if (lowerMessage.includes('3d') || lowerMessage.includes('raised') || lowerMessage.includes('embroidery 3d')) {
-    logoType = "3D Embroidery";
-  } else if (lowerMessage.includes('rubber patch')) {
-    // Detect rubber patch size
-    if (lowerMessage.includes('small')) {
-      logoType = "Small Rubber Patch";
-      logoSize = "Small";
-    } else if (lowerMessage.includes('large')) {
-      logoType = "Large Rubber Patch";
-      logoSize = "Large";
+    // Check if user specified multiple logo positions
+    const hasMultipleLogos = lowerMessage.includes('on front') && 
+                            (lowerMessage.includes('on left') || lowerMessage.includes('on right') || 
+                             lowerMessage.includes('on back') || lowerMessage.includes('sides'));
+    
+    if (logoDetectionResult.multiLogoSetup) {
+      // Use detected multi-logo setup
+      multiLogoSetup = logoDetectionResult.multiLogoSetup;
+      console.log('🎨 [ORDER-AI-CORE] Using detected multi-logo setup');
+    } else if (hasMultipleLogos) {
+      // Create custom setup based on specific mentions
+      multiLogoSetup = createCustomLogoSetup(message, logoType, logoSize);
+      console.log('🎨 [ORDER-AI-CORE] Created custom multi-logo setup from message');
     } else {
-      logoType = "Medium Rubber Patch";
-      logoSize = "Medium";
+      // Check if the message has specific complex logo requests even without "on front" + sides pattern
+      const hasComplexLogos = lowerMessage.includes('rubber patch') || 
+                             lowerMessage.includes('woven patch') || 
+                             lowerMessage.includes('screen print patch') ||
+                             (lowerMessage.includes('embroidery') && lowerMessage.includes('patch'));
+      
+      if (hasComplexLogos) {
+        // Use enhanced parser for complex logos
+        multiLogoSetup = createCustomLogoSetup(message, logoType, logoSize);
+        console.log('🎨 [ORDER-AI-CORE] Created custom setup for complex logos');
+      } else {
+        // Single logo position - create minimal setup
+        multiLogoSetup = {
+          front: { 
+            type: logoType, 
+            size: logoSize || "Large", 
+            application: getDefaultApplication(logoType) 
+          }
+        };
+        console.log('🎨 [ORDER-AI-CORE] Created single-logo setup');
+      }
     }
-  } else if (lowerMessage.includes('leather patch')) {
-    // Detect leather patch size
-    if (lowerMessage.includes('small')) {
-      logoType = "Small Leather Patch";
-      logoSize = "Small";
-    } else if (lowerMessage.includes('large')) {
-      logoType = "Large Leather Patch";
-      logoSize = "Large";
-    } else {
-      logoType = "Medium Leather Patch";
-      logoSize = "Medium";
-    }
-  } else if (lowerMessage.includes('woven patch') || lowerMessage.includes('printed patch') || lowerMessage.includes('print patch')) {
-    // Detect woven/printed patch size
-    if (lowerMessage.includes('small')) {
-      logoType = "Small Print Woven Patch";
-      logoSize = "Small";
-    } else if (lowerMessage.includes('large')) {
-      logoType = "Large Print Woven Patch";
-      logoSize = "Large";
-    } else {
-      logoType = "Medium Print Woven Patch";
-      logoSize = "Medium";
-    }
-  } else if (lowerMessage.includes('patch')) {
-    // Generic patch - default to medium rubber patch
-    logoType = "Medium Rubber Patch";
-    logoSize = "Medium";
-  } else if (lowerMessage.includes('embroidery') || lowerMessage.includes('embroidered')) {
-    // Detect embroidery size
-    if (lowerMessage.includes('small')) {
-      logoSize = "Small";
-    } else if (lowerMessage.includes('large')) {
-      logoSize = "Large";
-    } else {
-      logoSize = "Medium";
-    }
-    logoType = "Flat Embroidery"; // Will be processed as Size Embroidery in cost calc
+    
+    console.log('🎨 [ORDER-AI-CORE] Multi-logo setup configured:', {
+      hasCustomSetup: !!logoDetectionResult.multiLogoSetup,
+      setupType: hasMultipleLogos ? 'multi' : 'single',
+      frontLogo: multiLogoSetup?.front,
+      backLogo: multiLogoSetup?.back
+    });
   }
   
   // Extract color with enhanced detection
@@ -271,27 +360,11 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     structure = "Unstructured";
   }
   
-  // Enhanced fabric type detection to include premium fabrics
-  if (lowerMessage.includes('split') || lowerMessage.includes('trucker') || lowerMessage.includes('mesh')) {
-    fabricType = "Chino Twill/Trucker Mesh";
-  } else if (lowerMessage.includes('acrylic')) {
-    fabricType = "Acrylic";
-  } else if (lowerMessage.includes('suede cotton')) {
-    fabricType = "Suede Cotton";
-  } else if (lowerMessage.includes('genuine leather')) {
-    fabricType = "Genuine Leather";
-  } else if (lowerMessage.includes('air mesh')) {
-    fabricType = "Air Mesh";
-  } else if (lowerMessage.includes('camo')) {
-    fabricType = "Camo";
-  } else if (lowerMessage.includes('laser cut')) {
-    fabricType = "Laser Cut";
-  } else if (lowerMessage.includes('cotton') || lowerMessage.includes('polyester') || lowerMessage.includes('canvas')) {
-    // Keep user-specified fabric if mentioned
-    const fabricMatch = message.match(/\b(cotton|polyester|canvas|denim|wool)\b/i);
-    if (fabricMatch) {
-      fabricType = fabricMatch[1];
-    }
+  // Use knowledge base for fabric detection
+  const detectedFabric = detectFabricFromText(message);
+  if (detectedFabric) {
+    fabricType = detectedFabric;
+    console.log('🧵 [ORDER-AI-CORE] Fabric detected using knowledge base:', detectedFabric);
   }
   
   // Detect stitching preference (override default only if specified)
@@ -326,17 +399,16 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     }
   }
   
-  // Detect closure type for advanced product compatibility (override default only if specified)
-  if (lowerMessage.includes('fitted')) {
-    closureType = "fitted";
-  } else if (lowerMessage.includes('adjustable') || lowerMessage.includes('buckle')) {
-    closureType = "buckle";
-  } else if (lowerMessage.includes('velcro')) {
-    closureType = "velcro";
-  } else if (lowerMessage.includes('flexfit')) {
-    closureType = "flexfit";
+  // Use knowledge base for closure detection
+  const detectedClosure = detectClosureFromText(message);
+  if (detectedClosure) {
+    closureType = detectedClosure;
+    console.log('🔒 [ORDER-AI-CORE] Closure detected using knowledge base:', detectedClosure);
   }
-  // Note: snapback remains as default
+
+  // Detect accessories from message
+  const detectedAccessories = detectAccessoriesFromText(message);
+  console.log('🏷️ [ORDER-AI-CORE] Accessories detected:', detectedAccessories);
   
   // Detect delivery method preferences and suggest cost-saving options
   if (lowerMessage.includes('air freight') || lowerMessage.includes('airfreight')) {
@@ -348,9 +420,9 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   }
   // Note: regular delivery remains as default
   
-  // Apply position-based size default and correct application method
-  logoSize = getDefaultLogoSize(logoPosition);
-  const logoApplication = getDefaultApplication(logoType);
+  // Apply position-based size default and correct application method using knowledge base
+  logoSize = detectSizeFromText(message, logoPosition);
+  const logoApplication = getDefaultApplicationMethod(logoType);
   
   return {
     quantity,
@@ -367,6 +439,7 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     fabricType,
     stitching,
     deliveryMethod,
+    accessories: detectedAccessories, // Include detected accessories
     multiLogoSetup
   };
 }
@@ -421,86 +494,83 @@ export function optimizeQuantityForBudget(budget: number, logoType: string) {
 }
 
 /**
- * Optimize quantity for budget (precise version) with message context
+ * Optimize quantity for budget (precise version) using unified costing service
  */
 export async function optimizeQuantityForBudgetPrecise(budget: number, logoType: string, message?: string) {
-  console.log('🎯 [ORDER-AI-CORE] Optimizing budget with enhanced detection:', {
+  console.log('🎯 [ORDER-AI-CORE] Optimizing budget using unified costing service:', {
     budget,
     logoType,
     hasMessage: !!message
   });
   
-  // If message provided, re-parse for more accurate logo type detection
-  let enhancedLogoType = logoType;
+  // Parse full requirements if message provided
+  let requirements: OrderRequirements;
   if (message) {
-    const enhancedRequirements = parseOrderRequirements(message);
-    enhancedLogoType = enhancedRequirements.logoType;
-    
-    console.log('🔄 [ORDER-AI-CORE] Enhanced logo type detection:', {
-      original: logoType,
-      enhanced: enhancedLogoType
+    requirements = parseOrderRequirements(message);
+    console.log('🔄 [ORDER-AI-CORE] Enhanced requirements from message:', {
+      logoType: requirements.logoType,
+      fabricType: requirements.fabricType,
+      closureType: requirements.closureType
     });
+  } else {
+    // Basic requirements
+    requirements = {
+      quantity: 150,
+      logoType,
+      logoPosition: 'Front',
+      logoSize: 'Medium',
+      logoApplication: getDefaultApplicationMethod(logoType),
+      fabricType: BUSINESS_RULES.DEFAULTS.fabricType,
+      closureType: BUSINESS_RULES.DEFAULTS.closure,
+      deliveryMethod: BUSINESS_RULES.DEFAULTS.deliveryMethod,
+      profile: BUSINESS_RULES.DEFAULTS.profile,
+      structure: BUSINESS_RULES.DEFAULTS.structure,
+      stitching: BUSINESS_RULES.DEFAULTS.stitching,
+      billStyle: BUSINESS_RULES.DEFAULTS.billStyle,
+      panelCount: BUSINESS_RULES.DEFAULTS.panelCount,
+      multiLogoSetup: logoType !== "None" ? BUSINESS_RULES.DEFAULT_LOGO_SETUP : null
+    };
   }
   
-  // Start with a rough estimate and iterate to find optimal quantity
+  // Test different quantity levels to find the best fit within budget
+  const testQuantities = [48, 144, 576, 1152, 2880, 10000];
   let bestQuantity = 0;
   let bestCostPerUnit = 0;
   let bestTotalCost = 0;
   let bestTierLevel = "Tier 1";
   
-  // Test different quantity levels to find the best fit within budget
-  const testQuantities = [48, 144, 576, 1152, 2880, 10000];
-  
   for (const qty of testQuantities) {
-    const basePrice = getBasePriceForQuantity(qty);
-    
-    // Enhanced logo setup cost calculation based on actual CSV pricing
-    let logoSetupCost = 0;
-    if (enhancedLogoType === "3D Embroidery") {
-      // 3D Embroidery: Size Embroidery + 3D base cost
-      logoSetupCost = getPriceForLogoQuantity('Medium Size Embroidery', qty) * qty +
-                      getPriceForLogoQuantity('3D Embroidery', qty) * qty;
-    } else if (enhancedLogoType.includes('Rubber Patch')) {
-      logoSetupCost = getPriceForLogoQuantity(enhancedLogoType, qty) * qty;
-    } else if (enhancedLogoType.includes('Leather Patch')) {
-      logoSetupCost = getPriceForLogoQuantity(enhancedLogoType, qty) * qty;
-    } else if (enhancedLogoType.includes('Print Woven Patch')) {
-      logoSetupCost = getPriceForLogoQuantity(enhancedLogoType, qty) * qty;
-    } else if (enhancedLogoType === "Flat Embroidery") {
-      logoSetupCost = getPriceForLogoQuantity('Medium Size Embroidery', qty) * qty;
-    } else if (enhancedLogoType === "None") {
-      logoSetupCost = 0;
-    } else {
-      // Fallback to flat embroidery pricing
-      logoSetupCost = getPriceForLogoQuantity('Medium Size Embroidery', qty) * qty;
-    }
-    
-    const deliveryUnitPrice = calculateDeliveryUnitPrice(qty, 'regular');
-    const deliveryCost = qty * deliveryUnitPrice;
-    const totalCost = (qty * basePrice) + logoSetupCost + deliveryCost;
-    
-    console.log(`📊 [ORDER-AI-CORE] Testing quantity ${qty}:`, {
-      basePrice,
-      logoSetupCost: logoSetupCost.toFixed(2),
-      logoSetupPerUnit: (logoSetupCost / qty).toFixed(2),
-      deliveryCost,
-      totalCost: totalCost.toFixed(2),
-      withinBudget: totalCost <= budget
-    });
-    
-    if (totalCost <= budget) {
-      bestQuantity = qty;
-      bestCostPerUnit = totalCost / qty;
-      bestTotalCost = totalCost;
-      bestTierLevel = "Tier 1";
-    } else {
-      break; // Stop when we exceed budget
+    try {
+      // Create test requirements with this quantity
+      const testRequirements = { ...requirements, quantity: qty };
+      const estimate = await calculateQuickEstimate(testRequirements);
+      
+      console.log(`📊 [ORDER-AI-CORE] Testing quantity ${qty} with unified service:`, {
+        costPerUnit: estimate.costPerUnit.toFixed(3),
+        totalCost: estimate.totalCost.toFixed(2),
+        withinBudget: estimate.totalCost <= budget,
+        baseProduct: estimate.baseProductCost.toFixed(2),
+        logoSetup: estimate.logoSetupCost.toFixed(2),
+        delivery: estimate.deliveryCost.toFixed(2)
+      });
+      
+      if (estimate.totalCost <= budget) {
+        bestQuantity = qty;
+        bestCostPerUnit = estimate.costPerUnit;
+        bestTotalCost = estimate.totalCost;
+        bestTierLevel = "Tier 1";
+      } else {
+        break; // Stop when we exceed budget
+      }
+    } catch (error) {
+      console.error(`Error testing quantity ${qty}:`, error);
+      continue;
     }
   }
   
-  console.log('✅ [ORDER-AI-CORE] Optimal quantity found:', {
+  console.log('✅ [ORDER-AI-CORE] Optimal quantity found using unified service:', {
     quantity: bestQuantity,
-    costPerUnit: bestCostPerUnit.toFixed(2),
+    costPerUnit: bestCostPerUnit.toFixed(3),
     totalCost: bestTotalCost.toFixed(2),
     savings: (budget - bestTotalCost).toFixed(2)
   });
@@ -515,32 +585,66 @@ export async function optimizeQuantityForBudgetPrecise(budget: number, logoType:
 }
 
 /**
- * Calculate quick estimate
+ * Calculate quick estimate using unified costing service
  */
-export function calculateQuickEstimate(requirements: OrderRequirements, context?: any, budget?: number) {
-  const basePrice = getBasePriceForQuantity(requirements.quantity);
-  const logoSetupCost = requirements.logoType === "3D Embroidery" ? 100 : 
-                       requirements.logoType === "None" ? 0 : 50;
-  const deliveryUnitPrice = calculateDeliveryUnitPrice(requirements.quantity, requirements.deliveryMethod || 'regular');
-  const deliveryCost = requirements.quantity * deliveryUnitPrice;
-  const total = (requirements.quantity * basePrice) + logoSetupCost + deliveryCost;
-  
-  return {
-    quantity: requirements.quantity,
-    costPerUnit: total / requirements.quantity,
-    totalCost: total,
-    logoSetupCost,
-    deliveryCost,
-    baseProductCost: requirements.quantity * basePrice
-  };
+export async function calculateQuickEstimate(requirements: OrderRequirements, context?: any, budget?: number) {
+  try {
+    // Build simplified costing context
+    const logoSetup = requirements.logoType !== "None" ? [{
+      type: requirements.logoType,
+      size: requirements.logoSize || 'Medium',
+      position: requirements.logoPosition || 'Front',
+      application: requirements.logoApplication || getDefaultApplicationMethod(requirements.logoType)
+    }] : undefined;
+
+    const costingContext: CostingContext = {
+      quantity: requirements.quantity,
+      logoSetup,
+      fabricType: requirements.fabricType,
+      closureType: requirements.closureType,
+      deliveryMethod: requirements.deliveryMethod || 'regular',
+      productTier: 'Tier 1'
+    };
+
+    // Use unified quick estimate
+    const estimate = await unifiedQuickEstimate(costingContext);
+    
+    return {
+      quantity: estimate.quantity,
+      costPerUnit: estimate.costPerUnit,
+      totalCost: estimate.totalCost,
+      logoSetupCost: estimate.estimatedBreakdown.logoSetup,
+      deliveryCost: estimate.estimatedBreakdown.delivery,
+      baseProductCost: estimate.estimatedBreakdown.baseProduct
+    };
+  } catch (error) {
+    console.error('Failed to calculate quick estimate using unified service, using fallback:', error);
+    
+    // Fallback to simple calculation
+    const basePrice = getBasePriceForQuantity(requirements.quantity);
+    const logoSetupCost = requirements.logoType === "3D Embroidery" ? 100 : 
+                         requirements.logoType === "None" ? 0 : 50;
+    const deliveryUnitPrice = calculateDeliveryUnitPrice(requirements.quantity, requirements.deliveryMethod || 'regular');
+    const deliveryCost = requirements.quantity * deliveryUnitPrice;
+    const total = (requirements.quantity * basePrice) + logoSetupCost + deliveryCost;
+    
+    return {
+      quantity: requirements.quantity,
+      costPerUnit: total / requirements.quantity,
+      totalCost: total,
+      logoSetupCost,
+      deliveryCost,
+      baseProductCost: requirements.quantity * basePrice
+    };
+  }
 }
 
 /**
- * Calculate precise order estimate using real cost calculation system with enhanced CSV integration
+ * Calculate precise order estimate using unified costing service
  */
 export async function calculatePreciseOrderEstimate(requirements: OrderRequirements) {
   try {
-    console.log('🧮 [ORDER-AI-CORE] Calculating precise estimate for:', {
+    console.log('🧮 [ORDER-AI-CORE] Calculating precise estimate using unified service for:', {
       quantity: requirements.quantity,
       logoType: requirements.logoType,
       logoSize: requirements.logoSize,
@@ -552,145 +656,90 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
       fabricType: requirements.fabricType
     });
     
-    // Build logo setup selections from multi-logo setup defaults if available
-    let logoSetupSelections: Record<string, any> = {};
-    let logoSetupKeys: string[] = [];
+    // Build costing context from requirements using unified service format
+    const logoSetup: any[] = [];
     
     if (requirements.multiLogoSetup && requirements.logoType !== "None") {
       // Use multi-logo setup for comprehensive logo configuration
-      Object.entries(requirements.multiLogoSetup).forEach(([position, config]) => {
-        // Create display name that includes position, size, and application for proper cost calculation
-        const displayName = `${config.size} ${config.type} (${position.charAt(0).toUpperCase() + position.slice(1)}, ${config.size}, ${config.application})`;
-        
-        logoSetupSelections[displayName] = {
-          position: position.charAt(0).toUpperCase() + position.slice(1),
+      Object.entries(requirements.multiLogoSetup).forEach(([position, config]: [string, any]) => {
+        logoSetup.push({
+          type: config.type,
           size: config.size,
+          position: position.charAt(0).toUpperCase() + position.slice(1),
           application: config.application
-        };
-        logoSetupKeys.push(displayName);
+        });
       });
     } else if (requirements.logoType !== "None") {
-      // Fallback to single logo setup with proper display name
+      // Single logo setup
       const position = requirements.logoPosition || "Front";
-      const size = requirements.logoSize || getDefaultLogoSize(position);
-      const application = requirements.logoApplication || getDefaultApplication(requirements.logoType);
-      const displayName = `${size} ${requirements.logoType} (${position}, ${size}, ${application})`;
+      const size = requirements.logoSize || detectSizeFromText("", position);
+      const application = requirements.logoApplication || getDefaultApplicationMethod(requirements.logoType);
       
-      logoSetupSelections[displayName] = {
-        position: position,
+      logoSetup.push({
+        type: requirements.logoType,
         size: size,
+        position: position,
         application: application
-      };
-      logoSetupKeys = [displayName];
+      });
     }
 
-    // Build accessories array (can be expanded later)
-    const accessories: string[] = [];
-
-    // Build services array with proper delivery method mapping
-    const services: string[] = [];
-    if (requirements.deliveryMethod && requirements.deliveryMethod !== "regular") {
-      services.push(requirements.deliveryMethod + "-delivery");
-    } else {
-      services.push("regular-delivery");
-    }
-
-    // Build request in same format as the real calculate-cost API
-    const costRequest = {
-      selectedColors: {
-        [requirements.color || "Brown"]: {
-          sizes: {
-            "One Size": requirements.quantity
-          }
-        }
-      },
-      logoSetupSelections,
-      multiSelectOptions: {
-        "logo-setup": logoSetupKeys,
-        "accessories": accessories,
-        "services": services
-      },
-      selectedOptions: {
-        "profile": requirements.profile || "High",
-        "bill-style": requirements.billStyle || "Flat Bill", 
-        "panel-count": requirements.panelCount?.toString() || "6",
-        "closure-type": requirements.closureType || "snapback",
-        "structure": requirements.structure || "Structured",
-        "fabric-setup": requirements.fabricType || "Chino Twill",
-        "stitching": requirements.stitching || "Matching",
-        "delivery-type": requirements.deliveryMethod || "regular"
-      },
-      // Include fabric information for premium fabric cost calculation
-      fabricSetup: requirements.fabricType || "Chino Twill",
-      customFabricSetup: requirements.fabricType === "Other" ? requirements.fabricType : undefined,
-      baseProductPricing: getBaseProductPricing('Tier 1'), // Use real CSV pricing
-      priceTier: 'Tier 1' // Ensure tier is explicitly set
+    const costingContext: CostingContext = {
+      quantity: requirements.quantity,
+      logoSetup: logoSetup.length > 0 ? logoSetup : undefined,
+      fabricType: requirements.fabricType,
+      closureType: requirements.closureType,
+      deliveryMethod: requirements.deliveryMethod || 'regular', // Default to regular delivery
+      productTier: 'Tier 1', // Default to most affordable tier
+      accessories: requirements.accessories || [], // Include detected accessories
+      services: [] // Can be expanded later
     };
     
-    console.log('📤 [ORDER-AI-CORE] Sending enhanced cost calculation request:', {
-      logoSetupKeys,
-      logoSetupSelections: Object.keys(logoSetupSelections),
-      selectedOptions: costRequest.selectedOptions,
-      fabricSetup: costRequest.fabricSetup,
-      hasMultiLogoSetup: !!requirements.multiLogoSetup
+    console.log('📤 [ORDER-AI-CORE] Using unified costing service with context:', {
+      quantity: costingContext.quantity,
+      logoSetupCount: costingContext.logoSetup?.length || 0,
+      fabricType: costingContext.fabricType,
+      closureType: costingContext.closureType,
+      deliveryMethod: costingContext.deliveryMethod,
+      accessoriesCount: costingContext.accessories?.length || 0,
+      accessories: costingContext.accessories
     });
 
-    // Call the real cost calculation API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/calculate-cost`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    // Use unified costing service
+    const costBreakdown = await calculateCost(costingContext);
+    
+    console.log('📥 [ORDER-AI-CORE] Received unified cost calculation:', {
+      baseProductCost: costBreakdown.baseProductCost,
+      logoSetupTotal: costBreakdown.logoSetupCosts.reduce((sum, cost) => sum + cost.cost, 0),
+      premiumFabricTotal: costBreakdown.premiumFabricCosts.reduce((sum, cost) => sum + cost.cost, 0),
+      closureTotal: costBreakdown.closureCosts.reduce((sum, cost) => sum + cost.cost, 0),
+      moldChargeTotal: costBreakdown.moldChargeCosts.reduce((sum, cost) => sum + cost.cost, 0),
+      deliveryTotal: costBreakdown.deliveryCosts.reduce((sum, cost) => sum + cost.cost, 0),
+      totalCost: costBreakdown.totalCost
+    });
+    
+    // Format response to match expected structure for backward compatibility
+    return {
+      costBreakdown: {
+        baseProductTotal: costBreakdown.baseProductCost,
+        logoSetupTotal: costBreakdown.logoSetupCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        deliveryTotal: costBreakdown.deliveryCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        accessoriesTotal: costBreakdown.accessoriesCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        closureTotal: costBreakdown.closureCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        moldChargeTotal: costBreakdown.moldChargeCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        servicesTotal: costBreakdown.servicesCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        premiumFabricTotal: costBreakdown.premiumFabricCosts.reduce((sum, cost) => sum + cost.cost, 0),
+        totalCost: costBreakdown.totalCost,
+        // Map detailed breakdown for AI responses
+        detailedBreakdown: costBreakdown
       },
-      body: JSON.stringify(costRequest)
-    });
-
-    if (response.ok) {
-      const realCostData = await response.json();
-      
-      console.log('📥 [ORDER-AI-CORE] Received cost calculation response:', {
-        baseProductCost: realCostData.baseProductCost,
-        logoSetupCostsCount: realCostData.logoSetupCosts?.length || 0,
-        accessoriesCostsCount: realCostData.accessoriesCosts?.length || 0,
-        closureCostsCount: realCostData.closureCosts?.length || 0,
-        premiumFabricCostsCount: realCostData.premiumFabricCosts?.length || 0,
-        deliveryCostsCount: realCostData.deliveryCosts?.length || 0,
-        moldChargeCostsCount: realCostData.moldChargeCosts?.length || 0,
-        servicesCostsCount: realCostData.servicesCosts?.length || 0,
-        totalCost: realCostData.totalCost,
-        logoSetupTotal: realCostData.logoSetupCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-        premiumFabricTotal: realCostData.premiumFabricCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-        closureTotal: realCostData.closureCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-        moldChargeTotal: realCostData.moldChargeCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0
-      });
-      
-      // Format the response to match the expected structure
-      return {
-        costBreakdown: {
-          baseProductTotal: realCostData.baseProductCost,
-          logoSetupTotal: realCostData.logoSetupCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          deliveryTotal: realCostData.deliveryCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          accessoriesTotal: realCostData.accessoriesCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          closureTotal: realCostData.closureCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          moldChargeTotal: realCostData.moldChargeCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          servicesTotal: realCostData.servicesCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          premiumFabricTotal: realCostData.premiumFabricCosts?.reduce((sum: number, cost: any) => sum + cost.cost, 0) || 0,
-          totalCost: realCostData.totalCost,
-          // Detailed breakdowns for AI responses
-          detailedBreakdown: realCostData
-        },
-        orderEstimate: {
-          quantity: requirements.quantity,
-          costPerUnit: realCostData.totalCost / requirements.quantity,
-          totalCost: realCostData.totalCost
-        }
-      };
-    } else {
-      const errorText = await response.text();
-      console.error('Cost calculation API failed:', response.status, errorText);
-      throw new Error(`Cost calculation API call failed: ${response.status}`);
-    }
+      orderEstimate: {
+        quantity: requirements.quantity,
+        costPerUnit: costBreakdown.totalCost / requirements.quantity,
+        totalCost: costBreakdown.totalCost
+      }
+    };
   } catch (error) {
-    console.error('Failed to get precise cost calculation, using enhanced fallback:', error);
+    console.error('Failed to get precise cost calculation using unified service, using enhanced fallback:', error);
     
     // Use enhanced fallback that includes premium costs
     return calculateEnhancedFallbackEstimate(requirements);

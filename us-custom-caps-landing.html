@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US Custom Caps - Premium Custom Cap Mastery Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; opacity: 0; }
+        .animate-slide-up { animation: slideUp 0.8s ease-out forwards; opacity: 0; transform: translateY(20px); }
+        .animate-delay-200 { animation-delay: 0.2s; }
+        .animate-delay-400 { animation-delay: 0.4s; }
+        .animate-delay-600 { animation-delay: 0.6s; }
+        .animate-delay-800 { animation-delay: 0.8s; }
+        @keyframes fadeIn { to { opacity: 1; } }
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+    </style>
+    <link id="all-fonts-link-font-geist" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-geist">.font-geist { font-family: 'Geist', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-roboto" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-roboto">.font-roboto { font-family: 'Roboto', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-montserrat" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-montserrat">.font-montserrat { font-family: 'Montserrat', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-poppins" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-poppins">.font-poppins { font-family: 'Poppins', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-playfair" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;900&display=swap">
+    <style id="all-fonts-style-font-playfair">.font-playfair { font-family: 'Playfair Display', serif !important; }</style>
+    <link id="all-fonts-link-font-instrument-serif" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:wght@400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-instrument-serif">.font-instrument-serif { font-family: 'Instrument Serif', serif !important; }</style>
+    <link id="all-fonts-link-font-merriweather" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap">
+    <style id="all-fonts-style-font-merriweather">.font-merriweather { font-family: 'Merriweather', serif !important; }</style>
+    <link id="all-fonts-link-font-bricolage" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-bricolage">.font-bricolage { font-family: 'Bricolage Grotesque', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-jakarta" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <style id="all-fonts-style-font-jakarta">.font-jakarta { font-family: 'Plus Jakarta Sans', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-manrope" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap">
+    <style id="all-fonts-style-font-manrope">.font-manrope { font-family: 'Manrope', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-space-grotesk" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-space-grotesk">.font-space-grotesk { font-family: 'Space Grotesk', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-work-sans" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700;800&display=swap">
+    <style id="all-fonts-style-font-work-sans">.font-work-sans { font-family: 'Work Sans', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-pt-serif" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&display=swap">
+    <style id="all-fonts-style-font-pt-serif">.font-pt-serif { font-family: 'PT Serif', serif !important; }</style>
+    <link id="all-fonts-link-font-geist-mono" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-geist-mono">.font-geist-mono { font-family: 'Geist Mono', monospace !important; }</style>
+    <link id="all-fonts-link-font-space-mono" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
+    <style id="all-fonts-style-font-space-mono">.font-space-mono { font-family: 'Space Mono', monospace !important; }</style>
+    <link id="all-fonts-link-font-quicksand" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap">
+    <style id="all-fonts-style-font-quicksand">.font-quicksand { font-family: 'Quicksand', sans-serif !important; }</style>
+    <link id="all-fonts-link-font-nunito" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap">
+    <style id="all-fonts-style-font-nunito">.font-nunito { font-family: 'Nunito', sans-serif !important; }</style>
+</head>
+<body class="bg-gray-900 text-white antialiased">
+    <div class="fixed top-0 w-full h-screen bg-cover bg-center -z-10" style="background-image: url('https://example.com/custom-caps-bg.jpg');"></div>
+    
+    <!-- Header -->
+    <header class="animate-fade-in pt-6 pb-6">
+        <div class="mx-auto max-w-7xl px-6 flex items-center justify-between">
+            <a href="#" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5" style="stroke-width: 1.5;">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                </div>
+                <span class="font-semibold text-lg tracking-tight font-sans">US Custom Caps</span>
+            </a>
+            <nav class="hidden md:flex items-center gap-10 text-sm font-medium">
+                <a href="#" class="transition-colors hover:text-blue-400 text-stone-300 font-sans">Caps</a>
+                <a href="#" class="transition-colors hover:text-blue-400 text-stone-300 font-sans">Patches</a>
+                <a href="#" class="transition-colors hover:text-blue-400 text-stone-300 font-sans">Wholesale</a>
+                <a href="#" class="transition-colors hover:text-blue-400 text-stone-300 font-sans">Reviews</a>
+            </nav>
+            <button class="hidden sm:inline-flex transition-all hover:shadow-lg hover:bg-red-500 text-sm font-medium text-white bg-red-600 rounded-full px-6 py-2 items-center justify-center font-sans">
+                START DESIGNING
+            </button>
+            <button class="md:hidden p-2 rounded-lg transition-colors hover:bg-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6" style="stroke-width: 1.5;">
+                    <path d="M4 12h16"></path>
+                    <path d="M4 18h16"></path>
+                    <path d="M4 6h16"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="max-w-7xl mr-auto ml-auto pr-6 pb-20 pl-6">
+            <div class="md:rounded-[40px] md:p-16 lg:p-24 overflow-hidden bg-stone-800/50 border-stone-700/50 border rounded-b-3xl pt-8 pr-8 pb-8 pl-8 backdrop-blur-3xl">
+                <div class="grid lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="flex items-center bg-stone-700/50 rounded-full pl-4 pr-6 py-2 w-max mb-8 animate-slide-up">
+                            <div class="flex -space-x-3">
+                                <img src="https://example.com/customer1.jpg" class="w-8 h-8 rounded-full border-2 border-stone-600 object-cover" alt="Customer">
+                                <img src="https://example.com/customer2.jpg" class="w-8 h-8 rounded-full border-2 border-stone-600 object-cover" alt="Customer">
+                                <img src="https://example.com/customer3.jpg" class="w-8 h-8 rounded-full border-2 border-stone-600 object-cover" alt="Customer">
+                                <img src="https://example.com/customer4.jpg" class="w-8 h-8 rounded-full border-2 border-stone-600 object-cover" alt="Customer">
+                                <img src="https://example.com/customer5.jpg" class="w-8 h-8 rounded-full border-2 border-stone-600 object-cover" alt="Customer">
+                            </div>
+                            <span class="ml-4 text-sm font-medium font-sans">
+                                <span class="font-semibold font-sans">25k+</span> custom orders fulfilled
+                            </span>
+                        </div>
+
+                        <h1 class="sm:text-5xl lg:text-7xl leading-tight animate-slide-up animate-delay-200 text-4xl tracking-tight mt-2 mb-2 font-bricolage font-semibold">
+                            Custom Caps<br class="hidden sm:block"> Mastery
+                        </h1>
+
+                        <p class="text-base sm:text-lg max-w-xl animate-slide-up animate-delay-400 mt-6 text-stone-300 font-sans">
+                            Design premium custom caps and patches for teams, brands, and events. Wholesale options for bulk orders with professional-grade customization tools and dedicated support.
+                        </p>
+
+                        <div class="mt-10 flex flex-col sm:flex-row gap-4 animate-slide-up animate-delay-600">
+                            <a href="#" class="inline-flex items-center justify-center gap-2 transition-all hover:scale-105 hover:shadow-lg font-medium text-white bg-gradient-to-r from-red-600 to-blue-600 rounded-full pt-4 pr-8 pb-4 pl-8 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5" style="stroke-width: 1.5;">
+                                    <path d="M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z"></path>
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                </svg>
+                                Start Designing Free
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4" style="stroke-width: 1.5;">
+                                    <path d="M5 12h14"></path>
+                                    <path d="m12 5 7 7-7 7"></path>
+                                </svg>
+                            </a>
+                            <a href="#" class="inline-flex items-center justify-center gap-2 font-medium px-8 py-4 rounded-full border border-stone-600 transition-all hover:border-stone-500 bg-stone-800/50 hover:bg-stone-700/50 font-sans">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4" style="stroke-width: 1.5;">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                    <path d="M16 3.128a4 4 0 0 1 0 7.744"></path>
+                                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                </svg>
+                                View Gallery
+                            </a>
+                        </div>
+
+                        <div class="mt-12 flex items-center gap-8 animate-slide-up animate-delay-800">
+                            <div class="flex items-center gap-2">
+                                <div class="flex text-yellow-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 fill-current" style="stroke-width: 1.5;">
+                                        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 fill-current" style="stroke-width: 1.5;">
+                                        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 fill-current" style="stroke-width: 1.5;">
+                                        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 fill-current" style="stroke-width: 1.5;">
+                                        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
+                                    </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 fill-current" style="stroke-width: 1.5;">
+                                        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
+                                    </svg>
+                                </div>
+                                <span class="text-sm font-medium font-sans">4.8/5 Rating</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-blue-500" style="stroke-width: 1.5;">
+                                    <path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"></path>
+                                    <path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"></path>
+                                    <path d="M18 9h1.5a1 1 0 0 0 0-5H18"></path>
+                                    <path d="M4 22h16"></path>
+                                    <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"></path>
+                                    <path d="M6 9H4.5a1 1 0 0 1 0-5H6"></path>
+                                </svg>
+                                <span class="text-sm font-medium font-sans">Premium Certified</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hero Image/Video Placeholder -->
+                    <div class="relative animate-slide-up animate-delay-400">
+                        <div class="relative bg-stone-800/50 border border-stone-700/50 rounded-3xl overflow-hidden backdrop-blur-sm">
+                            <img src="https://example.com/custom-cap-showcase.jpg" alt="Custom Cap Design Showcase" class="w-full h-auto object-cover rounded-3xl">
+                            <div class="absolute inset-0 bg-gradient-to-t from-stone-900/50 to-transparent"></div>
+                            
+                            <!-- Floating Stats Card -->
+                            <div class="absolute bottom-4 left-4 bg-white/10 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                                            <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m6-6h4a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-4"></path>
+                                            <path d="M8 21V9a5 5 0 1 1 8 0v12"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-semibold text-white">92% satisfaction rate</div>
+                                        <div class="text-xs text-stone-300">Premium designs delivered</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section class="max-w-7xl mx-auto px-6 pb-20">
+            <div class="grid lg:grid-cols-3 gap-6">
+                <!-- All Patch Types -->
+                <div class="group relative bg-gradient-to-br from-red-600/20 to-red-800/20 border border-red-500/30 rounded-3xl p-8 backdrop-blur-sm hover:scale-[1.02] transition-all duration-300">
+                    <div class="absolute top-4 right-4 w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                    <div class="mb-6">
+                        <div class="w-12 h-12 bg-red-600/20 rounded-xl flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-red-400">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                                <path d="M8 12l2 2 4-4"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 font-bricolage">All Patch Types</h3>
+                        <p class="text-stone-300 text-sm">Embroidery, rubber, printed, woven patches - all customization options available with professional-grade materials.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-red-400 rounded-full mr-2"></div>
+                            Embroidery & Thread Options
+                        </div>
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-red-400 rounded-full mr-2"></div>
+                            Rubber & PVC Patches
+                        </div>
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-red-400 rounded-full mr-2"></div>
+                            Woven & Printed Designs
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wholesale Config -->
+                <div class="group relative bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-3xl p-8 backdrop-blur-sm hover:scale-[1.02] transition-all duration-300">
+                    <div class="absolute top-4 right-4 w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                    <div class="mb-6">
+                        <div class="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-blue-400">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="m22 11 .5 5.5c.1 1.1-.8 2.1-1.9 2.1H13.5a2 2 0 0 1-1.9-2.1l.5-5.5"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 font-bricolage">Wholesale Config</h3>
+                        <p class="text-stone-300 text-sm">Bulk ordering tools with tiered pricing, real-time configuration, and dedicated wholesale support team.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-blue-400 rounded-full mr-2"></div>
+                            Minimum 50 Units
+                        </div>
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-blue-400 rounded-full mr-2"></div>
+                            Tiered Bulk Discounts
+                        </div>
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-blue-400 rounded-full mr-2"></div>
+                            Real-time Configuration
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Design Certification -->
+                <div class="group relative bg-gradient-to-br from-purple-600/20 to-purple-800/20 border border-purple-500/30 rounded-3xl p-8 backdrop-blur-sm hover:scale-[1.02] transition-all duration-300">
+                    <div class="absolute top-4 right-4 w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                    <div class="mb-6">
+                        <div class="w-12 h-12 bg-purple-600/20 rounded-xl flex items-center justify-center mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-purple-400">
+                                <path d="M10 14.66v1.626a2 2 0 0 1-.976 1.696A5 5 0 0 0 7 21.978"></path>
+                                <path d="M14 14.66v1.626a2 2 0 0 0 .976 1.696A5 5 0 0 1 17 21.978"></path>
+                                <path d="M18 9h1.5a1 1 0 0 0 0-5H18"></path>
+                                <path d="M4 22h16"></path>
+                                <path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"></path>
+                                <path d="M6 9H4.5a1 1 0 0 1 0-5H6"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-2 font-bricolage">Design Certification</h3>
+                        <p class="text-stone-300 text-sm">Premium design validation with 96% approval rate. Professional designers ensure your vision becomes reality.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-purple-400 rounded-full mr-2"></div>
+                            96% Approval Rate
+                        </div>
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-purple-400 rounded-full mr-2"></div>
+                            3500+ Designs Certified
+                        </div>
+                        <div class="flex items-center text-sm text-stone-300">
+                            <div class="w-1 h-1 bg-purple-400 rounded-full mr-2"></div>
+                            Professional Validation
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section class="relative max-w-6xl mt-20 mr-auto ml-auto px-6">
+            <div class="text-center mb-16">
+                <div class="inline-flex items-center bg-stone-700/50 rounded-full px-4 py-2 mb-6">
+                    <span class="text-sm font-medium text-stone-300">FREQUENTLY ASKED QUESTIONS</span>
+                </div>
+                <h2 class="text-4xl font-bold font-bricolage mb-4">CUSTOMIZATION ANSWERS</h2>
+                <p class="text-stone-300 max-w-2xl mx-auto">Everything you need to know about our custom cap and patch services, from design to delivery.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- FAQ 1 -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-6 backdrop-blur-sm hover:border-green-500/30 transition-all group">
+                    <div class="absolute top-3 left-3 w-3 h-3 bg-green-400/20 rounded-full"></div>
+                    <div class="absolute bottom-3 right-3 w-2 h-2 bg-green-400 rounded-full"></div>
+                    <h3 class="text-lg font-semibold mb-3 text-green-400">What patch types do you offer?</h3>
+                    <p class="text-stone-300 text-sm mb-4">We specialize in embroidery, rubber, printed, and woven patches with premium materials and thread options.</p>
+                    <button class="text-green-400 text-sm font-medium hover:underline">Read Full Answer</button>
+                </div>
+
+                <!-- FAQ 2 -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-6 backdrop-blur-sm hover:border-blue-500/30 transition-all group">
+                    <div class="absolute top-3 left-3 w-3 h-3 bg-blue-400/20 rounded-full"></div>
+                    <div class="absolute bottom-3 right-3 w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <h3 class="text-lg font-semibold mb-3 text-blue-400">How does wholesale pricing work?</h3>
+                    <p class="text-stone-300 text-sm mb-4">Wholesale orders start at 50 units with tiered discounts: 10% for 100+, 20% for 500+ units.</p>
+                    <button class="text-blue-400 text-sm font-medium hover:underline">Read Full Answer</button>
+                </div>
+
+                <!-- FAQ 3 -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-6 backdrop-blur-sm hover:border-purple-500/30 transition-all group">
+                    <div class="absolute top-3 left-3 w-3 h-3 bg-purple-400/20 rounded-full"></div>
+                    <div class="absolute bottom-3 right-3 w-2 h-2 bg-purple-400 rounded-full"></div>
+                    <h3 class="text-lg font-semibold mb-3 text-purple-400">What are minimum orders?</h3>
+                    <p class="text-stone-300 text-sm mb-4">Individual orders start at 1 unit. Wholesale pricing begins at 50 units with volume discounts.</p>
+                    <button class="text-purple-400 text-sm font-medium hover:underline">Read Full Answer</button>
+                </div>
+
+                <!-- FAQ 4 (spans 2 columns) -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-6 backdrop-blur-sm hover:border-amber-500/30 transition-all group md:col-span-2">
+                    <div class="absolute top-3 left-3 w-3 h-3 bg-amber-400/20 rounded-full"></div>
+                    <div class="absolute bottom-3 right-3 w-2 h-2 bg-amber-400 rounded-full"></div>
+                    <h3 class="text-lg font-semibold mb-3 text-amber-400">What's your production timeline and delivery schedule?</h3>
+                    <p class="text-stone-300 text-sm mb-4">Standard orders: 7-10 business days. Rush orders available in 3-5 days. Wholesale orders typically 10-15 business days depending on quantity and complexity.</p>
+                    <button class="text-amber-400 text-sm font-medium hover:underline">Read Full Answer</button>
+                </div>
+
+                <!-- FAQ 5 -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-6 backdrop-blur-sm hover:border-green-500/30 transition-all group">
+                    <div class="absolute top-3 left-3 w-3 h-3 bg-green-400/20 rounded-full"></div>
+                    <div class="absolute bottom-3 right-3 w-2 h-2 bg-green-400 rounded-full"></div>
+                    <h3 class="text-lg font-semibold mb-3 text-green-400">What materials & caps do you use?</h3>
+                    <p class="text-stone-300 text-sm mb-4">Premium cotton, polyester, and mesh caps with professional-grade threads and materials for all patch types.</p>
+                    <button class="text-green-400 text-sm font-medium hover:underline">Read Full Answer</button>
+                </div>
+
+                <!-- FAQ 6 -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-6 backdrop-blur-sm hover:border-blue-500/30 transition-all group">
+                    <div class="absolute top-3 left-3 w-3 h-3 bg-blue-400/20 rounded-full"></div>
+                    <div class="absolute bottom-3 right-3 w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <h3 class="text-lg font-semibold mb-3 text-blue-400">Do you offer design services?</h3>
+                    <p class="text-stone-300 text-sm mb-4">Yes! Our professional design team can create custom artwork or optimize your existing designs for production.</p>
+                    <button class="text-blue-400 text-sm font-medium hover:underline">Read Full Answer</button>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mt-12">
+                <button class="bg-stone-800/50 border border-stone-600 px-6 py-3 rounded-full font-medium transition-all hover:border-stone-500 hover:bg-stone-700/50">
+                    Browse All Cap FAQs
+                </button>
+                <button class="bg-blue-600 px-6 py-3 rounded-full font-medium transition-all hover:bg-blue-500">
+                    Ask Our Team
+                </button>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="max-w-7xl mt-20 mr-auto ml-auto pr-6 pb-20 pl-6">
+            <div class="text-center mb-16">
+                <div class="inline-flex items-center bg-stone-700/50 rounded-full px-4 py-2 mb-6">
+                    <span class="text-sm font-medium text-stone-300">PRICING PLANS</span>
+                </div>
+                <h2 class="text-4xl font-bold font-bricolage mb-4">Choose Your Plan</h2>
+                <p class="text-stone-300 max-w-2xl mx-auto">From individual designs to enterprise wholesale solutions, find the perfect plan for your custom cap needs.</p>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- Starter Plan -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-8 backdrop-blur-sm">
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold font-bricolage mb-2">Starter</h3>
+                        <div class="flex items-baseline gap-2 mb-4">
+                            <span class="text-4xl font-bold">$29</span>
+                            <span class="text-stone-400">/month</span>
+                        </div>
+                        <p class="text-stone-300 text-sm">Perfect for individuals and small teams getting started with custom cap designs.</p>
+                    </div>
+                    
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Basic custom design tools
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Up to 5 designs per month
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Community support
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Standard delivery
+                        </li>
+                    </ul>
+                    
+                    <button class="w-full bg-stone-700 hover:bg-stone-600 text-white py-3 rounded-full font-medium transition-all">
+                        Get Started
+                    </button>
+                </div>
+
+                <!-- Pro Plan (Most Popular) -->
+                <div class="relative bg-gradient-to-br from-red-600/20 to-blue-600/20 border border-red-500/30 rounded-3xl p-8 backdrop-blur-sm scale-105">
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-red-600 to-blue-600 px-6 py-2 rounded-full text-sm font-medium text-white">
+                        Most Popular
+                    </div>
+                    
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold font-bricolage mb-2">Pro</h3>
+                        <div class="flex items-baseline gap-2 mb-4">
+                            <span class="text-4xl font-bold">$79</span>
+                            <span class="text-stone-400">/month</span>
+                        </div>
+                        <p class="text-stone-300 text-sm">Advanced design features plus wholesale access for growing businesses.</p>
+                    </div>
+                    
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Advanced design tools
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Unlimited designs
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Wholesale pricing access
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Priority support
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Rush delivery options
+                        </li>
+                    </ul>
+                    
+                    <button class="w-full bg-gradient-to-r from-red-600 to-blue-600 hover:from-red-500 hover:to-blue-500 text-white py-3 rounded-full font-medium transition-all">
+                        Start Pro Trial
+                    </button>
+                </div>
+
+                <!-- Elite Plan -->
+                <div class="relative bg-stone-800/30 border border-stone-700/50 rounded-3xl p-8 backdrop-blur-sm">
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold font-bricolage mb-2">Elite</h3>
+                        <div class="flex items-baseline gap-2 mb-4">
+                            <span class="text-4xl font-bold">$199</span>
+                            <span class="text-stone-400">/month</span>
+                        </div>
+                        <p class="text-stone-300 text-sm">Everything in Pro plus premium materials and dedicated design support.</p>
+                    </div>
+                    
+                    <ul class="space-y-3 mb-8">
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Everything in Pro
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Premium materials access
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Dedicated design support
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            White-label options
+                        </li>
+                        <li class="flex items-center gap-3 text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            24/7 priority support
+                        </li>
+                    </ul>
+                    
+                    <button class="w-full bg-stone-700 hover:bg-stone-600 text-white py-3 rounded-full font-medium transition-all">
+                        Contact Sales
+                    </button>
+                </div>
+            </div>
+
+            <!-- Trust Badges -->
+            <div class="flex flex-wrap justify-center gap-6 mt-12 pt-8 border-t border-stone-700/50">
+                <div class="flex items-center gap-2 text-sm text-stone-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                    14-day free trial
+                </div>
+                <div class="flex items-center gap-2 text-sm text-stone-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                    Cancel anytime
+                </div>
+                <div class="flex items-center gap-2 text-sm text-stone-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                    30-day money back guarantee
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="relative bg-stone-900/50 border-stone-800/50 rounded-3xl border-t backdrop-blur-lg mx-6 mb-6">
+        <div class="max-w-7xl mx-auto px-6 py-12">
+            <div class="grid lg:grid-cols-4 gap-8">
+                <!-- Brand Section -->
+                <div class="lg:col-span-1">
+                    <a href="#" class="flex items-center gap-3 mb-6">
+                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5" style="stroke-width: 1.5;">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                        </div>
+                        <span class="font-semibold text-lg tracking-tight">US Custom Caps</span>
+                    </a>
+                    <p class="text-stone-400 text-sm mb-6 max-w-sm">
+                        Premium custom caps and patches for teams, brands, and events. Professional-grade customization with wholesale capabilities.
+                    </p>
+                    <div class="flex gap-4">
+                        <button class="w-10 h-10 bg-stone-800 hover:bg-stone-700 rounded-lg flex items-center justify-center transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+                            </svg>
+                        </button>
+                        <button class="w-10 h-10 bg-stone-800 hover:bg-stone-700 rounded-lg flex items-center justify-center transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/>
+                            </svg>
+                        </button>
+                        <button class="w-10 h-10 bg-stone-800 hover:bg-stone-700 rounded-lg flex items-center justify-center transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+                                <path d="m16 11.37-4-4-4 4"/>
+                                <path d="M12 15V7"/>
+                            </svg>
+                        </button>
+                        <button class="w-10 h-10 bg-stone-800 hover:bg-stone-700 rounded-lg flex items-center justify-center transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/>
+                                <path d="m10 15 5-3-5-3z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Cap Services -->
+                <div>
+                    <h3 class="font-semibold mb-4">Cap Services</h3>
+                    <ul class="space-y-2 text-sm text-stone-400">
+                        <li><a href="#" class="hover:text-white transition-colors">Custom Embroidery</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Rubber Patches</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Printed Designs</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Woven Patches</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Team Packages</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Corporate Branding</a></li>
+                    </ul>
+                </div>
+
+                <!-- Resources -->
+                <div>
+                    <h3 class="font-semibold mb-4">Resources</h3>
+                    <ul class="space-y-2 text-sm text-stone-400">
+                        <li><a href="#" class="hover:text-white transition-colors">Design Gallery</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Patch Types Guide</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Material Options</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Wholesale Guide</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Size Charts</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Color Options</a></li>
+                    </ul>
+                </div>
+
+                <!-- Support -->
+                <div>
+                    <h3 class="font-semibold mb-4">Support</h3>
+                    <ul class="space-y-2 text-sm text-stone-400">
+                        <li><a href="#" class="hover:text-white transition-colors">Help Center</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Contact Team</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Order Tracking</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Returns & Exchanges</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Wholesale Support</a></li>
+                    </ul>
+                    
+                    <div class="mt-6 p-4 bg-blue-600/20 border border-blue-500/30 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                            </svg>
+                            <span class="text-blue-400 font-medium text-sm">24/7 Support Available</span>
+                        </div>
+                        <p class="text-xs text-stone-400">Get help with orders, designs, and wholesale inquiries anytime.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-stone-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-stone-400 text-sm">© 2024 US Custom Caps. All rights reserved.</p>
+                <div class="flex gap-6 text-sm text-stone-400">
+                    <a href="#" class="hover:text-white transition-colors">Privacy Policy</a>
+                    <a href="#" class="hover:text-white transition-colors">Terms of Service</a>
+                    <a href="#" class="hover:text-white transition-colors">Cookie Policy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        // Simple mobile menu toggle
+        const mobileMenuButton = document.querySelector('.md\\:hidden button');
+        const mobileMenu = document.querySelector('nav');
+        
+        if (mobileMenuButton) {
+            mobileMenuButton.addEventListener('click', () => {
+                // Simple mobile menu toggle logic would go here
+                console.log('Mobile menu toggled');
+            });
+        }
+    </script>
+</body>
+</html>

@@ -5,874 +5,944 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Wallet,
-  Package,
-  UserPlus,
-  FileText,
-  Sparkles,
-  TrendingUp,
-  Stamp,
-  Crown,
-  Shield,
-  Clock,
-  RefreshCw,
-  Truck,
-  CheckCircle,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  DollarSign,
-  User,
-  Mail,
-  Phone,
-  Building,
-  BarChart3,
-  ShoppingBag
+ Wallet,
+ Package,
+ UserPlus,
+ FileText,
+ Sparkles,
+ TrendingUp,
+ Stamp,
+ Crown,
+ Shield,
+ Clock,
+ RefreshCw,
+ Truck,
+ CheckCircle,
+ AlertCircle,
+ ChevronDown,
+ ChevronUp,
+ DollarSign,
+ User,
+ Mail,
+ Phone,
+ Building,
+ BarChart3,
+ ShoppingBag
 } from 'lucide-react';
 
 // Import our new design system components
 import {
-  DashboardShell,
-  DashboardContent,
-  GlassCard,
-  StatCard,
-  Button,
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableHeaderCell,
-  StatusBadge
+ DashboardShell,
+ DashboardContent,
+ GlassCard,
+ StatCard,
+ Button,
+ Table,
+ TableHeader,
+ TableBody,
+ TableRow,
+ TableCell,
+ TableHeaderCell,
+ StatusBadge
 } from '@/components/ui/dashboard';
 import Sidebar from '@/components/ui/dashboard/Sidebar';
 import DashboardHeader from '@/components/ui/dashboard/DashboardHeader';
 import {
-  RevenueChart,
-  OrderStatusChart,
-  UsersChart,
-  ChartsGrid
+ RevenueChart,
+ OrderStatusChart,
+ UsersChart,
+ ChartsGrid
 } from '@/components/ui/dashboard/Charts';
 import ShipmentAnalytics from '@/components/ui/dashboard/ShipmentAnalytics';
 import { 
-  MarqueeActivityFeed,
-  ListActivityFeed
+ MarqueeActivityFeed,
+ ListActivityFeed
 } from '@/components/ui/dashboard/ActivityFeed';
 import OrderLogoIndicator from '@/components/admin/OrderLogoIndicator';
 import {
-  OrderDetailsModal,
-  ProductModal,
-  TrackingDrawer,
-  RoleDropdown
+ OrderDetailsModal,
+ ProductModal,
+ TrackingDrawer,
+ RoleDropdown
 } from '@/components/ui/dashboard/Interactive';
 
 
 // Types
 interface Order {
-  id: string;
-  productName: string;
-  status: string;
-  orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER' | 'QUOTE_CONVERSION';
-  isDraft?: boolean;
-  createdAt: string;
-  updatedAt: string;
-  customerInfo: {
-    name: string;
-    email: string;
-    phone?: string;
-    company?: string;
-  };
-  orderTotal?: number;
-  itemTotal?: number;
-  userId?: string;
-  userEmail?: string;
-  orderType: 'AUTHENTICATED' | 'GUEST';
-  selectedColors: Record<string, any>;
-  paymentProcessed?: boolean;
-  trackingNumber?: string;
+ id: string;
+ productName: string;
+ status: string;
+ orderSource: 'PRODUCT_CUSTOMIZATION' | 'REORDER';
+ isDraft?: boolean;
+ createdAt: string;
+ updatedAt: string;
+ customerInfo: {
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+ };
+ orderTotal?: number;
+ itemTotal?: number;
+ userId?: string;
+ userEmail?: string;
+ orderType: 'AUTHENTICATED' | 'GUEST';
+ selectedColors: Record<string, any>;
+ paymentProcessed?: boolean;
+ trackingNumber?: string;
 }
 
 interface User {
-  id: string;
-  email: string;
-  name: string;
-  accessRole: string;
-  customerRole: string;
-  createdAt: string;
+ id: string;
+ email: string;
+ name: string;
+ accessRole: string;
+ customerRole: string;
+ createdAt: string;
 }
 
 interface QuoteRequest {
-  id: string;
-  productName: string;
-  customerInfo: {
-    name: string;
-    email: string;
-    company: string;
-  };
-  createdAt: string;
-  status: string;
+ id: string;
+ productName: string;
+ customerInfo: {
+  name: string;
+  email: string;
+  company: string;
+ };
+ createdAt: string;
+ status: string;
 }
 
 const ACCESS_ROLES = [
-  { value: 'MASTER_ADMIN', label: 'Master Admin', icon: Crown, color: 'text-red-400' },
-  { value: 'SUPER_ADMIN', label: 'Super Admin', icon: Shield, color: 'text-orange-400' },
-  { value: 'STAFF', label: 'Staff', icon: User, color: 'text-green-400' },
-  { value: 'CUSTOMER', label: 'Customer', icon: ShoppingBag, color: 'text-slate-400' }
+ { value: 'MASTER_ADMIN', label: 'Master Admin', icon: Crown, color: 'text-red-400' },
+ { value: 'SUPER_ADMIN', label: 'Super Admin', icon: Shield, color: 'text-orange-400' },
+ { value: 'STAFF', label: 'Staff', icon: User, color: 'text-green-400' },
+ { value: 'CUSTOMER', label: 'Customer', icon: ShoppingBag, color: 'text-slate-400' }
 ];
 
 export default function NewAdminDashboard() {
-  const { user, loading, isAuthenticated, logout } = useAuth();
-  const router = useRouter();
+ const { user, loading, isAuthenticated, logout } = useAuth();
+ const router = useRouter();
+ 
+ // State
+ const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+ // Removed currentView state - no tabs needed anymore
+ 
+ // Removed URL parameter handling - no tabs needed anymore
+ const [orders, setOrders] = useState<Order[]>([]);
+ const [users, setUsers] = useState<User[]>([]);
+ const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
+ const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+ const [isLoading, setIsLoading] = useState(true);
+ const [error, setError] = useState<string | null>(null);
+ 
+ // Search state
+ const [searchResults, setSearchResults] = useState<Array<{
+  id: string;
+  title: string;
+  subtitle?: string;
+  type: 'user' | 'order' | 'product' | 'quote';
+  url?: string;
+ }>>([]);
+ 
+ // Modal states
+ const [orderModalOpen, setOrderModalOpen] = useState(false);
+ const [productModalOpen, setProductModalOpen] = useState(false);
+ const [trackingDrawerOpen, setTrackingDrawerOpen] = useState(false);
+ const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+ 
+ // Statistics
+ const [stats, setStats] = useState({
+  totalRevenue: 0,
+  totalOrders: 0,
+  pendingOrders: 0,
+  confirmedOrders: 0,
+  processingOrders: 0,
+  shippedOrders: 0,
+  deliveredOrders: 0,
+  cancelledOrders: 0,
+  totalUsers: 0,
+  newUsersThisMonth: 0,
+  totalQuotes: 0,
+  pendingQuotes: 0,
+  approvedQuotes: 0,
+  declinedQuotes: 0,
+  totalShipments: 0,
+  averageUtilization: 0,
+  monthlyShipmentValue: 0,
+  potentialSavings: 0
+ });
+
+ // Check admin access
+ useEffect(() => {
+  if (loading) return;
   
-  // State
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Removed currentView state - no tabs needed anymore
+  if (!isAuthenticated || !user) {
+   router.push('/login');
+   return;
+  }
   
-  // Removed URL parameter handling - no tabs needed anymore
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
-  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const isMasterAdmin = user.email === 'absrasel@gmail.com' || user.email === 'vic@onpointmarketing.com';
+  if (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'STAFF' && !isMasterAdmin) {
+   router.push('/dashboard/member');
+   return;
+  }
   
-  // Modal states
-  const [orderModalOpen, setOrderModalOpen] = useState(false);
-  const [productModalOpen, setProductModalOpen] = useState(false);
-  const [trackingDrawerOpen, setTrackingDrawerOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  
-  // Statistics
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    totalOrders: 0,
-    pendingOrders: 0,
-    confirmedOrders: 0,
-    processingOrders: 0,
-    shippedOrders: 0,
-    deliveredOrders: 0,
-    cancelledOrders: 0,
-    totalUsers: 0,
-    newUsersThisMonth: 0,
-    totalQuotes: 0,
-    pendingQuotes: 0,
-    approvedQuotes: 0,
-    declinedQuotes: 0,
-    totalShipments: 0,
-    averageUtilization: 0,
-    monthlyShipmentValue: 0,
-    potentialSavings: 0
+  fetchAdminData();
+ }, [user, loading, isAuthenticated, router]);
+
+ // Helper functions
+ const getAccessRoleIcon = (accessRole: string) => {
+  const roleConfig = ACCESS_ROLES.find(r => r.value === accessRole);
+  if (roleConfig) {
+   const IconComponent = roleConfig.icon;
+   return <IconComponent className={`w-4 h-4 ${roleConfig.color}`} />;
+  }
+  return <User className="w-4 h-4 text-slate-400" />;
+ };
+
+ const getAccessRoleLabel = (accessRole: string) => {
+  const roleConfig = ACCESS_ROLES.find(r => r.value === accessRole);
+  return roleConfig ? roleConfig.label : accessRole;
+ };
+
+ // Role change handlers
+ const handleAccessRoleChange = async (userId: string, newAccessRole: string) => {
+  try {
+   const response = await fetch('/api/users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+     userId,
+     updates: { accessRole: newAccessRole }
+    })
+   });
+
+   if (response.ok) {
+    // Update local state
+    setUsers(prev => prev.map(user => 
+     user.id === userId ? { ...user, accessRole: newAccessRole } : user
+    ));
+   } else {
+    console.error('Failed to update user access role');
+   }
+  } catch (error) {
+   console.error('Error updating user access role:', error);
+  }
+ };
+
+ const fetchAdminData = async () => {
+  try {
+   setIsLoading(true);
+   setError(null);
+   
+   // Fetch orders
+   const ordersResponse = await fetch('/api/orders');
+   if (ordersResponse.ok) {
+    const ordersData = await ordersResponse.json();
+    const allOrders = ordersData.orders || [];
+    setOrders(allOrders);
+    
+    // Calculate order statistics
+    const totalRevenue = allOrders.reduce((sum: number, order: Order) => {
+     return sum + (order.orderTotal || 0);
+    }, 0);
+    
+    const pendingOrders = allOrders.filter((order: Order) => order.status === 'PENDING').length;
+    const confirmedOrders = allOrders.filter((order: Order) => order.status === 'CONFIRMED').length;
+    const processingOrders = allOrders.filter((order: Order) => order.status === 'PROCESSING').length;
+    const shippedOrders = allOrders.filter((order: Order) => order.status === 'SHIPPED').length;
+    const deliveredOrders = allOrders.filter((order: Order) => order.status === 'DELIVERED').length;
+    const cancelledOrders = allOrders.filter((order: Order) => order.status === 'CANCELLED').length;
+    
+    setStats(prev => ({
+     ...prev,
+     totalRevenue,
+     totalOrders: allOrders.length,
+     pendingOrders,
+     confirmedOrders,
+     processingOrders,
+     shippedOrders,
+     deliveredOrders,
+     cancelledOrders
+    }));
+   } else {
+    console.error('Failed to fetch orders:', ordersResponse.status);
+   }
+
+   // Fetch users with authentication
+   const usersResponse = await fetch('/api/users', {
+    credentials: 'include', // Include cookies in the request
+   });
+   if (usersResponse.ok) {
+    const usersData = await usersResponse.json();
+    const allUsers = usersData.users || [];
+    setUsers(allUsers);
+    
+    // Calculate user statistics
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const newUsersThisMonth = allUsers.filter((user: User) => 
+     new Date(user.createdAt) >= thisMonth
+    ).length;
+    
+    setStats(prev => ({
+     ...prev,
+     totalUsers: allUsers.length,
+     newUsersThisMonth
+    }));
+   } else {
+    console.error('Failed to fetch users:', usersResponse.status);
+    // Try to get the error message from the response
+    try {
+     const errorData = await usersResponse.json();
+     console.error('Users API error details:', errorData);
+    } catch (e) {
+     console.error('Could not parse error response');
+    }
+   }
+
+   // Fetch quote requests
+   const quotesResponse = await fetch('/api/quote-requests');
+   if (quotesResponse.ok) {
+    const quotesData = await quotesResponse.json();
+    const allQuotes = quotesData.quoteRequests || [];
+    setQuoteRequests(allQuotes);
+    
+    // Calculate quote statistics
+    const pendingQuotes = allQuotes.filter((quote: QuoteRequest) => quote.status === 'PENDING').length;
+    const approvedQuotes = allQuotes.filter((quote: QuoteRequest) => quote.status === 'APPROVED').length;
+    const declinedQuotes = allQuotes.filter((quote: QuoteRequest) => quote.status === 'DECLINED').length;
+    
+    setStats(prev => ({
+     ...prev,
+     totalQuotes: allQuotes.length,
+     pendingQuotes,
+     approvedQuotes,
+     declinedQuotes
+    }));
+   } else {
+    console.error('Failed to fetch quotes:', quotesResponse.status);
+   }
+
+   // Fetch shipment analytics summary
+   const shipmentsResponse = await fetch('/api/shipments/analytics');
+   if (shipmentsResponse.ok) {
+    const shipmentsData = await shipmentsResponse.json();
+    if (shipmentsData.success && shipmentsData.analytics) {
+     const { overview, costOptimization } = shipmentsData.analytics;
+     setStats(prev => ({
+      ...prev,
+      totalShipments: overview.totalShipments || 0,
+      averageUtilization: overview.averageUtilization || 0,
+      monthlyShipmentValue: overview.monthlyValue || 0,
+      potentialSavings: costOptimization.potentialSavings || 0
+     }));
+    }
+   } else {
+    console.error('Failed to fetch shipment analytics:', shipmentsResponse.status);
+   }
+  } catch (error) {
+   console.error('Error fetching admin data:', error);
+   setError('Failed to load dashboard data. Please try refreshing the page.');
+  } finally {
+   setIsLoading(false);
+  }
+ };
+
+ const formatPrice = (price: number) => {
+  return new Intl.NumberFormat('en-US', {
+   style: 'currency',
+   currency: 'USD',
+  }).format(price);
+ };
+
+ const refreshStats = () => {
+  fetchAdminData();
+ };
+
+ // Search functionality
+ const handleSearch = (query: string) => {
+  if (!query.trim()) {
+   setSearchResults([]);
+   return;
+  }
+
+  const results: Array<{
+   id: string;
+   title: string;
+   subtitle?: string;
+   type: 'user' | 'order' | 'product' | 'quote';
+   url?: string;
+  }> = [];
+
+  const searchTerm = query.toLowerCase();
+
+  // Search orders
+  orders.forEach((order) => {
+   const orderMatches = 
+    order.id.toLowerCase().includes(searchTerm) ||
+    order.customerInfo.name.toLowerCase().includes(searchTerm) ||
+    order.productName.toLowerCase().includes(searchTerm) ||
+    order.customerInfo.email.toLowerCase().includes(searchTerm);
+
+   if (orderMatches) {
+    results.push({
+     id: order.id,
+     title: `Order ${order.id.slice(-8)}`,
+     subtitle: `${order.customerInfo.name} • ${order.productName}`,
+     type: 'order',
+     url: `/dashboard/admin/orders?highlight=${order.id}`
+    });
+   }
   });
 
-  // Check admin access
-  useEffect(() => {
-    if (loading) return;
-    
-    if (!isAuthenticated || !user) {
-      router.push('/login');
-      return;
-    }
-    
-    const isMasterAdmin = user.email === 'absrasel@gmail.com' || user.email === 'vic@onpointmarketing.com';
-    if (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'STAFF' && !isMasterAdmin) {
-      router.push('/dashboard/member');
-      return;
-    }
-    
-    fetchAdminData();
-  }, [user, loading, isAuthenticated, router]);
+  // Search users
+  users.forEach((userItem) => {
+   const userMatches = 
+    userItem.name.toLowerCase().includes(searchTerm) ||
+    userItem.email.toLowerCase().includes(searchTerm) ||
+    userItem.accessRole.toLowerCase().includes(searchTerm);
 
-  // Helper functions
-  const getAccessRoleIcon = (accessRole: string) => {
-    const roleConfig = ACCESS_ROLES.find(r => r.value === accessRole);
-    if (roleConfig) {
-      const IconComponent = roleConfig.icon;
-      return <IconComponent className={`w-4 h-4 ${roleConfig.color}`} />;
-    }
-    return <User className="w-4 h-4 text-slate-400" />;
-  };
+   if (userMatches) {
+    results.push({
+     id: userItem.id,
+     title: userItem.name,
+     subtitle: `${userItem.email} • ${getAccessRoleLabel(userItem.accessRole)}`,
+     type: 'user',
+     url: `/dashboard/admin/users?highlight=${userItem.id}`
+    });
+   }
+  });
 
-  const getAccessRoleLabel = (accessRole: string) => {
-    const roleConfig = ACCESS_ROLES.find(r => r.value === accessRole);
-    return roleConfig ? roleConfig.label : accessRole;
-  };
+  // Search quotes
+  quoteRequests.forEach((quote) => {
+   const quoteMatches = 
+    quote.id.toLowerCase().includes(searchTerm) ||
+    quote.customerInfo.name.toLowerCase().includes(searchTerm) ||
+    quote.productName.toLowerCase().includes(searchTerm) ||
+    quote.customerInfo.email.toLowerCase().includes(searchTerm);
 
-  // Role change handlers
-  const handleAccessRoleChange = async (userId: string, newAccessRole: string) => {
-    try {
-      const response = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          updates: { accessRole: newAccessRole }
-        })
-      });
+   if (quoteMatches) {
+    results.push({
+     id: quote.id,
+     title: `Quote ${quote.id.slice(-8)}`,
+     subtitle: `${quote.customerInfo.name} • ${quote.productName}`,
+     type: 'quote',
+     url: `/dashboard/admin/quotes?highlight=${quote.id}`
+    });
+   }
+  });
 
-      if (response.ok) {
-        // Update local state
-        setUsers(prev => prev.map(user => 
-          user.id === userId ? { ...user, accessRole: newAccessRole } : user
-        ));
-      } else {
-        console.error('Failed to update user access role');
-      }
-    } catch (error) {
-      console.error('Error updating user access role:', error);
-    }
-  };
+  // Sort results by relevance (exact matches first)
+  results.sort((a, b) => {
+   const aExact = a.title.toLowerCase().includes(searchTerm) || a.subtitle?.toLowerCase().includes(searchTerm);
+   const bExact = b.title.toLowerCase().includes(searchTerm) || b.subtitle?.toLowerCase().includes(searchTerm);
+   if (aExact && !bExact) return -1;
+   if (!aExact && bExact) return 1;
+   return 0;
+  });
 
-  const fetchAdminData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Fetch orders
-      const ordersResponse = await fetch('/api/orders');
-      if (ordersResponse.ok) {
-        const ordersData = await ordersResponse.json();
-        const allOrders = ordersData.orders || [];
-        setOrders(allOrders);
-        
-        // Calculate order statistics
-        const totalRevenue = allOrders.reduce((sum: number, order: Order) => {
-          return sum + (order.orderTotal || 0);
-        }, 0);
-        
-        const pendingOrders = allOrders.filter((order: Order) => order.status === 'PENDING').length;
-        const confirmedOrders = allOrders.filter((order: Order) => order.status === 'CONFIRMED').length;
-        const processingOrders = allOrders.filter((order: Order) => order.status === 'PROCESSING').length;
-        const shippedOrders = allOrders.filter((order: Order) => order.status === 'SHIPPED').length;
-        const deliveredOrders = allOrders.filter((order: Order) => order.status === 'DELIVERED').length;
-        const cancelledOrders = allOrders.filter((order: Order) => order.status === 'CANCELLED').length;
-        
-        setStats(prev => ({
-          ...prev,
-          totalRevenue,
-          totalOrders: allOrders.length,
-          pendingOrders,
-          confirmedOrders,
-          processingOrders,
-          shippedOrders,
-          deliveredOrders,
-          cancelledOrders
-        }));
-      } else {
-        console.error('Failed to fetch orders:', ordersResponse.status);
-      }
+  setSearchResults(results.slice(0, 20)); // Limit to 20 results
+ };
 
-      // Fetch users with authentication
-      const usersResponse = await fetch('/api/users', {
-        credentials: 'include', // Include cookies in the request
-      });
-      if (usersResponse.ok) {
-        const usersData = await usersResponse.json();
-        const allUsers = usersData.users || [];
-        setUsers(allUsers);
-        
-        // Calculate user statistics
-        const now = new Date();
-        const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const newUsersThisMonth = allUsers.filter((user: User) => 
-          new Date(user.createdAt) >= thisMonth
-        ).length;
-        
-        setStats(prev => ({
-          ...prev,
-          totalUsers: allUsers.length,
-          newUsersThisMonth
-        }));
-      } else {
-        console.error('Failed to fetch users:', usersResponse.status);
-        // Try to get the error message from the response
-        try {
-          const errorData = await usersResponse.json();
-          console.error('Users API error details:', errorData);
-        } catch (e) {
-          console.error('Could not parse error response');
-        }
-      }
-
-      // Fetch quote requests
-      const quotesResponse = await fetch('/api/quote-requests');
-      if (quotesResponse.ok) {
-        const quotesData = await quotesResponse.json();
-        const allQuotes = quotesData.quoteRequests || [];
-        setQuoteRequests(allQuotes);
-        
-        // Calculate quote statistics
-        const pendingQuotes = allQuotes.filter((quote: QuoteRequest) => quote.status === 'PENDING').length;
-        const approvedQuotes = allQuotes.filter((quote: QuoteRequest) => quote.status === 'APPROVED').length;
-        const declinedQuotes = allQuotes.filter((quote: QuoteRequest) => quote.status === 'DECLINED').length;
-        
-        setStats(prev => ({
-          ...prev,
-          totalQuotes: allQuotes.length,
-          pendingQuotes,
-          approvedQuotes,
-          declinedQuotes
-        }));
-      } else {
-        console.error('Failed to fetch quotes:', quotesResponse.status);
-      }
-
-      // Fetch shipment analytics summary
-      const shipmentsResponse = await fetch('/api/shipments/analytics');
-      if (shipmentsResponse.ok) {
-        const shipmentsData = await shipmentsResponse.json();
-        if (shipmentsData.success && shipmentsData.analytics) {
-          const { overview, costOptimization } = shipmentsData.analytics;
-          setStats(prev => ({
-            ...prev,
-            totalShipments: overview.totalShipments || 0,
-            averageUtilization: overview.averageUtilization || 0,
-            monthlyShipmentValue: overview.monthlyValue || 0,
-            potentialSavings: costOptimization.potentialSavings || 0
-          }));
-        }
-      } else {
-        console.error('Failed to fetch shipment analytics:', shipmentsResponse.status);
-      }
-    } catch (error) {
-      console.error('Error fetching admin data:', error);
-      setError('Failed to load dashboard data. Please try refreshing the page.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(price);
-  };
-
-  const refreshStats = () => {
-    fetchAdminData();
-  };
-
-  const isMasterAdmin = user?.email === 'absrasel@gmail.com' || user?.email === 'vic@onpointmarketing.com';
-  
-  if (loading) {
-    return (
-      <DashboardShell>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-400 mx-auto"></div>
-            <p className="mt-4 text-slate-300">Loading Admin Dashboard...</p>
-          </div>
-        </div>
-      </DashboardShell>
-    );
-  }
-
-  if (!isAuthenticated || !user || (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'STAFF' && !isMasterAdmin)) {
-    return (
-      <DashboardShell>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="text-red-400 text-6xl mb-4">🚫</div>
-            <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
-            <p className="text-slate-300 mb-4">You need admin privileges to access this page.</p>
-            <Link href="/dashboard/member">
-              <Button variant="primary">Go to Member Dashboard</Button>
-            </Link>
-          </div>
-        </div>
-      </DashboardShell>
-    );
-  }
-
+ const isMasterAdmin = user?.email === 'absrasel@gmail.com' || user?.email === 'vic@onpointmarketing.com';
+ 
+ if (loading) {
   return (
+   <DashboardShell>
+    <div className="flex items-center justify-center min-h-screen">
+     <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-400 mx-auto"></div>
+      <p className="mt-4 text-slate-300">Loading Admin Dashboard...</p>
+     </div>
+    </div>
+   </DashboardShell>
+  );
+ }
+
+ if (!isAuthenticated || !user || (user.accessRole !== 'SUPER_ADMIN' && user.accessRole !== 'STAFF' && !isMasterAdmin)) {
+  return (
+   <DashboardShell>
+    <div className="flex items-center justify-center min-h-screen">
+     <div className="text-center">
+      <div className="text-red-400 text-6xl mb-4">🚫</div>
+      <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
+      <p className="text-slate-300 mb-4">You need admin privileges to access this page.</p>
+      <Link href="/dashboard/member">
+       <Button variant="primary">Go to Member Dashboard</Button>
+      </Link>
+     </div>
+    </div>
+   </DashboardShell>
+  );
+ }
+
+ return (
+  <>
     <DashboardShell>
-      <div className="flex">
-        {/* Sidebar */}
-        <Sidebar 
+      <main className="pt-[55px]">
+        <div className="flex">
+         {/* Sidebar */}
+         <Sidebar 
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
+         />
 
-        {/* Main Content */}
-        <DashboardContent>
-          {/* Header */}
-          <DashboardHeader
-            title={`Welcome back, ${user.name?.split(' ')[0]}`}
-            subtitle="Here's what's happening across CustomCap today."
-            onSearch={(query) => console.log('Search:', query)}
-            sticky={false}
-            primaryActionText=""
-            showNewQuote={false}
-            showProfile={false}
-          />
+         {/* Main Content */}
+         <DashboardContent>
+     {/* Header */}
+     <DashboardHeader
+      title={`Welcome back, ${user.name?.split(' ')[0]}`}
+      subtitle="Here's what's happening across CustomCap today."
+      onSearch={handleSearch}
+      searchResults={searchResults}
+      searchPlaceholder="Search orders, users, quotes..."
+      sticky={false}
+      primaryActionText=""
+      showNewQuote={false}
+      showProfile={false}
+     />
 
-          {/* Content wrapper with proper margin */}
-          <div>
-            {/* Error Display */}
-          {error && (
-            <section className="px-6 md:px-10 mt-4">
-              <GlassCard className="p-4 border-red-400/20 bg-red-400/5">
-                <div className="flex items-center gap-3">
-                  <div className="text-red-400">⚠️</div>
-                  <div>
-                    <div className="text-red-200 font-medium">Error Loading Data</div>
-                    <div className="text-red-300 text-sm">{error}</div>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    className="ml-auto text-red-300 hover:text-red-200"
-                    onClick={fetchAdminData}
-                  >
-                    Retry
-                  </Button>
-                </div>
-              </GlassCard>
-            </section>
-          )}
+     {/* Content wrapper with proper margin */}
+     <div>
+      {/* Error Display */}
+     {error && (
+      <section className="px-6 md:px-10 mt-4">
+       <GlassCard className="p-4 border-red-400/20 bg-red-400/5">
+        <div className="flex items-center gap-3">
+         <div className="text-red-400">⚠️</div>
+         <div>
+          <div className="text-red-200 font-medium">Error Loading Data</div>
+          <div className="text-red-300 text-sm">{error}</div>
+         </div>
+         <Button 
+          variant="ghost" 
+          className="ml-auto text-red-300 hover:text-red-200"
+          onClick={fetchAdminData}
+         >
+          Retry
+         </Button>
+        </div>
+       </GlassCard>
+      </section>
+     )}
 
-          {/* Loading State */}
-          {isLoading && (
-            <section className="px-6 md:px-10">
-              <GlassCard className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lime-400"></div>
-                  <div className="text-slate-300">Loading dashboard data...</div>
-                </div>
-              </GlassCard>
-            </section>
-          )}
+     {/* Loading State */}
+     {isLoading && (
+      <section className="px-6 md:px-10">
+       <GlassCard className="p-4">
+        <div className="flex items-center gap-3">
+         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-lime-400"></div>
+         <div className="text-slate-300">Loading dashboard data...</div>
+        </div>
+       </GlassCard>
+      </section>
+     )}
 
 
-          {/* Overview Content */}
-          <>
-            {/* Activity Marquee */}
-              <section className="px-6 md:px-10">
-                <MarqueeActivityFeed />
-              </section>
+     {/* Overview Content */}
+     <>
+      {/* Activity Marquee */}
+       <section className="px-6 md:px-10">
+        <MarqueeActivityFeed />
+       </section>
 
-              {/* Stats Cards */}
-              <section className="px-6 md:px-10 mt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-              {/* Revenue */}
-              <GlassCard className="p-5 hover:-translate-y-0.5 transition will-change-transform cursor-pointer" onClick={refreshStats}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
-                      <Wallet className="w-4.5 h-4.5 text-lime-400" />
-                      Revenue
-                    </div>
-                    <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
-                      {formatPrice(stats.totalRevenue)}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      {stats.totalOrders > 0 ? `${stats.totalOrders} orders` : 'No orders yet'}
-                    </div>
-                  </div>
-                  <span className="h-10 w-10 rounded-xl grid place-items-center bg-lime-400/15 border border-lime-400/20 text-lime-300 ring-1 ring-white/5">
-                    <Sparkles className="w-5 h-5" />
-                  </span>
-                </div>
-              </GlassCard>
-
-              {/* Orders */}
-              <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/orders')}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
-                      <Package className="w-4.5 h-4.5 text-orange-400" />
-                      Orders
-                    </div>
-                    <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
-                      {stats.totalOrders}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      P: {stats.pendingOrders} • C: {stats.confirmedOrders} • Pr: {stats.processingOrders} • S: {stats.shippedOrders} • D: {stats.deliveredOrders} • Ca: {stats.cancelledOrders}
-                    </div>
-                  </div>
-                  <span className="h-10 w-10 rounded-xl grid place-items-center bg-orange-400/15 border border-orange-400/20 text-orange-300 ring-1 ring-white/5">
-                    <Package className="w-5 h-5" />
-                  </span>
-                </div>
-              </GlassCard>
-
-              {/* Users */}
-              <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/users')}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
-                      <UserPlus className="w-4.5 h-4.5 text-cyan-300" />
-                      Users
-                    </div>
-                    <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
-                      {stats.totalUsers.toLocaleString()}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      +{stats.newUsersThisMonth.toLocaleString()} this month
-                    </div>
-                  </div>
-                  <span className="h-10 w-10 rounded-xl grid place-items-center bg-cyan-400/15 border border-cyan-400/20 text-cyan-300 ring-1 ring-white/5">
-                    <TrendingUp className="w-5 h-5" />
-                  </span>
-                </div>
-              </GlassCard>
-
-              {/* Quotes */}
-              <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/quotes')}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
-                      <FileText className="w-4.5 h-4.5 text-purple-400" />
-                      Quotes
-                    </div>
-                    <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
-                      {stats.totalQuotes}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      {stats.pendingQuotes} Pending • {stats.approvedQuotes} Approved • {stats.declinedQuotes} Declined
-                    </div>
-                  </div>
-                  <span className="h-10 w-10 rounded-xl grid place-items-center bg-purple-500/15 border border-purple-500/20 text-purple-300 ring-1 ring-white/5">
-                    <Stamp className="w-5 h-5" />
-                  </span>
-                </div>
-              </GlassCard>
-
-              {/* Shipment Analytics */}
-              <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/shipments/analytics')}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
-                      <Truck className="w-4.5 h-4.5 text-blue-400" />
-                      Shipments
-                    </div>
-                    <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
-                      {stats.totalShipments}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      {stats.averageUtilization.toFixed(1)}% avg utilization • {formatPrice(stats.potentialSavings)} savings
-                    </div>
-                  </div>
-                  <span className="h-10 w-10 rounded-xl grid place-items-center bg-blue-400/15 border border-blue-400/20 text-blue-300 ring-1 ring-white/5">
-                    <BarChart3 className="w-5 h-5" />
-                  </span>
-                </div>
-              </GlassCard>
-
-            </div>
-          </section>
-
-          {/* Charts */}
-          <section className="px-6 md:px-10 mt-6">
-            <ChartsGrid>
-              <RevenueChart 
-                title="Revenue Overview" 
-                orders={orders}
-              />
-              <OrderStatusChart 
-                title="Order Status"
-                pendingCount={stats.pendingOrders}
-                confirmedCount={stats.confirmedOrders}
-                processingCount={stats.processingOrders}
-                shippedCount={stats.shippedOrders}
-                deliveredCount={stats.deliveredOrders}
-                cancelledCount={stats.cancelledOrders}
-              />
-            </ChartsGrid>
-          </section>
-
-          {/* Shipment Analytics Preview */}
-          <section className="px-6 md:px-10 mt-6">
-            <div className="flex items-center justify-end mb-4">
-              <Link href="/dashboard/admin/shipments/analytics">
-                <Button variant="primary" className="px-4 py-2">
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  View Full Analytics
-                </Button>
-              </Link>
-            </div>
-            <ShipmentAnalytics />
-          </section>
-
-          {/* Recent Orders - Full Width */}
-          <section className="px-6 md:px-10 mt-6">
-            <GlassCard className="overflow-hidden">
-              <div className="p-5 flex items-center justify-between border-b border-white/10">
-                <div>
-                  <h2 className="text-2xl tracking-tight font-extrabold text-white">Recent Orders</h2>
-                  <p className="text-sm text-slate-400">Sortable, expandable rows</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link href="/dashboard/admin/orders">
-                    <Button variant="primary" className="px-3 py-1.5 text-xs">
-                      View All Orders
-                    </Button>
-                  </Link>
-                  <Button variant="ghost" className="px-3 py-1.5 text-xs">Export</Button>
-                  <Button variant="ghost" className="px-3 py-1.5 bg-orange-400/10 text-orange-200 border-orange-400/20 text-xs">
-                    Filter
-                  </Button>
-                </div>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableHeaderCell sortable onClick={() => {}}>Order</TableHeaderCell>
-                  <TableHeaderCell>Customer</TableHeaderCell>
-                  <TableHeaderCell>Assets</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell align="right">Total</TableHeaderCell>
-                  <TableHeaderCell align="right">Actions</TableHeaderCell>
-                </TableHeader>
-                <TableBody>
-                  {orders.slice(0, 5).map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium text-white">
-                        {order.id.slice(-8)}
-                      </TableCell>
-                      <TableCell>{order.customerInfo.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <OrderLogoIndicator orderId={order.id} />
-                          <span className="text-xs text-slate-400">Assets</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={order.status} />
-                      </TableCell>
-                      <TableCell align="right">
-                        {order.orderTotal ? formatPrice(order.orderTotal) : '—'}
-                      </TableCell>
-                      <TableCell align="right">
-                        <div className="inline-flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            className="p-1.5"
-                            onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                          >
-                            ⌄
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            className="p-1.5"
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setOrderModalOpen(true);
-                            }}
-                          >
-                            📋
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </GlassCard>
-          </section>
-
-          {/* User Registrations Chart and Recent Users Table */}
-          <section className="px-6 md:px-10 mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {/* User Registrations Chart */}
-            <UsersChart 
-              title="User Registrations" 
-              users={users}
-            />
-
-            {/* Recent Users */}
-            <GlassCard className="overflow-hidden">
-              <div className="p-5 flex items-center justify-between border-b border-white/10">
-                <div>
-                  <h2 className="text-2xl tracking-tight font-extrabold text-white">Recent Users</h2>
-                  <p className="text-sm text-slate-400">Inline role editing</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" className="px-3 py-1.5 text-xs">Invite</Button>
-                </div>
-              </div>
-              
-              <Table>
-                <TableHeader>
-                  <TableHeaderCell>User</TableHeaderCell>
-                  <TableHeaderCell>Email</TableHeaderCell>
-                  <TableHeaderCell>Role</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell align="right">Actions</TableHeaderCell>
-                </TableHeader>
-                <TableBody>
-                  {users.slice(0, 5).map((userItem) => (
-                    <TableRow key={userItem.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <img 
-                            src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?q=80&w=128&auto=format&fit=crop" 
-                            className="w-8 h-8 rounded-full object-cover" 
-                            alt="" 
-                          />
-                          <div>
-                            <div className="text-white font-medium">{userItem.name}</div>
-                            <div className="text-xs text-slate-400">Joined {new Date(userItem.createdAt).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{userItem.email}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getAccessRoleIcon(userItem.accessRole)}
-                          <select
-                            className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-lime-400/50"
-                            style={{ backgroundColor: 'rgb(30 41 59 / 0.5)', color: 'white' }}
-                            value={userItem.accessRole}
-                            onChange={(e) => handleAccessRoleChange(userItem.id, e.target.value)}
-                          >
-                            {ACCESS_ROLES.map(role => (
-                              <option key={role.value} value={role.value} style={{ backgroundColor: 'rgb(30 41 59)', color: 'white' }}>{role.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status="Active" />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Button variant="ghost" className="p-1.5">
-                          ⋯
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </GlassCard>
-          </section>
-
-            </>
-
-          {/* Main content ends here */}
-
-          {/* Debug Section - Only show in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <section className="px-6 md:px-10 mt-6">
-              <GlassCard className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-white">Debug Tools</h2>
-                  <div className="text-sm text-slate-400">Development Only</div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button 
-                    variant="ghost" 
-                    className="bg-orange-400/10 text-orange-200 border-orange-400/20"
-                    onClick={async () => {
-                      try {
-                        const response = await fetch('/api/test-db');
-                        const data = await response.json();
-                        console.log('Database Test:', data);
-                        alert(`Database Test: ${data.success ? 'Success' : 'Failed'}\nUsers: ${data.counts?.users || 0}\nOrders: ${data.counts?.orders || 0}\nQuotes: ${data.counts?.quotes || 0}`);
-                      } catch (error) {
-                        console.error('Database test failed:', error);
-                        alert('Database test failed');
-                      }
-                    }}
-                  >
-                    Test Database
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    className="bg-green-400/10 text-green-200 border-green-400/20"
-                    onClick={async () => {
-                      try {
-                        const response = await fetch('/api/create-test-user', { method: 'POST' });
-                        const data = await response.json();
-                        console.log('Test Data Created:', data);
-                        alert(`Test Data Created: ${data.success ? 'Success' : 'Failed'}`);
-                        if (data.success) {
-                          fetchAdminData(); // Refresh the dashboard
-                        }
-                      } catch (error) {
-                        console.error('Create test data failed:', error);
-                        alert('Create test data failed');
-                      }
-                    }}
-                  >
-                    Create Test Data
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    className="bg-blue-400/10 text-blue-200 border-blue-400/20"
-                    onClick={() => {
-                      console.log('Current Stats:', stats);
-                      console.log('Orders:', orders);
-                      console.log('Users:', users);
-                      console.log('Quotes:', quoteRequests);
-                      alert('Check console for current data');
-                    }}
-                  >
-                    Log Current Data
-                  </Button>
-                </div>
-              </GlassCard>
-            </section>
-          )}
-
+       {/* Stats Cards */}
+       <section className="px-6 md:px-10 mt-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+       {/* Revenue */}
+       <GlassCard className="p-5 hover:-translate-y-0.5 transition will-change-transform cursor-pointer" onClick={refreshStats}>
+        <div className="flex items-start justify-between">
+         <div>
+          <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
+           <Wallet className="w-4.5 h-4.5 text-lime-400" />
+           Revenue
           </div>
-          {/* End content wrapper */}
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
+           {formatPrice(stats.totalRevenue)}
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+           {stats.totalOrders > 0 ? `${stats.totalOrders} orders` : 'No orders yet'}
+          </div>
+         </div>
+         <span className="h-10 w-10 rounded-xl grid place-items-center bg-lime-400/15 border border-lime-400/20 text-lime-300 ring-1 ring-stone-700">
+          <Sparkles className="w-5 h-5" />
+         </span>
+        </div>
+       </GlassCard>
 
-          {/* Footer */}
-          <footer className="px-6 md:px-10 mt-8 pb-6">
-            <GlassCard className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent md:col-span-3"></div>
-              <div>
-                <div className="text-white font-semibold tracking-tight">Docs</div>
-                <ul className="mt-2 text-sm text-slate-300 space-y-1">
-                  <li><a href="#" className="hover:underline">API Reference</a></li>
-                  <li><a href="#" className="hover:underline">Components</a></li>
-                  <li><a href="#" className="hover:underline">Guides</a></li>
-                </ul>
-              </div>
-              <div>
-                <div className="text-white font-semibold tracking-tight">Support</div>
-                <ul className="mt-2 text-sm text-slate-300 space-y-1">
-                  <li><a href="#" className="hover:underline">Status</a></li>
-                  <li><a href="#" className="hover:underline">Contact</a></li>
-                  <li><a href="#" className="hover:underline">Community</a></li>
-                </ul>
-              </div>
-              <div>
-                <div className="text-white font-semibold tracking-tight">Legal</div>
-                <ul className="mt-2 text-sm text-slate-300 space-y-1">
-                  <li><a href="#" className="hover:underline">Privacy</a></li>
-                  <li><a href="#" className="hover:underline">Terms</a></li>
-                  <li><a href="#" className="hover:underline">Licenses</a></li>
-                </ul>
-              </div>
-            </GlassCard>
-          </footer>
-        </DashboardContent>
+       {/* Orders */}
+       <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/orders')}>
+        <div className="flex items-start justify-between">
+         <div>
+          <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
+           <Package className="w-4.5 h-4.5 text-orange-400" />
+           Orders
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
+           {stats.totalOrders}
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+           P: {stats.pendingOrders} • C: {stats.confirmedOrders} • Pr: {stats.processingOrders} • S: {stats.shippedOrders} • D: {stats.deliveredOrders} • Ca: {stats.cancelledOrders}
+          </div>
+         </div>
+         <span className="h-10 w-10 rounded-xl grid place-items-center bg-orange-400/15 border border-orange-500 text-orange-300 ring-1 ring-stone-700">
+          <Package className="w-5 h-5" />
+         </span>
+        </div>
+       </GlassCard>
+
+       {/* Users */}
+       <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/users')}>
+        <div className="flex items-start justify-between">
+         <div>
+          <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
+           <UserPlus className="w-4.5 h-4.5 text-cyan-300" />
+           Users
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
+           {stats.totalUsers.toLocaleString()}
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+           +{stats.newUsersThisMonth.toLocaleString()} this month
+          </div>
+         </div>
+         <span className="h-10 w-10 rounded-xl grid place-items-center bg-cyan-400/15 border border-cyan-400/20 text-cyan-300 ring-1 ring-stone-700">
+          <TrendingUp className="w-5 h-5" />
+         </span>
+        </div>
+       </GlassCard>
+
+       {/* Quotes */}
+       <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/quotes')}>
+        <div className="flex items-start justify-between">
+         <div>
+          <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
+           <FileText className="w-4.5 h-4.5 text-purple-400" />
+           Quotes
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
+           {stats.totalQuotes}
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+           {stats.pendingQuotes} Pending • {stats.approvedQuotes} Approved • {stats.declinedQuotes} Declined
+          </div>
+         </div>
+         <span className="h-10 w-10 rounded-xl grid place-items-center bg-purple-900 border border-purple-500/20 text-purple-300 ring-1 ring-stone-700">
+          <Stamp className="w-5 h-5" />
+         </span>
+        </div>
+       </GlassCard>
+
+       {/* Shipment Analytics */}
+       <GlassCard className="p-5 hover:-translate-y-0.5 transition cursor-pointer" onClick={() => router.push('/dashboard/admin/shipments/analytics')}>
+        <div className="flex items-start justify-between">
+         <div>
+          <div className="inline-flex items-center gap-2 text-slate-300 text-sm">
+           <Truck className="w-4.5 h-4.5 text-blue-400" />
+           Shipments
+          </div>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-white">
+           {stats.totalShipments}
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+           {stats.averageUtilization.toFixed(1)}% avg utilization • {formatPrice(stats.potentialSavings)} savings
+          </div>
+         </div>
+         <span className="h-10 w-10 rounded-xl grid place-items-center bg-blue-400/15 border border-blue-400/20 text-blue-300 ring-1 ring-stone-700">
+          <BarChart3 className="w-5 h-5" />
+         </span>
+        </div>
+       </GlassCard>
+
       </div>
+     </section>
 
+     {/* Charts */}
+     <section className="px-6 md:px-10 mt-6">
+      <ChartsGrid>
+       <RevenueChart 
+        title="Revenue Overview" 
+        orders={orders}
+       />
+       <OrderStatusChart 
+        title="Order Status"
+        pendingCount={stats.pendingOrders}
+        confirmedCount={stats.confirmedOrders}
+        processingCount={stats.processingOrders}
+        shippedCount={stats.shippedOrders}
+        deliveredCount={stats.deliveredOrders}
+        cancelledCount={stats.cancelledOrders}
+       />
+      </ChartsGrid>
+     </section>
+
+     {/* Shipment Analytics Preview */}
+     <section className="px-6 md:px-10 mt-6">
+      <div className="flex items-center justify-end mb-4">
+       <Link href="/dashboard/admin/shipments/analytics">
+        <Button variant="primary" className="px-4 py-2">
+         <BarChart3 className="w-4 h-4 mr-2" />
+         View Full Analytics
+        </Button>
+       </Link>
+      </div>
+      <ShipmentAnalytics />
+     </section>
+
+     {/* Recent Orders - Full Width */}
+     <section className="px-6 md:px-10 mt-6">
+      <GlassCard className="overflow-hidden">
+       <div className="p-5 flex items-center justify-between border-b border-stone-600">
+        <div>
+         <h2 className="text-2xl tracking-tight font-extrabold text-white">Recent Orders</h2>
+         <p className="text-sm text-slate-400">Sortable, expandable rows</p>
+        </div>
+        <div className="flex items-center gap-2">
+         <Link href="/dashboard/admin/orders">
+          <Button variant="primary" className="px-3 py-1.5 text-xs">
+           View All Orders
+          </Button>
+         </Link>
+         <Button variant="ghost" className="px-3 py-1.5 text-xs">Export</Button>
+         <Button variant="ghost" className="px-3 py-1.5 bg-orange-400/10 text-orange-200 border-orange-500 text-xs">
+          Filter
+         </Button>
+        </div>
+       </div>
+       
+       <Table>
+        <TableHeader>
+         <TableHeaderCell sortable onClick={() => {}}>Order</TableHeaderCell>
+         <TableHeaderCell>Customer</TableHeaderCell>
+         <TableHeaderCell>Assets</TableHeaderCell>
+         <TableHeaderCell>Status</TableHeaderCell>
+         <TableHeaderCell align="right">Total</TableHeaderCell>
+         <TableHeaderCell align="right">Actions</TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+         {orders.slice(0, 5).map((order) => (
+          <TableRow key={order.id}>
+           <TableCell className="font-medium text-white">
+            {order.id.slice(-8)}
+           </TableCell>
+           <TableCell>{order.customerInfo.name}</TableCell>
+           <TableCell>
+            <div className="flex items-center gap-2">
+             <OrderLogoIndicator orderId={order.id} />
+             <span className="text-xs text-slate-400">Assets</span>
+            </div>
+           </TableCell>
+           <TableCell>
+            <StatusBadge status={order.status} />
+           </TableCell>
+           <TableCell align="right">
+            {order.orderTotal ? formatPrice(order.orderTotal) : '—'}
+           </TableCell>
+           <TableCell align="right">
+            <div className="inline-flex gap-2">
+             <Button 
+              variant="ghost" 
+              className="p-1.5"
+              onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+             >
+              ⌄
+             </Button>
+             <Button 
+              variant="ghost" 
+              className="p-1.5"
+              onClick={() => {
+               setSelectedOrder(order);
+               setOrderModalOpen(true);
+              }}
+             >
+              📋
+             </Button>
+            </div>
+           </TableCell>
+          </TableRow>
+         ))}
+        </TableBody>
+       </Table>
+      </GlassCard>
+     </section>
+
+     {/* User Registrations Chart and Recent Users Table */}
+     <section className="px-6 md:px-10 mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {/* User Registrations Chart */}
+      <UsersChart 
+       title="User Registrations" 
+       users={users}
+      />
+
+      {/* Recent Users */}
+      <GlassCard className="overflow-hidden">
+       <div className="p-5 flex items-center justify-between border-b border-stone-600">
+        <div>
+         <h2 className="text-2xl tracking-tight font-extrabold text-white">Recent Users</h2>
+         <p className="text-sm text-slate-400">Inline role editing</p>
+        </div>
+        <div className="flex items-center gap-2">
+         <Button variant="ghost" className="px-3 py-1.5 text-xs">Invite</Button>
+        </div>
+       </div>
+       
+       <Table>
+        <TableHeader>
+         <TableHeaderCell>User</TableHeaderCell>
+         <TableHeaderCell>Email</TableHeaderCell>
+         <TableHeaderCell>Role</TableHeaderCell>
+         <TableHeaderCell>Status</TableHeaderCell>
+         <TableHeaderCell align="right">Actions</TableHeaderCell>
+        </TableHeader>
+        <TableBody>
+         {users.slice(0, 5).map((userItem) => (
+          <TableRow key={userItem.id}>
+           <TableCell>
+            <div className="flex items-center gap-3">
+             <img 
+              src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?q=80&w=128&auto=format&fit=crop" 
+              className="w-8 h-8 rounded-full object-cover" 
+              alt="" 
+             />
+             <div>
+              <div className="text-white font-medium">{userItem.name}</div>
+              <div className="text-xs text-slate-400">Joined {new Date(userItem.createdAt).toLocaleDateString()}</div>
+             </div>
+            </div>
+           </TableCell>
+           <TableCell>{userItem.email}</TableCell>
+           <TableCell>
+            <div className="flex items-center gap-2">
+             {getAccessRoleIcon(userItem.accessRole)}
+             <select
+              className="bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-lime-400/50"
+              style={{ backgroundColor: 'rgb(30 41 59 / 0.5)', color: 'white' }}
+              value={userItem.accessRole}
+              onChange={(e) => handleAccessRoleChange(userItem.id, e.target.value)}
+             >
+              {ACCESS_ROLES.map(role => (
+               <option key={role.value} value={role.value} style={{ backgroundColor: 'rgb(30 41 59)', color: 'white' }}>{role.label}</option>
+              ))}
+             </select>
+            </div>
+           </TableCell>
+           <TableCell>
+            <StatusBadge status="Active" />
+           </TableCell>
+           <TableCell align="right">
+            <Button variant="ghost" className="p-1.5">
+             ⋯
+            </Button>
+           </TableCell>
+          </TableRow>
+         ))}
+        </TableBody>
+       </Table>
+      </GlassCard>
+     </section>
+
+      </>
+
+     {/* Main content ends here */}
+
+     {/* Debug Section - Only show in development */}
+     {process.env.NODE_ENV === 'development' && (
+      <section className="px-6 md:px-10 mt-6">
+       <GlassCard className="p-5">
+        <div className="flex items-center justify-between mb-4">
+         <h2 className="text-xl font-bold text-white">Debug Tools</h2>
+         <div className="text-sm text-slate-400">Development Only</div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+         <Button 
+          variant="ghost" 
+          className="bg-orange-400/10 text-orange-200 border-orange-500"
+          onClick={async () => {
+           try {
+            const response = await fetch('/api/test-db');
+            const data = await response.json();
+            console.log('Database Test:', data);
+            alert(`Database Test: ${data.success ? 'Success' : 'Failed'}\nUsers: ${data.counts?.users || 0}\nOrders: ${data.counts?.orders || 0}\nQuotes: ${data.counts?.quotes || 0}`);
+           } catch (error) {
+            console.error('Database test failed:', error);
+            alert('Database test failed');
+           }
+          }}
+         >
+          Test Database
+         </Button>
+         <Button 
+          variant="ghost" 
+          className="bg-green-400/10 text-green-200 border-green-400/20"
+          onClick={async () => {
+           try {
+            const response = await fetch('/api/create-test-user', { method: 'POST' });
+            const data = await response.json();
+            console.log('Test Data Created:', data);
+            alert(`Test Data Created: ${data.success ? 'Success' : 'Failed'}`);
+            if (data.success) {
+             fetchAdminData(); // Refresh the dashboard
+            }
+           } catch (error) {
+            console.error('Create test data failed:', error);
+            alert('Create test data failed');
+           }
+          }}
+         >
+          Create Test Data
+         </Button>
+         <Button 
+          variant="ghost" 
+          className="bg-blue-400/10 text-blue-200 border-blue-400/20"
+          onClick={() => {
+           console.log('Current Stats:', stats);
+           console.log('Orders:', orders);
+           console.log('Users:', users);
+           console.log('Quotes:', quoteRequests);
+           alert('Check console for current data');
+          }}
+         >
+          Log Current Data
+         </Button>
+        </div>
+       </GlassCard>
+      </section>
+     )}
+
+     </div>
+     {/* End content wrapper */}
+
+    </DashboardContent>
+        </div>
+      </main>
+      
       {/* Modals and Drawers */}
       <OrderDetailsModal
-        isOpen={orderModalOpen}
-        onClose={() => setOrderModalOpen(false)}
-        order={selectedOrder ? {
-          id: selectedOrder.id.slice(-8),
-          customer: selectedOrder.customerInfo.name,
-          items: 12, // Mock data
-          total: selectedOrder.orderTotal ? formatPrice(selectedOrder.orderTotal) : '$0.00',
-          status: selectedOrder.status
-        } : undefined}
+       isOpen={orderModalOpen}
+       onClose={() => setOrderModalOpen(false)}
+       order={selectedOrder ? {
+        id: selectedOrder.id.slice(-8),
+        customer: selectedOrder.customerInfo.name,
+        items: 12, // Mock data
+        total: selectedOrder.orderTotal ? formatPrice(selectedOrder.orderTotal) : '$0.00',
+        status: selectedOrder.status
+       } : undefined}
       />
 
       <ProductModal
-        isOpen={productModalOpen}
-        onClose={() => setProductModalOpen(false)}
-        onSave={(product) => console.log('Product saved:', product)}
+       isOpen={productModalOpen}
+       onClose={() => setProductModalOpen(false)}
+       onSave={(product) => console.log('Product saved:', product)}
       />
 
       <TrackingDrawer
-        isOpen={trackingDrawerOpen}
-        onClose={() => setTrackingDrawerOpen(false)}
-        orderId="CC-1039"
+       isOpen={trackingDrawerOpen}
+       onClose={() => setTrackingDrawerOpen(false)}
+       orderId="CC-1039"
       />
     </DashboardShell>
-  );
+  </>
+ );
 }

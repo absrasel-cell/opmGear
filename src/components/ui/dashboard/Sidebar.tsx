@@ -26,7 +26,8 @@ import {
   CreditCard,
   Truck,
   BarChart3,
-  Store
+  Store,
+  Mail
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthContext';
 import { GlassCard, NavItem } from './index';
@@ -65,7 +66,13 @@ export function Sidebar({
         icon: MessageCircle,
         label: 'Messages',
         href: '/dashboard/admin/messages',
-        active: pathname?.includes('/messages')
+        active: pathname?.includes('/messages') && !pathname?.includes('/form-submissions')
+      },
+      {
+        icon: Mail,
+        label: 'Form Submissions',
+        href: '/dashboard/admin/form-submissions',
+        active: pathname?.includes('/form-submissions')
       },
       {
         icon: Boxes,
@@ -144,7 +151,7 @@ export function Sidebar({
 
             {/* User Profile */}
             <Link href={isAdmin ? "/dashboard/admin/profile" : "/dashboard/member/profile"}>
-              <div className={`mt-5 flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors duration-200 cursor-pointer ${collapsed ? 'justify-center' : ''}`}>
+              <div className={`mt-5 flex items-center gap-3 p-3 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${collapsed ? 'justify-center' : ''}`}>
                 {user?.avatarUrl ? (
                   <img 
                     src={user.avatarUrl}
@@ -152,7 +159,7 @@ export function Sidebar({
                     className="h-10 w-10 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-full bg-stone-500 flex items-center justify-center">
                     <User className="h-5 w-5 text-white" />
                   </div>
                 )}
@@ -162,7 +169,7 @@ export function Sidebar({
                       {user?.name || 'User'}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-300/80">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full glass-badge">
                         {isMasterAdmin ? (
                           <Crown className="w-3.5 h-3.5 text-lime-400" />
                         ) : isAdmin ? (
@@ -196,8 +203,8 @@ export function Sidebar({
                 <Link 
                   key={index}
                   href={item.href}
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition ${
-                    item.active ? 'bg-white/10' : 'bg-white/5'
+                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 ${
+                    item.active ? 'glass-button-primary' : ''
                   } ${collapsed ? 'justify-center' : ''}`}
                 >
                   <item.icon className={`w-5 h-5 ${item.active ? 'text-lime-400' : 'text-slate-300'}`} />
@@ -211,7 +218,7 @@ export function Sidebar({
 
               {/* Advanced Section for Admins */}
               {advancedNavItems.length > 0 && !collapsed && (
-                <div className="mt-6 pt-4 border-t border-white/10">
+                <div className="mt-6 pt-4 border-t border-stone-600">
                   <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400">
                     Advanced
                   </div>
@@ -220,8 +227,8 @@ export function Sidebar({
                       <Link 
                         key={index}
                         href={item.href}
-                        className={`group flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition ${
-                          item.active ? 'bg-white/10' : ''
+                        className={`group flex items-center gap-3 px-4 py-3 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 ${
+                          item.active ? 'glass-button-primary' : ''
                         }`}
                       >
                         <item.icon className={`w-5 h-5 ${item.active ? 'text-lime-400' : 'text-lime-300'}`} />
@@ -240,7 +247,7 @@ export function Sidebar({
         {/* Logout */}
         <button 
           onClick={() => logout()}
-          className={`mt-2 flex items-center ${collapsed ? 'justify-center' : 'justify-center'} gap-2 w-full py-2 rounded-full bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10 hover:-translate-y-0.5 transition`}
+          className={`mt-2 flex items-center ${collapsed ? 'justify-center' : 'justify-center'} gap-2 w-full py-2 rounded-full glass-morphism hover:glass-hover text-slate-200 hover:-translate-y-0.5 transition-all duration-200`}
         >
           <LogOut className="w-5 h-5" />
           {!collapsed && <span className="text-sm font-medium">Log out</span>}
@@ -250,7 +257,7 @@ export function Sidebar({
         {collapsed && (
           <button 
             onClick={onToggleCollapse}
-            className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:-translate-y-0.5 transition will-change-transform"
+            className="p-2 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 will-change-transform"
             title="Expand"
           >
             <PanelLeftOpen className="w-5 h-5 text-slate-300" />
@@ -262,17 +269,17 @@ export function Sidebar({
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60 "
             onClick={() => setMobileOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-80 bg-black/60 border-r border-white/10 p-4">
+          <div className="absolute left-0 top-0 bottom-0 w-80 bg-black/60 border-r border-stone-600 p-4">
             <nav className="grid gap-3">
               {mainNavItems.map((item, index) => (
                 <Link 
                   key={index}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 hover:text-white"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl glass-morphism hover:glass-hover text-slate-300 hover:text-white transition-all duration-200"
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
@@ -286,7 +293,7 @@ export function Sidebar({
       {/* Mobile Menu Button */}
       <button 
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-30 p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-xl"
+        className="lg:hidden fixed top-4 left-4 z-30 p-2 rounded-xl glass-morphism hover:glass-hover transition-all duration-200"
         title="Menu"
       >
         <PanelLeftOpen className="w-5 h-5" />

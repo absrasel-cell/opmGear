@@ -1,12 +1,16 @@
-# CLAUDE.md - Project Context for OPM Gear
+# CLAUDE.md - Project Context for US Custom Cap
 read current main Task from "\Claude Instruction\currentTask.txt"
 read current errors and follow up requests from "\Claude Instruction\errorReport.txt"
 read screenshot (only if I tell you to) at "\Claude Instruction\Screenshots"
+General understanding of the overall business "F:\Custom Cap - github\Claude Instruction\custom cap 101.txt"
 
+# the /support page is excluded from any existing knowledgebase and uses resources from "\USCC\src\app\ai", and for detailed instruction about it found here "F:\Custom Cap - github\USCC\src\app\ai\instruction.txt"
 
-Dashboard Admin product page "src\app\dashboard\admin\products\create\page.tsx"
-**do not touch unless I tell explicitly, Advanced Product Page  "\src\app\customize\[slug]"
+# Dashboard Admin product page "src\app\dashboard\admin\products\create\page.tsx"
 
+# do not touch unless I tell explicitly, "Advanced Product Page"  "\src\app\customize\[slug]"
+
+# Do not add any Hardcoded/Imaginary data/logic into my project unless I explicitly tell you to.
 
 ## 🎯 Project Overview
 US Custom Cap is a comprehensive Next.js 15 e-commerce platform for custom baseball cap customization and ordering. This is a production-ready application with advanced user management, real-time messaging, sophisticated order management, and modern UI with volume-based pricing systems.
@@ -92,10 +96,10 @@ src/
 
 ## 💰 Pricing System
 
-### Tier-Based Pricing (CSV Integration)
-- **Tier 1**: $1.80, $1.50, $1.45, $1.42, $1.38, $1.35
-- **Tier 2**: $2.20, $1.60, $1.50, $1.45, $1.40, $1.35
-- **Tier 3**: $2.40, $1.70, $1.60, $1.47, $1.44, $1.41
+### Tier-Based Pricing (CSV Integration), cost updated to the actual csv file.
+- "F:\Custom Cap - github\USCC\src\app\csv\Blank Cap Pricings.csv"
+- "F:\Custom Cap - github\USCC\src\app\csv\Customer Products.csv"
+
 
 ### Volume Discount Display
 - Visual discount system with crossed-out prices
@@ -221,6 +225,10 @@ SANITY_API_TOKEN="..."
 # Authentication
 NEXTAUTH_SECRET="..."
 NEXTAUTH_URL="http://localhost:3000"
+
+# Email Service (Resend)
+RESEND_API_KEY="re_..."
+FROM_EMAIL="noreply@uscustomcap.com"
 ```
 
 ## 🚀 Current Status & Next Steps

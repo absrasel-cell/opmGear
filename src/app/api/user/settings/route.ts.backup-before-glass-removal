@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth-helpers';
+
+export async function GET(request: NextRequest) {
+  try {
+    const user = await requireAuth(request);
+
+    const profile = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        preferences: true,
+      },
+    });
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Profile not found' },
+        { status: 404 }
+      );
+    }
+
+    // Parse preferences if it's a JSON string, otherwise use as is
+    let preferences = profile.preferences;
+    if (typeof preferences === 'string') {
+      try {
+        preferences = JSON.parse(preferences);
+      } catch (e) {
+        preferences = {};
+      }
+    }
+
+    // Default settings structure
+    const defaultSettings = {
+      preferences: {
+        theme: 'system',
+        notifications: {
+          email: true,
+          push: true,
+          sms: false,
+          marketing: false,
+          orderUpdates: true,
+          systemAlerts: true,
+        },
+        privacy: {
+          showProfile: true,
+          showActivity: false,
+          allowDataCollection: true,
+        },
+        accessibility: {
+          reducedMotion: false,
+          highContrast: false,
+          fontSize: 'medium',
+        },
+      },
+      security: {
+        twoFactorEnabled: false,
+        sessionTimeout: 60,
+        loginNotifications: true,
+        deviceTracking: false,
+      },
+    };
+
+    // Merge with existing preferences
+    const settings = {
+      preferences: {
+        ...defaultSettings.preferences,
+        ...preferences,
+      },
+      security: defaultSettings.security, // Security settings would come from a separate table in production
+    };
+
+    return NextResponse.json(settings);
+  } catch (error: any) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    console.error('Error fetching settings:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch settings' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await requireAuth(request);
+    const { preferences, security } = await request.json();
+
+    // Update only the preferences in the database
+    // In a production app, security settings might be stored separately
+    const updatedProfile = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        preferences: JSON.stringify(preferences),
+      },
+    });
+
+    return NextResponse.json({
+      message: 'Settings updated successfully',
+      preferences: preferences,
+      security: security, // Echo back security settings (would be updated in separate table in production)
+    });
+  } catch (error: any) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    console.error('Error updating settings:', error);
+    return NextResponse.json(
+      { error: 'Failed to update settings' },
+      { status: 500 }
+    );
+  }
+}

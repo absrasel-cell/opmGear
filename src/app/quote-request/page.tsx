@@ -3,6 +3,27 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  User,
+  Mail,
+  Phone,
+  Building,
+  Package,
+  Palette,
+  Ruler,
+  Sparkles,
+  Clock,
+  MessageSquare,
+  CheckCircle,
+  ArrowRight,
+  ArrowLeft,
+  Send
+} from 'lucide-react';
+import {
+  DashboardShell,
+  GlassCard,
+  Button
+} from '@/components/ui/dashboard';
 
 interface QuoteRequest {
   productSlug: string;
@@ -126,282 +147,332 @@ function QuoteRequestPageContent() {
 
   if (submitSuccess) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-2xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
-            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
-              <svg className="h-8 w-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              Quote Request Submitted!
-            </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-              Thank you for your quote request. We'll review your requirements and get back to you within 24-48 hours.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link
-                href="/store"
-                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 text-center"
-              >
-                Continue Shopping
-              </Link>
-              <Link
-                href="/dashboard"
-                className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors duration-200 text-center"
-              >
-                View Dashboard
-              </Link>
-            </div>
+      <DashboardShell>
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="w-full max-w-2xl">
+            <GlassCard className="p-8 text-center">
+              <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-lime-400/20 border border-lime-400/30 mb-6">
+                <CheckCircle className="h-10 w-10 text-lime-400" />
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Quote Request Submitted!
+                </h1>
+                <p className="text-lg text-slate-300 leading-relaxed">
+                  Thank you for your quote request. We'll review your requirements and get back to you within 24-48 hours.
+                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-lime-400/10 border border-lime-400/20 rounded-lg text-lime-300">
+                  <Clock className="h-4 w-4" />
+                  <span className="text-sm font-medium">Response within 24-48 hours</span>
+                </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href="/store" className="flex-1">
+                  <Button variant="secondary" className="w-full">
+                    <ArrowLeft className="h-4 w-4" />
+                    Continue Shopping
+                  </Button>
+                </Link>
+                <Link href="/dashboard" className="flex-1">
+                  <Button variant="primary" className="w-full">
+                    View Dashboard
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </GlassCard>
           </div>
         </div>
-      </div>
+      </DashboardShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            Quote Request
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400">
-            Tell us about your requirements and we'll provide you with a custom quote.
-          </p>
-          {productName && (
-            <div className="mt-4 inline-block bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-lg">
-              Product: {productName}
+    <DashboardShell>
+      <div className="min-h-screen py-8 px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-3 mb-6">
+              <div className="p-3 bg-lime-400/20 border border-lime-400/30 rounded-xl">
+                <MessageSquare className="h-8 w-8 text-lime-400" />
+              </div>
+              <h1 className="text-4xl font-bold text-white">
+                Request a Quote
+              </h1>
             </div>
-          )}
+            
+            <p className="text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed mb-6">
+              Tell us about your custom cap requirements and we'll provide you with a personalized quote within 24-48 hours.
+            </p>
+            
+            {productName && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-lime-400/10 border border-lime-400/20 rounded-lg text-lime-300">
+                <Package className="h-4 w-4" />
+                <span className="font-medium">Product: {productName}</span>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Customer Information */}
+            <GlassCard>
+              <div className="p-8">
+                <div className="flex items-center gap-3 mb-8">
+                  <User className="h-6 w-6 text-lime-400" />
+                  <h2 className="text-2xl font-semibold text-white">
+                    Contact Information
+                  </h2>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="name" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                      <User className="h-4 w-4" />
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      value={formData.customerInfo.name}
+                      onChange={(e) => handleInputChange('customerInfo', 'name', e.target.value)}
+                      className={`w-full p-4 rounded-xl border transition-all duration-200 text-white placeholder:text-slate-400 ${
+                        errors.name 
+                          ? 'border-red-400/50 bg-red-500/10 focus:ring-2 focus:ring-red-400/40 focus:border-red-400/60' 
+                          : 'border-white/10 bg-black/20 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60'
+                      }`}
+                      placeholder="Enter your full name"
+                    />
+                    {errors.name && (
+                      <p className="mt-2 text-sm text-red-400 flex items-center gap-1">
+                        <span className="text-red-400">●</span>
+                        {errors.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                      <Mail className="h-4 w-4" />
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      value={formData.customerInfo.email}
+                      onChange={(e) => handleInputChange('customerInfo', 'email', e.target.value)}
+                      className={`w-full p-4 rounded-xl border transition-all duration-200 text-white placeholder:text-slate-400 ${
+                        errors.email 
+                          ? 'border-red-400/50 bg-red-500/10 focus:ring-2 focus:ring-red-400/40 focus:border-red-400/60' 
+                          : 'border-white/10 bg-black/20 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60'
+                      }`}
+                      placeholder="Enter your email address"
+                    />
+                    {errors.email && (
+                      <p className="mt-2 text-sm text-red-400 flex items-center gap-1">
+                        <span className="text-red-400">●</span>
+                        {errors.email}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="phone" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                      <Phone className="h-4 w-4" />
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      value={formData.customerInfo.phone}
+                      onChange={(e) => handleInputChange('customerInfo', 'phone', e.target.value)}
+                      className={`w-full p-4 rounded-xl border transition-all duration-200 text-white placeholder:text-slate-400 ${
+                        errors.phone 
+                          ? 'border-red-400/50 bg-red-500/10 focus:ring-2 focus:ring-red-400/40 focus:border-red-400/60' 
+                          : 'border-white/10 bg-black/20 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60'
+                      }`}
+                      placeholder="Enter your phone number"
+                    />
+                    {errors.phone && (
+                      <p className="mt-2 text-sm text-red-400 flex items-center gap-1">
+                        <span className="text-red-400">●</span>
+                        {errors.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="company" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                      <Building className="h-4 w-4" />
+                      Company Name
+                    </label>
+                    <input
+                      type="text"
+                      id="company"
+                      value={formData.customerInfo.company}
+                      onChange={(e) => handleInputChange('customerInfo', 'company', e.target.value)}
+                      className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200"
+                      placeholder="Enter your company name (optional)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Project Requirements */}
+            <GlassCard>
+              <div className="p-8">
+                <div className="flex items-center gap-3 mb-8">
+                  <Package className="h-6 w-6 text-lime-400" />
+                  <h2 className="text-2xl font-semibold text-white">
+                    Project Requirements
+                  </h2>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label htmlFor="quantity" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                        <Ruler className="h-4 w-4" />
+                        Estimated Quantity
+                      </label>
+                      <input
+                        type="text"
+                        id="quantity"
+                        value={formData.requirements.quantity}
+                        onChange={(e) => handleInputChange('requirements', 'quantity', e.target.value)}
+                        className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200"
+                        placeholder="e.g., 500 pieces"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="timeline" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                        <Clock className="h-4 w-4" />
+                        Timeline
+                      </label>
+                      <select
+                        id="timeline"
+                        value={formData.requirements.timeline}
+                        onChange={(e) => handleInputChange('requirements', 'timeline', e.target.value)}
+                        className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200"
+                      >
+                        <option value="" className="bg-gray-900 text-white">Select timeline</option>
+                        <option value="1-2 weeks" className="bg-gray-900 text-white">1-2 weeks</option>
+                        <option value="2-4 weeks" className="bg-gray-900 text-white">2-4 weeks</option>
+                        <option value="1-2 months" className="bg-gray-900 text-white">1-2 months</option>
+                        <option value="2-3 months" className="bg-gray-900 text-white">2-3 months</option>
+                        <option value="3+ months" className="bg-gray-900 text-white">3+ months</option>
+                        <option value="No rush" className="bg-gray-900 text-white">No rush</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label htmlFor="colors" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                        <Palette className="h-4 w-4" />
+                        Colors Needed
+                      </label>
+                      <input
+                        type="text"
+                        id="colors"
+                        value={formData.requirements.colors}
+                        onChange={(e) => handleInputChange('requirements', 'colors', e.target.value)}
+                        className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200"
+                        placeholder="e.g., Black, White, Navy"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="sizes" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                        <Ruler className="h-4 w-4" />
+                        Sizes Needed
+                      </label>
+                      <input
+                        type="text"
+                        id="sizes"
+                        value={formData.requirements.sizes}
+                        onChange={(e) => handleInputChange('requirements', 'sizes', e.target.value)}
+                        className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200"
+                        placeholder="e.g., S, M, L, XL"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="customization" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                      <Sparkles className="h-4 w-4" />
+                      Customization Type
+                    </label>
+                    <select
+                      id="customization"
+                      value={formData.requirements.customization}
+                      onChange={(e) => handleInputChange('requirements', 'customization', e.target.value)}
+                      className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200"
+                    >
+                      <option value="" className="bg-gray-900 text-white">Select customization type</option>
+                      <option value="Embroidery" className="bg-gray-900 text-white">Embroidery</option>
+                      <option value="Screen Printing" className="bg-gray-900 text-white">Screen Printing</option>
+                      <option value="Heat Transfer" className="bg-gray-900 text-white">Heat Transfer</option>
+                      <option value="Patches" className="bg-gray-900 text-white">Patches</option>
+                      <option value="Multiple Types" className="bg-gray-900 text-white">Multiple Types</option>
+                      <option value="Not sure" className="bg-gray-900 text-white">Not sure</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="additionalNotes" className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-3">
+                      <MessageSquare className="h-4 w-4" />
+                      Additional Notes
+                    </label>
+                    <textarea
+                      id="additionalNotes"
+                      value={formData.requirements.additionalNotes}
+                      onChange={(e) => handleInputChange('requirements', 'additionalNotes', e.target.value)}
+                      rows={4}
+                      className="w-full p-4 rounded-xl border border-white/10 bg-black/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-lime-400/40 focus:border-lime-400/60 transition-all duration-200 resize-none"
+                      placeholder="Tell us more about your project, specific requirements, or any questions you have..."
+                    />
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Submit Button */}
+            <div className="flex flex-col sm:flex-row justify-end gap-4">
+              <Link href="/store">
+                <Button variant="secondary" className="w-full sm:w-auto">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Store
+                </Button>
+              </Link>
+              
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                variant="primary"
+                className={`w-full sm:w-auto ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Submit Quote Request
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Customer Information */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
-              Contact Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={formData.customerInfo.name}
-                  onChange={(e) => handleInputChange('customerInfo', 'name', e.target.value)}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.name 
-                      ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' 
-                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
-                  } text-gray-900 dark:text-gray-100`}
-                  placeholder="Enter your full name"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={formData.customerInfo.email}
-                  onChange={(e) => handleInputChange('customerInfo', 'email', e.target.value)}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.email 
-                      ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' 
-                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
-                  } text-gray-900 dark:text-gray-100`}
-                  placeholder="Enter your email address"
-                />
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  value={formData.customerInfo.phone}
-                  onChange={(e) => handleInputChange('customerInfo', 'phone', e.target.value)}
-                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    errors.phone 
-                      ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' 
-                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
-                  } text-gray-900 dark:text-gray-100`}
-                  placeholder="Enter your phone number"
-                />
-                {errors.phone && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="company" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  id="company"
-                  value={formData.customerInfo.company}
-                  onChange={(e) => handleInputChange('customerInfo', 'company', e.target.value)}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Enter your company name (optional)"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Project Requirements */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
-              Project Requirements
-            </h2>
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Estimated Quantity
-                  </label>
-                  <input
-                    type="text"
-                    id="quantity"
-                    value={formData.requirements.quantity}
-                    onChange={(e) => handleInputChange('requirements', 'quantity', e.target.value)}
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="e.g., 500 pieces"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="timeline" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Timeline
-                  </label>
-                  <select
-                    id="timeline"
-                    value={formData.requirements.timeline}
-                    onChange={(e) => handleInputChange('requirements', 'timeline', e.target.value)}
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  >
-                    <option value="">Select timeline</option>
-                    <option value="1-2 weeks">1-2 weeks</option>
-                    <option value="2-4 weeks">2-4 weeks</option>
-                    <option value="1-2 months">1-2 months</option>
-                    <option value="2-3 months">2-3 months</option>
-                    <option value="3+ months">3+ months</option>
-                    <option value="No rush">No rush</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="colors" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Colors Needed
-                  </label>
-                  <input
-                    type="text"
-                    id="colors"
-                    value={formData.requirements.colors}
-                    onChange={(e) => handleInputChange('requirements', 'colors', e.target.value)}
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="e.g., Black, White, Navy"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="sizes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Sizes Needed
-                  </label>
-                  <input
-                    type="text"
-                    id="sizes"
-                    value={formData.requirements.sizes}
-                    onChange={(e) => handleInputChange('requirements', 'sizes', e.target.value)}
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="e.g., S, M, L, XL"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="customization" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Customization Type
-                </label>
-                <select
-                  id="customization"
-                  value={formData.requirements.customization}
-                  onChange={(e) => handleInputChange('requirements', 'customization', e.target.value)}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                >
-                  <option value="">Select customization type</option>
-                  <option value="Embroidery">Embroidery</option>
-                  <option value="Screen Printing">Screen Printing</option>
-                  <option value="Heat Transfer">Heat Transfer</option>
-                  <option value="Patches">Patches</option>
-                  <option value="Multiple Types">Multiple Types</option>
-                  <option value="Not sure">Not sure</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="additionalNotes" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Additional Notes
-                </label>
-                <textarea
-                  id="additionalNotes"
-                  value={formData.requirements.additionalNotes}
-                  onChange={(e) => handleInputChange('requirements', 'additionalNotes', e.target.value)}
-                  rows={4}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Tell us more about your project, specific requirements, or any questions you have..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex justify-end space-x-4">
-            <Link
-              href="/store"
-              className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors duration-200"
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 ${
-                isSubmitting
-                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/25 hover:shadow-green-600/40 hover:scale-105'
-              }`}
-            >
-              {isSubmitting ? (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Submitting...</span>
-                </div>
-              ) : (
-                'Submit Quote Request'
-              )}
-            </button>
-          </div>
-        </form>
       </div>
-    </div>
+    </DashboardShell>
   );
 }
 

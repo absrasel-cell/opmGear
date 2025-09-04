@@ -79,6 +79,7 @@ function MessagesPageContent() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -348,7 +349,9 @@ function MessagesPageContent() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   const insertEmoji = (emoji: string) => {
@@ -572,7 +575,7 @@ function MessagesPageContent() {
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                     {messages.length > 0 ? (
                       messages.map((message, idx) => (
                         <div key={message.id} className="space-y-1">

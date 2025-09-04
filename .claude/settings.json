@@ -1,0 +1,36 @@
+{
+  "projectName": "USCC - US Custom Caps",
+  "description": "Next.js 15 e-commerce platform for custom baseball cap customization and ordering",
+  "version": "3.3.0",
+  "framework": "Next.js 15.4.6",
+  "language": "TypeScript",
+  "database": "PostgreSQL with Prisma ORM",
+  "authentication": "Supabase",
+  "styling": "Tailwind CSS with Glass Morphism",
+  "deployment": "Vercel",
+  "projectPath": "F:\\Custom Cap - github\\USCC",
+  "contextFiles": [
+    "CLAUDE.md",
+    "README.md",
+    "package.json",
+    "tsconfig.json",
+    "tailwind.config.js",
+    "prisma/schema.prisma"
+  ],
+  "ignorePatterns": [
+    "node_modules/**",
+    ".next/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    "*.log"
+  ],
+  "commands": {
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "lint": "npm run lint",
+    "typecheck": "npx tsc --noEmit",
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push"
+  }
+}

@@ -149,17 +149,17 @@ export function StatCard({
     <Component
       onClick={onClick}
       className={`
-        group relative flex w-full flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 
+        group relative flex w-full flex-col gap-3 rounded-2xl border border-stone-600 bg-stone-700 p-5  transition-all duration-200 hover:-translate-y-0.5 
         ${active ? 'ring-2 ring-lime-400/60' : ''}
         ${onClick ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black' : ''}
       `}
     >
-      <div className="absolute inset-0 rounded-2xl opacity-0 ring-1 ring-white/5 transition group-hover:opacity-100" />
+      <div className="absolute inset-0 rounded-2xl opacity-0 ring-1 ring-stone-700 transition group-hover:opacity-100" />
       
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           <Icon className="w-5 h-5 text-lime-400" />
-          <span className="text-sm text-slate-300/80">{label}</span>
+          <span className="text-sm text-slate-300">{label}</span>
         </div>
         {trend && (
           <span className={`text-xs font-medium ${
@@ -219,7 +219,7 @@ export function NavItem({
         {label}
       </span>
       {badge && (
-        <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-400/20 text-lime-200 border border-lime-400/30">
+        <span className="ml-auto inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-900 text-lime-200 border border-lime-400">
           {badge}
         </span>
       )}
@@ -241,13 +241,17 @@ export function SearchInput({
   ...props 
 }: SearchInputProps) {
   return (
-    <div className="relative">
+    <div className="relative group">
       {Icon && (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 group-focus-within:text-lime-400 transition-colors" />
       )}
       <input
         type="text"
-        className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2.5 rounded-xl bg-black/30 border border-white/10 outline-none focus:ring-2 focus:ring-lime-400/40 focus:border-lime-300/40 placeholder:text-slate-500 text-sm text-white ${className}`}
+        className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2.5 rounded-xl glass-morphism-subtle text-white placeholder:text-slate-400 text-sm
+          outline-none transition-all duration-200
+          focus:glass-morphism focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/50
+          hover:glass-morphism-subtle hover:border-stone-500/50
+          ${className}`}
         {...props}
       />
     </div>
@@ -276,7 +280,7 @@ export function Table({ children, className = '' }: TableProps) {
 export function TableHeader({ children }: { children: React.ReactNode }) {
   return (
     <thead className="text-slate-300">
-      <tr className="border-b border-white/10">
+      <tr className="border-b border-stone-600">
         {children}
       </tr>
     </thead>
@@ -285,7 +289,7 @@ export function TableHeader({ children }: { children: React.ReactNode }) {
 
 export function TableBody({ children }: { children: React.ReactNode }) {
   return (
-    <tbody className="divide-y divide-white/10">
+    <tbody className="divide-y divide-stone-600">
       {children}
     </tbody>
   );
@@ -293,7 +297,7 @@ export function TableBody({ children }: { children: React.ReactNode }) {
 
 export function TableRow({ children, className = '' }: TableProps) {
   return (
-    <tr className={`hover:bg-white/5 ${className}`}>
+    <tr className={`hover:bg-stone-700 ${className}`}>
       {children}
     </tr>
   );
@@ -392,16 +396,16 @@ export function Modal({
   return (
     <div className="fixed inset-0 items-center justify-center flex z-50">
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
+        className="absolute inset-0 bg-black"
         onClick={onClose}
       />
-      <div className={`relative mx-4 sm:mx-auto w-full ${sizes[size]} bg-black/70 border border-white/10 rounded-2xl p-5`}>
+      <div className={`relative mx-4 sm:mx-auto w-full ${sizes[size]} bg-black border border-stone-600 rounded-2xl p-5`}>
         {title && (
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-white font-semibold tracking-tight">{title}</h2>
             <button 
               onClick={onClose}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
+              className="p-2 rounded-xl bg-stone-700 border border-stone-600 hover:bg-stone-600"
             >
               ✕
             </button>
@@ -419,29 +423,36 @@ export function Modal({
 
 export function DashboardBackground({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen text-slate-200 bg-black selection:bg-lime-400/30 selection:text-lime-100">
-      {/* Background: gradient + grain + accent glows */}
+    <div className="relative min-h-screen text-slate-200 selection:bg-lime-400/30 selection:text-lime-100">
+      {/* Dashboard Background: Use bgDashboard.webp with enhanced glass effects */}
       <div className="fixed inset-0 -z-10">
+        {/* Dashboard-specific background image */}
         <div 
           className="absolute inset-0"
-          style={{ 
-            background: `${dashboardTheme.colors.background.radial}, ${dashboardTheme.colors.background.linear}` 
+          style={{
+            backgroundImage: 'url(/uploads/bgDashboard.webp)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
           }}
         />
         
+        {/* Light dark overlay for better readability (reduced opacity) */}
+        <div className="absolute inset-0 bg-black/20" />
+        
         {/* Subtle grain texture overlay via SVG pattern */}
         <div 
-          className="absolute inset-0 opacity-20 mix-blend-overlay pointer-events-none"
+          className="absolute inset-0 opacity-10 mix-blend-overlay pointer-events-none"
           style={{
             backgroundImage: `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><defs><radialGradient id="g" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="%23ffffff" stop-opacity="0.06"/><stop offset="1" stop-color="%23000000" stop-opacity="0"/></radialGradient></defs><rect width="36" height="36" fill="url(%23g)"/></svg>')`,
             backgroundSize: '120px 120px'
           }}
         />
         
-        {/* Accent glows */}
-        <div className={dashboardTheme.glows.lime.position} />
-        <div className={dashboardTheme.glows.orange.position} />
-        <div className={dashboardTheme.glows.purple.positionAlt} />
+        {/* Enhanced accent glows for dashboard (reduced opacity) */}
+        <div className={`${dashboardTheme.glows.lime.position} opacity-30`} />
+        <div className={`${dashboardTheme.glows.orange.position} opacity-30`} />
+        <div className={`${dashboardTheme.glows.purple.positionAlt} opacity-30`} />
       </div>
       
       {children}

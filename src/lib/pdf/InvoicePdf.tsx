@@ -12,26 +12,51 @@ import { Invoice, InvoiceItem, User, Order } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
 
-// Define pricing functions locally to avoid server-side import issues
-const safePricingTiers = {
-  'Tier 1': [1.80, 1.50, 1.45, 1.42, 1.38, 1.35],
-  'Tier 2': [2.20, 1.60, 1.50, 1.45, 1.40, 1.35],
-  'Tier 3': [2.40, 1.70, 1.60, 1.47, 1.44, 1.41]
-};
+// Pricing tiers that match CSV values exactly (for PDF generation)
+let cachedPricingTiers: Record<string, any> | null = null;
 
-const safeCalculateUnitPrice = (quantity: number, tierName: string = 'Tier 2'): number => {
+// Synchronous version for immediate use (uses cached data)
+const safeCalculateUnitPriceSync = (quantity: number, tierName: string = 'Tier 1'): number => {
   try {
-    const tiers = safePricingTiers[tierName as keyof typeof safePricingTiers] || safePricingTiers['Tier 2'];
+    // Use cached pricing data or fallback - corrected to match CSV exactly
+    const pricingTiers = cachedPricingTiers || {
+      'Tier 1': { 
+        price48: 3.6,
+        price144: 3,
+        price576: 2.9,
+        price1152: 2.84,
+        price2880: 2.76,
+        price10000: 2.7
+      },
+      'Tier 2': { 
+        price48: 4.4,
+        price144: 3.2,
+        price576: 3,
+        price1152: 2.9,
+        price2880: 2.8,
+        price10000: 2.7
+      },
+      'Tier 3': { 
+        price48: 4.8,
+        price144: 3.4,
+        price576: 3.2,
+        price1152: 2.94,
+        price2880: 2.88,
+        price10000: 2.82
+      }
+    };
     
-    if (quantity >= 10000) return tiers[5];
-    if (quantity >= 2880) return tiers[4];
-    if (quantity >= 1152) return tiers[3];
-    if (quantity >= 576) return tiers[2];
-    if (quantity >= 144) return tiers[1];
-    return tiers[0];
+    const tierData = pricingTiers[tierName] || pricingTiers['Tier 1'];
+    
+    if (quantity >= 10000) return tierData.price10000;
+    if (quantity >= 2880) return tierData.price2880;
+    if (quantity >= 1152) return tierData.price1152;
+    if (quantity >= 576) return tierData.price576;
+    if (quantity >= 144) return tierData.price144;
+    return tierData.price48;
   } catch (error) {
     console.warn('Price calculation fallback for quantity:', quantity);
-    return 1.50; // Safe fallback price
+    return 3.0; // Safe fallback price (Tier 1, 144+ units from CSV)
   }
 };
 
@@ -301,6 +326,62 @@ const styles = StyleSheet.create({
 });
 
 export const InvoicePdf: React.FC<InvoicePdfProps> = ({ doc }) => {
+  // Initialize CSV pricing data synchronously (no React hooks in PDF components)
+  if (!cachedPricingTiers) {
+    cachedPricingTiers = {
+      'Tier 1': { 
+        price48: 3.6,
+        price144: 3,
+        price576: 2.9,
+        price1152: 2.84,
+        price2880: 2.76,
+        price10000: 2.7
+      },
+      'Tier 2': { 
+        price48: 4.4,
+        price144: 3.2,
+        price576: 3,
+        price1152: 2.9,
+        price2880: 2.8,
+        price10000: 2.7
+      },
+      'Tier 3': { 
+        price48: 4.8,
+        price144: 3.4,
+        price576: 3.2,
+        price1152: 2.94,
+        price2880: 2.88,
+        price10000: 2.82
+      }
+    };
+  }
+
+  // ✅ Extract the correct pricing tier from order data
+  let orderPricingTier = 'Tier 1'; // Default to Tier 1 (most affordable)
+  
+  try {
+    // Check if order has customerInfo with priceTier
+    const customerInfo = typeof doc.order.customerInfo === 'string' 
+      ? JSON.parse(doc.order.customerInfo) 
+      : doc.order.customerInfo || {};
+      
+    if (customerInfo.priceTier) {
+      orderPricingTier = customerInfo.priceTier;
+    }
+    
+    // Also check order's additionalInstructions for priceTier (backup method)
+    if (typeof (doc.order as any).additionalInstructions === 'string') {
+      const parsed = JSON.parse((doc.order as any).additionalInstructions);
+      if (parsed.priceTier) {
+        orderPricingTier = parsed.priceTier;
+      }
+    }
+  } catch (error) {
+    console.warn('Could not extract pricing tier from order data, using Tier 1');
+  }
+  
+  console.log(`📊 Invoice PDF using pricing tier: ${orderPricingTier}`);
+
   const formatCurrency = (amount: any) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
     return `$${num.toFixed(2)}`;
@@ -331,8 +412,8 @@ export const InvoicePdf: React.FC<InvoicePdfProps> = ({ doc }) => {
   // Use imported tier-based pricing functions
   
   const getTierPricingInfo = (quantity: number) => {
-    // Use Tier 2 as default (matches dashboard logic)
-    const currentTierPrice = safeCalculateUnitPrice(quantity, 'Tier 2');
+    // ✅ Use the extracted pricing tier from order data
+    const currentTierPrice = safeCalculateUnitPriceSync(quantity, orderPricingTier);
     const nextTierThreshold = getNextPricingTier(quantity);
     
     let savings = 0;
@@ -341,7 +422,7 @@ export const InvoicePdf: React.FC<InvoicePdfProps> = ({ doc }) => {
     
     // Calculate actual savings if there's a next tier
     if (nextTierThreshold) {
-      nextTierPrice = safeCalculateUnitPrice(nextTierThreshold.threshold, 'Tier 2');
+      nextTierPrice = safeCalculateUnitPriceSync(nextTierThreshold.threshold, orderPricingTier);
       const currentTotal = currentTierPrice * quantity;
       const nextTierTotal = nextTierPrice * quantity;
       savings = currentTotal - nextTierTotal;
@@ -468,20 +549,17 @@ export const InvoicePdf: React.FC<InvoicePdfProps> = ({ doc }) => {
           </View>
           
           {doc.items.map((item, index) => {
-            const formattedDescription = formatProductDescription(item);
             const tierInfo = getTierPricingInfo(item.quantity);
             
             return (
               <View key={index} style={styles.tableRow}>
                 <View style={styles.tableCol1}>
                   <Text style={styles.tableCellText}>{item.name}</Text>
-                  {formattedDescription && (
-                    <Text style={styles.tableCellDescription}>{formattedDescription}</Text>
-                  )}
+                  {/* Removed detailed customization from table - moved to Additional Notes */}
                   {tierInfo.showSavings && (
                     <>
                       <Text style={styles.priceBreakdown}>
-                        Tier 2 Pricing: {item.quantity} units
+                        {orderPricingTier} Pricing: {item.quantity} units
                       </Text>
                       <Text style={styles.savingsIndicator}>
                         Next tier at {tierInfo.threshold} units: {formatCurrency(tierInfo.nextTierPrice)}/unit
@@ -551,52 +629,260 @@ export const InvoicePdf: React.FC<InvoicePdfProps> = ({ doc }) => {
           </View>
         </View>
 
-        {/* Product Specifications */}
-        {(() => {
-          const hasCustomizations = doc.items.some(item => {
-            try {
-              const parsedDesc = typeof item.description === 'string' ? JSON.parse(item.description) : item.description;
-              return parsedDesc && typeof parsedDesc === 'object' && 
-                     (parsedDesc.color || parsedDesc.size || parsedDesc.logo || parsedDesc.accessories || parsedDesc.closure);
-            } catch {
-              return false;
-            }
-          });
+        {/* Product Specifications & Customizations */}
+        <View style={styles.notesSection}>
+          <Text style={styles.notesTitle}>Product Specifications & Customizations:</Text>
           
-          return hasCustomizations && (
-            <View style={styles.notesSection}>
-              <Text style={styles.notesTitle}>Product Specifications & Customizations:</Text>
-              {doc.items.map((item, index) => {
-                try {
-                  const parsedDesc = typeof item.description === 'string' ? JSON.parse(item.description) : item.description;
-                  if (parsedDesc && typeof parsedDesc === 'object') {
-                    return (
-                      <View key={index} style={{ marginBottom: 8 }}>
-                        <Text style={[styles.notesText, { fontWeight: 'bold' }]}>{item.name}:</Text>
-                        {parsedDesc.color && <Text style={styles.notesText}>• Color: {parsedDesc.color}</Text>}
-                        {parsedDesc.size && <Text style={styles.notesText}>• Size: {parsedDesc.size}</Text>}
-                        {parsedDesc.logo && <Text style={styles.notesText}>• Logo Details: {parsedDesc.logo}</Text>}
-                        {parsedDesc.accessories && <Text style={styles.notesText}>• Accessories: {parsedDesc.accessories}</Text>}
-                        {parsedDesc.closure && <Text style={styles.notesText}>• Closure Type: {parsedDesc.closure}</Text>}
-                      </View>
-                    );
-                  }
-                } catch {
-                  return null;
+          <Text style={[styles.notesText, { fontWeight: 'bold', marginTop: 4 }]}>
+            {doc.order?.productName || 'Custom Cap Order'}
+          </Text>
+          
+          {(() => {
+            // Try to extract customization data from multiple potential sources
+            let selectedColors = {};
+            let selectedOptions = {};
+            let multiSelectOptions = {};
+            let logoSetupSelections = {};
+            
+            // Try extracting from order's customerInfo first
+            try {
+              if (doc.order?.customerInfo) {
+                const customerInfo = typeof doc.order.customerInfo === 'string' 
+                  ? JSON.parse(doc.order.customerInfo) 
+                  : doc.order.customerInfo;
+                
+                selectedColors = customerInfo.selectedColors || {};
+                selectedOptions = customerInfo.selectedOptions || {};
+                multiSelectOptions = customerInfo.multiSelectOptions || {};
+                logoSetupSelections = customerInfo.logoSetupSelections || {};
+              }
+            } catch (e) {
+              console.warn('Could not parse customerInfo for customizations');
+            }
+            
+            // Also try extracting directly from order fields if available
+            if (!selectedColors || Object.keys(selectedColors).length === 0) {
+              try {
+                if (doc.order?.selectedColors) {
+                  selectedColors = typeof doc.order.selectedColors === 'string' 
+                    ? JSON.parse(doc.order.selectedColors) 
+                    : doc.order.selectedColors;
                 }
-                return null;
-              })}
-            </View>
-          );
-        })()}
+              } catch (e) {
+                console.warn('Could not parse order selectedColors');
+              }
+            }
+            
+            if (!selectedOptions || Object.keys(selectedOptions).length === 0) {
+              try {
+                if (doc.order?.selectedOptions) {
+                  selectedOptions = typeof doc.order.selectedOptions === 'string' 
+                    ? JSON.parse(doc.order.selectedOptions) 
+                    : doc.order.selectedOptions;
+                }
+              } catch (e) {
+                console.warn('Could not parse order selectedOptions');
+              }
+            }
+            
+            if (!multiSelectOptions || Object.keys(multiSelectOptions).length === 0) {
+              try {
+                if (doc.order?.multiSelectOptions) {
+                  multiSelectOptions = typeof doc.order.multiSelectOptions === 'string' 
+                    ? JSON.parse(doc.order.multiSelectOptions) 
+                    : doc.order.multiSelectOptions;
+                }
+              } catch (e) {
+                console.warn('Could not parse order multiSelectOptions');
+              }
+            }
+            
+            if (!logoSetupSelections || Object.keys(logoSetupSelections).length === 0) {
+              try {
+                if (doc.order?.logoSetupSelections) {
+                  logoSetupSelections = typeof doc.order.logoSetupSelections === 'string' 
+                    ? JSON.parse(doc.order.logoSetupSelections) 
+                    : doc.order.logoSetupSelections;
+                }
+              } catch (e) {
+                console.warn('Could not parse order logoSetupSelections');
+              }
+            }
+            
+            const specifications = [];
+            
+            // Colors
+            if (selectedColors && typeof selectedColors === 'object') {
+              const colorDescriptions = [];
+              Object.entries(selectedColors).forEach(([colorKey, colorData]) => {
+                if (colorData && typeof colorData === 'object') {
+                  const colorName = colorData.customName || colorKey;
+                  const customBadge = colorData.isCustom ? ' (Custom)' : '';
+                  const sizes = colorData.sizes || {};
+                  const totalColorQty = Object.values(sizes).reduce((sum, qty) => sum + (parseInt(qty) || 0), 0);
+                  if (totalColorQty > 0) {
+                    colorDescriptions.push(`${colorName}${customBadge}: ${totalColorQty} units`);
+                  }
+                }
+              });
+              if (colorDescriptions.length > 0) {
+                specifications.push(`• Colors: ${colorDescriptions.join(', ')}`);
+              }
+            }
+            
+            // Logo Setup
+            if (logoSetupSelections && typeof logoSetupSelections === 'object') {
+              const logoDescriptions = [];
+              Object.entries(logoSetupSelections).forEach(([logoType, logoConfig]) => {
+                if (logoConfig && typeof logoConfig === 'object') {
+                  const details = [];
+                  if (logoConfig.position) details.push(`Position: ${logoConfig.position}`);
+                  if (logoConfig.size) details.push(`Size: ${logoConfig.size}`);
+                  if (logoConfig.application) details.push(`Application: ${logoConfig.application}`);
+                  logoDescriptions.push(`${logoType}${details.length > 0 ? ` (${details.join(', ')})` : ''}`);
+                }
+              });
+              if (logoDescriptions.length > 0) {
+                specifications.push(`• Logo Setup: ${logoDescriptions.join(', ')}`);
+              }
+            }
+            
+            // Accessories
+            if (multiSelectOptions?.accessories && Array.isArray(multiSelectOptions.accessories)) {
+              specifications.push(`• Accessories: ${multiSelectOptions.accessories.join(', ')}`);
+            }
+            
+            // Closures
+            if (multiSelectOptions?.closures && Array.isArray(multiSelectOptions.closures)) {
+              specifications.push(`• Closures: ${multiSelectOptions.closures.join(', ')}`);
+            }
+            
+            // Delivery
+            if (multiSelectOptions?.delivery && Array.isArray(multiSelectOptions.delivery)) {
+              specifications.push(`• Delivery: ${multiSelectOptions.delivery.join(', ')}`);
+            }
+            
+            // Services
+            if (multiSelectOptions?.services && Array.isArray(multiSelectOptions.services)) {
+              specifications.push(`• Services: ${multiSelectOptions.services.join(', ')}`);
+            }
+            
+            // Other selected options (profile, structure, bill-shape, etc.)
+            if (selectedOptions && typeof selectedOptions === 'object') {
+              Object.entries(selectedOptions)
+                .filter(([key]) => !['quantity', 'volume', 'price', 'totalPrice', 'basePrice', 'priceTier'].includes(key))
+                .forEach(([key, value]) => {
+                  if (value && value !== '' && value !== 'undefined' && value !== 'null') {
+                    const friendlyKey = key.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    specifications.push(`• ${friendlyKey}: ${value}`);
+                  }
+                });
+            }
+            
+            return specifications.map((spec, index) => (
+              <Text key={index} style={styles.notesText}>{spec}</Text>
+            ));
+          })()}
+          
+          {/* Fallback message if no specifications found */}
+          {(() => {
+            // Check if we have any specifications
+            let hasSpecs = false;
+            try {
+              const customerInfo = typeof doc.order?.customerInfo === 'string' 
+                ? JSON.parse(doc.order.customerInfo) 
+                : doc.order.customerInfo || {};
+              hasSpecs = Object.keys(customerInfo.selectedColors || {}).length > 0 ||
+                        Object.keys(customerInfo.selectedOptions || {}).length > 0 ||
+                        Object.keys(customerInfo.multiSelectOptions || {}).length > 0 ||
+                        Object.keys(customerInfo.logoSetupSelections || {}).length > 0;
+            } catch (e) {
+              // Try direct order fields
+              hasSpecs = !!doc.order?.selectedColors || !!doc.order?.selectedOptions;
+            }
+            
+            if (!hasSpecs) {
+              return (
+                <Text style={styles.notesText}>
+                  • Standard custom cap configuration as per order requirements
+                </Text>
+              );
+            }
+            return null;
+          })()}
+        </View>
 
-        {/* Notes */}
+        {/* Additional Notes */}
         {doc.notes && (
           <View style={styles.notesSection}>
             <Text style={styles.notesTitle}>Additional Notes:</Text>
             <Text style={styles.notesText}>{doc.notes}</Text>
           </View>
         )}
+
+        {/* Customization Details */}
+        {(() => {
+          // Get customization data from the order for a concise summary
+          if (!doc.order) return null;
+          
+          let customizations = [];
+          
+          try {
+            // Parse order's customerInfo
+            const customerInfo = typeof doc.order.customerInfo === 'string' 
+              ? JSON.parse(doc.order.customerInfo) 
+              : doc.order.customerInfo;
+              
+            if (customerInfo) {
+              // Extract key customization details
+              const selectedColors = customerInfo.selectedColors || {};
+              const multiSelectOptions = customerInfo.multiSelectOptions || {};
+              const logoSetupSelections = customerInfo.logoSetupSelections || {};
+              
+              // Add color summary
+              const colorNames = Object.keys(selectedColors);
+              if (colorNames.length > 0) {
+                const totalUnits = Object.values(selectedColors).reduce((sum, colorData) => {
+                  if (colorData && colorData.sizes) {
+                    return sum + Object.values(colorData.sizes).reduce((colorSum, qty) => colorSum + (parseInt(qty) || 0), 0);
+                  }
+                  return sum;
+                }, 0);
+                customizations.push(`${colorNames.join(', ')} - ${totalUnits} units`);
+              }
+              
+              // Add logo details
+              const logoTypes = Object.keys(logoSetupSelections);
+              if (logoTypes.length > 0) {
+                customizations.push(`Logo: ${logoTypes.join(', ')}`);
+              }
+              
+              // Add services
+              if (multiSelectOptions.services && multiSelectOptions.services.length > 0) {
+                customizations.push(`Services: ${multiSelectOptions.services.join(', ')}`);
+              }
+              
+              // Add other key options
+              if (multiSelectOptions.delivery && multiSelectOptions.delivery.length > 0) {
+                customizations.push(`Delivery: ${multiSelectOptions.delivery.join(', ')}`);
+              }
+            }
+          } catch (e) {
+            // Fallback: show basic product info
+            if (doc.order.productName) {
+              customizations.push(doc.order.productName);
+            }
+          }
+          
+          return customizations.length > 0 && (
+            <View style={styles.notesSection}>
+              <Text style={styles.notesTitle}>Customization Details:</Text>
+              {customizations.map((detail, index) => (
+                <Text key={index} style={styles.notesText}>• {detail}</Text>
+              ))}
+            </View>
+          );
+        })()}
 
         {/* Payment Terms */}
         <View style={styles.notesSection}>
@@ -613,16 +899,6 @@ export const InvoicePdf: React.FC<InvoicePdfProps> = ({ doc }) => {
           <Text style={styles.notesText}>
             • Questions? Contact our billing team at support@uscustomcaps.com
           </Text>
-          {(() => {
-            const totalQuantity = doc.items.reduce((acc, item) => acc + item.quantity, 0);
-            const hasVolumePricing = totalQuantity >= 144;
-            
-            return hasVolumePricing && (
-              <Text style={[styles.notesText, { color: '#059669', fontWeight: 'bold', marginTop: 5 }]}>
-                Volume pricing applied for orders of {totalQuantity} units!
-              </Text>
-            );
-          })()}
         </View>
 
         {/* Footer */}

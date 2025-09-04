@@ -227,64 +227,28 @@ export async function fetchAltTextForImage(url: string): Promise<string> {
   }
 }
 
-// New function to load blank cap pricing data from CSV
+// Client-safe function - use API endpoint for pricing data
 export async function loadBlankCapPricing(): Promise<any[]> {
   try {
-    const fs = require('fs');
-    const path = require('path');
+    console.log('📊 Loading pricing data via API...');
     
-    // Load pricing data from CSV file
-    const csvPath = path.join(process.cwd(), 'src/app/csv/Blank Cap Pricings.csv');
-    const csvContent = await fs.promises.readFile(csvPath, 'utf-8');
+    // In client-side context, we'll use the API endpoint or fallback data
+    if (typeof window !== 'undefined') {
+      // Client-side: use API endpoint
+      const response = await fetch('/api/blank-cap-pricing');
+      if (response.ok) {
+        const data = await response.json();
+        return data.pricing || [];
+      }
+    }
     
-    const lines = csvContent.split('\n').filter(line => line.trim()); // Remove empty lines
-    
-    // Skip header row
-    const dataLines = lines.slice(1);
-    
-    return dataLines.map(line => {
-      // Parse CSV line, handling quoted values
-      const values = parseCSVLine(line);
-      
-      return {
-        Name: (values[0] || '').replace(/"/g, '').trim(),
-        Slug: (values[1] || '').replace(/"/g, '').trim(),
-        price48: parseFloat(values[10]) || 0,
-        price144: parseFloat(values[11]) || 0,
-        price576: parseFloat(values[12]) || 0,
-        price1152: parseFloat(values[13]) || 0,
-        price2880: parseFloat(values[14]) || 0,
-        price10000: parseFloat(values[15]) || 0,
-      };
-    }).filter(item => item.Name && item.Name.length > 0); // Filter out empty rows
+    // Fallback to empty array - actual data loading should happen server-side
+    console.warn('⚠️ Client-side pricing load - using fallbacks');
+    return [];
   } catch (error) {
-    console.error('Error loading blank cap pricing from CSV:', error);
+    console.error('Error loading blank cap pricing:', error);
     return [];
   }
-}
-
-// Helper function to parse CSV lines with quoted values
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  
-  // Add the last field
-  result.push(current);
-  return result;
 }
 
 function extractColorName(url: string): string {

@@ -50,6 +50,70 @@ export function calculateUnitPrice(quantity: number, tierName?: string): number 
   return pricing.price48;
 }
 
+// Delivery pricing from Customization Pricings.csv
+export const DELIVERY_PRICING = {
+  'Regular Delivery': { 
+    price48: 3,
+    price144: 2.3,
+    price576: 1.9,
+    price1152: 1.85,
+    price2880: 1.8,
+    price10000: 1.7,
+    price20000: 1.7
+  },
+  'Priority Delivery': { 
+    price48: 3.2,
+    price144: 2.5,
+    price576: 2.1,
+    price1152: 2.05,
+    price2880: 2.1,
+    price10000: 2,
+    price20000: 2
+  },
+  'Air Freight': { 
+    price48: 0, // Not available
+    price144: 0, // Not available
+    price576: 0, // Not available
+    price1152: 0, // Not available
+    price2880: 1.2,
+    price10000: 1,
+    price20000: 1
+  },
+  'Sea Freight': { 
+    price48: 0, // Not available
+    price144: 0, // Not available
+    price576: 0, // Not available
+    price1152: 0, // Not available
+    price2880: 0.4,
+    price10000: 0.35,
+    price20000: 0.3
+  }
+};
+
+// Calculate delivery unit price based on quantity and method
+export function calculateDeliveryUnitPrice(quantity: number, deliveryMethod: string = 'regular'): number {
+  // Map delivery method names to CSV names
+  const methodMap: Record<string, string> = {
+    'regular': 'Regular Delivery',
+    'priority': 'Priority Delivery',
+    'air-freight': 'Air Freight', 
+    'sea-freight': 'Sea Freight'
+  };
+  
+  const csvMethodName = methodMap[deliveryMethod] || 'Regular Delivery';
+  const pricing = DELIVERY_PRICING[csvMethodName as keyof typeof DELIVERY_PRICING];
+  
+  if (!pricing) return DELIVERY_PRICING['Regular Delivery'].price1152; // fallback
+  
+  if (quantity >= 20000) return pricing.price20000;
+  if (quantity >= 10000) return pricing.price10000;
+  if (quantity >= 2880) return pricing.price2880;
+  if (quantity >= 1152) return pricing.price1152;
+  if (quantity >= 576) return pricing.price576;
+  if (quantity >= 144) return pricing.price144;
+  return pricing.price48;
+}
+
 // Export the interface for use in other files
 export interface CustomizationPricing {
   Name: string;
@@ -136,4 +200,55 @@ export function getDisplayTotal(items: any[], costBreakdowns: Record<string, Cos
   }
   
   return calculateBaseTotal(items);
+}
+
+/**
+ * Volume discount information interface
+ */
+export interface VolumeDiscountInfo {
+  regularPrice: number;
+  discountedPrice: number;
+  savings: number;
+  savingsPercentage: number;
+  totalSavings: number;
+  tierName: string;
+}
+
+/**
+ * Calculate volume discount information for display purposes
+ * Used to show volume discounts and savings in the cart
+ */
+export function calculateVolumeDiscount(unitPrice: number, totalUnits: number, pricingData: any): VolumeDiscountInfo | null {
+  if (!pricingData) return null;
+  
+  // Define pricing tiers in descending order
+  const pricingTiers = [
+    { name: '10000+', price: pricingData.price10000, minQty: 10000 },
+    { name: '2880+', price: pricingData.price2880, minQty: 2880 },
+    { name: '1152+', price: pricingData.price1152, minQty: 1152 },
+    { name: '576+', price: pricingData.price576, minQty: 576 },
+    { name: '144+', price: pricingData.price144, minQty: 144 },
+    { name: '48+', price: pricingData.price48, minQty: 48 }
+  ];
+
+  // Find current tier based on unit price (within small tolerance for floating point comparison)
+  const currentTier = pricingTiers.find(tier => Math.abs(tier.price - unitPrice) < 0.01);
+  const regularPrice = pricingData.price48; // Regular price is always 48+ pricing
+  
+  if (!currentTier || currentTier.minQty <= 48) {
+    return null; // No discount for 48+ tier or invalid tier
+  }
+
+  const savings = regularPrice - unitPrice;
+  const savingsPercentage = ((savings / regularPrice) * 100);
+  const totalSavings = savings * totalUnits;
+
+  return {
+    regularPrice,
+    discountedPrice: unitPrice,
+    savings,
+    savingsPercentage,
+    totalSavings,
+    tierName: currentTier.name
+  };
 }

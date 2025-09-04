@@ -1,0 +1,205 @@
+cap business 101:
+
+minimum order 48, maximum order = no limit.
+There are 3 main category of product pricing:
+ 1) Blank Cap, costing source: "F:\Custom Cap - github\USCC\src\app\csv\Blank Cap Pricings.csv"
+ 2) Customization, "F:\Custom Cap - github\USCC\src\app\csv\Customization Pricings.csv"
+ 3) Delivery, "F:\Custom Cap - github\USCC\src\app\csv\Customization Pricings.csv", costing "type" = "Shipping" in the csv.
+ 
+Blank cap pricing has it's tier based pricing, each products are currently on the website are primarily presented first as Blank Cap products, has "Price Tier" field to match with product CMS data, to match their pricing from ""F:\Custom Cap - github\USCC\src\app\csv\Blank Cap Pricings.csv"".
+
+Customization (including Delivery) costs are added with the Blank cap products. Custom can pick their options as per their choices as per below categories:
+
+	1) Cap Style Setup, current costing options; Premium Fabric, Premium Closure. Cap style by shape is originally defined by the shape of Bill (does not add cost); Flat, Slight Curved, Curved. and Cap can have any Profile type (does not add cost); "High", "Mid", "Low".
+	2) Logo Setup: 3D Embroidery, Flat Embroidery, Leather Patch, Rubber Patch, Direct Print, Printed Patch, Sublimated Patch, Woven Patch. each of these pricing varies by their Size. Mold charge added for Rubber patch and Leather Patch. These decorations are applied by the Cap Position: Front, Left Right, Back, Under Bill, Upper Bill. and each of these can have sub position; Left, Center, Right. example: Front Left, or Front Right, Front Center (which is default, and simply call it "Front", etc.
+	3) There are 2 main categories of Delivery: Express method, Freight method. Express methods are performed by express shipping companies like: Fedex, UPS, DHL, etc. Freights are performed by Logistics companies, both Air Freight and Sea Ship freight methods are available. Freight methods activates from quantity above 3168, costs very less than express shipments. Express methods are faster take 4-6 days to ship. 1) Priority, takes 4-6 days, performed by Fedex, 2) Regular (default), takes 6-10 days, performed by UPS. 3) Air Freights takes 10-20 days, 4) Sea Ship takes, 45-60 days. 
+	4) Accessories: Hang Tag, Sticker, B-Tape Print, Brand Label, etc are the current options, additionally,. they can design their own packaging however they like. any possible Accessories that goes with Caps are available.
+	5)Services: Graphics, costs $50, Sampling costs $100
+	6) Cap Color options logic: for Solid colors (1-color), means full cap is a certain color. if Split color,example (Red/Black) means, cap is combined of Two colors, usually Front, Upper Bill, Under Bill will be Red, and Sides, Back, Button, Closure color will be Black . if Tri color, (example: Light Grey, Black, Gold), in this case, Upper Bill, Under Bill, Button will be Light Grey, Front Color Black, then Sides and back will be Gold, Closure color can match with Button color.
+	7) Stitching color scheme: 1) Matching (default options, uses same stitching color for assembly as Fabric color), 2) COntrast (example: White stitch on a Black cap, probably to match with customer's Logo color...) 
+	
+	
+Lead Time Calculation:
+
+Core Delivery Types
+
+Regular Delivery - 15 working days total
+Base Lead Time: 7 days (Blank)
+Regular Delivery: +8 days
+Priority Delivery - 11 working days total
+Base Lead Time: 7 days (Blank)
+Priority Delivery: +4 days
+Pick a Date - Custom date selection
+Minimum 7 days from today
+Calculates working days between today and selected date
+
+Key Features to Implement
+Working Days Calculation - Excludes weekends
+Minimum Date Validation - 7 days minimum from order date
+Dynamic Lead Time Updates - Real-time calculation for Pick a Date
+Delivery Type Mapping - Automatic mapping of custom dates to standard types
+Fallback Logic - Default to Regular delivery if calculations fail
+Integration Points
+The system integrates with:
+Product customization data (colors, quantities, logo setup)
+Cost calculation system (delivery costs based on type)
+Order management (delivery dates for fulfillment)
+Customer communication (delivery expectations)
+
+Box Dimension:
+
+inner > 94x21x18cm 4 inner box
+200pcs  96x44x38cm
+
+inner > 68x21x18cm 4 inner box
+150pcs 70x44x38cm
+
+Chargable weight cost calculation logic: HxWxL/5000. example; for 70x44x38cm, chargable weight is 23.408, or 25 kgs, add +1 kg for safety (sometimes it gets a bit bigger).
+
+
+Issues and Attempted Fixes/Features:
+when an order is placed via /support page, it send email to ai-assistant@uscustomcap.com, make sure support assitance asks for important information like: Full Name, Address, Phone, Email and update order accordingly.
+
+Support ai misses cap style setup information provided into sanity cms for each products, Bill Shape (Free: Flat, Slight Curved, Curved), Profile (Free; High, Mid, Low), Closure Type (chargable for some options like Fitted, FlexFit, Metal Buckle, etc), Structure (free; Structured, Unstructured, Foam), Fabric Type (Ask about fabric setup, default is same as the set Fabric Setup option from the Product Management stored at Sanity. Chino Twill, Acrylic, Laser Cut, Camo, Trucker Mesh, Polyester, Spandex, Cotton Polyester Mix)
+
+Split fabric options example: Chino Twill/Trucker Mesh, where Chino Twill is used in Front and Trucker Mesh is used in Back Part.
+
+Ask customer if they require Additional Graphics/Mock up/Sketch/Logo correction service for Graphics, and If Customer needs a Physical Sample to review physically to finalize or approve a Bulk production order. we will make the sample and directly send to their door in a package. Sampling cost updated to $150 in csv now.
+
+set default Logo setup option, in case of budget but stand out decoration, 3D or Flat embroidery everywhere is the first choice, as long as the uploaded logo has maximum 6 colors.
+
+for the logo that have complex colors, Sublimated or Screen Printing (Budget choice), Woven Patch (medium Cost, Detailed, Embedded Threads) and Rubber Patch (Expensive Choice, Raised, Detailed, Premium)
+
+For Leather Patches, (Available Leather Patch colors are Brown, Dark Red, Black, Grey, Olive, Khaki), Logo has to be Simple enough to be Debossed, if the Logo is colorful, then we will print on on Leather Patch, costs same all across.
+
+
+Fabric Color availability based on Fabric types:
+Chino Twill, Polyester, Trucker Mesh are available in All the colors as below:
+Solid:
+White
+Black
+Red
+Cardinal
+Maroon
+Amber Gold
+Khaki
+Light Khaki
+Stone
+Light Grey
+Dark Grey
+Charcoal Grey
+Navy
+Light Blue
+Royal
+Carolina Blue
+Purple
+Pink
+Green
+Kelly Green
+Dark Green
+Gold
+Orange
+Burnt Orange
+Brown
+Olive
+Neon Green
+Neon Orange
+Neon Yellow
+Neon Pink
+Neon Blue
+Realtree
+MossyOak
+Kryptek Brown (Regular)
+Kryptek Brown (Skull Face version)
+Kryptek Black/Grey
+Prym 1
+Bottomland Camo
+Duck Camo (White BG + Khaki + Dark Green + Chocolate)
+Army Camo (Generic Green/Black Comb)
+Digital Camo Grey
+
+Split color options:
+Black/Charcoal
+Black/Gold
+Black/White
+Black/Yellow
+Brown/Stone
+Burnt Orange/Black
+Cardinal/Black
+Cardinal/White
+Charcoal/Black
+Charcoal/Carolina Blue
+Charcoal/Kelly
+Charcoal/Light Grey
+Charcoal/Navy
+Charcoal/Neon Blue
+Charcoal/Neon Green
+Charcoal/Neon Orange
+Charcoal/Neon Pink
+Charcoal/Neon Yellow
+Charcoal/Orange
+Charcoal/Red
+Charcoal/Royal
+Charcoal/White
+Columbia Blue/White
+Cyan/White
+Dark Green/White
+Dark Green/Yellow
+Light Grey/Black
+Heather Grey/Black
+Heather Grey/Dark Green
+Heather Grey/Navy
+Heather Grey/Royal
+Heather Grey/White
+Hot Pink/Black
+Hot Pink/White
+Kelly Green/White
+Kelly/White
+Khaki/Brown
+Khaki/Navy
+Khaki/White
+Light Grey/Light Blue
+Olive/Black
+Maroon/White
+Navy/Charcoal
+Navy/Stone
+Navy/Khaki
+Navy/Orange
+Navy/White
+Olive/Khaki
+Orange/Black
+Orange/White
+Purple/White
+Red/Black
+Red/White
+Royal/Black
+Royal/White
+
+
+Tri Color option:
+Amber Gold/Heather Grey/Stone
+Amber Gold/Stone/Navy
+Black/Light Grey/Charcoal
+Black/Orange/White
+Black/Red/White
+Black/White/Light Grey
+Heather Grey/Navy/White
+Heather Grey/Red/White
+Heather Grey/Royal/White
+Maroon/Heather Grey/Charcoal
+Navy/Carolina Blue/White
+Navy/Heather Grey/Red
+Navy/Red/White
+Olive/Heather Grey/Stone
+Olive/White/Black
+Red/Black/White
+Red/Navy/White
+Red/Royal/White
+Light Grey/Black/White
+Gold/White/Carolina Blue
+
+
+for all the other Fabric types:
+Limit to Regular Colors like: Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange.
+
+Fabric Sourcing and Arrangements of Fabric: For order above 2880+, we dye the whole Fabric or certain order as fresh from Fabric textile Factories. In that case, we do Lab Dib, as Sampling first where Textile factories shows Sample Fabric swatch with multiple color shade to match up with a specific color code/Fabric construction. Chino Twill itself has various constructions, like 16x12 (default), 20x20 (thin), 10x10 (thick).

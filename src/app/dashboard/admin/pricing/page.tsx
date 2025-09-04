@@ -1,0 +1,58 @@
+'use client';
+
+import { useState } from 'react';
+import { useAuth } from '@/components/auth/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import PricingManager from '@/components/ui/dashboard/PricingManager';
+
+export default function PricingManagementPage() {
+ const { user } = useAuth();
+ const router = useRouter();
+ const [loading, setLoading] = useState(true);
+
+ useEffect(() => {
+  if (!user) {
+   router.push('/auth/signin');
+   return;
+  }
+
+  // Check if user has admin access
+  const isAuthorized = user.email === 'absrasel@gmail.com' || 
+            user.accessRole === 'SUPER_ADMIN' ||
+            user.accessRole === 'MASTER_ADMIN' ||
+            user.accessRole === 'STAFF';
+
+  if (!isAuthorized) {
+   router.push('/dashboard');
+   return;
+  }
+
+  setLoading(false);
+ }, [user, router]);
+
+ if (loading) {
+  return (
+   <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="container mx-auto px-4 py-8">
+     <div className="animate-pulse space-y-6">
+      <div className="h-8 bg-stone-500 rounded-lg w-1/3"></div>
+      <div className="space-y-4">
+       {[1, 2, 3].map((i) => (
+        <div key={i} className="h-32 bg-stone-500 rounded-lg "></div>
+       ))}
+      </div>
+     </div>
+    </div>
+   </div>
+  );
+ }
+
+ return (
+  <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+   <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <PricingManager />
+   </div>
+  </div>
+ );
+}

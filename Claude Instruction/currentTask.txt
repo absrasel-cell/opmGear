@@ -1,0 +1,4 @@
+completeed 1) analyze why a logged in member after their checkout, the after create Invoice, and clicking Download Invoice button sending blank pdf ? make sure it works similarly as Admin Dashboard invoice setup.
+
+
+2) integrate the generated (from Admin Dashboard or after checkout page) Invoice to be Downloaded in Member Dashboard page from their order list. place the "Download Invoice" button in replace of "Checkout" when it is confirmed.

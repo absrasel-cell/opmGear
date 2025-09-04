@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Truck, Clock, Package } from 'lucide-react';
-import { GlassCard } from '@/components/ui/dashboard';
 
 interface ShippingBuildData {
   buildNumber: string;
@@ -26,34 +25,49 @@ export function ShippingNotification({
   const [isVisible, setIsVisible] = useState(true);
   const [currentBuild, setCurrentBuild] = useState<ShippingBuildData>();
 
-  // Current shipping build data - this could come from an API in production
-  const getCurrentShippingBuild = (): ShippingBuildData => {
-    const today = new Date();
-    const departureDate = new Date();
-    departureDate.setDate(today.getDate() + 12); // Departure in 12 days
-    
-    const expectedDelivery = new Date(departureDate);
-    expectedDelivery.setDate(departureDate.getDate() + 7); // 7 days after departure
-    
-    return {
-      buildNumber: 'SB-2024-08',
-      departureDate: departureDate.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      expectedDelivery: expectedDelivery.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      status: 'open',
-      spotsRemaining: 147
-    };
+  const fetchCurrentShippingBuild = async (): Promise<ShippingBuildData | null> => {
+    try {
+      const response = await fetch('/api/shipments');
+      if (!response.ok) throw new Error('Failed to fetch shipments');
+      
+      const { shipments } = await response.json();
+      
+      // Find the most recent active shipment
+      const activeShipment = shipments.find((s: any) => 
+        s.status === 'PREPARING' || s.status === 'IN_TRANSIT'
+      ) || shipments[0];
+      
+      if (!activeShipment) return null;
+      
+      return {
+        buildNumber: activeShipment.buildNumber,
+        departureDate: activeShipment.estimatedDeparture 
+          ? new Date(activeShipment.estimatedDeparture).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: 'numeric'
+            })
+          : 'TBD',
+        expectedDelivery: activeShipment.estimatedDelivery
+          ? new Date(activeShipment.estimatedDelivery).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: 'numeric'
+            })
+          : 'TBD',
+        status: activeShipment.status === 'PREPARING' ? 'open' : 'closing-soon',
+        spotsRemaining: activeShipment.orders?.length ? Math.max(0, 200 - activeShipment.orders.length) : 147
+      };
+    } catch (error) {
+      console.error('Error fetching shipping build:', error);
+      return null;
+    }
   };
 
   useEffect(() => {
-    setCurrentBuild(getCurrentShippingBuild());
+    fetchCurrentShippingBuild().then(build => {
+      if (build) setCurrentBuild(build);
+    });
   }, []);
 
   useEffect(() => {
@@ -205,30 +219,46 @@ export function ShippingNotification({
 export function MinimalShippingNotification({ className = '' }: { className?: string }) {
   const [currentBuild, setCurrentBuild] = useState<ShippingBuildData>();
 
-  const getCurrentShippingBuild = (): ShippingBuildData => {
-    const today = new Date();
-    const departureDate = new Date();
-    departureDate.setDate(today.getDate() + 12);
-    
-    const expectedDelivery = new Date(departureDate);
-    expectedDelivery.setDate(departureDate.getDate() + 7);
-    
-    return {
-      buildNumber: 'SB-2024-08',
-      departureDate: departureDate.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric'
-      }),
-      expectedDelivery: expectedDelivery.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric'
-      }),
-      status: 'open'
-    };
+  const fetchCurrentShippingBuild = async (): Promise<ShippingBuildData | null> => {
+    try {
+      const response = await fetch('/api/shipments');
+      if (!response.ok) throw new Error('Failed to fetch shipments');
+      
+      const { shipments } = await response.json();
+      
+      // Find the most recent active shipment
+      const activeShipment = shipments.find((s: any) => 
+        s.status === 'PREPARING' || s.status === 'IN_TRANSIT'
+      ) || shipments[0]; // Fallback to most recent
+      
+      if (!activeShipment) return null;
+      
+      return {
+        buildNumber: activeShipment.buildNumber,
+        departureDate: activeShipment.estimatedDeparture 
+          ? new Date(activeShipment.estimatedDeparture).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric'
+            })
+          : 'TBD',
+        expectedDelivery: activeShipment.estimatedDelivery
+          ? new Date(activeShipment.estimatedDelivery).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric'
+            })
+          : 'TBD',
+        status: activeShipment.status === 'PREPARING' ? 'open' : 'closing-soon'
+      };
+    } catch (error) {
+      console.error('Error fetching shipping build:', error);
+      return null;
+    }
   };
 
   useEffect(() => {
-    setCurrentBuild(getCurrentShippingBuild());
+    fetchCurrentShippingBuild().then(build => {
+      if (build) setCurrentBuild(build);
+    });
   }, []);
 
   if (!currentBuild) return null;
@@ -242,14 +272,23 @@ export function MinimalShippingNotification({ className = '' }: { className?: st
   };
 
   return (
-    <GlassCard className={`overflow-hidden ${className}`}>
-      <div className="px-4 py-2 border-b border-white/10 flex items-center gap-2">
-        <Truck className="w-4.5 h-4.5 text-lime-400" />
-        <span className="text-sm font-medium">Current Shipping Build</span>
+    <div className={`bg-white/10 border-white/20 border rounded-2xl pt-4 pr-4 pb-4 pl-4 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] backdrop-blur-lg overflow-hidden ${className}`} 
+        style={{
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)'
+        }}>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-lime-400/30 backdrop-blur-sm border border-lime-400/20">
+          <Truck className="w-5 h-5 text-lime-400" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white/90 font-sans">Current Shipping Build</p>
+          <p className="text-xs text-white/60 font-sans">Live shipping updates</p>
+        </div>
       </div>
-      <div className="p-2">
+      <div className="overflow-hidden mt-3">
         <div
-          className="text-slate-300 whitespace-nowrap overflow-hidden animate-scroll-left"
+          className="text-slate-300 whitespace-nowrap animate-scroll-left"
           onMouseEnter={(e) => {
             (e.target as HTMLElement).style.animationPlayState = 'paused';
           }}
@@ -313,7 +352,7 @@ export function MinimalShippingNotification({ className = '' }: { className?: st
             0 0 15px #00f5ff;
         }
       `}</style>
-    </GlassCard>
+    </div>
   );
 }
 
@@ -332,33 +371,43 @@ export function PersonalizedShippingNotification({
 }) {
   const [currentBuild, setCurrentBuild] = useState<ShippingBuildData>();
 
-  const getCurrentShippingBuild = (): ShippingBuildData => {
-    const today = new Date();
-    const departureDate = new Date();
-    departureDate.setDate(today.getDate() + 12);
-    
-    const expectedDelivery = new Date(departureDate);
-    expectedDelivery.setDate(departureDate.getDate() + 7);
-    
-    // Generate current build number based on current month to match order build logic
-    const currentYear = today.getFullYear();
-    const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
-    
-    return {
-      buildNumber: `SB-${currentYear}-${currentMonth}`,
-      departureDate: departureDate.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      expectedDelivery: expectedDelivery.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      status: 'open',
-      spotsRemaining: 147
-    };
+  const fetchCurrentShippingBuild = async (): Promise<ShippingBuildData | null> => {
+    try {
+      const response = await fetch('/api/shipments');
+      if (!response.ok) throw new Error('Failed to fetch shipments');
+      
+      const { shipments } = await response.json();
+      
+      // Find the most recent active shipment
+      const activeShipment = shipments.find((s: any) => 
+        s.status === 'PREPARING' || s.status === 'IN_TRANSIT'
+      ) || shipments[0];
+      
+      if (!activeShipment) return null;
+      
+      return {
+        buildNumber: activeShipment.buildNumber,
+        departureDate: activeShipment.estimatedDeparture 
+          ? new Date(activeShipment.estimatedDeparture).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: 'numeric'
+            })
+          : 'TBD',
+        expectedDelivery: activeShipment.estimatedDelivery
+          ? new Date(activeShipment.estimatedDelivery).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: 'numeric'
+            })
+          : 'TBD',
+        status: activeShipment.status === 'PREPARING' ? 'open' : 'closing-soon',
+        spotsRemaining: activeShipment.orders?.length ? Math.max(0, 200 - activeShipment.orders.length) : 147
+      };
+    } catch (error) {
+      console.error('Error fetching shipping build:', error);
+      return null;
+    }
   };
 
   const generateBuildNumber = (order: { status: string; createdAt: string }): string | null => {
@@ -372,7 +421,9 @@ export function PersonalizedShippingNotification({
   };
 
   useEffect(() => {
-    setCurrentBuild(getCurrentShippingBuild());
+    fetchCurrentShippingBuild().then(build => {
+      if (build) setCurrentBuild(build);
+    });
   }, []);
 
   if (!currentBuild) return null;
@@ -387,7 +438,7 @@ export function PersonalizedShippingNotification({
   const hasOrdersInBuild = ordersInCurrentBuild.length > 0;
 
   return (
-    <GlassCard className={`overflow-hidden ${className}`}>
+    <div className={`bg-white/10 border-white/20 border rounded-2xl shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] backdrop-blur-lg overflow-hidden ${className}`}>
       <div className="px-4 py-2 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Truck className="w-4.5 h-4.5 text-lime-400" />
@@ -499,7 +550,7 @@ export function PersonalizedShippingNotification({
             0 0 15px #00f5ff;
         }
       `}</style>
-    </GlassCard>
+    </div>
   );
 }
 

@@ -26,7 +26,9 @@ interface UserProfile {
   id: string;
   name: string;
   email: string;
-  role: string;
+  accessRole: string;
+  customerRole: string;
+  adminLevel?: string;
   phone?: string;
   company?: string;
   avatarUrl?: string;
@@ -394,21 +396,36 @@ export default function ProfilePage() {
                   <h2 className="text-xl font-bold text-slate-100">{profileData?.name || user.name}</h2>
                   <p className="text-slate-300 text-sm mt-1">{profileData?.email || user.email}</p>
                   
-                  {/* Role Badge */}
-                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold mt-3 border backdrop-blur-sm ${
-                    profileData?.role === 'ADMIN' || user.role === 'ADMIN'
+                  {/* Access Role Badge */}
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold mt-3 mr-2 border backdrop-blur-sm ${
+                    profileData?.accessRole === 'MASTER_ADMIN' || user.accessRole === 'MASTER_ADMIN'
                       ? 'bg-red-500/20 text-red-300 border-red-400/30' 
-                      : profileData?.role === 'WHOLESALE'
+                      : profileData?.accessRole === 'SUPER_ADMIN' || user.accessRole === 'SUPER_ADMIN'
                       ? 'bg-orange-500/20 text-orange-300 border-orange-400/30'
-                      : profileData?.role === 'SUPPLIER'
-                      ? 'bg-purple-500/20 text-purple-300 border-purple-400/30'
+                      : profileData?.accessRole === 'STAFF' || user.accessRole === 'STAFF'
+                      ? 'bg-blue-500/20 text-blue-300 border-blue-400/30'
                       : 'bg-lime-500/20 text-lime-300 border-lime-400/30'
                   }`}>
                     {
-                      profileData?.role === 'ADMIN' || user.role === 'ADMIN' ? '👑 Admin' :
-                      profileData?.role === 'WHOLESALE' ? '🏢 Wholesale' :
-                      profileData?.role === 'SUPPLIER' ? '🏭 Supplier' :
-                      '👤 Member'
+                      profileData?.accessRole === 'MASTER_ADMIN' || user.accessRole === 'MASTER_ADMIN' ? '👑 Master Admin' :
+                      profileData?.accessRole === 'SUPER_ADMIN' || user.accessRole === 'SUPER_ADMIN' ? '🛡️ Super Admin' :
+                      profileData?.accessRole === 'STAFF' || user.accessRole === 'STAFF' ? '👔 Staff' :
+                      '👤 Customer'
+                    }
+                  </div>
+                  
+                  {/* Customer Role Badge */}
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold mt-1 border backdrop-blur-sm ${
+                    profileData?.customerRole === 'WHOLESALE' || user.customerRole === 'WHOLESALE'
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-400/30'
+                      : profileData?.customerRole === 'SUPPLIER' || user.customerRole === 'SUPPLIER'
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/30'
+                      : 'bg-green-500/20 text-green-300 border-green-400/30'
+                  }`}>
+                    {
+                      profileData?.customerRole === 'WHOLESALE' || user.customerRole === 'WHOLESALE' ? '🏢 Wholesale' :
+                      profileData?.customerRole === 'SUPPLIER' || user.customerRole === 'SUPPLIER' ? '🚛 Supplier' :
+                      '🛒 Retail'
                     }
                   </div>
                 </div>
@@ -602,18 +619,19 @@ export default function ProfilePage() {
                       </div>
 
                       {/* Account Type Information */}
-                      {profileData?.preferences?.accountType && (
+                      {profileData?.customerRole && profileData.customerRole !== 'RETAIL' && (
                         <div>
-                          <label className="block text-sm font-medium text-slate-300 mb-2">Account Type</label>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Customer Type</label>
                           <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm">
                             <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${
-                              profileData.role === 'WHOLESALE'
-                                ? 'bg-orange-500/20 text-orange-300 border-orange-400/30'
-                                : profileData.role === 'SUPPLIER'
+                              profileData.customerRole === 'WHOLESALE'
                                 ? 'bg-purple-500/20 text-purple-300 border-purple-400/30'
+                                : profileData.customerRole === 'SUPPLIER'
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/30'
                                 : 'bg-lime-500/20 text-lime-300 border-lime-400/30'
                             }`}>
-                              {profileData.preferences.accountType.charAt(0).toUpperCase() + profileData.preferences.accountType.slice(1)} Account
+                              {profileData.customerRole === 'WHOLESALE' ? '🏢 Wholesale Account' :
+                               profileData.customerRole === 'SUPPLIER' ? '🚛 Supplier Account' : '🛒 Retail Account'}
                             </div>
                           </div>
                         </div>

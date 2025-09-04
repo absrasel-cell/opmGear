@@ -1,0 +1,98 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
+import { ConversationService } from '@/lib/conversation';
+
+export async function DELETE(
+ request: NextRequest,
+ { params }: { params: { id: string } }
+) {
+ try {
+  // Get the authorization header
+  const authorization = request.headers.get('Authorization');
+  
+  if (!authorization?.startsWith('Bearer ')) {
+   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const token = authorization.replace('Bearer ', '');
+  
+  // Verify the token with Supabase
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+   return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  const conversationId = params.id;
+
+  // Verify the conversation belongs to the user
+  const conversation = await ConversationService.getConversationById(conversationId);
+  
+  if (!conversation || conversation.userId !== user.id) {
+   return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+  }
+
+  // Delete the conversation
+  await ConversationService.deleteConversation(conversationId);
+
+  return NextResponse.json({ 
+   message: 'Conversation deleted successfully',
+   conversationId: conversationId
+  });
+
+ } catch (error) {
+  console.error('Error deleting conversation:', error);
+  return NextResponse.json(
+   { error: 'Failed to delete conversation' },
+   { status: 500 }
+  );
+ }
+}
+
+export async function GET(
+ request: NextRequest,
+ { params }: { params: { id: string } }
+) {
+ try {
+  // Get the authorization header
+  const authorization = request.headers.get('Authorization');
+  
+  if (!authorization?.startsWith('Bearer ')) {
+   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const token = authorization.replace('Bearer ', '');
+  
+  // Verify the token with Supabase
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+   return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  const conversationId = params.id;
+
+  // Get conversation with all messages
+  const conversation = await ConversationService.getConversationById(conversationId);
+  
+  if (!conversation || conversation.userId !== user.id) {
+   return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+  }
+
+  // Get all messages for this conversation
+  const messages = await ConversationService.getConversationHistory(conversationId, 100);
+
+  return NextResponse.json({
+   conversationId: conversation.id,
+   conversation: conversation,
+   messages: messages
+  });
+
+ } catch (error) {
+  console.error('Error fetching conversation:', error);
+  return NextResponse.json(
+   { error: 'Failed to fetch conversation' },
+   { status: 500 }
+  );
+ }
+}

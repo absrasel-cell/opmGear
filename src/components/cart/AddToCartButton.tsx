@@ -20,7 +20,7 @@ interface AddToCartButtonProps {
   productName: string;
   productSlug?: string;
   priceTier?: string; // Add price tier information
-  selectedColors: Record<string, { sizes: Record<string, number> }>;
+  selectedColors: Record<string, { sizes: Record<string, number>; customName?: string; isCustom?: boolean }>;
   logoSetupSelections: Record<string, { position?: string; size?: string; application?: string }>;
   selectedOptions: Record<string, string>;
   multiSelectOptions: Record<string, string[]>;
@@ -132,10 +132,10 @@ export default function AddToCartButton({
       setJustAdded(true);
       onSuccess?.();
 
-      // Reset success state after 5 seconds to give user time to click "Check Out"
+      // Reset success state after 3 seconds
       setTimeout(() => {
         setJustAdded(false);
-      }, 5000);
+      }, 3000);
 
     } catch (error) {
       console.error('Error adding to cart:', error);
@@ -149,8 +149,8 @@ export default function AddToCartButton({
 
   const handleButtonClick = () => {
     if (justAdded) {
-      // Navigate to checkout when button shows "Check Out"
-      router.push('/checkout');
+      // Navigate to cart when button shows "View Cart"
+      router.push('/cart');
     } else {
       // Add to cart when button shows "Add to Cart"
       handleAddToCart();
@@ -184,11 +184,11 @@ export default function AddToCartButton({
       <div className={`flex items-center space-x-2 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
         {justAdded ? (
           <>
-            {/* Checkout Icon */}
+            {/* Cart Icon for View Cart */}
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.1 5H19M7 13v8a2 2 0 002 2h6a2 2 0 002-2v-8m-8 0V9a2 2 0 012-2h4a2 2 0 012 2v4.01" />
             </svg>
-            <span>Check Out</span>
+            <span>View Cart</span>
           </>
         ) : (
           <>
@@ -196,9 +196,7 @@ export default function AddToCartButton({
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.1 5H19M7 13v8a2 2 0 002 2h6a2 2 0 002-2v-8m-8 0V9a2 2 0 012-2h4a2 2 0 012 2v4.01" />
             </svg>
-            <span>
-              {isAlreadyInCart ? 'Update Cart' : 'Add to Cart'}
-            </span>
+            <span>Add to Cart</span>
           </>
         )}
       </div>

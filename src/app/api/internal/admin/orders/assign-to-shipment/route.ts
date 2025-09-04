@@ -1,0 +1,132 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export async function POST(request: NextRequest) {
+ try {
+  const body = await request.json();
+  const { orderIds, shipmentId, buildNumber } = body;
+
+  if ((!orderIds || !Array.isArray(orderIds) || orderIds.length === 0)) {
+   return NextResponse.json(
+    { error: 'Order IDs array is required' },
+    { status: 400 }
+   );
+  }
+
+  if (!shipmentId && !buildNumber) {
+   return NextResponse.json(
+    { error: 'Either shipmentId or buildNumber is required' },
+    { status: 400 }
+   );
+  }
+
+  // Find shipment by ID or build number
+  let shipment = null;
+  if (shipmentId) {
+   shipment = await prisma.shipment.findUnique({
+    where: { id: shipmentId }
+   });
+  } else if (buildNumber) {
+   shipment = await prisma.shipment.findUnique({
+    where: { buildNumber }
+   });
+  }
+
+  if (!shipment) {
+   return NextResponse.json(
+    { error: 'Shipment not found' },
+    { status: 404 }
+   );
+  }
+
+  // Validate that orders exist and are assignable
+  const orders = await prisma.order.findMany({
+   where: {
+    id: { in: orderIds },
+    status: { in: ['CONFIRMED', 'PENDING', 'PROCESSING'] }, // Only allow certain statuses
+   },
+   select: {
+    id: true,
+    productName: true,
+    shipmentId: true,
+    status: true,
+    userEmail: true,
+    totalUnits: true,
+    calculatedTotal: true,
+   }
+  });
+
+  if (orders.length !== orderIds.length) {
+   const foundIds = orders.map(o => o.id);
+   const notFoundIds = orderIds.filter(id => !foundIds.includes(id));
+   return NextResponse.json(
+    { error: `Some orders not found or not assignable: ${notFoundIds.join(', ')}` },
+    { status: 400 }
+   );
+  }
+
+  // Check for orders already assigned to different shipments
+  const alreadyAssigned = orders.filter(o => o.shipmentId && o.shipmentId !== shipment.id);
+  if (alreadyAssigned.length > 0) {
+   return NextResponse.json(
+    { 
+     error: `Some orders are already assigned to other shipments: ${alreadyAssigned.map(o => `${o.id} (${o.productName})`).join(', ')}`,
+     alreadyAssignedOrders: alreadyAssigned 
+    },
+    { status: 400 }
+   );
+  }
+
+  // Update orders to assign them to the shipment
+  const updateResult = await prisma.order.updateMany({
+   where: {
+    id: { in: orderIds }
+   },
+   data: {
+    shipmentId: shipment.id
+   }
+  });
+
+  // Get updated shipment with orders for response
+  const updatedShipment = await prisma.shipment.findUnique({
+   where: { id: shipment.id },
+   include: {
+    orders: {
+     select: {
+      id: true,
+      productName: true,
+      status: true,
+      userEmail: true,
+      totalUnits: true,
+      calculatedTotal: true,
+      createdAt: true,
+     }
+    }
+   }
+  });
+
+  // Calculate statistics
+  const stats = {
+   totalOrders: updatedShipment?.orders.length || 0,
+   totalUnits: updatedShipment?.orders.reduce((sum: number, order: any) => sum + (order.totalUnits || 0), 0) || 0,
+   totalValue: updatedShipment?.orders.reduce((sum: number, order: any) => sum + (order.calculatedTotal || 0), 0) || 0,
+   assignedCount: updateResult.count,
+  };
+
+  return NextResponse.json({
+   message: `Successfully assigned ${updateResult.count} order(s) to shipment ${shipment.buildNumber}`,
+   shipment: updatedShipment,
+   assignedOrders: orders,
+   stats,
+  });
+
+ } catch (error) {
+  console.error('Error assigning orders to shipment:', error);
+  return NextResponse.json(
+   { error: 'Failed to assign orders to shipment' },
+   { status: 500 }
+  );
+ }
+}

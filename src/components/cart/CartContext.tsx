@@ -20,7 +20,7 @@ interface CartItem {
   productName: string;
   productSlug?: string;
   priceTier?: string; // Add price tier information
-  selectedColors: Record<string, { sizes: Record<string, number> }>;
+  selectedColors: Record<string, { sizes: Record<string, number>; customName?: string; isCustom?: boolean }>;
   logoSetupSelections: Record<string, { position?: string; size?: string; application?: string }>;
   selectedOptions: Record<string, string>;
   multiSelectOptions: Record<string, string[]>;
@@ -239,12 +239,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const generateCustomizationSummary = (item: Omit<CartItem, 'id' | 'addedAt' | 'updatedAt' | 'customizations'>) => {
-    // Generate color summary
+    // Generate color summary with custom names
     const colorEntries = Object.entries(item.selectedColors);
     const colorSummary = colorEntries.map(([colorType, data]) => {
       const sizeEntries = Object.entries(data.sizes);
       const totalQty = sizeEntries.reduce((sum, [_, qty]) => sum + qty, 0);
-      return `${colorType}: ${totalQty} items`;
+      // Use custom name if available, otherwise use original color type
+      const displayName = data.customName || colorType;
+      const customBadge = data.isCustom ? ' (Custom)' : '';
+      return `${displayName}${customBadge}: ${totalQty} items`;
     }).join(', ');
 
     // Generate logo summary

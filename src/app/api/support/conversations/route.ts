@@ -1,0 +1,167 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export async function GET(request: NextRequest) {
+ try {
+  console.log('🔍 GET /api/support/conversations called');
+  
+  // Get the authorization header
+  const authorization = request.headers.get('Authorization');
+  console.log('📝 Authorization header:', authorization ? 'Present' : 'Missing');
+  
+  if (!authorization?.startsWith('Bearer ')) {
+   console.log('❌ No Authorization header found, returning empty conversations');
+   return NextResponse.json({ conversations: [], total: 0 }, { status: 200 });
+  }
+
+  const token = authorization.replace('Bearer ', '');
+  console.log('📝 Token length:', token.length);
+  
+  // Verify the token with Supabase
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+   console.log('❌ Invalid token or user not found:', error?.message);
+   return NextResponse.json({ conversations: [], total: 0 }, { status: 200 });
+  }
+
+  console.log('✅ Fetching conversations for user:', user.id, user.email);
+
+  // Fetch all conversations for the user with their messages
+  const conversations = await prisma.conversation.findMany({
+   where: {
+    userId: user.id,
+    isArchived: false
+   },
+   include: {
+    ConversationMessage: {
+     orderBy: {
+      createdAt: 'asc'
+     },
+     take: 3 // Only get first 3 messages for preview
+    },
+    _count: {
+     select: {
+      ConversationMessage: true
+     }
+    }
+   },
+   orderBy: {
+    lastActivity: 'desc'
+   }
+  });
+
+  console.log('Found conversations:', conversations.length);
+  
+  // Also check for conversations by sessionId in case userId is not matching
+  const allSupportConversations = await prisma.conversation.findMany({
+   where: {
+    context: 'SUPPORT',
+    isArchived: false
+   },
+   select: {
+    id: true,
+    userId: true,
+    sessionId: true,
+    createdAt: true,
+    _count: {
+     select: {
+      ConversationMessage: true
+     }
+    }
+   },
+   take: 10,
+   orderBy: {
+    createdAt: 'desc'
+   }
+  });
+  
+  console.log('All recent support conversations:', allSupportConversations);
+
+  // Format the response
+  const formattedConversations = conversations.map(conversation => ({
+   id: conversation.id,
+   title: conversation.title,
+   context: conversation.context,
+   status: conversation.status,
+   lastActivity: conversation.lastActivity,
+   createdAt: conversation.createdAt,
+   messageCount: conversation._count.ConversationMessage,
+   preview: conversation.ConversationMessage.length > 0 ? {
+    content: conversation.ConversationMessage[0].content.substring(0, 100) + '...',
+    role: conversation.ConversationMessage[0].role
+   } : null,
+   messages: conversation.ConversationMessage.map(msg => ({
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    createdAt: msg.createdAt,
+    model: msg.model
+   }))
+  }));
+
+  console.log('📊 Returning conversations:', {
+   count: formattedConversations.length,
+   conversationIds: formattedConversations.map(c => c.id)
+  });
+  
+  return NextResponse.json({ 
+   conversations: formattedConversations,
+   total: conversations.length 
+  });
+
+ } catch (error) {
+  console.error('Error fetching conversations:', error);
+  return NextResponse.json(
+   { error: 'Failed to fetch conversations' },
+   { status: 500 }
+  );
+ } finally {
+  await prisma.$disconnect();
+ }
+}
+
+export async function DELETE(request: NextRequest) {
+ try {
+  // Get the authorization header
+  const authorization = request.headers.get('Authorization');
+  
+  if (!authorization?.startsWith('Bearer ')) {
+   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const token = authorization.replace('Bearer ', '');
+  
+  // Verify the token with Supabase
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+   return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  // Delete all conversations and their messages for the user
+  // Due to the cascade delete relationship, deleting conversations will also delete their messages
+  const deletedConversations = await prisma.conversation.deleteMany({
+   where: {
+    userId: user.id
+   }
+  });
+
+  return NextResponse.json({ 
+   message: 'All conversations deleted successfully',
+   deletedCount: deletedConversations.count
+  });
+
+ } catch (error) {
+  console.error('Error deleting conversations:', error);
+  return NextResponse.json(
+   { error: 'Failed to delete conversations' },
+   { status: 500 }
+  );
+ } finally {
+  await prisma.$disconnect();
+ }
+}

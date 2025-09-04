@@ -1,0 +1,132 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
+import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
+import { OrderAssetDTO } from '@/lib/validation/orderAssets';
+
+export async function GET(request: NextRequest) {
+  try {
+    console.log('🔍 [API] order-assets: Starting request...');
+    
+    const user = await getCurrentUser(request);
+    if (!user) {
+      console.log('❌ [API] order-assets: No authenticated user');
+      return NextResponse.json({ error: 'Unauthorized - Please log in again' }, { status: 401 });
+    }
+
+    console.log('✅ [API] order-assets: User authenticated:', user.id);
+
+    const url = new URL(request.url);
+    const orderId = url.searchParams.get('orderId');
+    
+    if (!orderId) {
+      console.log('❌ [API] order-assets: Missing orderId parameter');
+      return NextResponse.json({ error: 'Order ID required' }, { status: 400 });
+    }
+
+    console.log('🔍 [API] order-assets: Looking for order:', orderId);
+
+    // Verify order exists and user has access
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, userId: true, userEmail: true, status: true }
+    });
+
+    if (!order) {
+      console.log('❌ [API] order-assets: Order not found:', orderId);
+      return NextResponse.json({ error: `Order ${orderId} not found` }, { status: 404 });
+    }
+
+    console.log('✅ [API] order-assets: Order found:', { id: order.id, userId: order.userId, status: order.status });
+
+    // Get user profile for role checking
+    const userProfile = await getUserProfile(user.id);
+    console.log('👤 [API] order-assets: User profile:', { 
+      id: userProfile?.id, 
+      email: userProfile?.email, 
+      accessRole: userProfile?.accessRole 
+    });
+    
+    // Check if user owns order or is admin
+    const isOwner = order.userId === user.id;
+    const isMasterAdmin = userProfile?.email === 'absrasel@gmail.com' || userProfile?.email === 'vic@onpointmarketing.com';
+    const isAdmin = ['SUPER_ADMIN', 'MASTER_ADMIN'].includes(userProfile?.accessRole || '') || isMasterAdmin;
+    
+    // Also check email-based ownership for orders that might have userEmail but no userId
+    const isOwnerByEmail = order.userId ? false : (userProfile?.email && order.userEmail === userProfile.email);
+
+    console.log('🔐 [API] order-assets: Access check:', { 
+      isOwner, 
+      isOwnerByEmail, 
+      isAdmin, 
+      isMasterAdmin, 
+      orderUserId: order.userId,
+      userProfileEmail: userProfile?.email,
+      orderUserEmail: order.userEmail 
+    });
+
+    if (!isOwner && !isOwnerByEmail && !isAdmin) {
+      console.log('❌ [API] order-assets: Access denied for user:', user.id);
+      return NextResponse.json({ error: 'Access denied - You can only view your own orders' }, { status: 403 });
+    }
+
+    // Get assets from database
+    const assets = await prisma.orderAsset.findMany({
+      where: { orderId },
+      orderBy: { uploadedAt: 'asc' }
+    });
+
+    console.log(`📦 [API] order-assets: Found ${assets.length} assets for order ${orderId}`);
+
+    // Generate signed URLs for viewing/downloading
+    const assetsWithSignedUrls: OrderAssetDTO[] = [];
+    let signedUrlErrors = 0;
+    
+    for (const asset of assets) {
+      console.log(`🔗 [API] order-assets: Generating signed URL for asset ${asset.id} at path: ${asset.path}`);
+      
+      const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
+        .from('order-assets')
+        .createSignedUrl(asset.path, 1800); // 30 minutes
+
+      if (signedUrlError) {
+        console.error('❌ [API] order-assets: Error creating signed URL for asset:', asset.id, signedUrlError);
+        signedUrlErrors++;
+        continue; // Skip this asset but don't fail the entire request
+      }
+
+      console.log(`✅ [API] order-assets: Signed URL created for asset ${asset.id}`);
+
+      const filename = asset.path.split('/').pop() || asset.path;
+
+      assetsWithSignedUrls.push({
+        id: asset.id,
+        kind: asset.kind as 'LOGO' | 'ACCESSORY' | 'OTHER',
+        position: asset.position,
+        filename: filename,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        width: asset.width,
+        height: asset.height,
+        uploadedAt: asset.uploadedAt,
+        signedUrl: signedUrlData?.signedUrl
+      });
+    }
+
+    console.log(`✅ [API] order-assets: Successfully processed ${assetsWithSignedUrls.length} assets with ${signedUrlErrors} errors`);
+
+    return NextResponse.json(assetsWithSignedUrls);
+
+  } catch (error) {
+    console.error('❌ [API] order-assets: Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json(
+      { 
+        error: 'Internal server error', 
+        details: errorMessage,
+        timestamp: new Date().toISOString()
+      },
+      { status: 500 }
+    );
+  }
+}

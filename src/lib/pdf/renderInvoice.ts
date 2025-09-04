@@ -94,7 +94,19 @@ export async function renderInvoicePdfBuffer(invoiceId: string): Promise<Buffer>
       console.warn('PDF Generation: Invoice has no order:', invoiceId);
     }
     
+    // Pre-load CSV pricing data before PDF rendering
+    try {
+      const path = require('path');
+      const fs = require('fs');
+      const csvPath = path.join(process.cwd(), 'src/app/csv/Blank Cap Pricings.csv');
+      const csvContent = await fs.promises.readFile(csvPath, 'utf-8');
+      console.log('PDF Generation: CSV pricing data loaded successfully');
+    } catch (csvError) {
+      console.warn('PDF Generation: CSV pricing load failed, using fallback:', csvError);
+    }
+    
     // Render the React component to PDF buffer asynchronously
+    console.log('PDF Generation: About to call renderToBuffer...');
     const buffer = await renderToBuffer(InvoicePdf({ doc: invoice }));
     
     console.log('PDF Generation: PDF rendered successfully, buffer size:', buffer.length);
