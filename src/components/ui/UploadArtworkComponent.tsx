@@ -135,13 +135,13 @@ export default function UploadArtworkComponent({
   };
 
   const getStatusColor = () => {
-    if (error) return 'border-red-400/30 bg-red-400/5';
+    if (error) return 'border-red-400/30 bg-black/40 bg-gradient-to-br from-red-400/10 to-transparent';
     if (analysis) {
-      if (analysis.processingStatus === 'success') return 'border-green-400/30 bg-green-400/5';
-      if (analysis.processingStatus === 'partial') return 'border-yellow-400/30 bg-yellow-400/5';
-      if (analysis.processingStatus === 'error') return 'border-red-400/30 bg-red-400/5';
+      if (analysis.processingStatus === 'success') return 'border-green-400/30 bg-black/40 bg-gradient-to-br from-green-400/10 to-transparent';
+      if (analysis.processingStatus === 'partial') return 'border-yellow-400/30 bg-black/40 bg-gradient-to-br from-yellow-400/10 to-transparent';
+      if (analysis.processingStatus === 'error') return 'border-red-400/30 bg-black/40 bg-gradient-to-br from-red-400/10 to-transparent';
     }
-    return 'border-white/10 bg-white/5';
+    return 'border-stone-600 bg-black/40 backdrop-blur-xl';
   };
 
   const getStatusIcon = () => {
@@ -179,7 +179,7 @@ export default function UploadArtworkComponent({
         {!uploadedFile ? (
           <div
             onClick={handleUploadClick}
-            className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all duration-200 min-h-[120px] flex flex-col justify-center"
+            className="border-2 border-dashed border-stone-500 rounded-xl p-8 text-center cursor-pointer hover:border-stone-400 hover:bg-black/20 transition-all duration-200 min-h-[120px] flex flex-col justify-center"
           >
             <DocumentArrowUpIcon className="h-10 w-10 mx-auto text-white/40 mb-3" />
             <p className="text-sm text-white/70 mb-1">

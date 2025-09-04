@@ -47,6 +47,14 @@ interface UserProfile {
   company?: string;
 }
 
+interface GuestContactInfo {
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  company?: string;
+}
+
 interface QuoteVersion {
   id: string;
   version: number;
@@ -148,8 +156,12 @@ export default function SupportPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sessionId] = useState<string>(() => `support-${Date.now()}-${Math.random().toString(36).substring(7)}`);
+  // Guest contact information state
+  const [guestContactInfo, setGuestContactInfo] = useState<GuestContactInfo | null>(null);
+  const [showGuestContactForm, setShowGuestContactForm] = useState(false);
+  const [pendingQuoteMessage, setPendingQuoteMessage] = useState<string | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
-  const [showConversationHistory, setShowConversationHistory] = useState(false);
+  const [showConversationHistory, setShowConversationHistory] = useState(true);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -269,6 +281,151 @@ export default function SupportPage() {
     }
   };
 
+  // Store conversation and messages in database
+  const storeConversation = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any) => {
+    console.log('🔄 storeConversation called with:', { 
+      userMessage: userMessage.content.substring(0, 50), 
+      assistantMessage: assistantMessage.content.substring(0, 50),
+      intent,
+      hasQuoteData: !!quoteData
+    });
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('📝 storeConversation session check:', {
+        hasSession: !!session,
+        hasAccessToken: !!session?.access_token,
+        userId: session?.user?.id
+      });
+      
+      if (!session?.access_token) {
+        console.log('❌ storeConversation: No session or access token');
+        return;
+      }
+
+      const authHeaders: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+
+      // Create or get conversation
+      let currentConversationId = conversationId;
+      
+      if (!currentConversationId) {
+        // Create new conversation
+        const conversationResponse = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            userId: session.user?.id,
+            context: intent === 'ORDER_CREATION' ? 'QUOTE_REQUEST' : 'SUPPORT',
+            metadata: {
+              intent,
+              hasQuoteData: !!quoteData,
+              firstMessage: userMessage.content.substring(0, 100),
+              orderBuilder: {
+                capDetails: currentQuoteData?.capDetails,
+                customization: currentQuoteData?.customization,
+                delivery: currentQuoteData?.delivery,
+                pricing: currentQuoteData?.pricing,
+                orderBuilderStatus: orderBuilderStatus,
+                timestamp: new Date().toISOString()
+              },
+              userProfile: {
+                name: userProfile?.name || authUser?.name,
+                email: userProfile?.email || authUser?.email,
+                company: userProfile?.company,
+                phone: userProfile?.phone,
+                address: userProfile?.address
+              },
+              session: {
+                sessionId: sessionId,
+                uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+                isGuest: !authUser
+              }
+            }
+          })
+        });
+
+        if (conversationResponse.ok) {
+          const newConversation = await conversationResponse.json();
+          currentConversationId = newConversation.id;
+          setConversationId(currentConversationId);
+        } else {
+          console.error('Failed to create conversation');
+          return;
+        }
+      }
+
+      // Store user message
+      await fetch(`/api/conversations/${currentConversationId}/messages`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          role: 'USER',
+          content: userMessage.content,
+          metadata: userMessage.metadata
+        })
+      });
+
+      // Store assistant message
+      await fetch(`/api/conversations/${currentConversationId}/messages`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          role: 'ASSISTANT',
+          content: assistantMessage.content,
+          metadata: assistantMessage.metadata,
+          model: assistantMessage.model
+        })
+      });
+
+      // Generate and update conversation title with comprehensive context
+      if (!conversationId) {
+        try {
+          console.log('🏷️ Generating title for new conversation:', currentConversationId);
+          
+          const titleResponse = await fetch('/api/conversations/generate-title', {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              conversationId: currentConversationId,
+              messages: [
+                { role: userMessage.role, content: userMessage.content },
+                { role: assistantMessage.role, content: assistantMessage.content }
+              ],
+              orderBuilder: {
+                capDetails: currentQuoteData?.capDetails,
+                customization: currentQuoteData?.customization,
+                delivery: currentQuoteData?.delivery,
+                quoteData: currentQuoteData
+              },
+              userProfile: {
+                name: userProfile?.name || authUser?.name,
+                company: userProfile?.company
+              },
+              conversationType: intent === 'ORDER_CREATION' ? 'quote_request' : 'support'
+            })
+          });
+
+          if (titleResponse.ok) {
+            const { title, success } = await titleResponse.json();
+            console.log(`✅ Title generated successfully: "${title}"`);
+            
+            // Refresh conversation list to show updated title
+            loadUserConversations();
+          } else {
+            console.error('Failed to generate title:', await titleResponse.text());
+          }
+        } catch (error) {
+          console.error('Failed to generate title:', error);
+        }
+      }
+
+    } catch (error) {
+      console.error('Failed to store conversation:', error);
+    }
+  };
 
   // Load all user conversations
   const loadUserConversations = async () => {
@@ -278,7 +435,7 @@ export default function SupportPage() {
       return;
     }
 
-    console.log('🔍 loadUserConversations called:', { 
+    console.log('🔍 loadUserConversations called (FIXED):', { 
       authUserId: authUser?.id, 
       authUserEmail: authUser?.email,
       hasAuthUser: !!authUser,
@@ -287,32 +444,17 @@ export default function SupportPage() {
     
     setIsLoadingConversations(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('📝 Session data:', { 
-        hasSession: !!session, 
-        hasAccessToken: !!session?.access_token,
-        userId: session?.user?.id
-      });
-      
-      // Early return if no session or access token - don't make API call
-      // Don't reset conversationsInitialized flag to prevent infinite loop
-      if (!session?.access_token) {
-        console.log('❌ No session or access token, skipping API call');
-        setIsLoadingConversations(false);
-        setConversations([]); // Clear conversations when no session
-        return;
-      }
-      
-      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      authHeaders['Authorization'] = `Bearer ${session.access_token}`;
-
-      console.log('📡 Making API request to /api/support/conversations with headers:', {
-        hasAuth: !!authHeaders['Authorization']
+      // Skip Supabase session check since we know user is authenticated from auth context
+      // The API will handle authentication using cookies
+      console.log('📡 SUPPORT PAGE: Making API request to /api/conversations with user context:', {
+        authUserId: authUser?.id,
+        isAuthenticated
       });
 
-      const response = await fetch('/api/support/conversations', {
+      const response = await fetch(`/api/conversations?limit=50`, {
         method: 'GET',
-        headers: authHeaders
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include' // Include cookies for authentication
       });
 
       console.log('📡 API Response:', { 
@@ -323,10 +465,18 @@ export default function SupportPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Conversations loaded:', { 
-          count: data.conversations?.length || 0,
-          conversations: data.conversations 
+          count: data?.length || 0,
+          conversations: data 
         });
-        setConversations(data.conversations || []);
+        // Transform the data to match the expected format
+        const transformedData = data.map((conv: any) => ({
+          ...conv,
+          preview: conv.lastMessage ? {
+            content: conv.lastMessage.content,
+            timestamp: conv.lastMessage.timestamp
+          } : null
+        }));
+        setConversations(transformedData || []);
       } else {
         console.log('❌ API response not ok:', response.status, response.statusText);
         const errorData = await response.text();
@@ -413,25 +563,30 @@ export default function SupportPage() {
       // 3. We have a user ID
       // 4. Not currently loading conversations
       // 5. Haven't initialized conversations yet (prevent re-loading)
+      console.log('🔍 SUPPORT PAGE: Checking conversation loading conditions:', {
+        authLoading,
+        isAuthenticated,
+        hasUserId: !!authUser?.id,
+        userEmail: authUser?.email,
+        conversationsInitialized: conversationsInitialized.current,
+        shouldLoad: !authLoading && isAuthenticated && authUser?.id && !conversationsInitialized.current
+      });
+
       if (!authLoading && isAuthenticated && authUser?.id && !conversationsInitialized.current) {
-        console.log('🔄 User authenticated, checking session for:', authUser.email);
-        
-        // Check if we actually have a valid session before proceeding
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token && session?.user?.id) {
-          console.log('✅ Valid session found, loading conversations');
-          conversationsInitialized.current = true;
-          await loadUserConversations();
-        } else {
-          console.log('❌ No valid session or user, skipping conversation load');
-          // Set flag to prevent continuous retries
-          conversationsInitialized.current = true;
-          setConversations([]);
-        }
+        console.log('🔄 SUPPORT PAGE: User authenticated, loading conversations immediately for:', authUser.email);
+        conversationsInitialized.current = true;
+        await loadUserConversations();
       } else if (!authLoading && !isAuthenticated) {
-        console.log('🚫 User not authenticated, clearing conversations');
+        console.log('🚫 SUPPORT PAGE: User not authenticated, clearing conversations');
         conversationsInitialized.current = true;
         setConversations([]);
+      } else {
+        console.log('❓ SUPPORT PAGE: Not loading conversations because:', {
+          authLoading: authLoading ? 'Auth is still loading' : null,
+          notAuthenticated: !isAuthenticated ? 'User not authenticated' : null,
+          noUserId: !authUser?.id ? 'No user ID' : null,
+          alreadyInitialized: conversationsInitialized.current ? 'Already initialized' : null
+        });
       }
     };
     
@@ -507,6 +662,22 @@ export default function SupportPage() {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!inputMessage.trim() && uploadedFiles.length === 0) || isLoading || isUploading) return;
+
+    // Check if this is a guest user trying to create a quote
+    if (!authUser && !guestContactInfo) {
+      // Check if the message contains quote-related keywords
+      const quoteKeywords = ['quote', 'price', 'cost', 'order', 'custom cap', 'hat', 'embroidery', 'logo', 'design', 'bulk'];
+      const messageContainsQuoteKeywords = quoteKeywords.some(keyword => 
+        inputMessage.toLowerCase().includes(keyword)
+      );
+      
+      if (messageContainsQuoteKeywords || uploadedFiles.length > 0) {
+        // Store the message to send after contact form is completed
+        setPendingQuoteMessage(inputMessage);
+        setShowGuestContactForm(true);
+        return;
+      }
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -615,7 +786,13 @@ export default function SupportPage() {
           message: inputMessage,
           intent: detectedIntent,
           conversationHistory: messages,
-          userProfile: userProfile,
+          userProfile: userProfile || (guestContactInfo ? {
+            name: guestContactInfo.name,
+            email: guestContactInfo.email,
+            phone: guestContactInfo.phone,
+            address: guestContactInfo.address,
+            company: guestContactInfo.company
+          } : null),
           conversationId: conversationId,
           sessionId: sessionId,
           attachedFiles: validUploadedFiles.length > 0 ? validUploadedFiles : undefined
@@ -658,6 +835,9 @@ export default function SupportPage() {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Store conversation and messages in database
+      await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData);
       
       // Update order builder status if quote data is available
       if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
@@ -952,7 +1132,9 @@ ${customization?.logos?.map((logo: any) => `• ${logo.location}: ${logo.type} (
 • **Delivery:** $${pricing?.deliveryCost?.toFixed(2) || '0.00'} (${pricing?.quantity}pc × $${(pricing?.deliveryCost / pricing?.quantity || 0).toFixed(2)})
 • **Total:** $${pricing?.total?.toFixed(2) || '0.00'} ($${((pricing?.total || 0) / (pricing?.quantity || 1)).toFixed(2)} per cap)
 
-Would you like me to save this quote or would you like to modify any specifications?`;
+Would you like me to save this quote or would you like to modify any specifications?
+
+**Ready to proceed?** Click the **"Quote Order"** button below to save this quote for future reference.`;
   };
 
   // Lead Time and Box Calculator Function
@@ -1019,6 +1201,19 @@ Would you like me to save this quote or would you like to modify any specificati
     }
   }, [orderBuilderStatus.costBreakdown.selectedVersionId]);
 
+  // Auto-update conversation metadata when Order Builder data changes
+  useEffect(() => {
+    // Only update if we have an active conversation and significant data changes
+    if (conversationId && currentQuoteData) {
+      // Use a debounce approach to avoid too frequent updates
+      const timeoutId = setTimeout(() => {
+        updateConversationMetadata();
+      }, 2000); // 2 second debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [conversationId, currentQuoteData, orderBuilderStatus, userProfile]);
+
   // Function to toggle individual block collapse
   const toggleBlockCollapse = (blockName: keyof typeof collapsedBlocks) => {
     setCollapsedBlocks(prev => ({
@@ -1061,7 +1256,13 @@ Would you like me to save this quote or would you like to modify any specificati
           quoteData: selectedVersion.quoteData,
           conversationId: conversationId,
           sessionId: sessionId,
-          userProfile: userProfile,
+          userProfile: userProfile || (guestContactInfo ? {
+            name: guestContactInfo.name,
+            email: guestContactInfo.email,
+            phone: guestContactInfo.phone,
+            address: guestContactInfo.address,
+            company: guestContactInfo.company
+          } : null),
           uploadedFiles: uploadedFiles
         })
       });
@@ -1079,6 +1280,39 @@ Would you like me to save this quote or would you like to modify any specificati
         };
         
         setMessages(prev => [...prev, successMessage]);
+        
+        // Store the quote submission in conversation if available
+        if (conversationId) {
+          try {
+            await updateConversationMetadata();
+            
+            // Also store this as a message in the conversation
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              const authHeaders: Record<string, string> = { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              };
+
+              await fetch(`/api/conversations/${conversationId}/messages`, {
+                method: 'POST',
+                headers: authHeaders,
+                body: JSON.stringify({
+                  role: 'SYSTEM',
+                  content: `Quote submitted: ${data.quoteId}`,
+                  metadata: {
+                    type: 'quote_submission',
+                    quoteId: data.quoteId,
+                    quoteData: selectedVersion.quoteData,
+                    timestamp: new Date().toISOString()
+                  }
+                })
+              });
+            }
+          } catch (error) {
+            console.error('Failed to store quote in conversation:', error);
+          }
+        }
       } else {
         throw new Error('Failed to save quote');
       }
@@ -1122,7 +1356,13 @@ Would you like me to save this quote or would you like to modify any specificati
           quoteData: selectedVersion.quoteData,
           conversationId: conversationId,
           sessionId: sessionId,
-          userProfile: userProfile,
+          userProfile: userProfile || (guestContactInfo ? {
+            name: guestContactInfo.name,
+            email: guestContactInfo.email,
+            phone: guestContactInfo.phone,
+            address: guestContactInfo.address,
+            company: guestContactInfo.company
+          } : null),
           uploadedFiles: uploadedFiles
         })
       });
@@ -1140,6 +1380,39 @@ Would you like me to save this quote or would you like to modify any specificati
         };
         
         setMessages(prev => [...prev, successMessage]);
+        
+        // Store the order placement in conversation if available
+        if (conversationId) {
+          try {
+            await updateConversationMetadata();
+            
+            // Also store this as a message in the conversation
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              const authHeaders: Record<string, string> = { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              };
+
+              await fetch(`/api/conversations/${conversationId}/messages`, {
+                method: 'POST',
+                headers: authHeaders,
+                body: JSON.stringify({
+                  role: 'SYSTEM',
+                  content: `Order placed: ${data.orderId}`,
+                  metadata: {
+                    type: 'order_placement',
+                    orderId: data.orderId,
+                    quoteData: selectedVersion.quoteData,
+                    timestamp: new Date().toISOString()
+                  }
+                })
+              });
+            }
+          } catch (error) {
+            console.error('Failed to store order in conversation:', error);
+          }
+        }
       } else {
         throw new Error('Failed to place order');
       }
@@ -1161,29 +1434,28 @@ Would you like me to save this quote or would you like to modify any specificati
   // Load a specific conversation
   const loadConversation = async (conversationId: string) => {
     try {
-      const response = await fetch('/api/support/conversation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId: `loaded-${conversationId}`,
-          userId: authUser?.id,
-          conversationId: conversationId
-        })
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        authHeaders['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'GET',
+        headers: authHeaders
       });
 
       if (response.ok) {
         const data = await response.json();
-        setConversationId(data.conversationId);
+        setConversationId(data.id);
         
         // Load existing messages
-        if (data.messages && data.messages.length > 0) {
-          const formattedMessages = data.messages.map((msg: any) => ({
+        if (data.ConversationMessage && data.ConversationMessage.length > 0) {
+          const formattedMessages = data.ConversationMessage.map((msg: any) => ({
             id: msg.id,
-            role: msg.role,
+            role: msg.role.toLowerCase(),
             content: msg.content,
-            model: msg.metadata?.model,
+            model: msg.model,
             timestamp: new Date(msg.createdAt),
             metadata: msg.metadata
           }));
@@ -1191,7 +1463,55 @@ Would you like me to save this quote or would you like to modify any specificati
         } else {
           setMessages([]);
         }
+        
+        // Restore Order Builder state from conversation metadata
+        if (data.metadata && data.metadata.orderBuilder) {
+          const orderBuilder = data.metadata.orderBuilder;
+          
+          console.log('🔄 Restoring Order Builder state from conversation:', orderBuilder);
+          
+          // Restore quote data
+          if (orderBuilder.capDetails || orderBuilder.customization || orderBuilder.delivery) {
+            const restoredQuoteData = {
+              capDetails: orderBuilder.capDetails,
+              customization: orderBuilder.customization,
+              delivery: orderBuilder.delivery,
+              pricing: orderBuilder.pricing
+            };
+            
+            setCurrentQuoteData(restoredQuoteData);
+            setIsOrderBuilderVisible(true);
+          }
+          
+          // Restore order builder status if available
+          if (orderBuilder.orderBuilderStatus) {
+            setOrderBuilderStatus(orderBuilder.orderBuilderStatus);
+          }
+          
+          // Restore quote versions if available
+          if (orderBuilder.quoteVersions && orderBuilder.quoteVersions.length > 0) {
+            setOrderBuilderStatus(prev => ({
+              ...prev,
+              costBreakdown: {
+                ...prev.costBreakdown,
+                available: true,
+                versions: orderBuilder.quoteVersions,
+                selectedVersionId: orderBuilder.quoteVersions[0]?.id || prev.costBreakdown.selectedVersionId
+              }
+            }));
+          }
+        }
+        
+        // Restore user profile if available
+        if (data.metadata && data.metadata.userProfile) {
+          const savedProfile = data.metadata.userProfile;
+          if (savedProfile.name || savedProfile.email || savedProfile.company) {
+            setUserProfile(savedProfile);
+          }
+        }
+        
         setShowConversationHistory(false);
+        console.log('✅ Conversation loaded successfully:', data.id);
       }
     } catch (error) {
       console.error('Failed to load specific conversation:', error);
@@ -1272,7 +1592,7 @@ Would you like me to save this quote or would you like to modify any specificati
         authHeaders['Authorization'] = `Bearer ${session.access_token}`;
       }
 
-      const response = await fetch(`/api/support/conversation/${conversationIdToDelete}`, {
+      const response = await fetch(`/api/conversations/${conversationIdToDelete}`, {
         method: 'DELETE',
         headers: authHeaders
       });
@@ -1288,6 +1608,97 @@ Would you like me to save this quote or would you like to modify any specificati
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
+    }
+  };
+
+  // Regenerate conversation title using AI
+  const regenerateConversationTitle = async (conversationIdToUpdate: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const authHeaders: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+
+      console.log('🔄 Regenerating title for conversation:', conversationIdToUpdate);
+
+      const response = await fetch(`/api/conversations/generate-title?conversationId=${conversationIdToUpdate}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+
+      if (response.ok) {
+        const { title } = await response.json();
+        console.log('✅ Title regenerated:', title);
+        
+        // Refresh conversation list to show updated title
+        await loadUserConversations();
+      } else {
+        console.error('Failed to regenerate title:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error regenerating title:', error);
+    }
+  };
+
+  // Update conversation metadata with current Order Builder data
+  const updateConversationMetadata = async () => {
+    if (!conversationId) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const authHeaders: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+
+      console.log('📝 Updating conversation metadata:', conversationId);
+
+      const updatedMetadata = {
+        orderBuilder: {
+          capDetails: currentQuoteData?.capDetails,
+          customization: currentQuoteData?.customization,
+          delivery: currentQuoteData?.delivery,
+          pricing: currentQuoteData?.pricing,
+          orderBuilderStatus: orderBuilderStatus,
+          quoteVersions: orderBuilderStatus?.costBreakdown?.versions || [],
+          lastUpdated: new Date().toISOString()
+        },
+        userProfile: {
+          name: userProfile?.name || authUser?.name,
+          email: userProfile?.email || authUser?.email,
+          company: userProfile?.company,
+          phone: userProfile?.phone,
+          address: userProfile?.address
+        },
+        session: {
+          sessionId: sessionId,
+          uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+          isGuest: !authUser
+        }
+      };
+
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ 
+          conversationId: conversationId,
+          metadata: updatedMetadata,
+          lastActivity: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Conversation metadata updated successfully');
+      } else {
+        console.error('Failed to update conversation metadata:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error updating conversation metadata:', error);
     }
   };
 
@@ -1314,6 +1725,177 @@ Would you like me to save this quote or would you like to modify any specificati
     return date.toLocaleDateString();
   };
 
+  // Guest Contact Form Component
+  const GuestContactForm = () => {
+    const [formData, setFormData] = useState<GuestContactInfo>({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      company: ''
+    });
+    const [errors, setErrors] = useState<Partial<GuestContactInfo>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const validateForm = () => {
+      const newErrors: Partial<GuestContactInfo> = {};
+      
+      if (!formData.name.trim()) {
+        newErrors.name = 'Name is required';
+      } else if (formData.name.trim().length < 2) {
+        newErrors.name = 'Name must be at least 2 characters';
+      }
+      
+      if (!formData.email.trim()) {
+        newErrors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
+      
+      // Optional phone validation - allow numbers starting with 0
+      if (formData.phone.trim() && !/^[\+]?[0-9][\d]{0,15}$/.test(formData.phone.replace(/[\s\-\(\)]/g, ''))) {
+        newErrors.phone = 'Please enter a valid phone number';
+      }
+      
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (!validateForm()) {
+        return;
+      }
+      
+      setIsSubmitting(true);
+      
+      try {
+        // Set the guest contact info and create a user profile from it
+        setGuestContactInfo(formData);
+        setUserProfile({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          address: formData.address || undefined,
+          company: formData.company || undefined
+        });
+        
+        // Hide the form
+        setShowGuestContactForm(false);
+        
+        // If there was a pending quote message, send it now
+        if (pendingQuoteMessage) {
+          setInputMessage(pendingQuoteMessage);
+          setPendingQuoteMessage(null);
+          // The message will be sent when the form is submitted by the user
+        }
+        
+      } catch (error) {
+        console.error('Error saving guest contact info:', error);
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-stone-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 w-full max-w-md">
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-semibold text-white mb-2">Contact Information Required</h3>
+            <p className="text-stone-300 text-sm">
+              To create your custom cap quote, please provide your contact information:
+            </p>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">
+                Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className={`w-full px-3 py-2 bg-white/5 border ${errors.name ? 'border-red-400' : 'border-white/10'} rounded-lg text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50`}
+                placeholder="Your full name"
+              />
+              {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">
+                Email <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                className={`w-full px-3 py-2 bg-white/5 border ${errors.email ? 'border-red-400' : 'border-white/10'} rounded-lg text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50`}
+                placeholder="your@email.com"
+              />
+              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">Phone (Optional)</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                className={`w-full px-3 py-2 bg-white/5 border ${errors.phone ? 'border-red-400' : 'border-white/10'} rounded-lg text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50`}
+                placeholder="(555) 123-4567"
+              />
+              {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">Address (Optional)</label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50"
+                placeholder="123 Main St, City, State 12345"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">Company (Optional)</label>
+              <input
+                type="text"
+                value={formData.company}
+                onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50"
+                placeholder="Your company name"
+              />
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGuestContactForm(false);
+                  setPendingQuoteMessage(null);
+                }}
+                className="flex-1 px-4 py-2 text-stone-300 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 bg-gradient-to-r from-lime-400 to-lime-500 text-black font-medium py-2 px-4 rounded-lg hover:from-lime-500 hover:to-lime-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Saving...' : 'Continue'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   const formatUserProfile = () => {
     
     // Try to get name from multiple sources
@@ -1331,6 +1913,12 @@ Would you like me to save this quote or would you like to modify any specificati
     if (userProfile) {
       displayName = userProfile.name || displayName;
       displayEmail = userProfile.email || displayEmail;
+    }
+    
+    // Use guest contact info if available and no auth user
+    if (!authUser && guestContactInfo) {
+      displayName = guestContactInfo.name;
+      displayEmail = guestContactInfo.email;
     }
     
     return (
@@ -1355,14 +1943,19 @@ Would you like me to save this quote or would you like to modify any specificati
           </div>
           <div className="mt-2 space-y-1.5">
             <p className="text-sm text-white/70">{displayEmail}</p>
-            {userProfile?.phone && <p className="text-sm text-stone-300">{userProfile.phone}</p>}
-            {userProfile?.address && (
+            {(userProfile?.phone || guestContactInfo?.phone) && 
+              <p className="text-sm text-stone-300">{userProfile?.phone || guestContactInfo?.phone}</p>}
+            {(userProfile?.address || guestContactInfo?.address) && (
               <p className="text-xs text-white/50">
-                {typeof userProfile.address === 'string' ? userProfile.address : 
-                 `${userProfile.address.street || ''} ${userProfile.address.city || ''} ${userProfile.address.state || ''}`}
+                {userProfile?.address ? 
+                  (typeof userProfile.address === 'string' ? userProfile.address : 
+                   `${userProfile.address.street || ''} ${userProfile.address.city || ''} ${userProfile.address.state || ''}`) :
+                  guestContactInfo?.address}
               </p>
             )}
-            {!authUser && (
+            {guestContactInfo?.company && 
+              <p className="text-xs text-lime-300/70">Company: {guestContactInfo.company}</p>}
+            {!authUser && !guestContactInfo && (
               <p className="text-xs text-white/50">Sign in for personalized support</p>
             )}
           </div>
@@ -1371,9 +1964,33 @@ Would you like me to save this quote or would you like to modify any specificati
     );
   };
 
+  // Helper function to format system messages with colored text
+  const formatSystemMessage = (content: string) => {
+    // Split the message and add colors for specific model names
+    const parts = content.split(/(SupportSage|CapCraft AI)/g);
+    
+    return parts.map((part, index) => {
+      if (part === 'SupportSage') {
+        return (
+          <span key={index} className="text-green-400 font-medium">
+            {part}
+          </span>
+        );
+      } else if (part === 'CapCraft AI') {
+        return (
+          <span key={index} className="text-red-400 font-medium">
+            {part}
+          </span>
+        );
+      } else {
+        return <span key={index}>{part}</span>;
+      }
+    });
+  };
+
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(1100px_800px_at_10%_10%,rgba(36,45,66,0.35),transparent),radial-gradient(900px_700px_at_90%_0%,rgba(32,56,46,0.3),transparent)] bg-slate-950 flex items-center justify-center text-white">
+      <div className="min-h-screen flex items-center justify-center text-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mx-auto mb-4"></div>
           <p className="text-stone-300">Loading AI Support...</p>
@@ -1383,24 +2000,63 @@ Would you like me to save this quote or would you like to modify any specificati
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(1100px_800px_at_10%_10%,rgba(36,45,66,0.35),transparent),radial-gradient(900px_700px_at_90%_0%,rgba(32,56,46,0.3),transparent)] bg-slate-950 text-stone-200 antialiased font-inter">
+    <div className="min-h-screen text-stone-200 antialiased font-inter">
+      {/* Guest Contact Form Modal */}
+      {showGuestContactForm && <GuestContactForm />}
+      
       {/* Page Wrapper */}
-      <div className="w-full">
-        {/* Top Bar */}
+      <div className={`w-full transition-all duration-300 ${showConversationHistory ? 'pl-96' : ''}`}>
+        {/* Customer Guidelines Header */}
         <header className="border-b border-stone-600">
-          <div className="max-w-[1950px] mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-md bg-stone-600 border border-white/15 grid place-items-center text-white tracking-tight">
-                <SparklesIcon className="h-4 w-4" />
+          <div className="max-w-[1500px] mx-auto px-6 py-6">
+            <div className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/20 to-lime-600/10 border border-lime-400/30 grid place-items-center">
+                  <SparklesIcon className="h-5 w-5 text-lime-400" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-white tracking-tight">AI Support Center</h1>
+                  <p className="text-sm text-white/60">Get instant help with orders, quotes, and customization</p>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <h1 className="text-lg md:text-xl tracking-tight font-semibold text-white">Support</h1>
-                <p className="text-xs text-white/50">Independent AI Support Center</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                  <div className="h-8 w-8 rounded-lg bg-blue-400/20 border border-blue-400/30 grid place-items-center flex-shrink-0">
+                    <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-white mb-1">Quick Questions</h3>
+                    <p className="text-xs text-white/60">"What's my order status?" or "How much for 50 caps?"</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                  <div className="h-8 w-8 rounded-lg bg-purple-400/20 border border-purple-400/30 grid place-items-center flex-shrink-0">
+                    <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v12a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10M10 11v6M14 11v6" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-white mb-1">Upload Files</h3>
+                    <p className="text-xs text-white/60">Share artwork, logos, or reference images for quotes</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
+                  <div className="h-8 w-8 rounded-lg bg-green-400/20 border border-green-400/30 grid place-items-center flex-shrink-0">
+                    <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-white mb-1">Instant Quotes</h3>
+                    <p className="text-xs text-white/60">Get pricing for custom caps with quantities and options</p>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="hidden md:flex items-center gap-2">
-              <span className="text-xs text-white/50">Status:</span>
-              <span className="px-2.5 py-1 rounded-full text-xs border border-teal-400/30 bg-teal-400/10 text-teal-300">Online</span>
             </div>
           </div>
         </header>
@@ -1408,11 +2064,11 @@ Would you like me to save this quote or would you like to modify any specificati
         {/* Main Grid */}
         <main className="max-w-[1500px] mx-auto px-6 py-6 grid grid-cols-12 gap-6">
           {/* Chat Panel */}
-          <section className="col-span-12 lg:col-span-8 rounded-2xl border border-stone-600 bg-stone-700  flex flex-col overflow-hidden">
+          <section className="col-span-12 lg:col-span-8 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden">
             {/* Chat Header */}
             <div className="px-5 py-4 border-b border-stone-600 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-stone-700 border border-stone-600 grid place-items-center text-stone-200">
+                <div className="h-9 w-9 rounded-xl bg-black/30 backdrop-blur-sm border border-stone-600 grid place-items-center text-stone-200">
                   <CpuChipIcon className="h-5 w-5" />
                 </div>
                 <div>
@@ -1461,7 +2117,7 @@ Would you like me to save this quote or would you like to modify any specificati
                   {message.role === 'system' ? (
                     <div className="flex items-center gap-3 text-sm italic text-stone-300">
                       <div className="flex-1 h-px bg-stone-600"></div>
-                      <span>{message.content}</span>
+                      <span>{formatSystemMessage(message.content)}</span>
                       <div className="flex-1 h-px bg-stone-600"></div>
                     </div>
                   ) : message.role === 'user' ? (
@@ -1475,14 +2131,14 @@ Would you like me to save this quote or would you like to modify any specificati
                             }) : ''}
                           </span>
                         </div>
-                        <div className="rounded-[20px] border border-stone-600 bg-stone-600  p-4 text-sm md:text-base text-white shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
+                        <div className="rounded-[20px] border border-orange-400/30 bg-gradient-to-br from-orange-600/20 via-orange-500/15 to-orange-400/10 backdrop-blur-xl p-4 text-sm md:text-base text-white shadow-[0_8px_30px_rgba(218,141,38,0.25)] ring-1 ring-orange-400/20">
                           {message.content}
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-stone-700 border border-stone-600 grid place-items-center text-stone-200 mt-0.5">
+                      <div className="h-9 w-9 rounded-xl bg-black/30 backdrop-blur-sm border border-stone-600 grid place-items-center text-stone-200 mt-0.5">
                         <CpuChipIcon className="h-5 w-5 text-teal-300" />
                       </div>
                       <div className="max-w-[82%]">
@@ -1500,7 +2156,7 @@ Would you like me to save this quote or would you like to modify any specificati
                             }) : ''}
                           </span>
                         </div>
-                        <div className="rounded-[20px] border border-stone-600 bg-stone-700  p-4 text-sm md:text-base text-white">
+                        <div className="rounded-[20px] border border-purple-400/30 bg-gradient-to-br from-purple-600/20 via-purple-500/15 to-purple-400/10 backdrop-blur-xl p-4 text-sm md:text-base text-white shadow-[0_8px_30px_rgba(147,51,234,0.25)] ring-1 ring-purple-400/20">
                           <div 
                             className="whitespace-pre-wrap"
                             dangerouslySetInnerHTML={{
@@ -1519,10 +2175,10 @@ Would you like me to save this quote or would you like to modify any specificati
 
               {/* Loading indicator */}
               {isLoading && (
-                <div className="flex items-center gap-2 text-xs text-white/50">
-                  <div className="h-1.5 w-1.5 rounded-full bg-stone-500 animate-pulse"></div>
-                  <div className="h-1.5 w-1.5 rounded-full bg-stone-500 animate-pulse" style={{animationDelay: '150ms'}}></div>
-                  <div className="h-1.5 w-1.5 rounded-full bg-stone-500 animate-pulse" style={{animationDelay: '300ms'}}></div>
+                <div className="flex items-center gap-2 text-xs text-orange-400">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse"></div>
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" style={{animationDelay: '150ms'}}></div>
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" style={{animationDelay: '300ms'}}></div>
                   <span>AI is thinking...</span>
                 </div>
               )}
@@ -1531,7 +2187,7 @@ Would you like me to save this quote or would you like to modify any specificati
 
             {/* Uploaded Files Preview */}
             {uploadedFiles.length > 0 && (
-              <div className="px-4 md:px-5 py-2 border-t border-stone-600 bg-stone-700">
+              <div className="px-4 md:px-5 py-2 border-t border-stone-600 bg-black/20">
                 <div className="flex flex-wrap gap-2">
                   {uploadedFiles.map((fileUrl, index) => (
                     <div key={index} className="relative group">
@@ -1554,13 +2210,13 @@ Would you like me to save this quote or would you like to modify any specificati
             )}
 
             {/* Input Bar */}
-            <form onSubmit={sendMessage} className="px-4 md:px-5 py-4 border-t border-stone-600 bg-stone-700 ">
+            <form onSubmit={sendMessage} className="px-4 md:px-5 py-4 border-t border-stone-600 bg-black/20 ">
               <div className="flex items-center gap-2">
                 <button 
                   type="button"
                   onClick={triggerFileUpload}
                   disabled={isUploading}
-                  className="h-10 w-10 shrink-0 rounded-full border border-stone-600 bg-stone-700 grid place-items-center text-white/70 hover:text-white hover:bg-stone-600 transition-colors disabled:opacity-50" 
+                  className="h-10 w-10 shrink-0 rounded-full border border-stone-600 bg-black/30 backdrop-blur-sm grid place-items-center text-white/70 hover:text-white hover:bg-black/40 transition-all duration-200 disabled:opacity-50" 
                   title="Attach files"
                 >
                   <PaperClipIcon className={`h-5 w-5 ${isUploading ? 'animate-spin' : ''}`} />
@@ -1579,7 +2235,7 @@ Would you like me to save this quote or would you like to modify any specificati
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Describe your request or ask about orders, shipments, quotes…" 
-                    className="w-full h-11 md:h-12 rounded-full bg-stone-700 border border-stone-600 focus:border-stone-500 outline-none px-4 md:px-5 text-sm md:text-base placeholder:text-white/40 text-white transition-colors"
+                    className="w-full h-11 md:h-12 rounded-full bg-black/30 backdrop-blur-sm border border-stone-600 focus:border-stone-400 focus:bg-black/40 outline-none px-4 md:px-5 text-sm md:text-base placeholder:text-white/40 text-white transition-all duration-200"
                     disabled={isLoading}
                   />
                   <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
@@ -1588,7 +2244,7 @@ Would you like me to save this quote or would you like to modify any specificati
                 <button 
                   type="submit"
                   disabled={isLoading || isUploading || (!inputMessage.trim() && uploadedFiles.length === 0)}
-                  className="h-10 md:h-12 px-4 md:px-5 rounded-full border border-lime-400/30 bg-lime-400/10 text-lime-300 hover:bg-lime-400/15 hover:border-lime-300/50 hover:text-lime-200 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-10 md:h-12 px-4 md:px-5 rounded-full bg-lime-400 text-black hover:bg-lime-500 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_-10px_rgba(132,204,22,0.6)] hover:-translate-y-0.5"
                 >
                   <span className="hidden sm:inline">Send</span>
                   <ArrowUpRightIcon className="h-5 w-5 -mr-0.5" />
@@ -1600,10 +2256,10 @@ Would you like me to save this quote or would you like to modify any specificati
           {/* Right Column */}
           <aside className="col-span-12 lg:col-span-4 flex-col space-y-6">
             {/* Profile Card */}
-            <section className={`rounded-2xl border p-4 md:p-5  transition-all duration-300 ${
+            <section className={`rounded-2xl border p-4 md:p-5 backdrop-blur-xl transition-all duration-300 ${
               authUser 
-                ? 'border-green-400/30 bg-green-400/5' 
-                : 'border-yellow-400/30 bg-yellow-400/5'
+                ? 'border-green-400/30 bg-black/40 bg-gradient-to-br from-green-400/10 to-transparent' 
+                : 'border-yellow-400/30 bg-black/40 bg-gradient-to-br from-yellow-400/10 to-transparent'
             }`}>
               {formatUserProfile()}
               <div className="mt-4 pt-4 border-t border-stone-600">
@@ -1668,7 +2324,7 @@ Please provide a detailed quote with cost breakdown.`;
 
             {/* Order Builder Status Card - Sticky - Conditional Visibility */}
             {isOrderBuilderVisible && (
-              <section className="sticky top-6 z-10 rounded-2xl border border-stone-600 bg-stone-700  p-4">
+              <section className="sticky top-6 z-10 rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium tracking-tight text-white">Order Builder</h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] border border-stone-600 text-stone-300">
@@ -1719,7 +2375,7 @@ Please provide a detailed quote with cost breakdown.`;
                         </div>
                         <button
                           onClick={() => toggleBlockCollapse('capStyle')}
-                          className="p-1 rounded-lg border border-stone-600 bg-stone-700  hover:bg-stone-600 transition-all duration-200"
+                          className="p-1 rounded-lg border border-stone-600 bg-black/30 backdrop-blur-sm hover:bg-black/40 transition-all duration-200"
                         >
                           <ChevronDownIcon 
                             className={`h-4 w-4 text-stone-300 transition-transform duration-200 ${
@@ -1797,7 +2453,7 @@ Please provide a detailed quote with cost breakdown.`;
                     <div className={`h-7 w-7 rounded-full border grid place-items-center text-[11px] font-medium transition-colors ${
                       orderBuilderStatus.customization.status === 'yellow'
                         ? 'border-yellow-400/30 bg-yellow-400/10 text-yellow-300'
-                        : 'border-white/15 bg-stone-700 text-white'
+                        : 'border-white/15 bg-black/30 backdrop-blur-sm text-white'
                     }`}>
                       {orderBuilderStatus.customization.completed ? (
                         <CheckIcon className="h-4 w-4" />
@@ -1819,7 +2475,7 @@ Please provide a detailed quote with cost breakdown.`;
                         </div>
                         <button
                           onClick={() => toggleBlockCollapse('customization')}
-                          className="p-1 rounded-lg border border-stone-600 bg-stone-700  hover:bg-stone-600 transition-all duration-200"
+                          className="p-1 rounded-lg border border-stone-600 bg-black/30 backdrop-blur-sm hover:bg-black/40 transition-all duration-200"
                         >
                           <ChevronDownIcon 
                             className={`h-4 w-4 text-stone-300 transition-transform duration-200 ${
@@ -1918,7 +2574,7 @@ Please provide a detailed quote with cost breakdown.`;
                         </div>
                         <button
                           onClick={() => toggleBlockCollapse('delivery')}
-                          className="p-1 rounded-lg border border-stone-600 bg-stone-700  hover:bg-stone-600 transition-all duration-200"
+                          className="p-1 rounded-lg border border-stone-600 bg-black/30 backdrop-blur-sm hover:bg-black/40 transition-all duration-200"
                         >
                           <ChevronDownIcon 
                             className={`h-4 w-4 text-stone-300 transition-transform duration-200 ${
@@ -1976,7 +2632,7 @@ Please provide a detailed quote with cost breakdown.`;
                         </div>
                         <button
                           onClick={() => toggleBlockCollapse('costBreakdown')}
-                          className="p-1 rounded-lg border border-stone-600 bg-stone-700  hover:bg-stone-600 transition-all duration-200"
+                          className="p-1 rounded-lg border border-stone-600 bg-black/30 backdrop-blur-sm hover:bg-black/40 transition-all duration-200"
                         >
                           <ChevronDownIcon 
                             className={`h-4 w-4 text-stone-300 transition-transform duration-200 ${
@@ -2003,7 +2659,7 @@ Please provide a detailed quote with cost breakdown.`;
                                   className={`p-3 rounded-xl border cursor-pointer transition-all duration-300 ${
                                     isSelected 
                                       ? 'border-blue-400/40 bg-blue-400/15 ring-1 ring-blue-400/20'
-                                      : 'border-stone-600 bg-stone-700 hover:border-blue-400/20 hover:bg-blue-400/5'
+                                      : 'border-stone-600 bg-black/30 backdrop-blur-sm hover:border-blue-400/20 hover:bg-blue-400/5'
                                   }`}
                                 >
                               {/* Version Header */}
@@ -2012,7 +2668,7 @@ Please provide a detailed quote with cost breakdown.`;
                                   <div className={`h-5 w-5 rounded-full border grid place-items-center transition-colors ${
                                     isSelected 
                                       ? 'border-blue-400/40 bg-blue-400/20 text-blue-300'
-                                      : 'border-stone-500 bg-stone-700 text-stone-300'
+                                      : 'border-stone-500 bg-black/30 backdrop-blur-sm text-stone-300'
                                   }`}>
                                     {isSelected ? (
                                       <CheckIcon className="h-3 w-3" />
@@ -2098,12 +2754,12 @@ Please provide a detailed quote with cost breakdown.`;
 
               {/* Professional Lead Time Calculator & Box Interface */}
               {orderBuilderStatus.costBreakdown.available && (
-                <div className="mt-4 p-4 rounded-xl  bg-gradient-to-br from-purple-900 via-blue-900 to-cyan-900 border border-stone-600">
+                <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-[#8F5E25]/80 via-[#8F5E25]/60 to-[#8F5E25]/40 border border-stone-600">
                   <div className="flex items-center gap-2 mb-3">
-                    <CalendarDaysIcon className="w-4 h-4 text-purple-400" />
+                    <CalendarDaysIcon className="w-4 h-4 text-[#D4A574]" />
                     <span className="text-sm font-medium text-white">Production Timeline & Packaging</span>
                     {isCalculatingLeadTime && (
-                      <div className="w-3 h-3 border border-purple-400/30 border-t-purple-400 rounded-full animate-spin"></div>
+                      <div className="w-3 h-3 border border-[#D4A574]/30 border-t-[#D4A574] rounded-full animate-spin"></div>
                     )}
                   </div>
 
@@ -2158,7 +2814,7 @@ Please provide a detailed quote with cost breakdown.`;
                           {/* Box Lines */}
                           <div className="space-y-2 mb-3">
                             {leadTimeData.boxes.lines.map((line, index) => (
-                              <div key={index} className="flex items-center justify-between p-2 rounded bg-stone-700">
+                              <div key={index} className="flex items-center justify-between p-2 rounded bg-black/30 backdrop-blur-sm">
                                 <div className="flex items-center gap-2">
                                   <ArchiveBoxIcon className="w-3 h-3 text-green-400/70" />
                                   <span className="text-xs text-stone-200">{line.label}</span>
@@ -2211,8 +2867,8 @@ Please provide a detailed quote with cost breakdown.`;
                     disabled={!canQuoteOrder()}
                     className={`px-3.5 py-2 rounded-full text-sm border transition-all duration-300 flex-1 ${
                       canQuoteOrder()
-                        ? 'border-orange-400/30 bg-orange-400/10 text-orange-300 hover:bg-orange-400/15 hover:border-orange-300/50 hover:text-orange-200'
-                        : 'border-stone-600 text-white/50 cursor-not-allowed bg-stone-700'
+                        ? 'border-orange-400/30 bg-gradient-to-r from-orange-400/10 to-yellow-400/10 text-orange-300 hover:bg-orange-400/15 hover:border-orange-300/50 hover:text-orange-200 animate-pulse hover:animate-none relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-orange-300/10 before:to-transparent before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-1000'
+                        : 'border-stone-600 text-white/50 cursor-not-allowed bg-black/30 backdrop-blur-sm'
                     }`}
                   >
                     Quote Order
@@ -2223,7 +2879,7 @@ Please provide a detailed quote with cost breakdown.`;
                     className={`px-4 py-2 rounded-full text-sm font-medium tracking-tight border transition-all duration-300 flex-1 ${
                       canPlaceOrder()
                         ? 'border-green-400/30 bg-green-400/10 text-green-300 hover:bg-green-400/15 hover:border-green-300/50 hover:text-green-200'
-                        : 'border-stone-600 text-white/50 cursor-not-allowed bg-stone-700'
+                        : 'border-stone-600 text-white/50 cursor-not-allowed bg-black/30 backdrop-blur-sm'
                     }`}
                   >
                     Place Order
@@ -2242,38 +2898,44 @@ Please provide a detailed quote with cost breakdown.`;
 
         {/* Conversation History Sidebar */}
         {showConversationHistory && (
-          <div className="fixed inset-0 z-50 flex">
-            {/* Backdrop */}
-            <div 
-              className="absolute inset-0 bg-black/50 "
-              onClick={() => setShowConversationHistory(false)}
-            />
-            
+          <div className="fixed left-0 top-0 bottom-0 z-50 w-96 animate-in slide-in-from-left duration-300">
             {/* Sidebar */}
-            <div className="relative w-96 bg-slate-900  border-r border-stone-600 overflow-hidden flex flex-col">
+            <div className="h-full bg-gradient-to-br from-black/40 via-black/35 to-black/30 backdrop-blur-xl border-r border-stone-500/30 overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)]">
               {/* Header */}
-              <div className="p-4 border-b border-stone-600">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <ChatBubbleLeftRightIcon className="h-5 w-5 text-blue-400" />
-                    <h2 className="text-lg font-semibold text-white">Conversation History</h2>
+              <div className="p-4 border-b border-stone-500/30 bg-gradient-to-r from-black/30 to-black/20 backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-400/30 grid place-items-center">
+                      <ChatBubbleLeftRightIcon className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-white tracking-tight">Conversation History</h2>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
+                        console.log('🔥 MANUAL REFRESH: Force loading conversations...');
+                        console.log('🔥 Current state:', {
+                          authLoading,
+                          isAuthenticated,
+                          hasUserId: !!authUser?.id,
+                          userEmail: authUser?.email,
+                          conversationsInitialized: conversationsInitialized.current,
+                          conversationsLength: conversations.length
+                        });
+                        conversationsInitialized.current = false; // Reset flag
                         loadUserConversations();
                       }}
                       disabled={isLoadingConversations}
-                      className="p-1 rounded-lg border border-stone-600 bg-stone-700 hover:bg-stone-600 transition-colors disabled:opacity-50"
+                      className="p-2 rounded-xl border border-stone-500/30 bg-black/30 backdrop-blur-sm hover:bg-black/40 hover:border-stone-400/40 text-stone-300 hover:text-white transition-all duration-200 disabled:opacity-50 hover:shadow-lg"
                       title={`Refresh conversations (User: ${authUser?.email || 'Not logged in'})`}
                     >
                       <ArrowPathIcon className={`h-4 w-4 ${isLoadingConversations ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                       onClick={() => setShowConversationHistory(false)}
-                      className="p-1 rounded-lg border border-stone-600 bg-stone-700 hover:bg-stone-600 transition-colors"
+                      className="p-2 rounded-xl border border-stone-500/30 bg-black/30 backdrop-blur-sm hover:bg-red-400/10 hover:border-red-400/30 text-stone-300 hover:text-red-400 transition-all duration-200 hover:shadow-lg"
                     >
-                      ✕
+                      <span className="text-sm font-semibold">×</span>
                     </button>
                   </div>
                 </div>
@@ -2281,53 +2943,63 @@ Please provide a detailed quote with cost breakdown.`;
                 {/* New Conversation Button */}
                 <button
                   onClick={startNewConversation}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-lime-400/30 bg-lime-400/10 text-lime-300 hover:bg-lime-400/15 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-lime-400/30 bg-gradient-to-r from-lime-400/15 to-lime-500/10 text-lime-300 hover:bg-gradient-to-r hover:from-lime-400/20 hover:to-lime-500/15 hover:border-lime-400/40 transition-all duration-200 font-medium shadow-[0_4px_20px_rgba(132,204,22,0.15)] hover:shadow-[0_6px_25px_rgba(132,204,22,0.25)]"
                 >
                   <PlusIcon className="h-4 w-4" />
                   New Conversation
                 </button>
 
                 {/* Search */}
-                <div className="mt-3 relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/40" />
+                <div className="mt-4 relative">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <MagnifyingGlassIcon className="h-4 w-4 text-white/40" />
+                  </div>
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search conversations..."
-                    className="w-full pl-10 pr-3 py-2 bg-stone-700 border border-stone-600 rounded-lg text-sm text-white placeholder:text-white/40 focus:border-stone-500 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 bg-black/30 backdrop-blur-sm border border-stone-500/30 rounded-xl text-sm text-white placeholder:text-white/40 focus:border-blue-400/40 focus:bg-black/40 focus:outline-none focus:ring-1 focus:ring-blue-400/20 transition-all duration-200"
                   />
                 </div>
               </div>
 
               {/* Conversation List */}
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {isLoadingConversations ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+                  <div className="flex items-center justify-center py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                      <p className="text-sm text-white/60">Loading conversations...</p>
+                    </div>
                   </div>
                 ) : filteredConversations.length === 0 ? (
-                  <div className="text-center py-8 text-white/50">
-                    <div className="mb-4 p-3 bg-stone-700 rounded-lg text-xs text-left">
+                  <div className="text-center py-8">
+                    <div className="mb-6 p-4 bg-gradient-to-br from-black/40 to-black/30 backdrop-blur-sm rounded-xl border border-stone-500/30 text-xs text-left shadow-lg">
                       <div className="font-medium text-white/70 mb-2">Debug Info:</div>
-                      <div>Auth Loading: {authLoading ? 'Yes' : 'No'}</div>
-                      <div>Is Authenticated: {isAuthenticated ? 'Yes' : 'No'}</div>
-                      <div>User ID: {authUser?.id || 'None'}</div>
-                      <div>User Email: {authUser?.email || 'None'}</div>
-                      <div>Total Conversations: {conversations.length}</div>
-                      <div>Loading Conversations: {isLoadingConversations ? 'Yes' : 'No'}</div>
+                      <div className="space-y-1 text-white/50">
+                        <div>Auth Loading: {authLoading ? 'Yes' : 'No'}</div>
+                        <div>Is Authenticated: {isAuthenticated ? 'Yes' : 'No'}</div>
+                        <div>User ID: {authUser?.id || 'None'}</div>
+                        <div>User Email: {authUser?.email || 'None'}</div>
+                        <div>Total Conversations: {conversations.length}</div>
+                        <div>Loading Conversations: {isLoadingConversations ? 'Yes' : 'No'}</div>
+                      </div>
                     </div>
-                    {conversations.length === 0 ? 'No conversations yet' : 'No matching conversations'}
+                    <div className="text-white/60 font-medium">
+                      {conversations.length === 0 ? 'No conversations yet' : 'No matching conversations'}
+                    </div>
+                    <p className="text-white/40 text-sm mt-2">Start a new conversation to get help with your orders</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {filteredConversations.map((conversation) => (
                       <div
                         key={conversation.id}
-                        className={`group p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
+                        className={`group p-4 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
                           conversation.id === conversationId
-                            ? 'border-blue-400/30 bg-blue-400/10'
-                            : 'border-stone-600 bg-stone-700 hover:border-stone-500 hover:bg-stone-600'
+                            ? 'border-blue-400/40 bg-gradient-to-br from-blue-400/15 to-blue-500/10 ring-1 ring-blue-400/20 shadow-[0_4px_20px_rgba(59,130,246,0.15)]'
+                            : 'border-stone-500/30 bg-gradient-to-br from-black/40 to-black/30 backdrop-blur-sm hover:border-stone-400/40 hover:from-black/50 hover:to-black/35'
                         }`}
                         onClick={() => loadConversation(conversation.id)}
                       >
@@ -2337,9 +3009,19 @@ Please provide a detailed quote with cost breakdown.`;
                               <div className={`h-2 w-2 rounded-full ${
                                 conversation.status === 'ACTIVE' ? 'bg-green-400' : 'bg-white/40'
                               }`} />
-                              <span className="text-sm font-medium text-white truncate">
+                              <span className="text-sm font-medium text-white truncate flex-1">
                                 {conversation.title || `Conversation ${conversation.id.slice(-6)}`}
                               </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  regenerateConversationTitle(conversation.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-blue-400/20 text-blue-400/70 hover:text-blue-400 transition-all duration-200"
+                                title="Regenerate title"
+                              >
+                                <ArrowPathIcon className="h-3 w-3" />
+                              </button>
                             </div>
                             
                             {conversation.preview && (
@@ -2362,7 +3044,7 @@ Please provide a detailed quote with cost breakdown.`;
                               e.stopPropagation();
                               deleteConversation(conversation.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-400/20 text-red-400/70 hover:text-red-400 transition-all duration-200"
+                            className="opacity-0 group-hover:opacity-100 p-2 rounded-xl border border-transparent hover:border-red-400/30 hover:bg-red-400/10 text-red-400/70 hover:text-red-400 transition-all duration-200 hover:shadow-lg"
                           >
                             <TrashIcon className="h-4 w-4" />
                           </button>
@@ -2374,8 +3056,8 @@ Please provide a detailed quote with cost breakdown.`;
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-stone-600">
-                <div className="text-xs text-white/50 text-center">
+              <div className="p-4 border-t border-stone-500/30 bg-gradient-to-r from-black/30 to-black/20 backdrop-blur-sm">
+                <div className="text-xs text-white/50 text-center font-medium">
                   {conversations.length} total conversation{conversations.length !== 1 ? 's' : ''}
                 </div>
               </div>
