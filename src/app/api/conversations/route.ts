@@ -87,11 +87,41 @@ export async function GET(request: NextRequest) {
       where: {
         ...whereClause,
         isArchived: false,
+        hasQuote: true, // ONLY show conversations with completed quotes
+        quoteCompletedAt: {
+          not: null // Ensure quote completion timestamp exists
+        }
       },
       include: {
         ConversationMessage: {
           orderBy: { createdAt: 'desc' },
           take: 1, // Get only the latest message for preview
+        },
+        ConversationQuotes: {
+          include: {
+            QuoteOrder: {
+              select: {
+                id: true,
+                status: true,
+                totalUnits: true,
+                estimatedCosts: true,
+                customerName: true,
+                customerCompany: true,
+                completedAt: true
+              }
+            }
+          },
+          take: 1,
+          orderBy: { createdAt: 'desc' }
+        },
+        OrderBuilderState: {
+          select: {
+            totalCost: true,
+            totalUnits: true,
+            currentStep: true,
+            isCompleted: true,
+            completedAt: true
+          }
         },
         _count: {
           select: {
@@ -99,27 +129,59 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { lastActivity: 'desc' },
+      orderBy: { quoteCompletedAt: 'desc' }, // Order by quote completion time
       take: limit,
       skip: offset,
     });
 
-    // Transform the data for frontend
-    const transformedConversations = conversations.map(conv => ({
-      id: conv.id,
-      title: conv.title || 'Untitled Conversation',
-      context: conv.context,
-      status: conv.status,
-      lastActivity: conv.lastActivity,
-      messageCount: conv._count.ConversationMessage,
-      lastMessage: conv.ConversationMessage[0] ? {
-        content: conv.ConversationMessage[0].content.substring(0, 100) + '...',
-        timestamp: conv.ConversationMessage[0].createdAt,
-        role: conv.ConversationMessage[0].role,
-      } : null,
-      tags: conv.tags,
-      createdAt: conv.createdAt,
-    }));
+    // Transform the data for frontend with quote information
+    const transformedConversations = conversations.map(conv => {
+      const mainQuote = conv.ConversationQuotes[0];
+      const orderBuilderState = conv.OrderBuilderState;
+      
+      return {
+        id: conv.id,
+        title: conv.title || 'Untitled Quote Conversation',
+        context: conv.context,
+        status: conv.status,
+        lastActivity: conv.lastActivity,
+        messageCount: conv._count.ConversationMessage,
+        lastMessage: conv.ConversationMessage[0] ? {
+          content: conv.ConversationMessage[0].content.substring(0, 100) + '...',
+          timestamp: conv.ConversationMessage[0].createdAt,
+          role: conv.ConversationMessage[0].role,
+        } : null,
+        tags: conv.tags,
+        createdAt: conv.createdAt,
+        
+        // Quote-specific data
+        hasQuote: conv.hasQuote,
+        quoteCompletedAt: conv.quoteCompletedAt,
+        quoteData: mainQuote ? {
+          quoteId: mainQuote.id,
+          quoteOrderId: mainQuote.quoteOrderId,
+          isMainQuote: mainQuote.isMainQuote,
+          quoteOrder: mainQuote.QuoteOrder ? {
+            id: mainQuote.QuoteOrder.id,
+            status: mainQuote.QuoteOrder.status,
+            totalUnits: mainQuote.QuoteOrder.totalUnits,
+            estimatedCosts: mainQuote.QuoteOrder.estimatedCosts,
+            customerName: mainQuote.QuoteOrder.customerName,
+            customerCompany: mainQuote.QuoteOrder.customerCompany,
+            completedAt: mainQuote.QuoteOrder.completedAt
+          } : null
+        } : null,
+        
+        // Order Builder state summary
+        orderBuilderSummary: orderBuilderState ? {
+          totalCost: orderBuilderState.totalCost ? parseFloat(orderBuilderState.totalCost.toString()) : null,
+          totalUnits: orderBuilderState.totalUnits,
+          currentStep: orderBuilderState.currentStep,
+          isCompleted: orderBuilderState.isCompleted,
+          completedAt: orderBuilderState.completedAt
+        } : null
+      };
+    });
 
     return NextResponse.json(transformedConversations);
   } catch (error) {

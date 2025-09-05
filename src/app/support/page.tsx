@@ -25,7 +25,9 @@ import {
   PlusIcon,
   TrashIcon,
   ClockIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  XMarkIcon,
+  ArrowUturnLeftIcon
 } from '@heroicons/react/24/outline';
 
 interface Message {
@@ -176,7 +178,7 @@ export default function SupportPage() {
   const [showGuestContactForm, setShowGuestContactForm] = useState(false);
   const [pendingQuoteMessage, setPendingQuoteMessage] = useState<string | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
-  const [showConversationHistory, setShowConversationHistory] = useState(true);
+  const [showConversationHistory, setShowConversationHistory] = useState(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -306,6 +308,13 @@ export default function SupportPage() {
       hasQuoteData: !!quoteData
     });
     
+    // ONLY store conversations for quote requests with actual quote data
+    // All other conversations (FAQ, general support) remain ephemeral
+    if (intent !== 'ORDER_CREATION' || !quoteData) {
+      console.log('⏭️ Skipping conversation storage - not a quote request or no quote data');
+      return;
+    }
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       console.log('📝 storeConversation session check:', {
@@ -427,9 +436,6 @@ export default function SupportPage() {
           if (titleResponse.ok) {
             const { title, success } = await titleResponse.json();
             console.log(`✅ Title generated successfully: "${title}"`);
-            
-            // Refresh conversation list to show updated title
-            loadUserConversations();
           } else {
             console.error('Failed to generate title:', await titleResponse.text());
           }
@@ -437,6 +443,10 @@ export default function SupportPage() {
           console.error('Failed to generate title:', error);
         }
       }
+
+      // Always refresh conversation list after storing messages (for both new and existing conversations)
+      console.log('🔄 Refreshing conversation history after storing messages');
+      await loadUserConversations();
 
     } catch (error) {
       console.error('Failed to store conversation:', error);
@@ -849,8 +859,11 @@ export default function SupportPage() {
 
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Store conversation and messages in database
-      await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData);
+      // Store conversation and messages in database ONLY for quote requests
+      // All other conversations are ephemeral and not saved to history
+      if (detectedIntent === 'ORDER_CREATION' && extractedQuoteData) {
+        await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData);
+      }
       
       // Update order builder status if quote data is available
       if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
@@ -858,12 +871,7 @@ export default function SupportPage() {
         updateOrderBuilderStatus(extractedQuoteData);
       }
 
-      // Refresh conversation list to update timestamps and message counts
-      if (authUser?.id) {
-        // Directly call loadUserConversations without resetting flag
-        // to avoid triggering the useEffect loop
-        await loadUserConversations();
-      }
+      // Conversation list is already refreshed in storeConversation function
       
       // Only clear uploaded files after successful message send
       setUploadedFiles([]);
@@ -1294,37 +1302,74 @@ Would you like me to save this quote or would you like to modify any specificati
         
         setMessages(prev => [...prev, successMessage]);
         
-        // Store the quote submission in conversation if available
-        if (conversationId) {
+        // Automatically save the conversation with Order Builder state when quote is completed
+        if (conversationId && authUser) {
           try {
-            await updateConversationMetadata();
-            
-            // Also store this as a message in the conversation
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.access_token) {
-              const authHeaders: Record<string, string> = { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-              };
+            // Create comprehensive Order Builder state from current quote data
+            const orderBuilderState = {
+              capStyleSetup: {
+                style: selectedVersion.quoteData.capDetails?.productName,
+                profile: selectedVersion.quoteData.capDetails?.profile,
+                color: selectedVersion.quoteData.capDetails?.color,
+                size: selectedVersion.quoteData.capDetails?.size,
+                quantity: selectedVersion.pricing.quantity,
+                basePrice: selectedVersion.pricing.baseProductCost,
+                selectedOptions: selectedVersion.quoteData.capDetails
+              },
+              customization: {
+                logoDetails: selectedVersion.quoteData.customization?.logos?.map((logo: any) => ({
+                  location: logo.location,
+                  type: logo.type,
+                  size: logo.size,
+                  setupCost: logo.setupCost || 0,
+                  unitCost: logo.unitCost || 0
+                })) || [],
+                totalCustomizationCost: selectedVersion.pricing.logosCost
+              },
+              delivery: {
+                method: selectedVersion.quoteData.delivery?.method,
+                timeframe: selectedVersion.quoteData.delivery?.leadTime,
+                cost: selectedVersion.pricing.deliveryCost,
+                urgency: selectedVersion.quoteData.delivery?.urgency || 'standard'
+              },
+              costBreakdown: {
+                baseCost: selectedVersion.pricing.baseProductCost,
+                logoSetupCosts: 0,
+                logoUnitCosts: selectedVersion.pricing.logosCost,
+                deliveryCost: selectedVersion.pricing.deliveryCost,
+                total: selectedVersion.pricing.total
+              },
+              quoteData: {
+                quoteId: data.quoteId,
+                sessionId: sessionId,
+                status: 'COMPLETED',
+                generatedAt: new Date().toISOString(),
+                customerInfo: userProfile || guestContactInfo
+              },
+              currentStep: 'completed',
+              isCompleted: true,
+              completedAt: new Date().toISOString(),
+              totalCost: selectedVersion.pricing.total,
+              totalUnits: selectedVersion.pricing.quantity,
+              sessionId: sessionId
+            };
 
-              await fetch(`/api/conversations/${conversationId}/messages`, {
-                method: 'POST',
-                headers: authHeaders,
-                body: JSON.stringify({
-                  role: 'SYSTEM',
-                  content: `Quote submitted: ${data.quoteId}`,
-                  metadata: {
-                    type: 'quote_submission',
-                    quoteId: data.quoteId,
-                    quoteData: selectedVersion.quoteData,
-                    timestamp: new Date().toISOString()
-                  }
-                })
-              });
-            }
+            // Save the quote completion to conversation history
+            await saveQuoteCompletionToConversation(
+              data.quoteId, 
+              orderBuilderState,
+              {
+                customerName: (userProfile?.name || guestContactInfo?.name),
+                company: (userProfile?.company || guestContactInfo?.company),
+                messages: messages.slice(-5) // Last 5 messages for context
+              }
+            );
+
           } catch (error) {
-            console.error('Failed to store quote in conversation:', error);
+            console.error('Failed to save quote completion to conversation:', error);
           }
+        } else if (!conversationId) {
+          console.warn('No conversation ID available - quote saved but not linked to conversation history');
         }
       } else {
         throw new Error('Failed to save quote');
@@ -1650,6 +1695,232 @@ Would you like me to save this quote or would you like to modify any specificati
       }
     } catch (error) {
       console.error('Error regenerating title:', error);
+    }
+  };
+
+  // Restore Order Builder state from conversation
+  const restoreOrderBuilderState = async (conversationIdToRestore: string) => {
+    try {
+      console.log('🔄 Restoring Order Builder state for conversation:', conversationIdToRestore);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('No session available for restore');
+        return;
+      }
+
+      const authHeaders: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+
+      // Call the restore state endpoint
+      const response = await fetch(`/api/conversations/${conversationIdToRestore}/restore-state`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to restore state');
+        }
+
+        console.log('✅ Order Builder state restored successfully:', data);
+
+        // Show success message to user
+        const successMessage: Message = {
+          id: `msg-${Date.now()}`,
+          role: 'system',
+          content: `✨ **Order Builder state restored from previous quote!**\n\n` +
+                   `• **Conversation**: ${data.conversationTitle || 'Quote Conversation'}\n` +
+                   `• **Quote completed**: ${new Date(data.quoteCompletedAt).toLocaleDateString()}\n` +
+                   (data.orderBuilderState.totalUnits ? `• **Quantity**: ${data.orderBuilderState.totalUnits} caps\n` : '') +
+                   (data.orderBuilderState.totalCost ? `• **Total cost**: $${data.orderBuilderState.totalCost.toFixed(2)}\n` : '') +
+                   `• **Completeness**: ${data.stateMetadata.completeness.percentage}% complete\n\n` +
+                   `You can now continue working with your previous Order Builder configuration. The system has restored all your cap style, customization, delivery, and pricing settings.`,
+          timestamp: new Date(),
+          metadata: {
+            type: 'state_restoration',
+            conversationId: conversationIdToRestore,
+            stateId: data.stateMetadata.id,
+            restoredAt: new Date().toISOString()
+          }
+        };
+
+        setMessages(prev => [...prev, successMessage]);
+
+        // Update current Order Builder state in the component
+        // This would need integration with your Order Builder state management
+        if (data.orderBuilderState) {
+          // If you have Order Builder state setters, you would update them here
+          // For example:
+          // setCurrentQuoteData(data.orderBuilderState.quoteData);
+          // setOrderBuilderStatus(data.orderBuilderState.currentStep);
+          
+          // Store the restored state in session storage for persistence
+          try {
+            sessionStorage.setItem('restored_order_builder_state', JSON.stringify(data.orderBuilderState));
+            sessionStorage.setItem('restored_state_metadata', JSON.stringify(data.stateMetadata));
+            console.log('💾 Restored state saved to session storage');
+          } catch (error) {
+            console.error('Failed to save restored state to session storage:', error);
+          }
+        }
+
+        // Load this conversation as the current conversation
+        await loadConversation(conversationIdToRestore);
+        
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to restore state');
+      }
+
+    } catch (error) {
+      console.error('❌ Error restoring Order Builder state:', error);
+      
+      // Show error message to user
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'system',
+        content: `❌ **Failed to restore Order Builder state**\n\n` +
+                 `There was an error restoring your previous quote configuration: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
+                 `Please try again or start a new quote from scratch.`,
+        timestamp: new Date(),
+        metadata: {
+          type: 'state_restoration_error',
+          conversationId: conversationIdToRestore,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  // Save quote completion and Order Builder state to conversation
+  const saveQuoteCompletionToConversation = async (
+    quoteOrderId: string,
+    orderBuilderState: any,
+    sessionId: string,
+    customerInfo?: {
+      name?: string;
+      company?: string;
+      email?: string;
+    }
+  ) => {
+    try {
+      console.log('💾 Saving quote completion to conversation:', {
+        conversationId,
+        quoteOrderId,
+        sessionId
+      });
+
+      if (!conversationId) {
+        console.error('No conversation ID available for quote save');
+        return false;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('No session available for quote save');
+        return false;
+      }
+
+      const authHeaders: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+
+      // Prepare title context for AI generation
+      const titleContext = {
+        customerName: customerInfo?.name || userProfile?.name,
+        company: customerInfo?.company || userProfile?.company,
+        messages: messages.slice(-5).map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      };
+
+      // Call the save quote endpoint
+      const response = await fetch('/api/conversations/save-quote', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          conversationId,
+          quoteOrderId,
+          orderBuilderState,
+          sessionId,
+          generateTitle: true,
+          titleContext
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.details || 'Failed to save quote completion');
+        }
+
+        console.log('✅ Quote completion saved successfully:', data);
+
+        // Show success message to user
+        const successMessage: Message = {
+          id: `msg-${Date.now()}`,
+          role: 'system',
+          content: `🎉 **Quote completed and saved to conversation history!**\n\n` +
+                   `• **Conversation Title**: ${data.data.title || 'Quote Completed'}\n` +
+                   `• **Quote ID**: ${quoteOrderId}\n` +
+                   `• **Total Cost**: ${orderBuilderState.totalCost ? `$${orderBuilderState.totalCost.toFixed(2)}` : 'Custom pricing'}\n` +
+                   `• **Quantity**: ${orderBuilderState.totalUnits || 'Custom quantity'} caps\n\n` +
+                   `This conversation is now saved in your history and can be accessed anytime. ` +
+                   `You can restore the complete Order Builder state from the conversation history sidebar.`,
+          timestamp: new Date(),
+          metadata: {
+            type: 'quote_completion_saved',
+            conversationId,
+            quoteOrderId,
+            title: data.data.title,
+            generatedTitle: data.data.titleGenerated
+          }
+        };
+
+        setMessages(prev => [...prev, successMessage]);
+
+        // Refresh conversation history to show the updated conversation
+        await loadUserConversations();
+
+        return true;
+
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to save quote completion');
+      }
+
+    } catch (error) {
+      console.error('❌ Error saving quote completion:', error);
+      
+      // Show error message to user
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'system',
+        content: `⚠️ **Quote completion could not be saved**\n\n` +
+                 `Your quote was generated successfully, but we couldn't save it to your conversation history: ` +
+                 `${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
+                 `Your quote is still valid, but you may need to regenerate it if you want to access it later.`,
+        timestamp: new Date(),
+        metadata: {
+          type: 'quote_save_error',
+          conversationId,
+          quoteOrderId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+      return false;
     }
   };
 
@@ -2018,7 +2289,7 @@ Would you like me to save this quote or would you like to modify any specificati
       <div className={`w-full transition-all duration-300 flex flex-col lg:block ${showConversationHistory ? 'lg:pl-96' : ''}`}>
 
         {/* AI Support Center - Now at top of main content */}
-        <div className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6 lg:mr-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 pt-3 sm:pt-6`}>
+        <div className={`${showConversationHistory ? 'max-w-[1800px] lg:ml-3 lg:mr-6' : 'max-w-[1850px] mx-auto'} px-3 sm:px-6 pt-3 sm:pt-6`}>
           {/* Combined AI Support Center & Profile Block */}
           <div className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl p-4 sm:p-6 mb-3 sm:mb-6">
             {/* Header Section with AI Support Center and Profile */}
@@ -2084,8 +2355,8 @@ Would you like me to save this quote or would you like to modify any specificati
               </div>
               
               <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <div className="h-8 w-8 rounded-lg bg-purple-400/20 border border-purple-400/30 grid place-items-center flex-shrink-0">
-                  <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="h-8 w-8 rounded-lg bg-rose-800/20 border border-rose-800/30 grid place-items-center flex-shrink-0">
+                  <svg className="h-4 w-4 text-rose-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v12a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10M10 11v6M14 11v6" />
                   </svg>
                 </div>
@@ -2131,7 +2402,7 @@ Would you like me to save this quote or would you like to modify any specificati
         </div>
 
         {/* Main Grid */}
-        <main className={`${showConversationHistory ? 'lg:max-w-none lg:ml-6 lg:mr-6' : 'max-w-7xl mx-auto'} px-3 sm:px-6 pb-3 sm:pb-6 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 sm:gap-6`}>
+        <main className={`${showConversationHistory ? 'max-w-[1800px] lg:ml-3 lg:mr-6' : 'max-w-[1850px] mx-auto'} px-3 sm:px-6 pb-3 sm:pb-6 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 sm:gap-6`}>
           {/* Chat Panel */}
           <section className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden order-1 lg:order-1">
             {/* Chat Header */}
@@ -2236,7 +2507,7 @@ Would you like me to save this quote or would you like to modify any specificati
                             }) : ''}
                           </span>
                         </div>
-                        <div className="rounded-[20px] border border-purple-400/30 bg-gradient-to-br from-purple-600/20 via-purple-500/15 to-purple-400/10 backdrop-blur-xl p-3 sm:p-4 text-base sm:text-sm md:text-base text-white shadow-[0_8px_30px_rgba(147,51,234,0.25)] ring-1 ring-purple-400/20 w-full">
+                        <div className="rounded-[20px] border border-rose-800/30 bg-gradient-to-br from-rose-900/20 via-rose-800/15 to-rose-700/10 backdrop-blur-xl p-3 sm:p-4 text-base sm:text-sm md:text-base text-white shadow-[0_8px_30px_rgba(136,19,55,0.25)] ring-1 ring-rose-800/20 w-full">
                           <div 
                             className="whitespace-pre-wrap"
                             dangerouslySetInnerHTML={{
@@ -3015,7 +3286,7 @@ Please provide a detailed quote with cost breakdown.`;
                       onClick={() => setShowConversationHistory(false)}
                       className="p-2 rounded-xl border border-stone-500/30 bg-black/30 backdrop-blur-sm hover:bg-red-400/10 hover:border-red-400/30 text-stone-300 hover:text-red-400 transition-all duration-200 hover:shadow-lg"
                     >
-                      <span className="text-lg lg:text-sm font-semibold">×</span>
+                      <XMarkIcon className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -3085,12 +3356,13 @@ Please provide a detailed quote with cost breakdown.`;
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              {/* Quote completion indicator */}
                               <div className={`h-2 w-2 rounded-full ${
-                                conversation.status === 'ACTIVE' ? 'bg-green-400' : 'bg-white/40'
+                                conversation.hasQuote ? 'bg-lime-400 shadow-[0_0_6px_rgba(163,230,53,0.6)]' : 'bg-white/40'
                               }`} />
                               <span className="text-sm font-medium text-white truncate flex-1">
-                                {conversation.title || `Conversation ${conversation.id.slice(-6)}`}
+                                {conversation.title || `Quote Conversation ${conversation.id.slice(-6)}`}
                               </span>
                               <button
                                 onClick={(e) => {
@@ -3104,30 +3376,92 @@ Please provide a detailed quote with cost breakdown.`;
                               </button>
                             </div>
                             
-                            {conversation.preview && (
-                              <p className="text-xs text-stone-300 line-clamp-2 mb-1">
-                                {conversation.preview.content}
+                            {/* Quote-specific information */}
+                            {conversation.hasQuote && conversation.orderBuilderSummary && (
+                              <div className="mb-2 p-2 rounded-lg bg-lime-400/10 border border-lime-400/20">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2 text-lime-300">
+                                    <div className="h-1.5 w-1.5 rounded-full bg-lime-400" />
+                                    <span className="font-medium">Quote Completed</span>
+                                  </div>
+                                  <span className="text-white/70">
+                                    {conversation.orderBuilderSummary.totalUnits ? 
+                                      `${conversation.orderBuilderSummary.totalUnits} caps` : 
+                                      'Custom order'
+                                    }
+                                  </span>
+                                </div>
+                                {conversation.orderBuilderSummary.totalCost && (
+                                  <div className="mt-1 text-xs text-white/80 font-medium">
+                                    ${conversation.orderBuilderSummary.totalCost.toFixed(2)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Customer information if available */}
+                            {conversation.quoteData?.quoteOrder?.customerName && (
+                              <div className="mb-2 text-xs text-stone-300">
+                                <span className="text-white/60">Customer: </span>
+                                <span className="text-white/80">
+                                  {conversation.quoteData.quoteOrder.customerName}
+                                  {conversation.quoteData.quoteOrder.customerCompany && (
+                                    <span className="text-white/60"> ({conversation.quoteData.quoteOrder.customerCompany})</span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {conversation.lastMessage && (
+                              <p className="text-xs text-stone-300 line-clamp-2 mb-2">
+                                {conversation.lastMessage.content}
                               </p>
                             )}
                             
                             <div className="flex items-center gap-3 text-xs text-white/50">
                               <div className="flex items-center gap-1">
                                 <ClockIcon className="h-3 w-3" />
-                                {formatConversationTime(conversation.lastActivity || conversation.createdAt)}
+                                {conversation.quoteCompletedAt ? 
+                                  formatConversationTime(conversation.quoteCompletedAt) : 
+                                  formatConversationTime(conversation.lastActivity || conversation.createdAt)
+                                }
                               </div>
                               <span>{conversation.messageCount} messages</span>
+                              {conversation.hasQuote && (
+                                <span className="px-2 py-0.5 rounded-full bg-lime-400/20 text-lime-300 font-medium">
+                                  Quoted
+                                </span>
+                              )}
                             </div>
                           </div>
                           
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteConversation(conversation.id);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-2 rounded-xl border border-transparent hover:border-red-400/30 hover:bg-red-400/10 text-red-400/70 hover:text-red-400 transition-all duration-200 hover:shadow-lg"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
+                          <div className="flex flex-col gap-2 ml-3">
+                            {/* Restore state button */}
+                            {conversation.hasQuote && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // We'll implement this function next
+                                  restoreOrderBuilderState(conversation.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg border border-lime-400/30 bg-lime-400/10 text-lime-400/80 hover:text-lime-400 hover:bg-lime-400/20 transition-all duration-200"
+                                title="Restore Order Builder state"
+                              >
+                                <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteConversation(conversation.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg border border-red-400/30 bg-red-400/10 text-red-400/70 hover:text-red-400 hover:bg-red-400/20 transition-all duration-200"
+                              title="Delete conversation"
+                            >
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}

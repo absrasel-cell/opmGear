@@ -38,7 +38,7 @@ export default function Navbar() {
   }, [pathname]);
 
   return (
-    <header className="sticky top-4 z-50 mt-[50px]">
+    <header className="relative z-50 mt-[50px]">
       {/* Navigation container */}
       <div
         className="mr-auto ml-auto px-3 rounded-2xl"

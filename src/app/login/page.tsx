@@ -51,23 +51,21 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen text-slate-200">
-      {/* Background Glows (match site style) */}
+      {/* Background gradient only */}
       <div className="fixed inset-0 -z-10 pointer-events-none">
-        <div className="absolute -top-24 -left-24 h-[480px] w-[480px] rounded-full bg-lime-400/15 blur-[120px]" />
-        <div className="absolute top-1/3 -right-24 h-[520px] w-[520px] rounded-full bg-purple-500/15 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/3 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-[120px]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.035),_transparent_60%)]" />
       </div>
 
-      <div className="max-w-[1800px] mx-auto px-6 md:px-10 pt-32 pb-16 flex flex-col items-center justify-center min-h-screen">
-        {/* Header brand (centered) */}
-        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+      <div className="flex items-center justify-center min-h-screen px-6 md:px-10">
+        <div className="w-full max-w-md">
+          {/* Header brand (centered) */}
+          <div className="text-center">
           <Link href="/" className="inline-flex items-center group">
-            <div className="relative h-16 w-auto">
+            <div className="relative h-20 w-auto">
               <img 
                 src="/opmLogo.svg" 
                 alt="OPM Gear" 
-                className="h-16 w-auto object-contain filter drop-shadow-[0_0_15px_rgba(132,204,22,0.4)]"
+                className="h-20 w-auto object-contain filter drop-shadow-[0_0_15px_rgba(132,204,22,0.4)]"
               />
             </div>
           </Link>
@@ -80,8 +78,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Card */}
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          {/* Card */}
+          <div className="mt-8">
           <div className="rounded-2xl bg-white/5 border border-white/10 p-6 md:p-8 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.06)] ring-1 ring-white/5 reveal" style={{ ['--delay' as any]: '.05s' }}>
             <form className="space-y-5" onSubmit={handleSubmit} noValidate>
               {errors.general && (
@@ -232,6 +230,7 @@ export default function LoginPage() {
               <Link href="/privacy" className="text-slate-400 hover:text-white underline underline-offset-4">Privacy Policy</Link>.
             </p>
           </div>
+        </div>
         </div>
       </div>
 

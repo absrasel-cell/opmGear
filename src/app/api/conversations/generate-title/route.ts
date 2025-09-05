@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build intelligent context for title generation
-    let contextPrompt = `Generate a descriptive, professional title for this customer support conversation about custom caps. `;
+    let contextPrompt = `Generate a descriptive, professional title for this custom cap quote conversation. `;
     
     // Add user context
     if (userProfile?.name) {
@@ -142,23 +142,24 @@ export async function POST(request: NextRequest) {
       .map(msg => `${msg.role.toUpperCase()}: ${msg.content.substring(0, 300)}`)
       .join('\n');
 
-    const systemPrompt = `Generate a concise, professional title (4-8 words) for this custom cap support conversation.
+    const systemPrompt = `Generate a concise, professional title (4-8 words) for this completed custom cap quote conversation.
 
 Rules:
 - Keep under 60 characters
+- MUST include "Quote" or "Quoted" in the title  
 - Be specific and descriptive
-- Include key details like quantity, customization type, or main issue
+- Include key details like quantity, customization type, or total cost
 - Use professional language
-- Focus on the main purpose/topic
+- Focus on the completed quote
 
 Good examples:
-- "Custom Logo Caps - 100 pcs Quote"
-- "Embroidery Design Question"  
-- "Bulk Order Pricing Inquiry"
-- "Shipping Timeline Update"
-- "Payment Processing Issue"
-- "Logo Placement Consultation"
-- "Rush Order Request - 50 Caps"
+- "Custom Logo Caps Quote - 100 pcs"
+- "Embroidery Quote - $2,500 Total"
+- "Bulk Cap Order Quote - 500 Units"
+- "Rush Order Quote - Logo Caps"
+- "Corporate Caps Quote Completed"
+- "Custom Embroidered Caps Quote"
+- "Logo Setup Quote - 250 Caps"
 
 ${contextPrompt}
 

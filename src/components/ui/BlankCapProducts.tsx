@@ -208,17 +208,89 @@ const BlankCapProducts: React.FC = () => {
   }
 
   return (
-    <div className="mt-20">
-      <div className="mb-12 text-center">
-        <h2 className="text-4xl lg:text-5xl font-bricolage font-semibold text-white mb-4">
+    <div className="mt-16 sm:mt-20">
+      <div className="mb-8 sm:mb-12 text-center px-4 sm:px-0">
+        <h2 className="text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-bricolage font-semibold text-white mb-3 sm:mb-4">
           Our Blank Cap Products
         </h2>
-        <p className="text-lg text-stone-300 max-w-2xl mx-auto">
+        <p className="text-base sm:text-lg text-stone-300 max-w-2xl mx-auto leading-relaxed">
           Customize your perfect cap with our premium blank products, ready for your unique design.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Mobile: Horizontal scrolling */}
+      <div className="lg:hidden overflow-x-auto scrollbar-hide px-3 xs:px-4">
+        <div className="flex space-x-4 xs:space-x-5 sm:space-x-6 pb-2" style={{width: 'max-content'}}>
+          {products.map((product, index) => {
+            const badge = getBadgeInfo(product);
+            const borderColor = getBorderColor(index);
+            const linkColor = getCustomizeLinkColor(index);
+            const priceRange = getPriceRange(product.priceTier);
+
+            return (
+              <article 
+                key={product._id} 
+                className={`relative overflow-hidden rounded-xl xs:rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 min-h-[320px] xs:min-h-[360px] sm:min-h-[420px] flex flex-col glass-morphism-dark glass-hover-dark ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] flex-shrink-0 w-72 xs:w-80`}
+              >
+                <div className="relative z-10 p-4 xs:p-5 sm:p-6 flex flex-col h-full justify-between">
+                  <div className="mb-4 xs:mb-5 sm:mb-6">
+                    <img 
+                      src={product.mainImage.url} 
+                      alt={product.mainImage.alt} 
+                      className="w-full aspect-square object-cover rounded-lg xs:rounded-xl mb-3 xs:mb-4" 
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/uploads/home/Category/6-Panel Perforated Cap.webp'; // Fallback image
+                      }}
+                    />
+                    <span className={`px-2 xs:px-3 py-1 rounded-full text-[10px] xs:text-xs font-medium uppercase tracking-wider ${badge.textClass} ring-1 ${badge.ringClass} ${badge.bgClass} backdrop-blur-sm font-sans`}>
+                      {badge.text}
+                    </span>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-lg xs:text-xl sm:text-2xl text-white tracking-tight mb-2 xs:mb-3 font-bricolage font-semibold">
+                      {product.name}
+                    </h3>
+                    
+                    <p className="text-xs xs:text-sm leading-relaxed text-stone-300 mb-3 xs:mb-4 font-sans line-clamp-2">
+                      {product.description || `Professional-grade ${product.name.toLowerCase()} ready for custom embroidery, perfect for teams, businesses, and personal branding.`}
+                    </p>
+
+                    <div className="mb-3 xs:mb-4">
+                      <div className="flex items-center gap-2 text-xs xs:text-sm text-stone-400 mb-1 xs:mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="xs:w-4 xs:h-4">
+                          <circle cx="12" cy="12" r="10"/>
+                          <path d="M12 6v6l4 2"/>
+                        </svg>
+                        <span className="font-sans">{product.priceTier || 'Tier 1'} Pricing</span>
+                      </div>
+                      <div className="text-white font-semibold text-sm xs:text-base sm:text-lg font-sans">
+                        ${priceRange.min.toFixed(2)} - ${priceRange.max.toFixed(2)}
+                      </div>
+                      <div className="text-[10px] xs:text-xs text-stone-400 font-sans">per unit (volume pricing)</div>
+                    </div>
+
+                    <Link 
+                      href={`/customize/${product.slug}`} 
+                      className={`inline-flex items-center gap-1.5 xs:gap-2 ${linkColor} transition-colors text-xs xs:text-sm font-medium`}
+                    >
+                      Customize Now
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="xs:w-4 xs:h-4">
+                        <path d="M5 12h14"></path>
+                        <path d="m12 5 7 7-7 7"></path>
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop: Grid layout */}
+      <div className="hidden lg:grid lg:grid-cols-3 xl:grid-cols-4 gap-6 px-0">
         {products.map((product, index) => {
           const badge = getBadgeInfo(product);
           const borderColor = getBorderColor(index);
@@ -228,9 +300,9 @@ const BlankCapProducts: React.FC = () => {
           return (
             <article 
               key={product._id} 
-              className={`relative overflow-hidden rounded-3xl hover:scale-105 transition-all duration-300 min-h-[420px] flex flex-col glass-morphism-dark glass-hover-dark ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]`}
+              className={`relative overflow-hidden rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 min-h-[380px] sm:min-h-[420px] flex flex-col glass-morphism-dark glass-hover-dark ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]`}
             >
-              <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+              <div className="relative z-10 p-4 sm:p-6 lg:p-8 flex flex-col h-full justify-between">
                 <div className="mb-6">
                   <img 
                     src={product.mainImage.url} 
@@ -247,7 +319,7 @@ const BlankCapProducts: React.FC = () => {
                 </div>
                 
                 <div>
-                  <h3 className="text-2xl text-white tracking-tight mb-3 font-bricolage font-semibold">
+                  <h3 className="text-lg sm:text-xl lg:text-2xl text-white tracking-tight mb-2 sm:mb-3 font-bricolage font-semibold">
                     {product.name}
                   </h3>
                   
@@ -263,7 +335,7 @@ const BlankCapProducts: React.FC = () => {
                       </svg>
                       <span className="font-sans">{product.priceTier || 'Tier 1'} Pricing</span>
                     </div>
-                    <div className="text-white font-semibold text-lg font-sans">
+                    <div className="text-white font-semibold text-base sm:text-lg font-sans">
                       ${priceRange.min.toFixed(2)} - ${priceRange.max.toFixed(2)}
                     </div>
                     <div className="text-xs text-stone-400 font-sans">per unit (volume pricing)</div>

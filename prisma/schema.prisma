@@ -70,8 +70,13 @@ model Conversation {
   lastActivity        DateTime              @default(now())
   createdAt           DateTime              @default(now())
   updatedAt           DateTime
+  hasQuote            Boolean               @default(false)
+  quoteCompletedAt    DateTime?
+  orderBuilderStateId String?               @unique
   User                User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   ConversationMessage ConversationMessage[]
+  ConversationQuotes  ConversationQuotes[]
+  OrderBuilderState   OrderBuilderState?   @relation(fields: [orderBuilderStateId], references: [id])
 
   @@index([context])
   @@index([isArchived])
@@ -80,6 +85,8 @@ model Conversation {
   @@index([status])
   @@index([userId])
   @@index([userId, lastActivity])
+  @@index([hasQuote])
+  @@index([quoteCompletedAt])
 }
 
 model ConversationMessage {
@@ -323,6 +330,7 @@ model QuoteOrder {
   User                   User?              @relation(fields: [assignedToId], references: [id])
   Order                  Order?             @relation(fields: [convertedToOrderId], references: [id])
   QuoteOrderFile         QuoteOrderFile[]
+  ConversationQuotes     ConversationQuotes[]
 
   @@index([assignedToId])
   @@index([assignedToId, status])
@@ -409,6 +417,52 @@ model User {
   @@index([customerRole])
   @@index([email])
   @@index([isBanned])
+}
+
+model ConversationQuotes {
+  id             String       @id @default(cuid())
+  conversationId String
+  quoteOrderId   String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  isMainQuote    Boolean      @default(true)
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  QuoteOrder     QuoteOrder   @relation(fields: [quoteOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, quoteOrderId])
+  @@index([conversationId])
+  @@index([quoteOrderId])
+  @@index([isMainQuote])
+}
+
+model OrderBuilderState {
+  id                   String        @id @default(cuid())
+  sessionId            String        @unique
+  capStyleSetup        Json?
+  customization        Json?
+  delivery             Json?
+  costBreakdown        Json?
+  productionTimeline   Json?
+  packaging            Json?
+  quoteData            Json?
+  currentStep          String        @default("setup")
+  isCompleted          Boolean       @default(false)
+  completedAt          DateTime?
+  totalCost            Decimal?      @db.Decimal(12, 2)
+  totalUnits           Int?
+  stateVersion         String        @default("1.0")
+  metadata             Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  lastRestoredAt       DateTime?
+  restorationCount     Int           @default(0)
+  Conversation         Conversation?
+
+  @@index([sessionId])
+  @@index([isCompleted])
+  @@index([completedAt])
+  @@index([currentStep])
+  @@index([updatedAt])
 }
 
 enum AccessRole {

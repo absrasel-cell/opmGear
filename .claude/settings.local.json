@@ -461,7 +461,8 @@
       "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\conversations/**)",
       "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\conversations\\[id]/**)",
       "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\conversations\\[id]/**)",
-      "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\conversations\\[id]/**)"
+      "Read(/F:\\Custom Cap - github\\USCC\\src\\app\\api\\conversations\\[id]/**)",
+      "Bash(copy srcappsupportpage.tsx srcappsupportpage.tsx.backup)"
     ],
     "deny": [],
     "ask": [],
