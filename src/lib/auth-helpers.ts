@@ -1,59 +1,26 @@
 import { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import prisma from './prisma';
+import { createRouteHandlerClient } from './supabase-ssr';
+import { supabaseAdmin } from './supabase';
 
 export async function getCurrentUser(request: NextRequest) {
   try {
-    // Try to get token from request headers first
-    const authHeader = request.headers.get('authorization');
-    let accessToken = authHeader?.replace('Bearer ', '');
-    
-    // If not in headers, try cookies
-    if (!accessToken) {
-      const cookieStore = await cookies();
-      const allCookies = cookieStore.getAll();
-      console.log('Available cookies:', allCookies.map(c => ({ name: c.name, hasValue: !!c.value })));
-      
-      accessToken = cookieStore.get('sb-access-token')?.value;
-      
-      // Also try other common Supabase cookie names
-      if (!accessToken) {
-        accessToken = cookieStore.get('supabase-auth-token')?.value;
-      }
-      if (!accessToken) {
-        accessToken = cookieStore.get('supabase.auth.token')?.value;
-      }
-    }
-
-    if (!accessToken) {
-      console.log('No access token found in any location');
-      return null;
-    }
-
-    console.log('Access token found, length:', accessToken.length);
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
-      }
-    );
+    // Use the new SSR client to handle cookies properly
+    const { supabase } = createRouteHandlerClient(request);
 
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {
-      console.error('Supabase auth error:', error);
+      console.log('Supabase auth error:', error.message);
       return null;
     }
     
-    console.log('User authenticated successfully:', user?.id);
-    return user;
+    if (user) {
+      console.log('User authenticated successfully:', user.id);
+      return user;
+    }
+    
+    console.log('No authenticated user found');
+    return null;
   } catch (error) {
     console.error('Error getting current user:', error);
     return null;
@@ -62,22 +29,16 @@ export async function getCurrentUser(request: NextRequest) {
 
 export async function getUserProfile(userId: string) {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        accessRole: true,
-        customerRole: true,
-        adminLevel: true,
-        phone: true,
-        company: true,
-        avatarUrl: true,
-        isBanned: true,
-        lastLoginAt: true,
-      },
-    });
+    const { data: user, error } = await supabaseAdmin
+      .from('User')
+      .select('id, email, name, accessRole, customerRole, adminLevel, phone, company, avatarUrl, isBanned, lastLoginAt')
+      .eq('id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+    
     return user;
   } catch (error) {
     console.error('Error getting user profile:', error);

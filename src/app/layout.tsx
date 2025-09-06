@@ -7,6 +7,8 @@ import { AuthProvider } from "@/components/auth/AuthContext";
 import { CartProvider } from "@/components/cart/CartContext";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import ConditionalNavbar from "@/components/ConditionalNavbar";
+import ConditionalFooter from "@/components/ConditionalFooter";
+import HydrationTest from "@/components/HydrationTest";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -79,7 +81,8 @@ export default function RootLayout({
               <main className="relative">
                 {children}
               </main>
-              <Footer />
+              <ConditionalFooter />
+              <HydrationTest />
             </CartProvider>
           </AuthProvider>
         </QueryProvider>

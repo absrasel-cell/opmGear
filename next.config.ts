@@ -25,6 +25,15 @@ const nextConfig = {
       },
     ],
   },
+  // Enable hydration debugging in development
+  reactStrictMode: true,
+  // Help with SSR/hydration debugging
+  serverExternalPackages: ['@supabase/supabase-js'],
+  // Improve hydration by ensuring consistent serialization
+  compiler: {
+    // Remove console.logs in production but keep in development for debugging
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
+  },
 };
 
 module.exports = nextConfig;

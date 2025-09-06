@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createClientComponentClient } from '@/lib/supabase-ssr';
 
 interface User {
   id: string;
@@ -30,29 +30,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
+  
+  // Create Supabase client instance
+  const supabase = createClientComponentClient();
 
-  useEffect(() => {
-    // Check for existing session
-    checkAuth();
+  console.log('🏗️ AuthProvider: Rendering - isHydrated:', isHydrated, 'loading:', loading);
+  // HYDRATION FIX - React 18 + Modern Supabase SSR
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event);
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        checkAuth();
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
+  const checkAuth = useCallback(async () => {
+    if (!isHydrated) {
+      console.log('⏳ AuthContext: Skipping checkAuth - not hydrated yet');
+      return;
+    }
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkAuth = async () => {
     try {
       console.log('AuthContext: Checking session...');
       const response = await fetch('/api/auth/session');
       console.log('AuthContext: Session response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
         console.log('AuthContext: Session response:', data);
@@ -71,10 +67,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Auth check failed:', error);
       setUser(null);
     } finally {
-      console.log('AuthContext: Setting loading to false');
       setLoading(false);
     }
-  };
+  }, [isHydrated]);
+
+  // Hydration effect - CRITICAL for client-side functionality
+  useEffect(() => {
+    console.log('🚀 AuthProvider: HYDRATION SUCCESSFUL - Client-side mount confirmed!');
+    setIsHydrated(true);
+  }, []);
+
+  // Auth initialization effect - runs after hydration
+  useEffect(() => {
+    if (!isHydrated) {
+      console.log('⏳ AuthProvider: Waiting for hydration before initializing auth');
+      return;
+    }
+
+    console.log('🔧 AuthProvider: Starting auth initialization after hydration');
+    
+    // Initialize auth state immediately
+    checkAuth();
+
+    // Listen for auth state changes
+    console.log('📡 AuthProvider: Setting up Supabase auth state change listener');
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 AuthContext: Auth state changed:', { event, hasSession: !!session });
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('✅ AuthContext: User signed in, refreshing auth state');
+        await checkAuth();
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👋 AuthContext: User signed out, clearing state');
+        setUser(null);
+        setLoading(false);
+      } else if (event === 'INITIAL_SESSION') {
+        console.log('🎯 AuthContext: Initial session loaded');
+        await checkAuth();
+      }
+    });
+
+    return () => {
+      console.log('🧹 AuthContext: Cleaning up auth state listener');
+      subscription.unsubscribe();
+    };
+  }, [isHydrated, checkAuth]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -171,11 +208,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        loading,
+        loading: loading || !isHydrated, // Keep loading until hydrated
         login,
         register,
         logout,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && isHydrated,
         checkAuth,
         refreshSession,
       }}
