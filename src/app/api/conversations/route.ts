@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   console.log('🔥 Conversations API - V4.0 SIMPLIFIED AUTH');
@@ -78,85 +78,94 @@ export async function GET(request: NextRequest) {
     console.log('📊 Where clause:', whereClause);
 
     // First, let's check if ANY conversations exist for this user (ignore isArchived)
-    const totalUserConversations = await prisma.conversation.count({
-      where: { userId }
-    });
+    const { count: totalUserConversations } = await supabaseAdmin
+      .from('Conversation')
+      .select('id', { count: 'exact', head: true })
+      .eq('userId', userId);
+    
     console.log('📊 Total conversations for user (including archived):', totalUserConversations);
 
-    const conversations = await prisma.conversation.findMany({
-      where: {
-        ...whereClause,
-        isArchived: false,
-        hasQuote: true, // ONLY show conversations with completed quotes
-        quoteCompletedAt: {
-          not: null // Ensure quote completion timestamp exists
-        }
-      },
-      include: {
-        ConversationMessage: {
-          orderBy: { createdAt: 'desc' },
-          take: 1, // Get only the latest message for preview
-        },
-        ConversationQuotes: {
-          include: {
-            QuoteOrder: {
-              select: {
-                id: true,
-                status: true,
-                totalUnits: true,
-                estimatedCosts: true,
-                customerName: true,
-                customerCompany: true,
-                completedAt: true
-              }
-            }
-          },
-          take: 1,
-          orderBy: { createdAt: 'desc' }
-        },
-        OrderBuilderState: {
-          select: {
-            totalCost: true,
-            totalUnits: true,
-            currentStep: true,
-            isCompleted: true,
-            completedAt: true
-          }
-        },
-        _count: {
-          select: {
-            ConversationMessage: true,
-          },
-        },
-      },
-      orderBy: { quoteCompletedAt: 'desc' }, // Order by quote completion time
-      take: limit,
-      skip: offset,
-    });
+    // Get all conversations (both support and quote requests) - don't filter by context
+    const { data: conversations, error: conversationsError } = await supabaseAdmin
+      .from('Conversation')
+      .select(`
+        id,
+        userId,
+        title,
+        context,
+        status,
+        lastActivity,
+        tags,
+        createdAt,
+        metadata,
+        ConversationMessage (
+          id,
+          content,
+          createdAt,
+          role
+        ),
+        ConversationQuotes (
+          id,
+          quoteOrderId,
+          isMainQuote,
+          createdAt,
+          QuoteOrder (
+            id,
+            status,
+            estimatedCosts,
+            customerName,
+            customerCompany,
+            completedAt
+          )
+        ),
+        OrderBuilderState (
+          totalCost,
+          totalUnits,
+          currentStep,
+          isCompleted,
+          completedAt
+        )
+      `)
+      .eq('userId', userId)
+      .eq('isArchived', false)
+      .order('lastActivity', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (conversationsError) {
+      throw conversationsError;
+    }
 
     // Transform the data for frontend with quote information
-    const transformedConversations = conversations.map(conv => {
-      const mainQuote = conv.ConversationQuotes[0];
-      const orderBuilderState = conv.OrderBuilderState;
+    const transformedConversations = (conversations || []).map(conv => {
+      const mainQuote = conv.ConversationQuotes?.[0];
+      const orderBuilderState = conv.OrderBuilderState?.[0];
+      const latestMessage = conv.ConversationMessage?.[conv.ConversationMessage?.length - 1]; // Get the most recent message
+      
+      // Extract quote data from metadata if available
+      const metadata = conv.metadata || {};
+      const hasQuoteData = metadata.hasQuoteData || false;
+      const intent = metadata.intent;
       
       return {
         id: conv.id,
-        title: conv.title || 'Untitled Quote Conversation',
+        title: conv.title || (conv.context === 'SUPPORT' ? 'Support Conversation' : 'Quote Conversation'),
         context: conv.context,
         status: conv.status,
         lastActivity: conv.lastActivity,
-        messageCount: conv._count.ConversationMessage,
-        lastMessage: conv.ConversationMessage[0] ? {
-          content: conv.ConversationMessage[0].content.substring(0, 100) + '...',
-          timestamp: conv.ConversationMessage[0].createdAt,
-          role: conv.ConversationMessage[0].role,
+        messageCount: conv.ConversationMessage?.length || 0,
+        lastMessage: latestMessage ? {
+          content: latestMessage.content.length > 100 
+            ? latestMessage.content.substring(0, 100) + '...' 
+            : latestMessage.content,
+          timestamp: latestMessage.createdAt,
+          role: latestMessage.role,
         } : null,
         tags: conv.tags,
         createdAt: conv.createdAt,
         
-        // Quote-specific data
-        hasQuote: conv.hasQuote,
-        quoteCompletedAt: conv.quoteCompletedAt,
+        // Quote-specific data from metadata and relations
+        hasQuote: hasQuoteData,
+        intent: intent,
         quoteData: mainQuote ? {
           quoteId: mainQuote.id,
           quoteOrderId: mainQuote.quoteOrderId,
@@ -164,7 +173,6 @@ export async function GET(request: NextRequest) {
           quoteOrder: mainQuote.QuoteOrder ? {
             id: mainQuote.QuoteOrder.id,
             status: mainQuote.QuoteOrder.status,
-            totalUnits: mainQuote.QuoteOrder.totalUnits,
             estimatedCosts: mainQuote.QuoteOrder.estimatedCosts,
             customerName: mainQuote.QuoteOrder.customerName,
             customerCompany: mainQuote.QuoteOrder.customerCompany,
@@ -179,7 +187,10 @@ export async function GET(request: NextRequest) {
           currentStep: orderBuilderState.currentStep,
           isCompleted: orderBuilderState.isCompleted,
           completedAt: orderBuilderState.completedAt
-        } : null
+        } : null,
+        
+        // Add metadata for debugging and additional context
+        metadata: metadata
       };
     });
 
@@ -195,29 +206,78 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { userId, sessionId, title, context = 'SUPPORT', metadata } = body;
 
+    // Enhanced logging for conversation creation debugging
+    console.log('🔥 Conversation Creation API called:', {
+      hasUserId: !!userId,
+      hasSessionId: !!sessionId,
+      context,
+      metadataKeys: metadata ? Object.keys(metadata) : []
+    });
+
+    // Allow creation with either userId OR sessionId (for guest users)
     if (!userId && !sessionId) {
+      console.error('❌ Conversation creation failed: No userId or sessionId provided');
       return NextResponse.json({ error: 'User ID or Session ID required' }, { status: 400 });
     }
 
+    // If no userId but sessionId exists, this is a guest user conversation
+    const isGuestConversation = !userId && !!sessionId;
+    
     // Generate a unique conversation ID
     const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    const conversation = await prisma.conversation.create({
-      data: {
+    console.log('💾 Creating conversation:', {
+      conversationId,
+      userId: userId || 'GUEST',
+      sessionId,
+      isGuest: isGuestConversation,
+      context
+    });
+
+    const { data: conversation, error: createError } = await supabaseAdmin
+      .from('Conversation')
+      .insert({
         id: conversationId,
-        userId,
+        userId: userId || null, // Allow null for guest users
         sessionId,
         title: title || null,
         context,
-        metadata,
-        lastActivity: new Date(),
-      },
+        hasQuote: metadata?.hasQuoteData || false, // Set hasQuote flag based on metadata
+        metadata: {
+          ...metadata,
+          isGuest: isGuestConversation,
+          createdAt: new Date().toISOString()
+        },
+        lastActivity: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(), // Fix: Add missing updatedAt field
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('❌ Database error creating conversation:', {
+        error: createError,
+        conversationId,
+        userId: userId || 'GUEST',
+        sessionId
+      });
+      throw createError;
+    }
+
+    console.log('✅ Conversation created successfully:', {
+      conversationId: conversation.id,
+      userId: conversation.userId || 'GUEST',
+      context: conversation.context
     });
 
     return NextResponse.json(conversation);
   } catch (error) {
-    console.error('Error creating conversation:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('❌ CRITICAL: Conversation creation error:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message 
+    }, { status: 500 });
   }
 }
 
@@ -297,13 +357,17 @@ export async function PATCH(request: NextRequest) {
     if (metadata) updateData.metadata = metadata;
     if (lastActivity) updateData.lastActivity = new Date(lastActivity);
 
-    const conversation = await prisma.conversation.update({
-      where: { 
-        id: conversationId,
-        userId: userId // Ensure user can only update their own conversations
-      },
-      data: updateData,
-    });
+    const { data: conversation, error: updateError } = await supabaseAdmin
+      .from('Conversation')
+      .update(updateData)
+      .eq('id', conversationId)
+      .eq('userId', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
 
     return NextResponse.json({
       success: true,

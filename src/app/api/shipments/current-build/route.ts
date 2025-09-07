@@ -1,27 +1,25 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET() {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // Get the most recent shipment that's either PREPARING or READY_TO_SHIP
-    const currentShipment = await prisma.shipment.findFirst({
-      where: {
-        status: {
-          in: ['PREPARING', 'READY_TO_SHIP']
-        }
-      },
-      select: {
-        buildNumber: true,
-        status: true,
-        shippingMethod: true,
-        estimatedDeparture: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const { data: currentShipment, error } = await supabase
+      .from('Shipment')
+      .select('buildNumber, status, shippingMethod, estimatedDeparture')
+      .in('status', ['PREPARING', 'READY_TO_SHIP'])
+      .order('createdAt', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      throw error;
+    }
 
     return NextResponse.json({
       success: true,
@@ -38,7 +36,5 @@ export async function GET() {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

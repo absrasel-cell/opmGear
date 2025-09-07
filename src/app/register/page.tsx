@@ -140,13 +140,20 @@ export default function RegisterPage() {
 
   return (
     <div className="relative min-h-screen text-slate-200">
-      {/* Background glows */}
-      <div className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute -top-24 -left-24 h-[480px] w-[480px] rounded-full bg-lime-400/15 blur-[120px]" />
-        <div className="absolute top-1/3 -right-24 h-[520px] w-[520px] rounded-full bg-purple-500/15 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/3 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-[120px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.035),_transparent_60%)]" />
+      {/* Background: cap store image for register page */}
+      <div className="pointer-events-none fixed inset-0 -z-20">
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: 'url(/uploads/cap-store-bg.jpg)' }}
+        />
+        <div className="absolute inset-0 bg-black/70" />
       </div>
+      
+      <style jsx>{`
+        html {
+          background: #000 !important;
+        }
+      `}</style>
 
       <div className="min-h-screen flex items-center justify-center px-6 md:px-10 py-12">
         <div className="w-full max-w-2xl">

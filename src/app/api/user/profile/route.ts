@@ -1,31 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser, requireAuth } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
  try {
   const user = await requireAuth(request);
 
-  const profile = await prisma.user.findUnique({
-   where: { id: user.id },
-   select: {
-    id: true,
-    email: true,
-    name: true,
-    accessRole: true,
-    customerRole: true,
-    adminLevel: true,
-    phone: true,
-    company: true,
-    avatarUrl: true,
-    address: true,
-    preferences: true,
-    createdAt: true,
-    updatedAt: true,
-   },
-  });
+  const { data: profile, error: profileError } = await supabaseAdmin
+   .from('User')
+   .select(`
+    id,
+    email,
+    name,
+    accessRole,
+    customerRole,
+    adminLevel,
+    phone,
+    company,
+    avatarUrl,
+    address,
+    preferences,
+    createdAt,
+    updatedAt
+   `)
+   .eq('id', user.id)
+   .single();
 
-  if (!profile) {
+  if (profileError || !profile) {
+   console.error('Profile fetch error:', profileError);
    return NextResponse.json(
     { error: 'Profile not found' },
     { status: 404 }
@@ -56,23 +58,29 @@ export async function PATCH(request: NextRequest) {
   // Don't allow updating certain fields
   const { id, email, accessRole, customerRole, adminLevel, createdAt, updatedAt, ...allowedUpdates } = updates;
 
-  const updatedProfile = await prisma.user.update({
-   where: { id: user.id },
-   data: allowedUpdates,
-   select: {
-    id: true,
-    email: true,
-    name: true,
-    accessRole: true,
-    customerRole: true,
-    adminLevel: true,
-    phone: true,
-    company: true,
-    avatarUrl: true,
-    address: true,
-    preferences: true,
-   },
-  });
+  const { data: updatedProfile, error: updateError } = await supabaseAdmin
+   .from('User')
+   .update(allowedUpdates)
+   .eq('id', user.id)
+   .select(`
+    id,
+    email,
+    name,
+    accessRole,
+    customerRole,
+    adminLevel,
+    phone,
+    company,
+    avatarUrl,
+    address,
+    preferences
+   `)
+   .single();
+
+  if (updateError || !updatedProfile) {
+   console.error('Profile update error:', updateError);
+   throw new Error('Failed to update profile in database');
+  }
 
   return NextResponse.json({
    message: 'Profile updated successfully',

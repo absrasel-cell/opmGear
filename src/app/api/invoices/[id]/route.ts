@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { supabaseAdmin } from '@/lib/supabase';
 import { z } from 'zod';
 import { requireAdmin, getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
-
-const prisma = new PrismaClient();
 
 // Helper function to check if user can access invoice (admin or owner)
 async function canAccessInvoice(request: NextRequest, customerId: string) {
@@ -37,25 +35,28 @@ export async function GET(
  try {
   const { id } = await params;
   
-  const invoice = await prisma.invoice.findUnique({
-   where: { id },
-   include: {
-    items: true,
-    customer: {
-     select: { id: true, name: true, email: true }
-    },
-    order: {
-     select: { id: true, productName: true, status: true }
-    }
-   }
-  });
+  const { data: invoice, error } = await supabaseAdmin
+   .from('invoices')
+   .select(`
+    *,
+    invoice_items(*),
+    customers:customer_id(id, name, email),
+    orders:order_id(id, product_name, status)
+   `)
+   .eq('id', id)
+   .single();
+
+  if (error && error.code !== 'PGRST116') {
+   console.error('Error fetching invoice:', error);
+   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   if (!invoice) {
    return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
   }
 
   // Check permissions - admin or invoice owner
-  if (!(await canAccessInvoice(request, invoice.customerId))) {
+  if (!(await canAccessInvoice(request, invoice.customer_id))) {
    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
@@ -79,32 +80,39 @@ export async function PATCH(
   const body = await request.json();
   const { status, notes, dueDate } = updateInvoiceSchema.parse(body);
 
-  const invoice = await prisma.invoice.findUnique({
-   where: { id: id }
-  });
+  const { data: invoice, error: fetchError } = await supabaseAdmin
+   .from('invoices')
+   .select('*')
+   .eq('id', id)
+   .single();
 
-  if (!invoice) {
+  if (fetchError || !invoice) {
+   console.error('Error fetching invoice:', fetchError);
    return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
   }
 
-  const updateData: any = {};
-  if (status !== undefined) updateData.status = status;
-  if (notes !== undefined) updateData.notes = notes;
-  if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+  // Convert camelCase to snake_case for Supabase
+  const supabaseUpdateData: any = {};
+  if (status !== undefined) supabaseUpdateData.status = status;
+  if (notes !== undefined) supabaseUpdateData.notes = notes;
+  if (dueDate !== undefined) supabaseUpdateData.due_date = dueDate ? new Date(dueDate).toISOString() : null;
 
-  const updatedInvoice = await prisma.invoice.update({
-   where: { id: id },
-   data: updateData,
-   include: {
-    items: true,
-    customer: {
-     select: { id: true, name: true, email: true }
-    },
-    order: {
-     select: { id: true, productName: true, status: true }
-    }
-   }
-  });
+  const { data: updatedInvoice, error: updateError } = await supabaseAdmin
+   .from('invoices')
+   .update(supabaseUpdateData)
+   .eq('id', id)
+   .select(`
+    *,
+    invoice_items(*),
+    customers:customer_id(id, name, email),
+    orders:order_id(id, product_name, status)
+   `)
+   .single();
+
+  if (updateError) {
+   console.error('Error updating invoice:', updateError);
+   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   return NextResponse.json(updatedInvoice);
  } catch (error: any) {
@@ -136,11 +144,14 @@ export async function DELETE(
   // Only admins can delete invoices
   const { user, profile } = await requireAdmin(request);
 
-  const invoice = await prisma.invoice.findUnique({
-   where: { id: id }
-  });
+  const { data: invoice, error: fetchError } = await supabaseAdmin
+   .from('invoices')
+   .select('*')
+   .eq('id', id)
+   .single();
 
-  if (!invoice) {
+  if (fetchError || !invoice) {
+   console.error('Error fetching invoice:', fetchError);
    return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
   }
 
@@ -148,14 +159,25 @@ export async function DELETE(
   console.log(`Admin ${profile.email} deleting invoice ${invoice.number} with status ${invoice.status}`);
 
   // Delete invoice items first (cascade should handle this, but being explicit)
-  await prisma.invoiceItem.deleteMany({
-   where: { invoiceId: id }
-  });
+  const { error: deleteItemsError } = await supabaseAdmin
+   .from('invoice_items')
+   .delete()
+   .eq('invoice_id', id);
+
+  if (deleteItemsError) {
+   console.error('Error deleting invoice items:', deleteItemsError);
+  }
 
   // Delete the invoice
-  await prisma.invoice.delete({
-   where: { id: id }
-  });
+  const { error: deleteError } = await supabaseAdmin
+   .from('invoices')
+   .delete()
+   .eq('id', id);
+
+  if (deleteError) {
+   console.error('Error deleting invoice:', deleteError);
+   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   return NextResponse.json({ message: 'Invoice deleted successfully' });
  } catch (error: any) {

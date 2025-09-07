@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 export async function generateInvoiceNumber(): Promise<string> {
   const now = new Date();

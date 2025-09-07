@@ -13,7 +13,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { ConversationService } from '@/lib/conversation';
-import { ConversationContext, MessageRole } from '@prisma/client';
+import { supabaseAdmin } from '@/lib/supabase';
+
+// Define the ConversationContext enum locally since we're moving away from Prisma
+enum ConversationContext {
+  SUPPORT = 'SUPPORT',
+  SALES = 'SALES',
+  ORDER = 'ORDER',
+  QUOTE = 'QUOTE'
+}
 import { ConversationContextManager } from '@/lib/ai/conversation-context-manager';
 import { LogoAnalysisService } from '@/lib/ai/logo-analysis-service';
 import { AI_ASSISTANTS, getAssistantByIntent, formatAssistantResponse } from '@/lib/ai-assistants-config';
@@ -191,6 +199,45 @@ export async function POST(request: NextRequest) {
     ...response.metadata
    }
   });
+
+  // Step 6.5: Generate conversation title if this is a new conversation with no title
+  if (conversationHistory.length === 0 && !conversation.title && message?.trim().length > 0) {
+    try {
+      console.log('🎯 Generating title for new conversation:', conversation.id);
+      const titleResponse = await getOpenAIClient()?.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { 
+            role: "system", 
+            content: "Generate a concise 3-5 word title for this conversation based on the user's first message. Focus on the main topic or intent. Return only the title, no quotes or extra text." 
+          },
+          { role: "user", content: message }
+        ],
+        temperature: 0.3,
+        max_tokens: 50
+      });
+
+      const generatedTitle = titleResponse?.choices[0]?.message?.content?.trim();
+      if (generatedTitle && generatedTitle.length > 0) {
+        // Update conversation with generated title
+        const { error: titleUpdateError } = await supabaseAdmin
+          .from('Conversation')
+          .update({ 
+            title: generatedTitle,
+            updatedAt: new Date().toISOString() 
+          })
+          .eq('id', conversation.id);
+
+        if (titleUpdateError) {
+          console.warn('⚠️ Failed to update conversation title:', titleUpdateError);
+        }
+        console.log('✅ Generated conversation title:', generatedTitle);
+      }
+    } catch (titleError) {
+      console.warn('⚠️ Failed to generate conversation title:', titleError);
+      // Don't fail the main request if title generation fails
+    }
+  }
 
   // Step 7: Check for handoff requirements
   const handoffData = await checkForHandoff(

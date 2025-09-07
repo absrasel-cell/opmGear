@@ -106,6 +106,14 @@ interface ProductClientProps {
  productSlug?: string;
  prefillOrderId?: string;
  reorder?: boolean;
+ pricingData: {
+  price48: number;
+  price144: number;
+  price576: number;
+  price1152: number;
+  price2880: number;
+  price10000: number;
+ };
 }
 
 function getImageForView(viewList: ImageWithAlt[], colorName: string): ImageWithAlt | null {
@@ -121,10 +129,10 @@ function getImageForView(viewList: ImageWithAlt[], colorName: string): ImageWith
 
 // VolumePricingCard Component with Quantity-Based Animation
 function VolumePricingCard({ 
- pricing, 
+ pricingData, 
  selectedColors 
 }: {
- pricing: Pricing;
+ pricingData: { price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number; };
  selectedColors: Record<string, { sizes: Record<string, number> }>;
 }) {
  const totalQuantity = Object.values(selectedColors).reduce((sum, colorData) => 
@@ -132,12 +140,12 @@ function VolumePricingCard({
  );
 
  const pricingTiers = [
-  { qty: 48, label: '48+', price: pricing.price48, color: 'from-gray-500 to-gray-600', icon: '🏃‍♂️' },
-  { qty: 144, label: '144+', price: pricing.price144, color: 'from-blue-500 to-blue-600', icon: '🚀' },
-  { qty: 576, label: '576+', price: pricing.price576, color: 'from-green-500 to-green-600', icon: '⚡' },
-  { qty: 1152, label: '1152+', price: pricing.price1152, color: 'from-yellow-500 to-orange-500', icon: '🔥' },
-  { qty: 2880, label: '2880+', price: pricing.price2880, color: 'from-purple-500 to-purple-600', icon: '💎' },
-  { qty: 10000, label: '10000+', price: pricing.price10000, color: 'from-pink-500 to-red-500', icon: '👑' }
+  { qty: 48, label: '48+', price: pricingData.price48, color: 'from-gray-500 to-gray-600', icon: '🏃‍♂️' },
+  { qty: 144, label: '144+', price: pricingData.price144, color: 'from-blue-500 to-blue-600', icon: '🚀' },
+  { qty: 576, label: '576+', price: pricingData.price576, color: 'from-green-500 to-green-600', icon: '⚡' },
+  { qty: 1152, label: '1152+', price: pricingData.price1152, color: 'from-yellow-500 to-orange-500', icon: '🔥' },
+  { qty: 2880, label: '2880+', price: pricingData.price2880, color: 'from-purple-500 to-purple-600', icon: '💎' },
+  { qty: 10000, label: '10000+', price: pricingData.price10000, color: 'from-pink-500 to-red-500', icon: '👑' }
  ];
 
  // Find current tier
@@ -156,9 +164,9 @@ function VolumePricingCard({
   if (totalQuantity >= 1152) {
    return {
     background: 'from-purple-50 via-pink-50 to-rose-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-rose-900/20',
-    border: 'border-purple-200/50 ',
+    border: 'border-purple-200/50 dark:border-purple-700/50',
     title: 'from-purple-600 via-pink-600 to-rose-600 dark:from-purple-400 dark:via-pink-400 dark:to-rose-400',
-    subtitle: 'text-purple-600/80 text-purple-600/80',
+    subtitle: 'text-purple-600/80 dark:text-purple-300/80',
     icon: 'from-purple-500 via-pink-500 to-rose-500',
     iconGlow: 'from-purple-400 via-pink-400 to-rose-400',
     orbs: ['from-purple-400 to-pink-400', 'from-pink-400 to-rose-400'],
@@ -168,9 +176,9 @@ function VolumePricingCard({
   } else if (totalQuantity >= 576) {
    return {
     background: 'from-green-50 via-emerald-50 to-teal-50 dark:from-green-900/20 dark:via-emerald-900/20 dark:to-teal-900/20',
-    border: 'border-green-200/50 ',
+    border: 'border-green-200/50 dark:border-green-700/50',
     title: 'from-green-600 via-emerald-600 to-teal-600 dark:from-green-400 dark:via-emerald-400 dark:to-teal-400',
-    subtitle: 'text-green-600/80 text-green-700/80',
+    subtitle: 'text-green-600/80 dark:text-green-300/80',
     icon: 'from-green-500 via-emerald-500 to-teal-500',
     iconGlow: 'from-green-400 via-emerald-400 to-teal-400',
     orbs: ['from-green-400 to-emerald-400', 'from-emerald-400 to-teal-400'],
@@ -180,9 +188,9 @@ function VolumePricingCard({
   } else if (totalQuantity >= 144) {
    return {
     background: 'from-blue-50 via-cyan-50 to-sky-50 dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-sky-900/20',
-    border: 'border-blue-200/50 ',
+    border: 'border-blue-200/50 dark:border-blue-700/50',
     title: 'from-blue-600 via-cyan-600 to-sky-600 dark:from-blue-400 dark:via-cyan-400 dark:to-sky-400',
-    subtitle: 'text-blue-800',
+    subtitle: 'text-blue-600/80 dark:text-blue-300/80',
     icon: 'from-blue-500 via-cyan-500 to-sky-500',
     iconGlow: 'from-blue-400 via-cyan-400 to-sky-400',
     orbs: ['from-blue-400 to-cyan-400', 'from-cyan-400 to-sky-400'],
@@ -192,9 +200,9 @@ function VolumePricingCard({
   } else if (totalQuantity >= 48) {
    return {
     background: 'from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-900/20 dark:via-amber-900/20 dark:to-yellow-900/20',
-    border: 'border-orange-200/50 ',
+    border: 'border-orange-200/50 dark:border-orange-700/50',
     title: 'from-orange-600 via-amber-600 to-yellow-600 dark:from-orange-400 dark:via-amber-400 dark:to-yellow-400',
-    subtitle: 'text-orange-800',
+    subtitle: 'text-orange-600/80 dark:text-orange-300/80',
     icon: 'from-orange-500 via-amber-500 to-yellow-500',
     iconGlow: 'from-orange-400 via-amber-400 to-yellow-400',
     orbs: ['from-orange-400 to-amber-400', 'from-amber-400 to-yellow-400'],
@@ -204,14 +212,14 @@ function VolumePricingCard({
   } else {
    return {
     background: 'from-gray-50 via-slate-50 to-zinc-50 dark:from-gray-900/20 dark:via-slate-900/20 dark:to-zinc-900/20',
-    border: 'border-gray-200/50 ',
+    border: 'border-gray-200/50 dark:border-gray-700/50',
     title: 'from-gray-600 via-slate-600 to-zinc-600 dark:from-gray-400 dark:via-slate-400 dark:to-zinc-400',
-    subtitle: 'text-gray-600/80 text-gray-700/80',
+    subtitle: 'text-gray-600/80 dark:text-gray-300/80',
     icon: 'from-gray-500 via-slate-500 to-zinc-500',
     iconGlow: 'from-gray-400 via-slate-400 to-zinc-400',
     orbs: ['from-gray-400 to-slate-400', 'from-slate-400 to-zinc-400'],
     particles: ['bg-gray-400', 'bg-slate-400'],
-    cardBorder: 'border-stone-500  '
+    cardBorder: 'border-stone-500 dark:border-gray-700/20 hover:border-gray-300/50 dark:hover:border-gray-600/50'
    };
   }
  };
@@ -219,11 +227,11 @@ function VolumePricingCard({
  const colorScheme = getTierColorScheme();
 
  return (
-  <div className={`group bg-white/80 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6 shadow-2xl border border-white/20   ${
+  <div className={`group bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-2xl border transition-all duration-500 hover:scale-[1.02] hover:shadow-3xl ${
    hasReachedThreshold 
     ? colorScheme.cardBorder
-    : 'border-stone-500  '
-  } `}>
+    : 'border-stone-500 dark:border-gray-700/20 hover:border-blue-300/50 dark:hover:border-blue-600/50'
+  } hover:bg-white/80 dark:hover:bg-gray-800/80`}>
    {/* Redesigned Volume Pricing Header */}
    <div className={`relative overflow-hidden bg-gradient-to-br ${colorScheme.background} rounded-3xl p-6 mb-6 border ${colorScheme.border} transition-all duration-700`}>
     {/* Animated Background Pattern */}
@@ -236,9 +244,9 @@ function VolumePricingCard({
      {/* Left Section - Title and Description */}
      <div className="flex items-center space-x-4">
       <div className="relative">
-       <div className={`w-14 h-14 bg-gradient-to-br ${colorScheme.icon} rounded-2xl flex items-center justify-center shadow-xl transform hover:scale-110 `}>
+       <div className={`w-14 h-14 bg-gradient-to-br ${colorScheme.icon} rounded-2xl flex items-center justify-center shadow-xl transform hover:scale-110 transition-all duration-500`}>
         <div className={`absolute inset-0 bg-gradient-to-br ${colorScheme.iconGlow} rounded-2xl blur-lg opacity-50 animate-pulse`}></div>
-        <span className="relative text-gray-900 text-2xl">💰</span>
+        <span className="relative text-white text-2xl">💰</span>
        </div>
        {/* Floating particles effect */}
        <div className={`absolute -top-1 -right-1 w-3 h-3 ${colorScheme.particles[0]} rounded-full animate-bounce delay-500 transition-colors duration-700`}></div>
@@ -260,13 +268,13 @@ function VolumePricingCard({
      {/* Right Section - Current Tier Display */}
      {totalQuantity > 0 && (
       <div className="relative">
-       <div className="bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-2xl px-6 py-4 border border-white/30 shadow-xl">
+       <div className="bg-white/80 dark:bg-gray-800/80 rounded-2xl px-6 py-4 border border-stone-7000 dark:border-gray-700/50 shadow-xl">
         <div className="flex flex-col items-center space-y-2">
-         <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">
+         <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
           Current Tier
          </span>
          <div className="flex items-center space-x-3">
-          <div className={`relative px-4 py-2 rounded-xl text-gray-900 bg-gradient-to-r ${currentTier.color} shadow-lg transform  transition-transform duration-200`}>
+          <div className={`relative px-4 py-2 rounded-xl text-white bg-gradient-to-r ${currentTier.color} shadow-lg transform hover:scale-105 transition-transform duration-200`}>
            <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-xl"></div>
            <div className="relative flex items-center space-x-2">
             <span className="text-lg">{currentTier.icon}</span>
@@ -278,7 +286,7 @@ function VolumePricingCard({
           </div>
          </div>
          {/* Tier label */}
-         <span className="text-xs font-medium text-gray-700 bg-white/50 backdrop-blur-sm border border-white/20 px-3 py-1 rounded-full">
+         <span className="text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
           {currentTier.label} Level
          </span>
         </div>
@@ -286,7 +294,7 @@ function VolumePricingCard({
        
        {/* Floating success indicator */}
        <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
-        <span className="text-gray-900 text-xs">✓</span>
+        <span className="text-white text-xs">✓</span>
        </div>
       </div>
      )}
@@ -295,22 +303,22 @@ function VolumePricingCard({
 
    {/* Progress Bar to Next Tier */}
    {totalQuantity > 0 && nextTier && (
-    <div className="mb-4 p-3 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-lg border border-blue-200 ">
+    <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
      <div className="flex justify-between items-center mb-2">
-      <span className="text-sm font-medium text-blue-900">
+      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
        Progress to {nextTier.label} tier
       </span>
-      <span className="text-sm font-bold text-blue-600">
+      <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
        {nextTier.qty - totalQuantity} more needed
       </span>
      </div>
-     <div className="w-full bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded-full h-2 overflow-hidden">
+     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
       <div 
        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-700 ease-out"
        style={{ width: `${progress}%` }}
       />
      </div>
-     <div className="flex justify-between text-xs text-gray-600 mt-1">
+     <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
       <span>{currentTier.label}</span>
       <span>{nextTier.label}</span>
      </div>
@@ -327,12 +335,12 @@ function VolumePricingCard({
      return (
       <div 
        key={tier.label} 
-       className={`relative overflow-hidden rounded-lg border-2  ${
+       className={`relative overflow-hidden rounded-lg border-2 transition-all duration-500 ${
         isCurrentTier 
-         ? `border-transparent bg-gradient-to-r ${tier.color} text-gray-900 shadow-lg transform scale-105 animate-price-glow` 
+         ? `border-transparent bg-gradient-to-r ${tier.color} text-white shadow-lg transform scale-105 animate-price-glow` 
          : isReached
-         ? 'border-green-300 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-green-500/10  animate-tier-unlock'
-         : 'border-white/30 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+         ? 'border-green-300 bg-green-50 dark:bg-green-900/20 dark:border-green-600 animate-tier-unlock'
+         : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
        } ${shouldAnimate ? 'animate-pulse' : ''}`}
       >
        {/* Animated Background Effect */}
@@ -344,22 +352,22 @@ function VolumePricingCard({
         <div className="flex items-center space-x-2">
          <span className="text-lg">{tier.icon}</span>
          <span className={`text-sm font-medium ${
-          isCurrentTier ? 'text-gray-900' : isReached ? 'text-green-700' : 'text-gray-700'
+          isCurrentTier ? 'text-white' : isReached ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'
          }`}>
           {tier.label}
          </span>
         </div>
         <div className="text-right">
          <span className={`text-sm font-bold ${
-          isCurrentTier ? 'text-gray-900' : isReached ? 'text-green-700' : 'text-gray-900'
+          isCurrentTier ? 'text-white' : isReached ? 'text-green-800 dark:text-green-200' : 'text-gray-900 dark:text-gray-100'
          }`}>
           ${tier.price.toFixed(2)}
          </span>
          {isCurrentTier && (
-          <div className="text-xs text-gray-700 font-medium">ACTIVE</div>
+          <div className="text-xs text-stone-200 font-medium">ACTIVE</div>
          )}
          {isReached && !isCurrentTier && (
-          <div className="text-xs text-green-700 font-medium">✓ UNLOCKED</div>
+          <div className="text-xs text-green-600 dark:text-green-400 font-medium">✓ UNLOCKED</div>
          )}
         </div>
        </div>
@@ -370,19 +378,19 @@ function VolumePricingCard({
 
    {/* Savings Display */}
    {totalQuantity >= 144 && (
-    <div className="mt-4 p-3 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg bg-green-500/10 rounded-lg border border-green-300  animate-savings-popup">
+    <div className="mt-4 p-3 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg border border-green-300 dark:border-green-600 animate-savings-popup">
      <div className="flex items-center justify-between">
       <div className="flex items-center space-x-2">
-       <span className="text-green-700 text-lg">💰</span>
-       <span className="text-sm font-semibold text-green-700">
+       <span className="text-green-600 dark:text-green-400 text-lg">💰</span>
+       <span className="text-sm font-semibold text-green-800 dark:text-green-200">
         You're saving compared to 48+ pricing!
        </span>
       </div>
       <div className="text-right">
-       <div className="text-lg font-bold text-green-700">
-        ${((pricing.price48 - currentTier.price) * totalQuantity).toFixed(2)}
+       <div className="text-lg font-bold text-green-700 dark:text-green-300">
+        ${((pricingData.price48 - currentTier.price) * totalQuantity).toFixed(2)}
        </div>
-       <div className="text-xs text-green-700">total savings</div>
+       <div className="text-xs text-green-600 dark:text-green-400">total savings</div>
       </div>
      </div>
     </div>
@@ -473,25 +481,25 @@ function DiscountedPriceDisplay({
   return (
    <div className="text-right">
     {/* Regular price crossed out */}
-    <div className="text-gray-600 line-through text-xs">
+    <div className="text-gray-400 dark:text-gray-500 line-through text-xs">
      ${baseUnitPrice.toFixed(2)} each
     </div>
     {/* Discounted price in bold */}
-    <span className="text-green-700 font-semibold">
+    <span className="text-green-600 dark:text-green-400 font-semibold">
      ${unitPrice.toFixed(2)} each
     </span>
-    <div className="font-bold text-green-700">
+    <div className="font-bold text-green-700 dark:text-green-300">
      ${cost.toFixed(2)}
     </div>
     {/* Savings notification */}
-    <div className="mt-1 p-2 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-green-500/10 border border-green-200  rounded-md">
+    <div className="mt-1 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
      <div className="flex items-center space-x-1">
-      <span className="text-green-700 text-xs">💰</span>
-      <span className="text-xs font-medium text-green-700">
+      <span className="text-green-600 dark:text-green-400 text-xs">💰</span>
+      <span className="text-xs font-medium text-green-800 dark:text-green-200">
        Save ${totalSavings.toFixed(2)} ({savingsPercentage.toFixed(0)}% off)
       </span>
      </div>
-     <div className="text-xs text-green-700 mt-1">
+     <div className="text-xs text-green-600 dark:text-green-400 mt-1">
       {tierName} volume discount applied
      </div>
     </div>
@@ -503,8 +511,8 @@ function DiscountedPriceDisplay({
   return (
    <div className="text-right">
     <div className="animate-pulse">
-     <div className="h-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-16 mb-1"></div>
-     <div className="h-4 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-20"></div>
+     <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-16 mb-1"></div>
+     <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
     </div>
    </div>
   );
@@ -513,12 +521,12 @@ function DiscountedPriceDisplay({
  // Show pricing without misleading discount calculations
  return (
   <div className="text-right">
-   <span className="text-gray-700">${unitPrice.toFixed(2)} each</span>
-   <div className="font-medium text-gray-900">
+   <span className="text-gray-500 dark:text-gray-400">${unitPrice.toFixed(2)} each</span>
+   <div className="font-medium text-gray-900 dark:text-gray-100">
     ${cost.toFixed(2)}
    </div>
    {totalUnits >= 144 && (
-    <div className="text-xs text-blue-600 mt-1">
+    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
      {totalUnits}+ volume pricing applied
     </div>
    )}
@@ -583,6 +591,7 @@ function CostCalculator({
       selectedOptions,
       baseProductPricing: productPricing,
       shipmentData: shipmentValidation.isValid ? shipmentValidation.shipmentData : null,
+      priceTier: product.priceTier || 'Tier 1', // ✅ CRITICAL FIX: Add priceTier for proper API calculations
       fabricSetup: (() => {
        if (selectedOptions['fabric-setup'] === 'Other') {
         return 'Other';
@@ -624,17 +633,17 @@ function CostCalculator({
   return (
    <div className="space-y-6 transition-opacity duration-200 ease-in-out">
     <div className="animate-pulse">
-     <div className="h-4 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-1/3 mb-6"></div>
+     <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-6"></div>
      <div className="space-y-4">
-      <div className="h-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded"></div>
-      <div className="h-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-5/6"></div>
-      <div className="h-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-4/6"></div>
-      <div className="h-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-3/6"></div>
-      <div className="h-16 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded mt-6"></div>
-      <div className="h-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded w-2/3"></div>
+      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6"></div>
+      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/6"></div>
+      <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded mt-6"></div>
+      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
      </div>
     </div>
-    <div className="text-center text-sm text-gray-700 mt-4">
+    <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
      Calculating costs...
     </div>
    </div>
@@ -643,12 +652,12 @@ function CostCalculator({
 
  if (error) {
   return (
-   <div className="bg-red-50  border border-red-200  rounded-lg p-4">
+   <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
     <div className="flex items-center space-x-2">
      <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-      <span className="text-gray-900 text-xs">!</span>
+      <span className="text-white text-xs">!</span>
      </div>
-     <span className="text-sm font-medium text-red-800 text-red-800">{error}</span>
+     <span className="text-sm font-medium text-red-800 dark:text-red-200">{error}</span>
     </div>
    </div>
   );
@@ -656,8 +665,8 @@ function CostCalculator({
 
  if (!costBreakdown) {
   return (
-   <div className="text-center py-8 text-gray-700">
-    <div className="w-16 h-16 mx-auto mb-4 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-full flex items-center justify-center">
+   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
      <span className="text-2xl">💰</span>
     </div>
     <p className="text-sm">Select a Color option to see cost calculation.</p>
@@ -668,8 +677,8 @@ function CostCalculator({
  return (
   <div className="space-y-4">
    {/* Base Product Cost */}
-   <div className="bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-lg p-4">
-    <h4 className="text-sm font-semibold text-gray-900 mb-3">Base Product Cost</h4>
+   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Base Product Cost</h4>
     <div className="space-y-2">
      {Object.entries(selectedColors).map(([colorName, colorData]) => {
       const colorTotalQuantity = Object.values(colorData.sizes).reduce((sum, qty) => sum + qty, 0);
@@ -688,12 +697,12 @@ function CostCalculator({
       
       return (
        <div key={colorName} className="flex justify-between items-center text-sm">
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
          {colorName} × {colorTotalQuantity}
         </span>
         <div className="text-right">
-         <span className="text-gray-700">${unitPrice.toFixed(2)} each</span>
-         <div className="font-medium text-gray-900">
+         <span className="text-gray-500 dark:text-gray-400">${unitPrice.toFixed(2)} each</span>
+         <div className="font-medium text-gray-900 dark:text-gray-100">
           ${lineTotal.toFixed(2)}
          </div>
         </div>
@@ -705,14 +714,14 @@ function CostCalculator({
 
    {/* Logo Setup Costs */}
    {costBreakdown.logoSetupCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-blue-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Logo Setup Costs</h4>
+    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Logo Setup Costs</h4>
      <div className="space-y-2">
       {costBreakdown.logoSetupCosts.map((logoCost, index) => (
        <div key={index} className="flex justify-between items-start text-sm">
-        <div className="text-gray-700">
+        <div className="text-gray-700 dark:text-gray-300">
          <div>{logoCost.name} × {costBreakdown.totalUnits}</div>
-         <div className="text-xs text-gray-700">
+         <div className="text-xs text-gray-500 dark:text-gray-400">
           {logoCost.details}
          </div>
         </div>
@@ -732,12 +741,12 @@ function CostCalculator({
 
    {/* Accessories Costs */}
    {costBreakdown.accessoriesCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-lime-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Accessories</h4>
+    <div className="bg-lime-50 dark:bg-lime-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Accessories</h4>
      <div className="space-y-2">
       {costBreakdown.accessoriesCosts.map((accessoryCost, index) => (
        <div key={index} className="flex justify-between items-start text-sm">
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
          {accessoryCost.name} × {costBreakdown.totalUnits}
         </span>
         <DiscountedPriceDisplay
@@ -755,12 +764,12 @@ function CostCalculator({
 
    {/* Closure Type Costs */}
    {costBreakdown.closureCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-orange-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Closure Type</h4>
+    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Closure Type</h4>
      <div className="space-y-2">
       {costBreakdown.closureCosts.map((closureCost, index) => (
        <div key={index} className="flex justify-between items-start text-sm">
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
          {closureCost.name} × {costBreakdown.totalUnits}
         </span>
         <DiscountedPriceDisplay
@@ -778,12 +787,12 @@ function CostCalculator({
 
    {/* Premium Fabric Costs */}
    {costBreakdown.premiumFabricCosts && costBreakdown.premiumFabricCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-purple-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Premium Fabric</h4>
+    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Premium Fabric</h4>
      <div className="space-y-2">
       {costBreakdown.premiumFabricCosts.map((fabricCost, index) => (
        <div key={index} className="flex justify-between items-start text-sm">
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
          {fabricCost.name} × {costBreakdown.totalUnits}
         </span>
         <DiscountedPriceDisplay
@@ -801,12 +810,12 @@ function CostCalculator({
 
    {/* Delivery Costs */}
    {costBreakdown.deliveryCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-green-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Delivery</h4>
+    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Delivery</h4>
      <div className="space-y-2">
       {costBreakdown.deliveryCosts.map((deliveryCost, index) => (
        <div key={index} className="flex justify-between items-start text-sm">
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
          {deliveryCost.name} × {costBreakdown.totalUnits}
         </span>
         <DiscountedPriceDisplay
@@ -824,16 +833,16 @@ function CostCalculator({
 
    {/* Services Costs */}
    {costBreakdown.servicesCosts && costBreakdown.servicesCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-purple-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Services</h4>
+    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Services</h4>
      <div className="space-y-2">
       {costBreakdown.servicesCosts.map((serviceCost, index) => (
        <div key={index} className="flex justify-between items-start text-sm">
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-gray-300">
          {serviceCost.name}
         </span>
         <div className="text-right">
-         <div className="font-bold text-purple-700">
+         <div className="font-bold text-purple-700 dark:text-purple-300">
           ${serviceCost.cost.toFixed(2)}
          </div>
         </div>
@@ -845,37 +854,37 @@ function CostCalculator({
 
    {/* Mold Charges */}
    {costBreakdown.moldChargeCosts && costBreakdown.moldChargeCosts.length > 0 && (
-    <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-amber-500/10 rounded-lg p-4">
-     <h4 className="text-sm font-semibold text-gray-900 mb-3">Mold Development Charges</h4>
+    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+     <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Mold Development Charges</h4>
      <div className="space-y-2">
       {costBreakdown.moldChargeCosts.map((moldCharge, index) => (
        <div key={index} className="space-y-1">
         <div className="flex justify-between items-start text-sm">
-         <span className="text-gray-700">
+         <span className="text-gray-700 dark:text-gray-300">
           {moldCharge.name}
          </span>
          {moldCharge.waived ? (
           <div className="text-right">
-           <div className="text-gray-700 line-through text-xs">
+           <div className="text-gray-500 dark:text-gray-400 line-through text-xs">
             ${moldCharge.unitPrice.toFixed(2)}
            </div>
-           <div className="text-green-700 text-sm font-medium">
+           <div className="text-green-600 dark:text-green-400 text-sm font-medium">
             WAIVED
            </div>
           </div>
          ) : (
-          <div className="text-amber-600 text-amber-700 font-medium text-sm">
+          <div className="text-amber-600 dark:text-amber-400 font-medium text-sm">
            ${moldCharge.cost.toFixed(2)}
           </div>
          )}
         </div>
         {moldCharge.waived && moldCharge.waiverReason && (
-         <div className="text-xs text-green-700 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-green-500/10 px-2 py-1 rounded">
+         <div className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
           {moldCharge.waiverReason}
          </div>
         )}
         {!moldCharge.waived && (
-         <div className="text-xs text-amber-600 text-amber-700">
+         <div className="text-xs text-amber-600 dark:text-amber-400">
           One-time development cost for new mold
          </div>
         )}
@@ -887,14 +896,14 @@ function CostCalculator({
 
 
    {/* Total Cost */}
-   <div className="border-t border-gray-200 pt-4">
+   <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
     <div className="flex justify-between items-center">
-     <span className="text-lg font-semibold text-gray-900">Total Cost</span>
+     <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Total Cost</span>
      <div className="text-right">
-      <div className="text-2xl font-bold text-blue-600">
+      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
        ${costBreakdown.totalCost.toFixed(2)}
       </div>
-      <div className="text-sm text-gray-700">
+      <div className="text-sm text-gray-500 dark:text-gray-400">
        {costBreakdown.totalUnits} total units
       </div>
      </div>
@@ -904,7 +913,7 @@ function CostCalculator({
  );
 }
 
-export default function ProductClient({ product, productSlug, prefillOrderId, reorder = false }: ProductClientProps) {
+export default function ProductClient({ product, productSlug, prefillOrderId, reorder = false, pricingData }: ProductClientProps) {
  const router = useRouter();
  const [selectedType, setSelectedType] = useState<string>('');
  const [selectedColors, setSelectedColors] = useState<Record<string, { sizes: Record<string, number>; customName?: string; isCustom?: boolean }>>({}); // Color name -> { sizes: { sizeValue: quantity }, customName?: string, isCustom?: boolean }
@@ -929,7 +938,6 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
  const [logoFile, setLogoFile] = useState<File | null>(null);
  const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
  const [showCapStyleSetup, setShowCapStyleSetup] = useState<boolean>(false);
- const [showShipmentIntegration, setShowShipmentIntegration] = useState<boolean>(false);
  // Holds files returned from the upload API; fixes missing setter error
  const [uploadedLogoFiles, setUploadedLogoFiles] = useState<any[]>([]);
  const [showCustomizeOptions, setShowCustomizeOptions] = useState<boolean>(false);
@@ -1689,8 +1697,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
    sum + Object.values(colorData.sizes).reduce((sizeSum, qty) => sizeSum + qty, 0), 0
   );
 
-  // Use centralized pricing calculation with the product's price tier
-  const unitPrice = calculateUnitPrice(totalVolume, product.priceTier || 'Tier 1');
+  // Use centralized pricing calculation with the provided pricing data
+  const unitPrice = calculateUnitPrice(totalVolume, pricingData);
 
   return {
    unitPrice,
@@ -1949,7 +1957,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
  };
 
  return (
-  <div className="mx-auto relative px-3" style={{ maxWidth: '1850px' }}>
+  <div className="mx-auto relative" style={{ maxWidth: '1950px' }}>
    {/* Compact Animated Background with Geometric Patterns */}
    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
     {/* Animated Geometric Patterns */}
@@ -1967,46 +1975,137 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
    {/* Ultra-Compact Header & Steps Section */}
    <div className="mb-4 relative z-10">
-    <div className="relative bg-transparent p-4">
+    <div className="relative bg-white/90 dark:bg-gray-900/90 rounded-2xl border border-stone-500 dark:border-gray-700/20 shadow-xl overflow-hidden">
+     {/* Animated Border Effect */}
+     <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-lime-500/20 to-emerald-500/20 animate-gradient-x"></div>
+     <div className="absolute inset-[1px] bg-white/95 dark:bg-gray-900/95 rounded-2xl"></div>
+     
+     <div className="relative p-4">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between mb-4">
+       <div className="flex items-center space-x-3">
+        <div className="relative">
+         <div className="w-10 h-10 bg-gradient-to-br from-lime-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+          <span className="text-lg">🎨</span>
+         </div>
+         <div className="absolute -inset-1 bg-gradient-to-br from-lime-500/30 to-green-600/30 rounded-xl blur animate-pulse"></div>
+        </div>
+        <div>
+         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">
+          Customize Your Cap
+         </h2>
+         <p className="text-xs text-gray-500 dark:text-gray-400">
+          {steps.filter(s => s.completed).length}/{steps.length} steps completed
+         </p>
+        </div>
+       </div>
+       
+       {/* Compact Progress Ring */}
+       <div className="relative w-12 h-12">
+        <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 48 48">
+         <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="3" fill="none" className="text-gray-200 dark:text-gray-700" />
+         <circle 
+          cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="3" fill="none" 
+          className="text-cyan-500 transition-all duration-700"
+          strokeDasharray={`${2 * Math.PI * 20}`}
+          strokeDashoffset={`${2 * Math.PI * 20 * (1 - (steps.filter(s => s.completed).length / steps.length))}`}
+          strokeLinecap="round"
+         />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+         <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400">
+          {Math.round((steps.filter(s => s.completed).length / steps.length) * 100)}%
+         </span>
+        </div>
+       </div>
+      </div>
 
-      {/* Dynamic Steps */}
-      <div className="flex items-center justify-between space-x-4">
-       {steps.map((step) => {
-        const isCompleted = step.completed;
+      {/* Ultra-Compact Steps - Horizontal Layout */}
+      <div className="flex items-center justify-between space-x-2">
+       {steps.map((step, index) => {
         const isActive = currentStep === step.id;
+        const isCompleted = step.completed;
         
         return (
-         <div key={step.id} className="flex flex-col items-center">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-           isCompleted 
-            ? 'bg-green-500' 
-            : isActive
-            ? 'bg-blue-500'
-            : 'bg-gray-400'
-          }`}>
-           <span className="text-white text-xs font-bold">
-            {isCompleted ? '✓' : step.id}
-           </span>
+         <div key={step.id} className="flex-1 relative group">
+          {/* Step Connector Line */}
+          {index < steps.length - 1 && (
+           <div className={`absolute top-4 left-1/2 w-full h-0.5 z-0 transition-all duration-500 ${
+            isCompleted ? 'bg-gradient-to-r from-emerald-400 to-cyan-500' : 'bg-gray-200 dark:bg-gray-700'
+           }`}>
+            {isCompleted && (
+             <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-cyan-500 animate-pulse"></div>
+            )}
+           </div>
+          )}
+          
+          {/* Step Circle */}
+          <div className="relative z-10 flex flex-col items-center">
+           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+            isCompleted 
+             ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30' 
+             : isActive
+             ? 'bg-gradient-to-br from-lime-500 to-green-500 text-white shadow-lg shadow-lime-500/30 animate-pulse'
+             : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-2 border-gray-200 dark:border-gray-600'
+           }`}>
+            {isCompleted ? (
+             <span className="animate-bounce">✓</span>
+            ) : (
+             <span>{step.id}</span>
+            )}
+           </div>
+           
+           {/* Step Label */}
+           <div className="mt-1 text-center">
+            <p className={`text-xs font-medium leading-tight ${
+             isCompleted || isActive 
+              ? 'text-gray-900 dark:text-gray-100' 
+              : 'text-gray-500 dark:text-gray-400'
+            }`}>
+             {step.title}
+            </p>
+            
+            {/* Status Dot */}
+            <div className="mt-1 flex justify-center">
+             <div className={`w-1.5 h-1.5 rounded-full ${
+              isCompleted 
+               ? 'bg-emerald-500 animate-pulse' 
+               : isActive
+               ? 'bg-cyan-500 animate-bounce'
+               : 'bg-gray-300 dark:bg-gray-600'
+             }`}></div>
+            </div>
+           </div>
           </div>
-          <span className={`text-xs mt-1 ${
-           isCompleted 
-            ? 'text-green-400' 
-            : isActive
-            ? 'text-blue-400'
-            : 'text-white'
-          }`}>
-           {step.title}
-          </span>
          </div>
         );
        })}
       </div>
+      
+      {/* Current Step Indicator - Ultra Compact */}
+      <div className="mt-3 text-center">
+       <div className="inline-flex items-center space-x-2 px-3 py-1 bg-gradient-to-r from-cyan-50 to-lime-50 dark:from-cyan-900/20 dark:to-lime-900/20 rounded-full border border-cyan-200 dark:border-cyan-700/50">
+        <div className="w-1.5 h-1.5 bg-gradient-to-r from-cyan-500 to-lime-500 rounded-full animate-pulse"></div>
+        <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+         {steps.find(s => s.id === currentStep)?.title || 'Getting Started'}
+        </span>
+       </div>
+      </div>
      </div>
     </div>
+   </div>
 
    {/* Modern 3-Column Layout with Glass Morphism */}
-   <div className="w-full">
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 relative max-w-full">
+   <div className="w-full max-w-[1850px] mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-[25%_40%_35%] gap-6 lg:gap-6 relative">
+    {/* Grid Debug Overlay */}
+    <div className="hidden lg:block absolute inset-0 pointer-events-none z-0">
+     <div className="grid grid-cols-[25%_40%_35%] gap-6 h-full">
+      <div className="bg-blue-100/20 border-2 border-blue-300/50 border-dashed"></div>
+      <div className="bg-green-100/20 border-2 border-green-300/50 border-dashed"></div>
+      <div className="bg-rose-100/20 border-2 border-rose-300/50 border-dashed"></div>
+     </div>
+    </div>
     {/* Floating Background Elements */}
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
      <div className="absolute -top-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-3xl animate-pulse"></div>
@@ -2016,7 +2115,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
     {/* Left Column: Enhanced Product Gallery */}
     <div className="space-y-6 relative z-10">
      {/* Debug: Column 1 */}
-     <div className="lg:hidden text-xs bg-white/50 backdrop-blur-sm border border-white/20 bg-blue-500/20 p-2 rounded mb-2 text-blue-800 text-blue-800">
+     <div className="lg:hidden text-xs bg-blue-100 dark:bg-blue-900/20 p-2 rounded mb-2 text-blue-800 dark:text-blue-200">
       📱 Mobile: Column 1 (Gallery)
      </div>
      {/* Section Header Badge */}
@@ -2024,35 +2123,38 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
       <div className="bg-gradient-to-r from-lime-500/90 to-green-500/90 rounded-full px-4 py-2 shadow-xl border border-stone-400">
        <div className="flex items-center space-x-2">
         <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-        <span className="text-xs font-bold text-gray-900">🖼️ Product Gallery & Style</span>
+        <span className="text-xs font-bold text-white">🖼️ Product Gallery & Style</span>
        </div>
       </div>
+      <div className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 font-medium">
+       Column 1 of 3
       </div>
+     </div>
      {/* Main Product Image with Glass Morphism */}
-     <div className="group bg-white/80 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6 shadow-2xl border border-white/20  ">
+     <div className="group bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-2xl border border-stone-500 dark:border-gray-700/20 hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] hover:bg-white/80 dark:hover:bg-gray-800/80">
       {/* Interactive Image Container */}
-      <div className="relative h-[400px] rounded-xl overflow-hidden bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg bg-stone-800/60 border border-stone-400   ">
+      <div className="relative h-[400px] rounded-xl overflow-hidden bg-gradient-to-br from-gray-50/80 to-gray-100/80 dark:from-gray-800/80 dark:to-gray-900/80 border border-stone-400 dark:border-gray-600/30 group-hover:from-gray-50 group-hover:to-gray-100 dark:group-hover:from-gray-800 dark:group-hover:to-gray-900 transition-all duration-500">
        <Image
         src={mainImage.url}
         alt={mainImage.alt}
         fill
-        className="object-contain transition-all duration-700  cursor-zoom-in"
+        className="object-contain transition-all duration-700 group-hover:scale-110 cursor-zoom-in"
         priority
         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 400px"
        />
        {/* Floating Color Badge */}
-       <div className="absolute top-3 right-3 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-xl px-3 py-2 shadow-lg border border-white/30 transition-all duration-300 ">
+       <div className="absolute top-3 right-3 bg-white/95 dark:bg-gray-800/95 rounded-xl px-3 py-2 shadow-lg border border-stone-400 dark:border-gray-600/30 transition-all duration-300 hover:scale-105">
         <div className="flex items-center space-x-2">
          <div className="w-2 h-2 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"></div>
-         <span className="text-xs font-semibold text-gray-800 text-gray-800">
+         <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
           {firstSelectedColor || 'Default View'}
          </span>
         </div>
        </div>
        
        {/* Zoom Indicator */}
-       <div className="absolute bottom-3 left-3 opacity-0 opacity-0 transition-all duration-300">
-        <div className="bg-black text-gray-900 rounded-lg px-2 py-1 text-xs font-medium ">
+       <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+        <div className="bg-black text-white rounded-lg px-2 py-1 text-xs font-medium ">
          🔍 Click to zoom
         </div>
        </div>
@@ -2061,18 +2163,18 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
      
      {/* Enhanced Product Views Gallery */}
      {repeaterImages.length > 0 && (
-      <div className="group bg-white/80 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6 shadow-2xl border border-white/20  ">
+      <div className="group bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-2xl border border-stone-500 dark:border-gray-700/20 hover:shadow-3xl transition-all duration-500 hover:scale-[1.01] hover:bg-white/80 dark:hover:bg-gray-800/80">
        <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
          <div className="w-8 h-8 bg-gradient-to-br from-lime-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg">
-          <span className="text-gray-900 text-sm">🖼️</span>
+          <span className="text-white text-sm">🖼️</span>
          </div>
-         <h3 className="text-sm font-bold text-gray-900">
+         <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
           {firstSelectedColor ? `${firstSelectedColor} Views` : 'Product Views'}
          </h3>
         </div>
         <div className="bg-gradient-to-r from-lime-100 to-green-100 dark:from-lime-900/30 dark:to-green-900/30 rounded-full px-3 py-1 border border-lime-200 dark:border-lime-700">
-         <span className="text-xs font-semibold text-lime-700">
+         <span className="text-xs font-semibold text-lime-700 dark:text-lime-300">
           {repeaterImages.length} images
          </span>
         </div>
@@ -2088,30 +2190,30 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            className={`relative rounded-lg overflow-hidden cursor-pointer group transition-all duration-200 ${
             mainImage.url === img.url 
              ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-800' 
-             : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-2 hover:ring-offset-white '
+             : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-2 hover:ring-offset-white dark:hover:ring-offset-gray-800'
            }`}
            onClick={() => setMainImage(img)}
            role="button"
            aria-label={`View ${img.alt} - ${viewLabel}`}
           >
-           <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+           <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
             <Image
              src={img.url}
              alt={img.alt}
              fill
-             className="object-cover  transition-transform duration-200"
+             className="object-cover group-hover:scale-110 transition-transform duration-200"
              sizes="120px"
             />
             {mainImage.url === img.url && (
              <div className="absolute inset-0 bg-blue-500/10 flex items-center justify-center">
               <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-               <span className="text-gray-900 text-xs">✓</span>
+               <span className="text-white text-xs">✓</span>
               </div>
              </div>
             )}
            </div>
-           <div className="p-2 bg-white/60 backdrop-blur-md border border-white/20 shadow-md">
-            <p className="text-xs text-center font-medium text-gray-700 truncate">
+           <div className="p-2 bg-white dark:bg-gray-800">
+            <p className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 truncate">
              {viewLabel}
             </p>
            </div>
@@ -2123,18 +2225,18 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
      )}
      
      {/* Cap Style Setup - Redesigned to match Step 2 style */}
-     <div className={`bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-xl p-6 shadow-sm border border-white/20 transition-all duration-300 ${
+     <div className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border transition-all duration-300 ${
       currentStep === 1 ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-700'
      }`}>
       <button
        onClick={() => setShowCapStyleSetup(!showCapStyleSetup)}
-       className="flex items-center justify-between w-full p-4 mb-2 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-indigo-500/10 rounded-xl border border-indigo-200 dark:border-indigo-800  transition-all duration-200 shadow-sm"
+       className="flex items-center justify-between w-full p-4 mb-2 bg-gradient-to-r from-indigo-50 to-lime-50 dark:from-indigo-900/10 dark:to-lime-900/10 rounded-xl border border-indigo-200 dark:border-indigo-800 hover:from-indigo-100 hover:to-lime-100 dark:hover:from-indigo-900/20 dark:hover:to-lime-900/20 transition-all duration-200 shadow-sm"
       >
        <div className="flex items-center space-x-3">
         <div className="w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center">
-         <span className="text-gray-900 text-xs">🎩</span>
+         <span className="text-white text-xs">🎩</span>
         </div>
-        <span className="font-semibold text-indigo-900">Cap Style Setup</span>
+        <span className="font-semibold text-indigo-900 dark:text-indigo-100">Cap Style Setup</span>
        </div>
        <div className="flex items-center space-x-3">
         {(() => {
@@ -2144,15 +2246,15 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                        (closureOption && selectedOptions['closure']);
          
          return hasConfiguredOptions && (
-          <div className="flex items-center space-x-2 text-indigo-600">
+          <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400">
            <span className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
-            <span className="text-gray-900 text-xs">✓</span>
+            <span className="text-white text-xs">✓</span>
            </span>
            <span className="text-xs font-medium">Configured</span>
           </div>
          );
         })()}
-        <span className={`transform transition-transform duration-200 text-indigo-600 ${showCapStyleSetup ? 'rotate-180' : ''}`}>
+        <span className={`transform transition-transform duration-200 text-indigo-600 dark:text-indigo-400 ${showCapStyleSetup ? 'rotate-180' : ''}`}>
          ▼
         </span>
        </div>
@@ -2173,8 +2275,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
         return (
          <div className="space-y-3">
           <div className="flex items-center justify-between">
-           <label className="text-sm font-semibold text-gray-900">Bill Shape</label>
-           <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-blue-500/20 text-blue-700 text-blue-700 rounded-full">
+           <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">Bill Shape</label>
+           <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full">
             {currentLabel}
            </span>
           </div>
@@ -2184,29 +2286,29 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              key={`bill-shape-${idx}`}
              className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${
               currentLabel === choice.label
-               ? 'border-blue-500 bg-blue-50  shadow-lg shadow-blue-500/20'
-               : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+               ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10 shadow-lg shadow-blue-500/20'
+               : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
              }`}
              onClick={() => setSelectedOptions(prev => ({ ...prev, ['bill-shape']: choice.value }))}
              role="button"
              aria-label={`Select ${choice.label} for Bill Shape`}
             >
-             <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+             <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
               {choice.image ? (
                <Image src={choice.image} alt={choice.label} fill className="object-cover" sizes="120px" />
               ) : (
                <div className="w-full h-full flex items-center justify-center">
-                <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                </div>
               )}
               {currentLabel === choice.label && (
                <div className="absolute top-2 right-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">✓</span>
+                <span className="text-white text-xs">✓</span>
                </div>
               )}
              </div>
              <div className="p-3 text-center">
-              <p className="text-sm font-medium text-gray-900 break-words">{choice.label}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{choice.label}</p>
              </div>
             </div>
            ))}
@@ -2227,8 +2329,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
         return (
          <div className="space-y-3">
           <div className="flex items-center justify-between">
-           <label className="text-sm font-semibold text-gray-900">Profile</label>
-           <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-green-500/20 text-green-700 rounded-full">
+           <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">Profile</label>
+           <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-full">
             {currentLabel}
            </span>
           </div>
@@ -2238,29 +2340,29 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              key={`profile-${idx}`}
              className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${
               currentLabel === choice.label
-               ? 'border-green-500 bg-green-50  shadow-lg shadow-green-500/20'
-               : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+               ? 'border-green-500 bg-green-50 dark:bg-green-900/10 shadow-lg shadow-green-500/20'
+               : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
              }`}
              onClick={() => setSelectedOptions(prev => ({ ...prev, ['profile']: choice.value }))}
              role="button"
              aria-label={`Select ${choice.label} for Profile`}
             >
-             <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+             <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
               {choice.image ? (
                <Image src={choice.image} alt={choice.label} fill className="object-cover" sizes="120px" />
               ) : (
                <div className="w-full h-full flex items-center justify-center">
-                <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                </div>
               )}
               {currentLabel === choice.label && (
                <div className="absolute top-2 right-2 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">✓</span>
+                <span className="text-white text-xs">✓</span>
                </div>
               )}
              </div>
              <div className="p-3 text-center">
-              <p className="text-sm font-medium text-gray-900 break-words">{choice.label}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{choice.label}</p>
              </div>
             </div>
            ))}
@@ -2281,8 +2383,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
         return (
          <div className="space-y-3">
           <div className="flex items-center justify-between">
-           <label className="text-sm font-semibold text-gray-900">Closure Type</label>
-           <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-purple-500/20 text-purple-700 rounded-full">
+           <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">Closure Type</label>
+           <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full">
             {currentLabel}
            </span>
           </div>
@@ -2292,29 +2394,29 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              key={`closure-type-${idx}`}
              className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${
               currentLabel === choice.label
-               ? 'border-lime-500 bg-lime-50  shadow-lg shadow-lime-500/20'
-               : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+               ? 'border-lime-500 bg-lime-50 dark:bg-lime-900/10 shadow-lg shadow-lime-500/20'
+               : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
              }`}
              onClick={() => setSelectedOptions(prev => ({ ...prev, ['closure-type']: choice.value }))}
              role="button"
              aria-label={`Select ${choice.label} for Closure Type`}
             >
-             <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+             <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
               {choice.image ? (
                <Image src={choice.image} alt={choice.label} fill className="object-cover" sizes="120px" />
               ) : (
                <div className="w-full h-full flex items-center justify-center">
-                <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                </div>
               )}
               {currentLabel === choice.label && (
                <div className="absolute top-2 right-2 w-5 h-5 bg-lime-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">✓</span>
+                <span className="text-white text-xs">✓</span>
                </div>
               )}
              </div>
              <div className="p-3 text-center">
-              <p className="text-sm font-medium text-gray-900 break-words">{choice.label}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{choice.label}</p>
              </div>
             </div>
            ))}
@@ -2335,8 +2437,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
         return (
          <div className="space-y-3">
           <div className="flex items-center justify-between">
-           <label className="text-sm font-semibold text-gray-900">Structure</label>
-           <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-orange-500/20 text-orange-700 text-orange-700 rounded-full">
+           <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">Structure</label>
+           <span className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 rounded-full">
             {currentLabel}
            </span>
           </div>
@@ -2346,29 +2448,29 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              key={`structure-${idx}`}
              className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${
               currentLabel === choice.label
-               ? 'border-orange-500 bg-orange-50  shadow-lg shadow-orange-500/20'
-               : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+               ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 shadow-lg shadow-orange-500/20'
+               : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
              }`}
              onClick={() => setSelectedOptions(prev => ({ ...prev, ['structure']: choice.value }))}
              role="button"
              aria-label={`Select ${choice.label} for Structure`}
             >
-             <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+             <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
               {choice.image ? (
                <Image src={choice.image} alt={choice.label} fill className="object-cover" sizes="120px" />
               ) : (
                <div className="w-full h-full flex items-center justify-center">
-                <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                </div>
               )}
               {currentLabel === choice.label && (
                <div className="absolute top-2 right-2 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">✓</span>
+                <span className="text-white text-xs">✓</span>
                </div>
               )}
              </div>
              <div className="p-3 text-center">
-              <p className="text-sm font-medium text-gray-900 break-words">{choice.label}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{choice.label}</p>
              </div>
             </div>
            ))}
@@ -2380,9 +2482,9 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
        {/* Premium Fabric Selection */}
        <div className="space-y-3">
         <div className="flex items-center justify-between">
-         <label className="text-sm font-semibold text-gray-900">Fabric Setup</label>
+         <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">Fabric Setup</label>
          {selectedOptions['fabric-setup'] && (
-          <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-purple-500/20 text-purple-700 rounded-full">
+          <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full">
            {selectedOptions['fabric-setup']}
           </span>
          )}
@@ -2393,7 +2495,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           onChange={(e) => {
            setSelectedOptions(prev => ({ ...prev, 'fabric-setup': e.target.value }));
           }}
-          className="w-full p-3 glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+          className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
           aria-label="Select Fabric Setup"
          >
           <option value="">Select Fabric</option>
@@ -2432,7 +2534,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             placeholder="Enter custom fabric setup (e.g., Cotton/Silk, Wool, etc.)"
             value={selectedOptions['custom-fabric'] || ''}
             onChange={(e) => setSelectedOptions(prev => ({ ...prev, 'custom-fabric': e.target.value }))}
-            className="w-full p-3 glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
            />
           </div>
          )}
@@ -2453,15 +2555,15 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           
           if (isPremium) {
            return (
-            <div className="p-3 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-purple-500/10 rounded-lg border border-purple-200 dark:border-purple-600">
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-600">
              <div className="flex items-center space-x-2">
               <span className="text-purple-500">⭐</span>
-              <p className="text-xs text-purple-700 font-medium">
+              <p className="text-xs text-purple-700 dark:text-purple-300 font-medium">
                Premium fabric selected - additional costs will apply based on volume
               </p>
              </div>
              {selectedFabric.includes('/') && (
-              <p className="text-xs text-purple-600 text-purple-700 mt-1">
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
                Dual fabric: Front panel uses first fabric, back panel uses second fabric
               </p>
              )}
@@ -2481,7 +2583,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
     {/* Middle Column: Interactive Color Selection */}
     <div className="space-y-6 relative z-10">
      {/* Debug: Column 2 */}
-     <div className="lg:hidden text-xs bg-white/50 backdrop-blur-sm border border-white/20 bg-green-500/20 p-2 rounded mb-2 text-green-700">
+     <div className="lg:hidden text-xs bg-green-100 dark:bg-green-900/20 p-2 rounded mb-2 text-green-800 dark:text-green-200">
       📱 Mobile: Column 2 (Customization)
      </div>
      {/* Section Header Badge */}
@@ -2489,15 +2591,18 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
       <div className="bg-gradient-to-r from-emerald-500/90 to-teal-500/90 rounded-full px-4 py-2 shadow-xl border border-stone-400">
        <div className="flex items-center space-x-2">
         <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-        <span className="text-xs font-bold text-gray-900">🎨 Customization Steps</span>
+        <span className="text-xs font-bold text-white">🎨 Customization Steps</span>
        </div>
       </div>
+      <div className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 font-medium">
+       Column 2 of 3
       </div>
+     </div>
      {/* Step 1: Enhanced Color Selection */}
-     <div className={`group bg-white/80 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-6 shadow-2xl border border-white/20   ${
+     <div className={`group bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-2xl border transition-all duration-500 hover:scale-[1.02] hover:shadow-3xl ${
       currentStep === 1 
-       ? 'border-emerald-500 ring-4 ring-emerald-500/20 bg-white/85 backdrop-blur-2xl border border-white/40 shadow-2xl bg-emerald-500/10' 
-       : 'border-stone-500  '
+       ? 'border-emerald-500 ring-4 ring-emerald-500/20 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/20 dark:to-teal-900/20' 
+       : 'border-stone-500 dark:border-gray-700/20 hover:border-emerald-300/50 dark:hover:border-emerald-600/50'
      }`}>
       <div className="flex items-center justify-between mb-6">
        <div className="flex items-center space-x-4">
@@ -2506,20 +2611,20 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           ? 'bg-gradient-to-br from-emerald-500 to-teal-500 scale-110' 
           : 'bg-gradient-to-br from-gray-400 to-gray-500'
         }`}>
-         <span className="text-gray-900 text-sm font-bold">1</span>
+         <span className="text-white text-sm font-bold">1</span>
         </div>
         <div>
-         <h3 className="text-lg font-bold text-gray-900 flex items-center space-x-2">
+         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center space-x-2">
           <span>🎨 Choose Color Style</span>
          </h3>
-         <p className="text-xs text-gray-700 mt-1">Select your cap color combination</p>
+         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select your cap color combination</p>
         </div>
        </div>
        {Object.keys(selectedColors).length > 0 && (
         <div className="bg-gradient-to-r from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-full px-4 py-2 border border-emerald-200 dark:border-emerald-600 shadow-lg">
-         <div className="flex items-center space-x-2 text-emerald-600 text-emerald-700">
+         <div className="flex items-center space-x-2 text-emerald-600 dark:text-emerald-400">
           <span className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center animate-pulse">
-           <span className="text-gray-900 text-xs">✓</span>
+           <span className="text-white text-xs">✓</span>
           </span>
           <span className="text-sm font-bold">{Object.keys(selectedColors).length} colors selected</span>
          </div>
@@ -2530,7 +2635,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
     {/* Color Type Selection */}
       {typeOptions.length > 0 && (
        <div className="mb-6">
-        <label className="block text-sm font-medium mb-3 text-gray-700">Color Type</label>
+        <label className="block text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Color Type</label>
       <select
        value={selectedType}
          onChange={(e) => {
@@ -2538,7 +2643,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           setSelectedColors({}); // Reset color selection when type changes
           if (e.target.value) setCurrentStep(1);
          }}
-         className="w-full p-3 glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
        aria-label="Select color type"
       >
          {typeOptions.map((type) => (
@@ -2551,24 +2656,24 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
     )}
 
     {/* Standalone Custom Color Input Section */}
-    <div className="mb-6 p-4 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg bg-purple-500/10 rounded-2xl border border-purple-200/50  shadow-lg ">
+    <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-indigo-900/20 rounded-2xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg ">
      {/* Section Header */}
      <div className="flex items-center justify-between mb-4">
       <div className="flex items-center space-x-3">
        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
-        <span className="text-gray-900 text-sm">+</span>
+        <span className="text-white text-sm">+</span>
        </div>
        <div>
         <h4 className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-purple-400 dark:to-pink-400">
          Add Custom Color
         </h4>
-        <p className="text-xs text-purple-600/80 text-purple-600/80">
+        <p className="text-xs text-purple-600/80 dark:text-purple-300/80">
          Create your own color option with a custom name
         </p>
        </div>
       </div>
-      <div className="bg-white/50 backdrop-blur-sm border border-white/20 rounded-lg px-3 py-1 border border-white/30 shadow-sm">
-       <span className="text-xs font-medium text-purple-600 text-purple-700">
+      <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg px-3 py-1 border border-stone-7000 dark:border-gray-700/50 shadow-sm">
+       <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
         Direct Input
        </span>
       </div>
@@ -2587,13 +2692,13 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
          }
         }}
         placeholder="Enter custom color name (e.g., Forest Green, Sky Blue, etc.)"
-        className="w-full px-4 py-3 text-sm glass-input rounded-xl text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+        className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors placeholder-gray-500 dark:placeholder-gray-400"
        />
       </div>
       <button
        onClick={addStandaloneCustomColor}
        disabled={!newCustomColorInput.trim()}
-       className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 from-purple-600 to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-gray-900 font-medium text-sm rounded-xl transition-all duration-200  shadow-lg hover:shadow-xl disabled:cursor-not-allowed disabled:hover:scale-100"
+       className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium text-sm rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl disabled:cursor-not-allowed disabled:hover:scale-100"
       >
        + Add Color
       </button>
@@ -2602,20 +2707,20 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
      {/* Show custom colors added */}
      {Object.entries(selectedColors).filter(([_, colorData]) => colorData.isCustom).length > 0 && (
       <div className="mt-4 pt-4 border-t border-purple-200/30 dark:border-purple-700/30">
-       <p className="text-xs text-purple-600/80 text-purple-600/80 mb-2">Custom colors added:</p>
+       <p className="text-xs text-purple-600/80 dark:text-purple-300/80 mb-2">Custom colors added:</p>
        <div className="flex flex-wrap gap-2">
         {Object.entries(selectedColors)
          .filter(([_, colorData]) => colorData.isCustom)
          .map(([colorName, colorData]) => {
           const totalQuantity = Object.values(colorData.sizes).reduce((sum, qty) => sum + qty, 0);
           return (
-           <div key={colorName} className="flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/20 shadow-md rounded-lg px-3 py-1.5 border border-white/30 shadow-sm">
+           <div key={colorName} className="flex items-center gap-2 bg-white/70 dark:bg-gray-800/70 rounded-lg px-3 py-1.5 border border-stone-400 dark:border-gray-700/30 shadow-sm">
             <div className="w-3 h-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
-            <span className="text-xs font-medium text-gray-700">{colorName}</span>
-            <span className="text-xs text-purple-600 text-purple-700">({totalQuantity})</span>
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{colorName}</span>
+            <span className="text-xs text-purple-600 dark:text-purple-400">({totalQuantity})</span>
             <button
              onClick={() => removeStandaloneCustomColor(colorName)}
-             className="text-xs text-red-500 text-red-800 transition-colors"
+             className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
             >
              ×
             </button>
@@ -2630,7 +2735,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
       {/* Color Options */}
       {selectedType && (
      <div>
-        <label className="block text-sm font-medium mb-3 text-gray-700">
+        <label className="block text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
          Available Colors
         </label>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
@@ -2645,10 +2750,10 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           return (
         <div
          key={`${selectedType}-${optionName}-${index}`}
-           className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200  ${
+           className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 hover:scale-105 ${
             isSelected
              ? 'border-blue-500 shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/20' 
-             : 'border-gray-200 hover:border-gray-400'
+             : 'border-gray-200 dark:border-gray-600 hover:border-gray-400'
            }`}
                        onClick={() => {
              handleColorSelection(optionName);
@@ -2668,29 +2773,29 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             {isSelected && (
              <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
               <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-               <span className="text-gray-900 text-xs">✓</span>
+               <span className="text-white text-xs">✓</span>
               </div>
              </div>
             )}
            </div>
-           <div className="p-2 bg-white/60 backdrop-blur-md border border-white/20 shadow-md">
+           <div className="p-2 bg-white dark:bg-gray-800">
             <div className="space-y-1">
              {/* Display custom name if available, otherwise original name */}
-             <p className="text-xs text-center font-medium text-gray-700 truncate">
+             <p className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 truncate">
               {getDisplayColorName(optionName, colorData)}
              </p>
              
              {/* Show custom name badge if this is a custom color */}
              {colorData?.isCustom && (
               <div className="flex items-center justify-center">
-               <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-gray-900 px-2 py-0.5 rounded-full font-bold shadow-sm">
+               <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">
                 Custom
                </span>
               </div>
              )}
              
              {isSelected && (
-              <p className="text-xs text-center text-blue-600 font-semibold">
+              <p className="text-xs text-center text-blue-600 dark:text-blue-400 font-semibold">
                {totalQuantity} units
               </p>
              )}
@@ -2709,7 +2814,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            <div className="mt-4 text-center">
             <button
              onClick={() => setShowAllColors(!showAllColors)}
-             className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-lime-500 to-green-500 from-lime-600 to-green-600 text-gray-900 text-sm font-medium rounded-lg transition-all duration-200  shadow-lg hover:shadow-xl"
+             className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-lime-500 to-green-500 hover:from-lime-600 hover:to-green-600 text-white text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
             >
              <span className="mr-2">
               {showAllColors ? '👆 Show Less' : '👇 Show More'}
@@ -2726,24 +2831,24 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
         {/* Custom Color Names Section */}
         {Object.keys(selectedColors).length > 0 && (
-         <div className="mt-6 p-4 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg bg-purple-500/10 rounded-2xl border border-purple-200/50  shadow-lg ">
+         <div className="mt-6 p-4 bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-indigo-900/20 rounded-2xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg ">
           {/* Section Header */}
           <div className="flex items-center justify-between mb-4">
            <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
-             <span className="text-gray-900 text-sm">✨</span>
+             <span className="text-white text-sm">✨</span>
             </div>
             <div>
              <h4 className="text-sm font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent dark:from-purple-400 dark:to-pink-400">
               Custom Color Names
              </h4>
-             <p className="text-xs text-purple-600/80 text-purple-600/80">
+             <p className="text-xs text-purple-600/80 dark:text-purple-300/80">
               Give your colors personalized names
              </p>
             </div>
            </div>
-           <div className="bg-white/50 backdrop-blur-sm border border-white/20 rounded-lg px-3 py-1 border border-white/30 shadow-sm">
-            <span className="text-xs font-medium text-purple-600 text-purple-700">
+           <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg px-3 py-1 border border-stone-7000 dark:border-gray-700/50 shadow-sm">
+            <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
              Optional
             </span>
            </div>
@@ -2756,9 +2861,9 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             const hasCustomInput = customColorInputs.hasOwnProperty(colorKey);
             
             return (
-             <div key={colorKey} className="flex items-center gap-3 p-3 bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-xl border border-white/30 shadow-sm">
+             <div key={colorKey} className="flex items-center gap-3 p-3 bg-white/70 dark:bg-gray-800/70 rounded-xl border border-stone-400 dark:border-gray-700/30 shadow-sm">
               {/* Color Preview */}
-              <div className="w-8 h-8 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 flex-shrink-0">
                <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
                 <span className="text-xs text-gray-600">🎨</span>
                </div>
@@ -2767,16 +2872,16 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
               {/* Color Info */}
               <div className="flex-1 min-w-0">
                <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700 truncate">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                  {getDisplayColorName(colorKey, colorData)}
                 </span>
                 {colorData.isCustom && (
-                 <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-gray-900 px-2 py-0.5 rounded-full font-bold shadow-sm">
+                 <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">
                   Custom
                  </span>
                 )}
                </div>
-               <span className="text-xs text-gray-700">
+               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {totalQuantity} units selected
                </span>
               </div>
@@ -2790,7 +2895,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                   value={customColorInputs[colorKey] || ''}
                   onChange={(e) => handleCustomColorNameChange(colorKey, e.target.value)}
                   placeholder="Custom name..."
-                  className="w-32 px-3 py-1.5 text-sm glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+                  className="w-32 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
                   onKeyPress={(e) => {
                    if (e.key === 'Enter') {
                     applyCustomColorName(colorKey);
@@ -2799,7 +2904,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  />
                  <button
                   onClick={() => applyCustomColorName(colorKey)}
-                  className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 from-purple-600 to-pink-600 text-gray-900 text-sm font-medium rounded-lg transition-all duration-200  shadow-md"
+                  className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-md"
                  >
                   ✓
                  </button>
@@ -2809,7 +2914,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                    delete updated[colorKey];
                    return updated;
                   })}
-                  className="px-2 py-1.5 text-gray-700 text-gray-700 transition-colors"
+                  className="px-2 py-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
                  >
                   ✕
                  </button>
@@ -2817,7 +2922,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                ) : (
                 <button
                  onClick={() => setCustomColorInputs(prev => ({ ...prev, [colorKey]: '' }))}
-                 className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-pink-100 from-purple-200 to-pink-200 text-purple-700 text-sm font-medium rounded-lg transition-all duration-200  shadow-sm border border-purple-200/50 "
+                 className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 dark:from-purple-900/30 dark:to-pink-900/30 dark:hover:from-purple-800/30 dark:hover:to-pink-800/30 text-purple-700 dark:text-purple-300 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-sm border border-purple-200/50 dark:border-purple-700/50"
                 >
                  + Custom Name
                 </button>
@@ -2825,7 +2930,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
               ) : (
                <button
                 onClick={() => removeCustomColorName(colorKey)}
-                className="px-3 py-1.5 bg-gradient-to-r from-red-100 to-pink-100 from-red-200 to-pink-200 text-red-800 text-sm font-medium rounded-lg transition-all duration-200  shadow-sm border border-red-200/50 dark:border-red-700/50"
+                className="px-3 py-1.5 bg-gradient-to-r from-red-100 to-pink-100 hover:from-red-200 hover:to-pink-200 dark:from-red-900/30 dark:to-pink-900/30 dark:hover:from-red-800/30 dark:hover:to-pink-800/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-105 shadow-sm border border-red-200/50 dark:border-red-700/50"
                >
                 Remove Custom Name
                </button>
@@ -2839,63 +2944,63 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
         
         {/* Redesigned Color & Size Configuration */}
         {Object.keys(selectedColors).length > 0 && (
-         <div className="mt-8 space-y-6 p-4 sm:p-6 bg-white/80 backdrop-blur-xl border border-white/30 shadow-xl bg-slate-500/10 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl overflow-hidden">
+         <div className="mt-8 space-y-6 p-6 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900/20 dark:via-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl ">
           {/* Enhanced Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-           <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-            <div className="relative flex-shrink-0">
-             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-lime-500 via-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
+          <div className="flex items-center justify-between">
+           <div className="flex items-center space-x-4">
+            <div className="relative">
+             <div className="w-12 h-12 bg-gradient-to-br from-lime-500 via-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
               <div className="absolute inset-0 bg-gradient-to-br from-lime-400 via-green-400 to-emerald-400 rounded-2xl blur-lg opacity-50 animate-pulse"></div>
-              <span className="relative text-gray-900 text-lg sm:text-xl">🎨</span>
+              <span className="relative text-white text-xl">🎨</span>
              </div>
              {/* Floating color dots */}
-             <div className="absolute -top-1 -right-1 w-2 h-2 sm:w-3 sm:h-3 bg-yellow-400 rounded-full animate-bounce delay-300"></div>
-             <div className="absolute -bottom-1 -left-1 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-pink-400 rounded-full animate-bounce delay-700"></div>
+             <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-bounce delay-300"></div>
+             <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-pink-400 rounded-full animate-bounce delay-700"></div>
             </div>
-            <div className="min-w-0 flex-1">
-             <h4 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-lime-600 via-green-600 to-emerald-600 bg-clip-text text-transparent dark:from-lime-400 dark:via-green-400 dark:to-emerald-400 truncate">
+            <div>
+             <h4 className="text-xl font-bold bg-gradient-to-r from-lime-600 via-green-600 to-emerald-600 bg-clip-text text-transparent dark:from-lime-400 dark:via-green-400 dark:to-emerald-400">
               Color & Size Configuration
              </h4>
-             <p className="text-xs sm:text-sm text-slate-600 text-slate-700 font-medium">
+             <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">
               Configure quantities for each color and size combination
              </p>
             </div>
            </div>
-           <div className="bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-xl px-3 py-2 sm:px-4 border border-white/30 shadow-lg flex-shrink-0">
-            <span className="text-xs sm:text-sm font-semibold text-indigo-600 whitespace-nowrap">
+           <div className="bg-white/80 dark:bg-gray-800/80 rounded-xl px-4 py-2 border border-stone-7000 dark:border-gray-700/50 shadow-lg">
+            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
              {Object.keys(selectedColors).length} Color{Object.keys(selectedColors).length !== 1 ? 's' : ''}
             </span>
            </div>
           </div>
 
           {/* Color Cards Grid */}
-          <div className="grid gap-4 sm:gap-6">
+          <div className="grid gap-6">
            {Object.entries(selectedColors).map(([colorName, colorData]) => {
             const sizeOption = product.productOptions.find(option => option.slug === 'size');
             if (!sizeOption) return null;
             
             return (
-             <div key={colorName} className="group bg-white/80 backdrop-blur-xl border border-white/30 shadow-xl rounded-2xl p-4 sm:p-6 border border-white/30 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.01] overflow-hidden">
+             <div key={colorName} className="group bg-white/80 dark:bg-gray-800/80 rounded-2xl p-6 border border-stone-7000 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.01]">
               {/* Color Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-               <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-8 h-8 rounded-full border-2 border-white shadow-lg flex-shrink-0" style={{ backgroundColor: colorName.toLowerCase() }}></div>
-                <div className="min-w-0 flex-1">
-                 <div className="flex items-center gap-2 flex-wrap">
-                  <h5 className="text-lg font-bold text-gray-900 truncate">
+              <div className="flex items-center justify-between mb-6">
+               <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full border-2 border-white shadow-lg" style={{ backgroundColor: colorName.toLowerCase() }}></div>
+                <div>
+                 <div className="flex items-center gap-2">
+                  <h5 className="text-lg font-bold text-gray-900 dark:text-gray-100">
                    {getDisplayColorName(colorName, colorData)}
                   </h5>
                   {colorData.isCustom && (
-                   <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-gray-900 px-2 py-0.5 rounded-full font-bold shadow-sm whitespace-nowrap">
+                   <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm">
                     Custom
                    </span>
                   )}
                  </div>
-                 <p className="text-xs text-gray-700">Select sizes and quantities</p>
+                 <p className="text-xs text-gray-500 dark:text-gray-400">Select sizes and quantities</p>
                 </div>
                </div>
-               <div className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-xl px-3 py-2 border border-blue-200 flex-shrink-0">
-                <span className="text-sm font-semibold text-blue-700 text-blue-700 whitespace-nowrap">
+               <div className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-xl px-3 py-2 border border-blue-200 dark:border-blue-700">
+                <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
                  {Object.keys(colorData.sizes).length} Size{Object.keys(colorData.sizes).length !== 1 ? 's' : ''}
                 </span>
                </div>
@@ -2905,7 +3010,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
               <div className="space-y-4">
                <div className="flex items-center space-x-2">
                 <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"></div>
-                <label className="text-sm font-bold text-gray-800 text-gray-800 uppercase tracking-wide">Available Sizes</label>
+                <label className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide">Available Sizes</label>
                </div>
                <div className="space-y-4">
                 {sizeOption.choices.map((choice, idx) => {
@@ -2915,32 +3020,32 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  return (
                   <div
                    key={`${colorName}-${choice.value}`}
-                   className={`group/size cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-300 transform  ${
+                   className={`group/size cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 ${
                     isSelected
-                     ? 'border-indigo-500 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-indigo-500/10 shadow-lg ring-2 ring-indigo-500/20'
-                     : 'border-white/30 hover:border-lime-400/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md hover:shadow-md'
+                     ? 'border-indigo-500 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 shadow-lg ring-2 ring-indigo-500/20'
+                     : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 bg-white dark:bg-gray-800 hover:shadow-md'
                    }`}
                    onClick={() => handleSizeSelectionForColor(colorName, choice.value)}
                   >
                    <div className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                     <div className="flex items-center space-x-3 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 uppercase tracking-wide truncate">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+                     <div className="flex items-center space-x-3">
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">
                        {choice.label}
                       </p>
                       {isSelected && (
-                       <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-gray-900 text-xs">✓</span>
+                       <div className="w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
                        </div>
                       )}
                      </div>
                      
                      {isSelected && (
-                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                       <label className="text-xs font-semibold text-indigo-600 uppercase tracking-wider whitespace-nowrap">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                       <label className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider whitespace-nowrap">
                         Quantity:
                        </label>
-                       <div className="relative flex-shrink-0">
+                       <div className="relative flex-shrink-0 w-20 sm:w-24">
                         <input
                          type="number"
                          min="48"
@@ -2953,13 +3058,13 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                           const value = e.target.value;
                           updateSizeQuantityForColor(colorName, choice.value, value, true);
                          }}
-                         className="w-20 sm:w-24 px-2 py-1 text-sm font-semibold glass-input border-2 border-lime-400/50 rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                         className="w-full px-2 py-1 text-sm font-semibold border-2 border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                          placeholder="48"
                          onClick={(e) => e.stopPropagation()}
                         />
                        </div>
                        {quantity > 0 && (
-                        <span className="text-xs text-indigo-600 font-medium whitespace-nowrap">
+                        <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium whitespace-nowrap">
                          pcs
                         </span>
                        )}
@@ -2969,7 +3074,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                     
                     {!isSelected && (
                      <div className="text-center py-2">
-                      <span className="text-xs text-gray-700 font-medium">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                        Click to select
                       </span>
                      </div>
@@ -2991,29 +3096,29 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
      </div>
 
      {/* Step 2: Product Options (Collapsible) */}
-     <div className={`bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-xl p-6 shadow-sm border border-white/20 transition-all duration-300 ${
+     <div className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border transition-all duration-300 ${
       currentStep === 2 ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-700'
      }`}>
       <button
        onClick={() => setShowCustomizeOptions(!showCustomizeOptions)}
-       className="flex items-center justify-between w-full p-4 mb-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-200   transition-all duration-200 shadow-sm"
+       className="flex items-center justify-between w-full p-4 mb-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-200 dark:border-green-800 hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/20 dark:hover:to-emerald-900/20 transition-all duration-200 shadow-sm"
       >
        <div className="flex items-center space-x-3">
         <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-         <span className="text-gray-900 text-xs">⚙️</span>
+         <span className="text-white text-xs">⚙️</span>
         </div>
-        <span className="font-semibold text-green-900">Step 2: Customize Options</span>
+        <span className="font-semibold text-green-900 dark:text-green-100">Step 2: Customize Options</span>
        </div>
        <div className="flex items-center space-x-3">
         {(multiSelectOptions['logo-setup'] || []).length > 0 && (
-         <div className="flex items-center space-x-2 text-green-700">
+         <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
           <span className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-           <span className="text-gray-900 text-xs">✓</span>
+           <span className="text-white text-xs">✓</span>
           </span>
           <span className="text-xs font-medium">Configured</span>
          </div>
         )}
-        <span className={`transform transition-transform duration-200 text-green-700 ${showCustomizeOptions ? 'rotate-180' : ''}`}>
+        <span className={`transform transition-transform duration-200 text-green-600 dark:text-green-400 ${showCustomizeOptions ? 'rotate-180' : ''}`}>
          ▼
         </span>
        </div>
@@ -3036,8 +3141,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           return (
            <div key={logoOption.id} className="space-y-3">
             <div className="flex items-center justify-between">
-             <label className="text-sm font-semibold text-gray-900">{logoOption.name}</label>
-             <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-green-500/20 text-green-700 rounded-full">
+             <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">{logoOption.name}</label>
+             <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-full">
               {selectedLogoValues.length > 0 ? `${selectedLogoValues.length} selected` : 'Select logos'}
              </span>
             </div>
@@ -3049,14 +3154,14 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                 key={`logo-setup-${idx}`}
                 className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${
                  isSelected
-                  ? 'border-green-500 bg-green-50  shadow-lg shadow-green-500/20'
-                  : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/10 shadow-lg shadow-green-500/20'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
                 }`}
                 onClick={() => toggleMultiSelect('logo-setup', choice.value)}
                 role="button"
                 aria-label={`Select ${choice.label} for ${logoOption.name}`}
                >
-                <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+                <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
                  {choice.image ? (
                   <Image
                    src={choice.image}
@@ -3067,17 +3172,17 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                   />
                  ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                   <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                   </div>
                  )}
                  {isSelected && (
                   <div className="absolute top-2 right-2 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                   <span className="text-gray-900 text-xs">✓</span>
+                   <span className="text-white text-xs">✓</span>
                   </div>
                  )}
                 </div>
                 <div className="p-3 text-center">
-                 <p className="text-sm font-medium text-gray-900 break-words">{choice.label}</p>
+                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{choice.label}</p>
                 </div>
                </div>
               );
@@ -3089,9 +3194,9 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              <div className="mt-4 space-y-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-xl border border-blue-200 dark:border-blue-800">
               <div className="flex items-center space-x-2 mb-4">
                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">⚙️</span>
+                <span className="text-white text-xs">⚙️</span>
                </div>
-               <h4 className="text-sm font-semibold text-blue-900">Logo Configuration</h4>
+               <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Logo Configuration</h4>
               </div>
               {selectedLogoValues.map(logoValue => {
                // Handle both original and duplicated logos
@@ -3101,11 +3206,11 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                const isDuplicate = logoValue.includes('-') && logoValue !== originalLogoType;
                
                return (
-                <div key={logoValue} className="bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-lg p-4 border border-lime-400/30 shadow-sm">
+                <div key={logoValue} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-800 shadow-sm">
                  <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                   <h5 className="font-semibold text-blue-900 text-sm">
+                   <h5 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
                     {logoChoice?.label || originalLogoType} {isDuplicate ? '(Copy)' : ''}
                    </h5>
                   </div>
@@ -3123,7 +3228,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                        return newSelections;
                       });
                      }}
-                     className="flex items-center justify-center w-5 h-5 bg-red-500 bg-red-600 text-gray-900 rounded-full transition-colors duration-200 shadow-sm"
+                     className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors duration-200 shadow-sm"
                      title="Remove this copy"
                     >
                      <span className="text-xs font-bold">×</span>
@@ -3144,7 +3249,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                       }
                      }));
                     }}
-                    className="flex items-center justify-center w-6 h-6 bg-green-500 bg-green-600 text-gray-900 rounded-full transition-colors duration-200 shadow-sm"
+                    className="flex items-center justify-center w-6 h-6 bg-green-500 hover:bg-green-600 text-white rounded-full transition-colors duration-200 shadow-sm"
                     title={`Duplicate ${logoChoice?.label || logoValue}`}
                    >
                     <span className="text-xs font-bold">+</span>
@@ -3155,7 +3260,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  <div className="space-y-3">
                   {/* Position Selection */}
                   <div>
-                   <label className="block text-xs font-semibold mb-2 text-gray-700">Position</label>
+                   <label className="block text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Position</label>
                    <select
                     value={logoConfig.position || ''}
                     onChange={(e) => setLogoSetupSelections(prev => ({
@@ -3166,7 +3271,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                       size: e.target.value ? getDefaultLogoSize(e.target.value) : undefined
                      }
                     }))}
-                    className="w-full p-3 text-sm glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+                    className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                    >
                     <option value="">Select Position</option>
                     {logoPositions.map(pos => {
@@ -3188,7 +3293,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                   {/* Size Selection (appears when position is selected) */}
                   {logoConfig.position && (
                    <div>
-                    <label className="block text-xs font-semibold mb-2 text-gray-700">Size</label>
+                    <label className="block text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Size</label>
                     <select
                      value={logoConfig.size || getDefaultLogoSize(logoConfig.position)}
                      onChange={(e) => setLogoSetupSelections(prev => ({
@@ -3198,7 +3303,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                        size: e.target.value
                       }
                      }))}
-                     className="w-full p-3 text-sm glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+                     className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     >
                      {logoSizes.map(size => (
                       <option key={size} value={size}>{size}</option>
@@ -3210,7 +3315,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                   {/* Application Method (appears when size is selected) */}
                   {logoConfig.size && (
                    <div>
-                    <label className="block text-xs font-semibold mb-2 text-gray-700">Application Method</label>
+                    <label className="block text-xs font-semibold mb-2 text-gray-700 dark:text-gray-300">Application Method</label>
                     <select
                      value={logoConfig.application || getDefaultApplication(logoChoice?.label || '')}
                      onChange={(e) => setLogoSetupSelections(prev => ({
@@ -3220,7 +3325,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                        application: e.target.value
                       }
                      }))}
-                     className="w-full p-3 text-sm glass-input rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+                     className="w-full p-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     >
                      {logoApplications.map(app => (
                       <option key={app} value={app}>{app}</option>
@@ -3240,9 +3345,9 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              <div className="mt-4 space-y-4">
               <div className="flex items-center space-x-2 mb-3">
                <div className="w-5 h-5 bg-lime-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">📁</span>
+                <span className="text-white text-xs">📁</span>
                </div>
-               <h4 className="text-sm font-semibold text-lime-900">Upload Logo Files</h4>
+               <h4 className="text-sm font-semibold text-lime-900 dark:text-lime-100">Upload Logo Files</h4>
               </div>
               
               <TempLogoUploader
@@ -3253,20 +3358,20 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
               {/* Upload Status Messages */}
               {uploadSuccess && (
-               <div className="text-sm text-green-700 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-green-500/10 p-3 rounded-lg border border-green-200 ">
+               <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
                 ✅ {uploadSuccess}
                </div>
               )}
               
               {uploadError && (
-               <div className="text-sm text-red-700 bg-red-50  p-3 rounded-lg border border-red-200 ">
+               <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
                 ❌ {uploadError}
                </div>
               )}
 
               {/* Show uploaded files count */}
               {uploadedLogoFiles.length > 0 && (
-               <div className="text-sm text-lime-700 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-lime-500/10 p-3 rounded-lg border border-lime-200 dark:border-lime-800">
+               <div className="text-sm text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-900/20 p-3 rounded-lg border border-lime-200 dark:border-lime-800">
                 📎 {uploadedLogoFiles.length} file{uploadedLogoFiles.length > 1 ? 's' : ''} prepared for upload
                </div>
               )}
@@ -3287,19 +3392,19 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            <div key={accessoriesOption.id} className="space-y-3">
             <button
              onClick={() => setShowAccessories(!showAccessories)}
-             className="flex items-center justify-between w-full p-3 bg-gradient-to-r from-lime-50 to-green-50 dark:from-lime-900/10 dark:to-green-900/10 rounded-xl border border-lime-200 dark:border-lime-800  transition-all duration-200 shadow-sm"
+             className="flex items-center justify-between w-full p-3 bg-gradient-to-r from-cyan-50 to-teal-50 dark:from-cyan-900/10 dark:to-teal-900/10 rounded-xl border border-cyan-200 dark:border-cyan-800 hover:from-cyan-100 hover:to-teal-100 dark:hover:from-cyan-900/20 dark:hover:to-teal-900/20 transition-all duration-200 shadow-sm"
             >
              <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 bg-lime-500 rounded-full flex items-center justify-center">
-               <span className="text-gray-900 text-xs">🎒</span>
+              <div className="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center">
+               <span className="text-white text-xs">🎒</span>
               </div>
-              <span className="font-semibold text-lime-900">{accessoriesOption.name}</span>
+              <span className="font-semibold text-cyan-900 dark:text-cyan-100">{accessoriesOption.name}</span>
              </div>
              <div className="flex items-center space-x-2">
-              <span className="text-xs px-2 py-1 bg-lime-100  text-lime-700 rounded-full">
+              <span className="text-xs px-2 py-1 bg-cyan-100 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 rounded-full">
                {selectedAccessoryValues.length > 0 ? `${selectedAccessoryValues.length} selected` : 'Select accessories'}
               </span>
-              <span className={`transform transition-transform duration-200 text-lime-600 text-lime-700 ${showAccessories ? 'rotate-180' : ''}`}>
+              <span className={`transform transition-transform duration-200 text-cyan-600 dark:text-cyan-400 ${showAccessories ? 'rotate-180' : ''}`}>
                ▼
               </span>
              </div>
@@ -3312,16 +3417,16 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                 return (
                  <div
                   key={`accessories-${idx}`}
-                  className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200  hover:shadow-md ${
+                  className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-105 hover:shadow-md ${
                    isSelected
-                    ? 'border-lime-500 bg-lime-50  shadow-lg shadow-lime-500/20'
-                    : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+                    ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/10 shadow-lg shadow-cyan-500/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
                   }`}
                   onClick={() => toggleMultiSelect('accessories', choice.value)}
                   role="button"
                   aria-label={`Select ${choice.label} accessory`}
                  >
-                  <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+                  <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
                    {choice.image ? (
                     <Image
                      src={choice.image}
@@ -3332,17 +3437,17 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                     />
                    ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                     <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                     </div>
                    )}
                    {isSelected && (
                     <div className="absolute top-2 right-2 w-5 h-5 bg-lime-500 rounded-full flex items-center justify-center">
-                     <span className="text-gray-900 text-xs">✓</span>
+                     <span className="text-white text-xs">✓</span>
                     </div>
                    )}
                   </div>
                   <div className="p-3 text-center">
-                   <p className="text-sm font-medium text-gray-900 break-words">{choice.label}</p>
+                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">{choice.label}</p>
                   </div>
                  </div>
                 );
@@ -3360,15 +3465,15 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
          <div className="mb-4">
           <button
            onClick={() => setShowOptionalOptions(!showOptionalOptions)}
-           className="flex items-center justify-between w-full p-4 bg-gradient-to-r from-lime-50 to-green-50 dark:from-lime-900/10 dark:to-green-900/10 rounded-xl border border-lime-200 dark:border-lime-800  transition-all duration-200 shadow-sm"
+           className="flex items-center justify-between w-full p-4 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 rounded-xl border border-orange-200 dark:border-orange-800 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/20 dark:hover:to-amber-900/20 transition-all duration-200 shadow-sm"
           >
            <div className="flex items-center space-x-3">
-            <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-             <span className="text-gray-900 text-xs">⚡</span>
+            <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+             <span className="text-white text-xs">⚡</span>
             </div>
-            <span className="font-semibold text-lime-900">Additional Options</span>
+            <span className="font-semibold text-orange-900 dark:text-orange-100">Additional Options</span>
            </div>
-           <span className={`transform transition-transform duration-200 text-lime-600 text-lime-700 ${showOptionalOptions ? 'rotate-180' : ''}`}>
+           <span className={`transform transition-transform duration-200 text-orange-600 dark:text-orange-400 ${showOptionalOptions ? 'rotate-180' : ''}`}>
             ▼
            </span>
           </button>
@@ -3377,7 +3482,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
         {/* Optional Options (Expandable) - Delivery Type, Services */}
         {showOptionalOptions && (
-         <div className="space-y-6 p-6 bg-gradient-to-br from-lime-50 to-green-50 dark:from-lime-900/10 dark:to-green-900/10 rounded-xl border border-lime-200 dark:border-lime-800 shadow-sm">
+         <div className="space-y-6 p-6 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 rounded-xl border border-orange-200 dark:border-orange-800 shadow-sm">
           {/* Delivery Type - Single Select */}
           {(() => {
            const deliveryOption = product.productOptions.find(option => option.slug === 'delivery-type');
@@ -3388,8 +3493,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            return (
             <div key={deliveryOption.id} className="space-y-3">
              <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-900">{deliveryOption.name}</label>
-              <span className="text-xs px-2 py-1 bg-white/50 backdrop-blur-sm border border-white/20 bg-orange-500/20 text-orange-700 text-orange-700 rounded-full">
+              <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">{deliveryOption.name}</label>
+              <span className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 rounded-full">
                {currentLabel}
               </span>
              </div>
@@ -3428,10 +3533,10 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  key={`delivery-type-${idx}`}
                  className={`rounded-xl overflow-hidden border-2 transition-all duration-200 ${
                   isDisabled
-                   ? 'border-gray-300 bg-gray-100  cursor-not-allowed opacity-50 pointer-events-none'
+                   ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50 pointer-events-none'
                    : selectedOptions['delivery-type'] === choice.value
-                   ? 'border-orange-500 bg-orange-50  shadow-lg shadow-orange-500/20 cursor-pointer hover:scale-[1.02] hover:shadow-md'
-                   : 'border-gray-200 hover:border-gray-300  bg-white  cursor-pointer hover:scale-[1.02] hover:shadow-md'
+                   ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 shadow-lg shadow-orange-500/20 cursor-pointer hover:scale-[1.02] hover:shadow-md'
+                   : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800 cursor-pointer hover:scale-[1.02] hover:shadow-md'
                  }`}
                  onClick={() => {
                   if (!isDisabled) {
@@ -3444,7 +3549,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  role="button"
                  aria-label={`Select ${choice.label} for ${deliveryOption.name}`}
                 >
-                <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+                <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
                  {choice.image ? (
                   <Image
                    src={choice.image}
@@ -3455,17 +3560,17 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                   />
                  ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                   <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                   </div>
                  )}
                  {selectedOptions['delivery-type'] === choice.value && (
                   <div className="absolute top-2 right-2 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
-                   <span className="text-gray-900 text-xs">✓</span>
+                   <span className="text-white text-xs">✓</span>
                   </div>
                  )}
                 </div>
                 <div className="p-3 text-center">
-                 <p className="text-sm font-medium text-gray-900 break-words">
+                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                   {choice.label}
                   {isDisabled && (
                    <span className="block text-xs text-red-500 mt-1">
@@ -3493,8 +3598,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            return (
             <div key={servicesOption.id} className="space-y-3">
              <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-900">{servicesOption.name}</label>
-              <span className="text-xs px-2 py-1 bg-teal-100  text-teal-700 rounded-full">
+              <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">{servicesOption.name}</label>
+              <span className="text-xs px-2 py-1 bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded-full">
                {selectedServicesValues.length > 0 ? `${selectedServicesValues.length} selected` : 'Select services'}
               </span>
              </div>
@@ -3507,13 +3612,13 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${
                   isSelected
                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/10 shadow-lg shadow-teal-500/20'
-                   : 'border-white/30 hover:border-white/50 bg-white/60 backdrop-blur-md border border-white/20 shadow-md'
+                   : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
                  }`}
                  onClick={() => toggleMultiSelect('services', choice.value)}
                  role="button"
                  aria-label={`Select ${choice.label} service`}
                 >
-                 <div className="relative aspect-square bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-stone-800/40">
+                 <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800">
                   {choice.image ? (
                    <Image
                     src={choice.image}
@@ -3524,17 +3629,17 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                    />
                   ) : (
                    <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-700">{choice.label}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{choice.label}</span>
                    </div>
                   )}
                   {isSelected && (
                    <div className="absolute top-2 right-2 w-5 h-5 bg-teal-500 rounded-full flex items-center justify-center">
-                    <span className="text-gray-900 text-xs">✓</span>
+                    <span className="text-white text-xs">✓</span>
                    </div>
                   )}
                  </div>
                  <div className="p-3 text-center">
-                  <p className="text-sm font-medium text-gray-900 break-words">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                    {choice.label}
                   </p>
                  </div>
@@ -3555,7 +3660,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
     {/* Right Column: Product Details & Smart Options */}
     <div className="space-y-6 relative z-10">
      {/* Debug: Column 3 */}
-     <div className="lg:hidden text-xs bg-rose-100 dark:bg-rose-900/20 p-2 rounded mb-2 text-rose-800 text-rose-800">
+     <div className="lg:hidden text-xs bg-rose-100 dark:bg-rose-900/20 p-2 rounded mb-2 text-rose-800 dark:text-rose-200">
       📱 Mobile: Column 3 (Product Details)
      </div>
      {/* Column Separator Visual */}
@@ -3565,36 +3670,39 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
       <div className="bg-gradient-to-r from-rose-500/90 to-orange-500/90 rounded-full px-4 py-2 shadow-xl border border-stone-400">
        <div className="flex items-center space-x-2">
         <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-        <span className="text-xs font-bold text-gray-900">📋 Product Details & Actions</span>
+        <span className="text-xs font-bold text-white">📋 Product Details & Actions</span>
        </div>
       </div>
+      <div className="hidden lg:block text-xs text-gray-500 dark:text-gray-400 font-medium">
+       Column 3 of 3
       </div>
+     </div>
      {/* Enhanced Product Info Header */}
-     <div className="group bg-white/80 backdrop-blur-xl shadow-2xl rounded-2xl p-6">
+     <div className="group bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-2xl border border-stone-500 dark:border-gray-700/20 hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] hover:bg-white/80 dark:hover:bg-gray-800/80">
       <div className="flex items-center space-x-3 mb-4">
        <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
-        <span className="text-gray-900 text-lg">🧢</span>
+        <span className="text-white text-lg">🧢</span>
        </div>
        <div>
-        <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
-        <p className="text-sm text-gray-700">Premium Custom Baseball Cap</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{product.name}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Premium Custom Baseball Cap</p>
        </div>
       </div>
-      <div dangerouslySetInnerHTML={{ __html: product.description }} className="text-sm text-gray-600 prose prose-sm dark:prose-invert" />
+      <div dangerouslySetInnerHTML={{ __html: product.description }} className="text-sm text-gray-600 dark:text-gray-400 prose prose-sm dark:prose-invert" />
 
      </div>
 
      {/* Enhanced Volume Pricing Card with Quantity-Based Animation - Not Sticky */}
      <VolumePricingCard 
-      pricing={product.pricing} 
+      pricingData={pricingData} 
       selectedColors={selectedColors} 
      />
 
      {/* Section Starting from Cost Calculator */}
      <div className="space-y-6">
       {/* Costing & Calculation Section */}
-      <div className="bg-white/80 backdrop-blur-xl shadow-xl rounded-xl p-6">
-       <h3 className="text-lg font-semibold mb-4 text-gray-900">Cost Calculator</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Cost Calculator</h3>
        
        <div className="transition-all duration-300 ease-in-out">
         {Object.keys(selectedColors).length > 0 ? (
@@ -3604,7 +3712,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            logoSetupSelections={logoSetupSelections}
            multiSelectOptions={multiSelectOptions}
            selectedOptions={selectedOptions}
-           productPricing={product.pricing}
+           productPricing={pricingData}
            shipmentValidation={shipmentValidation}
            product={product}
            previousOrderNumber={previousOrderNumber}
@@ -3612,9 +3720,9 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           />
          </div>
         ) : (
-         <div className="text-center py-8 text-gray-700 animate-fadeIn">
+         <div className="text-center py-8 text-gray-500 dark:text-gray-400 animate-fadeIn">
           <div className="mb-4">
-           <svg className="w-12 h-12 mx-auto text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <svg className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
            </svg>
           </div>
@@ -3626,16 +3734,16 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
 
       {/* Action Buttons */}
-      <div className="bg-white/80 backdrop-blur-xl shadow-xl rounded-xl p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
        <div className="space-y-4">
         {/* Validation Summary */}
         {Object.keys(selectedColors).length === 0 && (
          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
           <div className="flex items-center space-x-2">
            <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center">
-            <span className="text-gray-900 text-xs">!</span>
+            <span className="text-white text-xs">!</span>
            </div>
-           <span className="text-sm font-medium text-yellow-800 text-yellow-800">
+           <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
             Please select at least one color to continue
            </span>
           </div>
@@ -3644,14 +3752,14 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
         {/* Additional Instructions Block */}
         {(Object.keys(selectedColors).length > 0 && (Object.keys(logoSetupSelections).length > 0 || (multiSelectOptions.accessories && multiSelectOptions.accessories.length > 0))) && (
-         <div className="bg-white/80 backdrop-blur-xl shadow-xl rounded-xl p-6 hover:shadow-xl transition-all duration-300">
+         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
           <div className="flex items-center space-x-3 mb-4">
            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg">
-            <span className="text-gray-900 text-lg">📝</span>
+            <span className="text-white text-lg">📝</span>
            </div>
            <div>
-            <h3 className="text-lg font-bold text-gray-900">Additional Instructions</h3>
-            <p className="text-sm text-gray-700">Special requirements for your order</p>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Additional Instructions</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Special requirements for your order</p>
            </div>
           </div>
           
@@ -3660,16 +3768,16 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             value={additionalInstructions}
             onChange={(e) => setAdditionalInstructions(e.target.value)}
             placeholder="Add any special instructions for your order (placement details, color preferences, specific requirements, etc.)"
-            className="w-full p-4 glass-input border-2 border-white/30 rounded-xl text-gray-800 placeholder:text-gray-700 focus:ring-4 focus:ring-lime-500/30 focus:border-lime-500 transition-all duration-300 resize-none shadow-sm hover:shadow-md"
+            className="w-full p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 focus:ring-4 focus:ring-orange-500/20 focus:border-orange-500 transition-all duration-300 resize-none shadow-sm hover:shadow-md"
             rows={4}
             maxLength={500}
            />
            
            <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
              💡 <strong>Tip:</strong> Be specific about logo placement, colors, or special finishes
             </div>
-            <div className="text-xs text-orange-800 font-medium">
+            <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
              {500 - additionalInstructions.length} characters remaining
             </div>
            </div>
@@ -3683,14 +3791,14 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           <div className="flex items-center space-x-4 mb-4">
            <div className="relative">
             <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-             <span className="text-gray-900 text-xl">🔄</span>
+             <span className="text-white text-xl">🔄</span>
             </div>
            </div>
            <div>
-            <h4 className="text-lg font-bold text-amber-900">
+            <h4 className="text-lg font-bold text-amber-900 dark:text-amber-100">
              Previous Order Number
             </h4>
-            <p className="text-sm text-amber-800">
+            <p className="text-sm text-amber-700 dark:text-amber-300">
              Save on mold charges by referencing a previous order
             </p>
            </div>
@@ -3702,10 +3810,10 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             value={previousOrderNumber}
             onChange={(e) => setPreviousOrderNumber(e.target.value)}
             placeholder="Enter previous order number (e.g., ORD-2024-001)"
-            className="w-full px-4 py-3 glass-input border border-lime-400/40 rounded-xl text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-all duration-200"
+            className="w-full px-4 py-3 border border-amber-300 dark:border-amber-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
            />
            <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
-            <div className="text-xs text-amber-800 text-amber-800">
+            <div className="text-xs text-amber-800 dark:text-amber-200">
              <strong>💡 Pro Tip:</strong> If you've previously ordered the same logo design (Rubber Patch or Leather Patch), 
              enter your order number to automatically waive mold development charges and save $40-$80!
             </div>
@@ -3714,58 +3822,23 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
          </div>
         )}
 
-        {/* Enhanced Shipment Number Block - Collapsible */}
+        {/* Enhanced Shipment Number Block */}
         {Object.keys(selectedColors).length > 0 && (
-         <div className={`bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-xl p-6 transition-all duration-300 ${
-          currentStep === 1 ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-700'
-         }`}>
-          <button
-           onClick={() => setShowShipmentIntegration(!showShipmentIntegration)}
-           className="flex items-center justify-between w-full p-4 mb-2 bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-emerald-500/10 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all duration-200"
-          >
-           <div className="flex items-center space-x-3">
-            <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-             <span className="text-gray-900 text-xs">🚢</span>
+         <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-900/50 rounded-2xl p-6 shadow-xl border border-gray-200/60 dark:border-gray-700/60 hover:shadow-2xl transition-all duration-500 ">
+          <div className="flex items-center space-x-4 mb-6">
+           <div className="relative">
+            <div className="w-14 h-14 bg-gradient-to-br from-lime-500 via-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
+             <span className="text-white text-2xl">🚢</span>
             </div>
-            <span className="font-semibold text-emerald-900">Shipment Integration</span>
+            <div className="absolute -inset-1 bg-gradient-to-br from-lime-400 via-green-400 to-emerald-400 rounded-2xl blur opacity-40 animate-pulse"></div>
            </div>
-           <div className="flex items-center space-x-3">
-            {(() => {
-             const hasShipmentConfig = shipmentNumber && shipmentNumber.length > 0;
-             
-             return hasShipmentConfig && (
-              <div className="flex items-center space-x-2 text-emerald-600">
-               <span className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
-                <span className="text-gray-900 text-xs">✓</span>
-               </span>
-               <span className="text-xs font-medium">Configured</span>
-              </div>
-             );
-            })()}
-            <span className={`transform transition-transform duration-200 text-emerald-600 ${showShipmentIntegration ? 'rotate-180' : ''}`}>
-             ▼
-            </span>
+           <div className="flex-1">
+            <h3 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+             Shipment Integration
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Combine orders for better pricing</p>
            </div>
-          </button>
-          
-          {/* Grid layout for better organization */}
-          {showShipmentIntegration && (
-          <div className="mt-4 grid grid-cols-1 gap-6">
-           <div className="mb-6">
-            <div className="flex items-center space-x-4 mb-6">
-             <div className="relative">
-              <div className="w-14 h-14 bg-gradient-to-br from-lime-500 via-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg">
-               <span className="text-gray-900 text-2xl">🚢</span>
-              </div>
-              <div className="absolute -inset-1 bg-gradient-to-br from-lime-400 via-green-400 to-emerald-400 rounded-2xl blur opacity-40 animate-pulse"></div>
-             </div>
-             <div className="flex-1">
-              <h3 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-               Shipment Integration
-              </h3>
-              <p className="text-sm text-gray-600 font-medium">Combine orders for better pricing</p>
-             </div>
-            </div>
+          </div>
           
           {/* Auto-config checkbox */}
           <div className="flex items-center space-x-3 mb-6 p-4 bg-gradient-to-r from-lime-50 to-green-50 dark:from-lime-900/20 dark:to-green-900/20 rounded-xl border border-lime-200 dark:border-lime-700">
@@ -3774,9 +3847,9 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             id="autoConfigFastestShipment2"
             checked={autoConfigFastestShipment}
             onChange={(e) => handleAutoConfigChange(e.target.checked)}
-            className="w-5 h-5 text-lime-600 bg-white border-lime-300 rounded focus:ring-lime-500 dark:focus:ring-lime-600 dark:ring-offset-gray-800 focus:ring-2  dark:border-lime-600"
+            className="w-5 h-5 text-lime-600 bg-white border-lime-300 rounded focus:ring-lime-500 dark:focus:ring-lime-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-lime-600"
            />
-           <label htmlFor="autoConfigFastestShipment2" className="text-sm font-semibold text-lime-800 cursor-pointer flex items-center space-x-2">
+           <label htmlFor="autoConfigFastestShipment2" className="text-sm font-semibold text-lime-800 dark:text-lime-200 cursor-pointer flex items-center space-x-2">
             <span>⚡</span>
             <span>Automatically Configured to Fastest Shipment Build</span>
            </label>
@@ -3800,15 +3873,15 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
              placeholder={autoConfigFastestShipment ? "Auto-configured to fastest shipment ⚡" : "Enter shipment number (e.g., SB-2024-001)"}
              className={`w-full px-4 py-4 border-2 rounded-xl transition-all duration-300 pr-16 shadow-sm font-medium ${
               autoConfigFastestShipment
-               ? 'bg-gray-100/80 text-gray-700 placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 cursor-not-allowed'
-               : 'glass-input text-gray-800 placeholder-gray-500 focus:ring-4 hover:shadow-lg'
+               ? 'bg-gray-100/80 dark:bg-gray-700/80 text-gray-500 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-gray-600 cursor-not-allowed'
+               : 'bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-4 hover:shadow-lg'
              } ${
               !autoConfigFastestShipment && (
                shipmentValidation.isValid === true 
                 ? 'border-green-400 dark:border-green-500 focus:ring-green-500/30 bg-green-50/80 dark:bg-green-900/20 shadow-green-500/20' 
                 : shipmentValidation.isValid === false 
-                ? 'border-red-400 dark:border-red-500 focus:ring-red-500/30 bg-red-50/80 shadow-red-500/20' 
-                : 'border-gray-300 focus:ring-lime-500/30 focus:border-lime-400'
+                ? 'border-red-400 dark:border-red-500 focus:ring-red-500/30 bg-red-50/80 dark:bg-red-900/20 shadow-red-500/20' 
+                : 'border-gray-300 dark:border-gray-600 focus:ring-lime-500/30 focus:border-lime-400 group-hover:border-lime-300 hover:bg-lime-50/30 dark:hover:bg-lime-900/10'
               )
              }`}
             />
@@ -3822,22 +3895,22 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
               </div>
              ) : shipmentValidation.isValid === true ? (
               <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
-               <span className="text-gray-900 text-lg">✓</span>
+               <span className="text-white text-lg">✓</span>
               </div>
              ) : shipmentValidation.isValid === false ? (
               <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
-               <span className="text-gray-900 text-lg">✗</span>
+               <span className="text-white text-lg">✗</span>
               </div>
              ) : (
-              <div className="w-6 h-6 bg-gradient-to-r from-gray-400 to-gray-500 rounded-full flex items-center justify-center opacity-60 opacity-0 transition-all duration-200">
-               <span className="text-gray-900 text-sm">🔍</span>
+              <div className="w-6 h-6 bg-gradient-to-r from-gray-400 to-gray-500 rounded-full flex items-center justify-center opacity-60 group-hover:opacity-100 transition-all duration-200">
+               <span className="text-white text-sm">🔍</span>
               </div>
              )}
             </div>
             
             {/* Autocomplete Suggestions */}
             {showShipmentSuggestions && shipmentNumber && !autoConfigFastestShipment && (
-             <div className="absolute top-full left-0 right-0 mt-3 glass-dropdown rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto ">
+             <div className="absolute top-full left-0 right-0 mt-3 bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-600 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto ">
               {getShipmentSuggestions(shipmentNumber).map((shipment, index) => (
                <div
                 key={shipment.id}
@@ -3845,16 +3918,16 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  setShipmentNumber(shipment.buildNumber);
                  setShowShipmentSuggestions(false);
                 }}
-                className="px-4 py-3 bg-gradient-to-r from-lime-50 to-green-50 cursor-pointer border-b border-gray-200 last:border-b-0 transition-all duration-200 hover:scale-[1.02] transform"
+                className="px-4 py-3 hover:bg-gradient-to-r hover:from-lime-50 hover:to-green-50 dark:hover:from-lime-900/20 dark:hover:to-green-900/20 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-all duration-200 hover:scale-[1.02] transform"
                 style={{ animationDelay: `${index * 50}ms` }}
                >
                 <div className="flex items-center justify-between">
                  <div className="flex-1">
-                  <div className="font-medium text-gray-900 flex items-center space-x-2">
+                  <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center space-x-2">
                    <span>📦</span>
                    <span>{shipment.buildNumber}</span>
                   </div>
-                  <div className="text-xs text-gray-700 flex items-center space-x-2 mt-1">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-2 mt-1">
                    <span>🚚 {shipment.shippingMethod}</span>
                    <span>•</span>
                    <span>📋 {shipment._count?.orders || 0} orders</span>
@@ -3868,7 +3941,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                </div>
               ))}
               {getShipmentSuggestions(shipmentNumber).length === 0 && (
-               <div className="px-4 py-6 text-gray-700 text-sm text-center">
+               <div className="px-4 py-6 text-gray-500 dark:text-gray-400 text-sm text-center">
                 <div className="text-4xl mb-2">🔍</div>
                 <div>No matching shipments found</div>
                 <div className="text-xs mt-1">Try a different search term</div>
@@ -3883,13 +3956,13 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             <div className="bg-gradient-to-r from-red-50/80 to-pink-50/80 dark:from-red-900/10 dark:to-pink-900/10 border border-red-200/60 dark:border-red-600/60 rounded-xl p-4">
              <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg flex items-center justify-center shadow-sm">
-               <span className="text-gray-900 text-sm">⚠️</span>
+               <span className="text-white text-sm">⚠️</span>
               </div>
               <div className="flex-1">
-               <div className="text-sm font-medium text-red-800 mb-1">
+               <div className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
                 Shipment not found
                </div>
-               <div className="text-xs text-red-700">
+               <div className="text-xs text-red-600 dark:text-red-400">
                 {shipmentValidation.error}
                </div>
               </div>
@@ -3901,13 +3974,13 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             <div className="bg-gradient-to-r from-green-50/80 to-emerald-50/80 dark:from-green-900/10 dark:to-emerald-900/10 border border-green-200/60 dark:border-green-600/60 rounded-xl p-4">
              <div className="flex items-center space-x-3 mb-3">
               <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center shadow-sm">
-               <span className="text-gray-900 text-sm">✓</span>
+               <span className="text-white text-sm">✓</span>
               </div>
               <div className="flex-1">
-               <div className="text-sm font-medium text-green-700">
+               <div className="text-sm font-medium text-green-800 dark:text-green-200">
                 Shipment found - order will be combined
                </div>
-               <div className="text-xs text-green-700">
+               <div className="text-xs text-green-600 dark:text-green-400">
                 {shipmentValidation.shipmentData.shippingMethod} • {shipmentValidation.shipmentData._count?.orders || 0} existing orders
                </div>
               </div>
@@ -3941,14 +4014,14 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                // Calculate total combined quantity
                const totalCombinedQuantity = currentOrderQuantity + existingShipmentQuantity;
                
-               // Get pricing tiers
+               // Get pricing tiers using correct CSV-based pricing data
                const getCurrentTierPrice = (quantity: number): number => {
-                if (quantity >= 10000) return product.pricing.price10000;
-                if (quantity >= 2880) return product.pricing.price2880;
-                if (quantity >= 1152) return product.pricing.price1152;
-                if (quantity >= 576) return product.pricing.price576;
-                if (quantity >= 144) return product.pricing.price144;
-                return product.pricing.price48;
+                if (quantity >= 10000) return pricingData.price10000;
+                if (quantity >= 2880) return pricingData.price2880;
+                if (quantity >= 1152) return pricingData.price1152;
+                if (quantity >= 576) return pricingData.price576;
+                if (quantity >= 144) return pricingData.price144;
+                return pricingData.price48;
                };
                
                // Calculate costs
@@ -3966,48 +4039,48 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                  <div className="mt-3 bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-700">
                   <div className="flex items-center justify-between mb-2">
                    <div className="flex items-center space-x-2">
-                    <span className="text-emerald-700 text-lg">💰</span>
-                    <span className="text-sm font-semibold text-emerald-800">
+                    <span className="text-emerald-600 dark:text-emerald-400 text-lg">💰</span>
+                    <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
                      Bulk Shipment Savings
                     </span>
                    </div>
                    <div className="text-right">
-                    <div className="text-lg font-bold text-emerald-700">
+                    <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
                      ${savings.toFixed(2)}
                     </div>
-                    <div className="text-xs text-emerald-700">
+                    <div className="text-xs text-emerald-600 dark:text-emerald-400">
                      {savingsPercentage.toFixed(1)}% off
                     </div>
                    </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3 text-xs">
-                   <div className="bg-white/60 backdrop-blur-md border border-lime-400/30 shadow-md rounded-lg p-2">
-                    <div className="text-emerald-700 font-medium mb-1">
+                   <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-emerald-200 dark:border-emerald-700">
+                    <div className="text-emerald-700 dark:text-emerald-300 font-medium mb-1">
                      Individual Order
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-gray-600 dark:text-gray-400">
                      {currentOrderQuantity} units × ${currentOrderPrice.toFixed(2)}
                     </div>
-                    <div className="text-emerald-700 font-semibold">
+                    <div className="text-emerald-600 dark:text-emerald-400 font-semibold">
                      ${currentOrderCost.toFixed(2)}
                     </div>
                    </div>
                    
-                   <div className="bg-white/60 backdrop-blur-md border border-lime-400/30 shadow-md rounded-lg p-2">
-                    <div className="text-emerald-700 font-medium mb-1">
+                   <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-emerald-200 dark:border-emerald-700">
+                    <div className="text-emerald-700 dark:text-emerald-300 font-medium mb-1">
                      Bulk Shipment
                     </div>
-                    <div className="text-gray-600">
+                    <div className="text-gray-600 dark:text-gray-400">
                      {currentOrderQuantity} units × ${combinedOrderPrice.toFixed(2)}
                     </div>
-                    <div className="text-emerald-700 font-semibold">
+                    <div className="text-emerald-600 dark:text-emerald-400 font-semibold">
                      ${combinedOrderCost.toFixed(2)}
                     </div>
                    </div>
                   </div>
                   
-                  <div className="mt-2 text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2 flex items-center space-x-2">
+                  <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2 flex items-center space-x-2">
                    <span>🎯</span>
                    <span>
                     <strong>Total shipment:</strong> {totalCombinedQuantity} units 
@@ -4019,7 +4092,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                }
                
                return (
-                <div className="mt-3 text-xs text-green-700 bg-green-100 dark:bg-green-900/30 rounded-lg p-2 flex items-center space-x-2">
+                <div className="mt-3 text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-lg p-2 flex items-center space-x-2">
                  <span>💡</span>
                  <span>
                   <strong>Great choice!</strong> Adding to shipment with {existingShipmentQuantity} existing units 
@@ -4036,13 +4109,13 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
             <div className="bg-gradient-to-r from-lime-50/80 to-green-50/80 dark:from-lime-900/10 dark:to-green-900/10 rounded-xl p-4 border border-lime-200/60 dark:border-lime-700/60">
              <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-r from-lime-500 to-green-500 rounded-lg flex items-center justify-center shadow-sm">
-               <span className="text-gray-900 text-sm">💡</span>
+               <span className="text-white text-sm">💡</span>
               </div>
               <div className="flex-1">
-               <p className="text-sm font-medium text-gray-800 mb-1">
+               <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
                 Combine with existing shipments for savings
                </p>
-               <div className="flex items-center space-x-4 text-xs text-gray-600">
+               <div className="flex items-center space-x-4 text-xs text-gray-600 dark:text-gray-400">
                 <span className="flex items-center space-x-1">
                  <span>📦</span>
                  <span>Bulk pricing</span>
@@ -4058,24 +4131,21 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            )}
           </div>
          </div>
-        </div>
-        )}
-        </div>
         )}
 
         {/* Order Summary */}
         {Object.keys(selectedColors).length > 0 && (
-         <div className="bg-white/70 backdrop-blur-lg border border-white/25 shadow-lg rounded-lg p-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Order Summary</h4>
+         <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Order Summary</h4>
           <div className="space-y-1">
            {Object.entries(selectedColors).map(([colorName, colorData]) => {
             const totalQuantity = Object.values(colorData.sizes).reduce((sum, qty) => sum + qty, 0);
             return (
              <div key={colorName} className="flex justify-between text-sm">
-              <span className="text-gray-700">
+              <span className="text-gray-700 dark:text-gray-300">
                {colorName}
               </span>
-              <span className="font-medium text-gray-900">
+              <span className="font-medium text-gray-900 dark:text-gray-100">
                {totalQuantity} units
               </span>
              </div>
@@ -4087,12 +4157,12 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
         {/* Cart/Order Messages */}
         {cartMessage && (
-         <div className="bg-white/60 backdrop-blur-md border border-white/20 shadow-md bg-green-500/10 border border-green-200  rounded-lg p-4">
+         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <div className="flex items-center space-x-2">
            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-            <span className="text-gray-900 text-xs">✓</span>
+            <span className="text-white text-xs">✓</span>
            </div>
-           <span className="text-sm font-medium text-green-700">
+           <span className="text-sm font-medium text-green-800 dark:text-green-200">
             {cartMessage}
            </span>
           </div>
@@ -4100,12 +4170,12 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
         )}
 
         {cartError && (
-         <div className="bg-red-50  border border-red-200  rounded-lg p-4">
+         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <div className="flex items-center space-x-2">
            <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-            <span className="text-gray-900 text-xs">!</span>
+            <span className="text-white text-xs">!</span>
            </div>
-           <span className="text-sm font-medium text-red-800 text-red-800">
+           <span className="text-sm font-medium text-red-800 dark:text-red-200">
             {cartError}
            </span>
           </div>
@@ -4118,8 +4188,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           onClick={() => (editOrderId ? handleQuickSave() : setShowOrderForm(true))}
           className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
            Object.keys(selectedColors).length > 0
-            ? 'bg-orange-500 bg-orange-600 text-gray-900 shadow-lg shadow-orange-500/25 shadow-orange-500/40 '
-            : 'bg-gray-300  text-gray-700 cursor-not-allowed'
+            ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-105'
+            : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
           }`}
           disabled={Object.keys(selectedColors).length === 0}
           aria-label="Save order"
@@ -4155,7 +4225,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
 
         {/* Order Form */}
         {showOrderForm && Object.keys(selectedColors).length > 0 && (
-         <div className="mt-6 pt-6 border-t border-gray-200">
+         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
           <CustomerInfoForm 
            onSubmit={handleSubmitOrder}
            isLoading={isSubmittingOrder}

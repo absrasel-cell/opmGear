@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { nanoid } from 'nanoid';
 
 export async function POST(request: NextRequest) {

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ConversationService } from '@/lib/conversation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { AI_ASSISTANTS, formatAssistantResponse } from '@/lib/ai-assistants-config';
-import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 
@@ -67,29 +66,27 @@ export async function POST(request: NextRequest) {
   if (extractedOrderIds.length > 0) {
    try {
     for (const orderId of extractedOrderIds) {
-     const foundOrders = await prisma.order.findMany({
-      where: {
-       id: { contains: orderId }
-      },
-      select: {
-       id: true,
-       productName: true,
-       status: true,
-       calculatedTotal: true,
-       totalUnits: true,
-       createdAt: true,
-       userEmail: true,
-       trackingNumber: true,
-       selectedOptions: true,
-       selectedColors: true,
-       logoSetupSelections: true,
-       additionalInstructions: true,
-       shipmentId: true
-      },
-      take: 3 // Limit to avoid too many results
-     });
+     const { data: foundOrders } = await supabaseAdmin
+      .from('Order')
+      .select(`
+       id,
+       productName,
+       status,
+       calculatedTotal,
+       totalUnits,
+       createdAt,
+       userEmail,
+       trackingNumber,
+       selectedOptions,
+       selectedColors,
+       logoSetupSelections,
+       additionalInstructions,
+       shipmentId
+      `)
+      .ilike('id', `%${orderId}%`)
+      .limit(3);
      
-     if (foundOrders.length > 0) {
+     if (foundOrders && foundOrders.length > 0) {
       specificOrders.push(...foundOrders.map(order => ({
        id: order.id,
        shortId: orderId,
@@ -97,7 +94,7 @@ export async function POST(request: NextRequest) {
        status: order.status,
        total: order.calculatedTotal?.toString() || 'N/A',
        quantity: order.totalUnits,
-       date: order.createdAt.toLocaleDateString(),
+       date: new Date(order.createdAt).toLocaleDateString(),
        tracking: order.trackingNumber,
        email: order.userEmail,
        colors: order.selectedColors,
@@ -113,7 +110,7 @@ export async function POST(request: NextRequest) {
    }
   }
 
-  // Try to get user from auth token
+  // Try to get user from auth token or userProfile in request body
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
    try {
@@ -128,63 +125,74 @@ export async function POST(request: NextRequest) {
    }
   }
   
+  // Also check userProfile data sent from support page
+  let userId = null;
+  if (!userEmail && userProfile?.email) {
+   userEmail = userProfile.email;
+   userId = userProfile.id; // Use the actual user ID, not email
+   console.log('Using email from userProfile:', userEmail);
+   console.log('Using userId from userProfile:', userId);
+  }
+  
   if (userEmail) {
-   const recentOrders = await prisma.order.findMany({
-    where: { 
-     userEmail: userEmail 
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-    select: {
-     id: true,
-     productName: true,
-     status: true,
-     calculatedTotal: true,
-     createdAt: true,
-     trackingNumber: true,
-     totalUnits: true,
-     shipmentId: true
-    }
-   });
+   try {
+    const { data: recentOrders } = await supabaseAdmin
+     .from('Order')
+     .select(`
+      id,
+      productName,
+      status,
+      calculatedTotal,
+      createdAt,
+      trackingNumber,
+      totalUnits,
+      shipmentId
+     `)
+     .eq('userEmail', userEmail)
+     .order('createdAt', { ascending: false })
+     .limit(10);
    
-   userOrders = recentOrders.map(order => ({
+   userOrders = (recentOrders || []).map(order => ({
     id: order.id,
     product: order.productName,
     status: order.status,
     total: order.calculatedTotal?.toString() || 'N/A',
-    date: order.createdAt.toLocaleDateString(),
+    date: new Date(order.createdAt).toLocaleDateString(),
     tracking: order.trackingNumber,
     quantity: order.totalUnits,
     shipmentId: order.shipmentId
    }));
 
    // Get shipment data if available
-   if (recentOrders.some(order => order.shipmentId)) {
-    const shipments = await prisma.shipment.findMany({
-     where: {
-      id: {
-       in: recentOrders
-        .filter(order => order.shipmentId)
-        .map(order => order.shipmentId!)
-      }
-     },
-     select: {
-      id: true,
-      trackingNumber: true,
-      status: true,
-      estimatedDelivery: true,
-      createdAt: true
-     }
-    });
+   if ((recentOrders || []).some(order => order.shipmentId)) {
+    const shipmentIds = (recentOrders || [])
+     .filter(order => order.shipmentId)
+     .map(order => order.shipmentId!)
+     .filter(Boolean);
     
-    userShipments = shipments.map(shipment => ({
+    const { data: shipments } = await supabaseAdmin
+     .from('Shipment')
+     .select(`
+      id,
+      trackingNumber,
+      status,
+      estimatedDelivery,
+      createdAt
+     `)
+     .in('id', shipmentIds);
+    
+    userShipments = (shipments || []).map(shipment => ({
      id: shipment.id,
      tracking: shipment.trackingNumber,
      status: shipment.status,
-     estimatedDelivery: shipment.estimatedDelivery?.toLocaleDateString(),
-     created: shipment.createdAt.toLocaleDateString()
+     estimatedDelivery: shipment.estimatedDelivery ? new Date(shipment.estimatedDelivery).toLocaleDateString() : null,
+     created: new Date(shipment.createdAt).toLocaleDateString()
     }));
    }
+  } catch (dbError) {
+   console.warn('Database connection failed for orders/shipments query, continuing without order data');
+   // Continue without order data - conversation storage can still work
+  }
   }
 
   // Create conversation context
@@ -285,38 +293,16 @@ Please provide a helpful response to the customer's query.`;
    throw new Error('No response from OpenAI');
   }
 
-  // Save conversation messages if conversationId is provided
-  if (conversationId) {
-   try {
-    // Save user message
-    await ConversationService.addMessage(conversationId, {
-     role: 'user',
-     content: message,
-     metadata: {
-      intent,
-      sessionId,
-      timestamp: new Date().toISOString()
-     }
-    });
+  // Use existing conversation ID if provided by frontend, otherwise skip conversation creation
+  // The frontend support page handles conversation creation via storeConversation function
+  let conversationIdToUse = conversationId;
 
-    // Save assistant response
-    await ConversationService.addMessage(conversationId, {
-     role: 'assistant',
-     content: messageContent,
-     metadata: {
-      model: supportScout.model,
-      intent,
-      sessionId,
-      ordersFound: userOrders.length,
-      specificOrdersFound: specificOrders.length,
-      shipmentsFound: userShipments.length,
-      timestamp: new Date().toISOString()
-     }
-    });
-   } catch (conversationError) {
-    console.error('Failed to save conversation messages:', conversationError);
-    // Continue without failing the request
-   }
+  // Frontend handles all conversation creation and message storage
+  // Backend only processes AI responses and returns them
+  if (conversationIdToUse) {
+    console.log('🔄 Frontend provided conversation ID:', conversationIdToUse, '- frontend will handle message storage to prevent duplicates');
+  } else {
+    console.log('⚠️ No conversation ID provided by frontend - no conversation storage will occur');
   }
 
   // Format response with SupportScout AI identity
@@ -324,7 +310,7 @@ Please provide a helpful response to the customer's query.`;
   
   return NextResponse.json({
    ...formattedResponse,
-   conversationId,
+   conversationId: conversationIdToUse || conversationId,
    metadata: {
     ...formattedResponse.metadata,
     intent,
@@ -338,6 +324,10 @@ Please provide a helpful response to the customer's query.`;
 
  } catch (error) {
   console.error('Public query processing error:', error);
+  
+  // Get SupportScout configuration for error response
+  const supportScout = AI_ASSISTANTS.SUPPORT_SCOUT;
+  
   return NextResponse.json(
    { 
     message: "I apologize, but I'm having trouble processing your request right now. Please try again in a moment, or contact our support team for immediate assistance.",

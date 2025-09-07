@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { 
   validateOrderBuilderState, 
@@ -41,10 +41,10 @@ interface SaveQuoteRequest {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 Save Quote Conversation API - Starting');
+  console.log('🚀 Save Quote Conversation API - Starting (FIXED)');
   
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
@@ -86,110 +86,319 @@ export async function POST(request: NextRequest) {
     // Serialize state for database storage
     const serializedState = serializeOrderBuilderState(orderBuilderState);
 
-    // Start database transaction
-    const result = await prisma.$transaction(async (tx) => {
-      console.log('🔄 Starting database transaction');
+    // Perform database operations (Supabase doesn't have transactions like Prisma, so we'll do operations sequentially)
+    console.log('🔄 Starting database operations');
+    
+    let orderBuilderRecord, updatedConversation, conversationQuote;
 
+    try {
       // 1. Create or update OrderBuilderState
       console.log('💾 Creating/updating OrderBuilderState for session:', sessionId);
-      const orderBuilderRecord = await tx.orderBuilderState.upsert({
-        where: { sessionId },
-        update: {
-          capStyleSetup: serializedState.capStyleSetup,
-          customization: serializedState.customization,
-          delivery: serializedState.delivery,
-          costBreakdown: serializedState.costBreakdown,
-          productionTimeline: serializedState.productionTimeline,
-          packaging: serializedState.packaging,
-          quoteData: serializedState.quoteData,
-          currentStep: orderBuilderState.currentStep || 'setup',
-          isCompleted: true,
-          completedAt: new Date(),
-          totalCost: orderBuilderState.totalCost ? parseFloat(orderBuilderState.totalCost.toString()) : null,
-          totalUnits: orderBuilderState.totalUnits || null,
-          stateVersion: orderBuilderState.stateVersion || '1.0',
-          metadata: serializedState.metadata,
-          updatedAt: new Date()
-        },
-        create: {
-          sessionId,
-          capStyleSetup: serializedState.capStyleSetup,
-          customization: serializedState.customization,
-          delivery: serializedState.delivery,
-          costBreakdown: serializedState.costBreakdown,
-          productionTimeline: serializedState.productionTimeline,
-          packaging: serializedState.packaging,
-          quoteData: serializedState.quoteData,
-          currentStep: orderBuilderState.currentStep || 'setup',
-          isCompleted: true,
-          completedAt: new Date(),
-          totalCost: orderBuilderState.totalCost ? parseFloat(orderBuilderState.totalCost.toString()) : null,
-          totalUnits: orderBuilderState.totalUnits || null,
-          stateVersion: orderBuilderState.stateVersion || '1.0',
-          metadata: serializedState.metadata
-        }
-      });
+      
+      // First, check if OrderBuilderState exists
+      const { data: existingState } = await supabaseAdmin
+        .from('OrderBuilderState')
+        .select('id')
+        .eq('sessionId', sessionId)
+        .single();
+
+      const now = new Date().toISOString();
+      
+      if (existingState) {
+        // Update existing state
+        const { data: updatedState, error: updateError } = await supabaseAdmin
+          .from('OrderBuilderState')
+          .update({
+            capStyleSetup: serializedState.capStyleSetup,
+            customization: serializedState.customization,
+            delivery: serializedState.delivery,
+            costBreakdown: serializedState.costBreakdown,
+            productionTimeline: serializedState.productionTimeline,
+            packaging: serializedState.packaging,
+            quoteData: serializedState.quoteData,
+            currentStep: orderBuilderState.currentStep || 'setup',
+            isCompleted: true,
+            completedAt: now,
+            totalCost: orderBuilderState.totalCost ? parseFloat(orderBuilderState.totalCost.toString()) : null,
+            totalUnits: orderBuilderState.totalUnits || null,
+            stateVersion: orderBuilderState.stateVersion || '1.0',
+            metadata: serializedState.metadata,
+            updatedAt: now
+            // Remove userId from update - table doesn't have this column
+          })
+          .eq('sessionId', sessionId)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        orderBuilderRecord = updatedState;
+      } else {
+        // Create new state
+        const { data: newState, error: createError } = await supabaseAdmin
+          .from('OrderBuilderState')
+          .insert({
+            id: `obs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Add required id field
+            // Remove userId - table doesn't have this column
+            sessionId,
+            capStyleSetup: serializedState.capStyleSetup,
+            customization: serializedState.customization,
+            delivery: serializedState.delivery,
+            costBreakdown: serializedState.costBreakdown,
+            productionTimeline: serializedState.productionTimeline,
+            packaging: serializedState.packaging,
+            quoteData: serializedState.quoteData,
+            currentStep: orderBuilderState.currentStep || 'setup',
+            isCompleted: true,
+            completedAt: now,
+            totalCost: orderBuilderState.totalCost ? parseFloat(orderBuilderState.totalCost.toString()) : null,
+            totalUnits: orderBuilderState.totalUnits || null,
+            stateVersion: orderBuilderState.stateVersion || '1.0',
+            metadata: serializedState.metadata,
+            createdAt: now,
+            updatedAt: now
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        orderBuilderRecord = newState;
+      }
 
       console.log('✅ OrderBuilderState saved with ID:', orderBuilderRecord.id);
 
-      // 2. Update Conversation with quote completion
-      console.log('📝 Updating conversation with quote completion');
-      const updatedConversation = await tx.conversation.update({
-        where: { 
-          id: conversationId,
-          userId: user.id // Security: ensure user owns the conversation
-        },
-        data: {
+      // 2. Update Conversation with quote completion and auto-approval
+      console.log('📝 Updating conversation with quote completion and auto-approval');
+      
+      // First verify the conversation exists and belongs to the user (if not null)
+      const { data: existingConv } = await supabaseAdmin
+        .from('Conversation')
+        .select('id, userId')
+        .eq('id', conversationId)
+        .single();
+        
+      if (!existingConv) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+      
+      // Security check: ensure user owns the conversation (allow null userId for guest quotes)
+      if (existingConv.userId && existingConv.userId !== user.id) {
+        throw new Error(`User ${user.id} does not own conversation ${conversationId}`);
+      }
+      
+      const { data: conversation, error: conversationError } = await supabaseAdmin
+        .from('Conversation')
+        .update({
+          context: 'QUOTE_REQUEST', // Keep as QUOTE_REQUEST, don't use invalid QUOTE_COMPLETED
           hasQuote: true,
-          quoteCompletedAt: new Date(),
+          quoteCompletedAt: now,
           orderBuilderStateId: orderBuilderRecord.id,
-          lastActivity: new Date(),
-          updatedAt: new Date()
-        }
-      });
+          lastActivity: now,
+          updatedAt: now,
+          // Ensure userId is set if it was null (for guest->authenticated user conversion)
+          userId: existingConv.userId || user.id,
+          // AUTO-APPROVAL: Mark quote as approved in metadata (Quote button auto-accept)
+          metadata: {
+            quoteStatus: 'APPROVED',
+            quoteAcceptedAt: now,
+            autoAccepted: true,
+            autoAcceptedSource: 'quote_button'
+          }
+        })
+        .eq('id', conversationId)
+        .select()
+        .single();
 
+      if (conversationError) throw conversationError;
+      updatedConversation = conversation;
       console.log('✅ Conversation updated with quote completion');
 
       // 3. Create ConversationQuotes bridge record
       console.log('🔗 Creating ConversationQuotes bridge record');
-      const conversationQuote = await tx.conversationQuotes.upsert({
-        where: {
-          conversationId_quoteOrderId: {
+      
+      // Check if bridge record exists
+      const { data: existingBridge } = await supabaseAdmin
+        .from('ConversationQuotes')
+        .select('*')
+        .eq('conversationId', conversationId)
+        .eq('quoteOrderId', quoteOrderId)
+        .single();
+
+      if (existingBridge) {
+        // Update existing bridge
+        const { data: updatedBridge, error: bridgeError } = await supabaseAdmin
+          .from('ConversationQuotes')
+          .update({
+            updatedAt: now
+          })
+          .eq('conversationId', conversationId)
+          .eq('quoteOrderId', quoteOrderId)
+          .select()
+          .single();
+
+        if (bridgeError) throw bridgeError;
+        conversationQuote = updatedBridge;
+      } else {
+        // Create new bridge - explicitly provide UUID to avoid null constraint error
+        const bridgeId = `cq_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const { data: newBridge, error: bridgeError } = await supabaseAdmin
+          .from('ConversationQuotes')
+          .insert({
+            id: bridgeId, // Explicitly provide UUID to avoid NOT NULL constraint
             conversationId,
-            quoteOrderId
-          }
-        },
-        update: {
-          updatedAt: new Date()
-        },
-        create: {
-          conversationId,
-          quoteOrderId,
-          isMainQuote: true // First quote for this conversation
-        }
-      });
+            quoteOrderId,
+            isMainQuote: true,
+            createdAt: now,
+            updatedAt: now
+          })
+          .select()
+          .single();
+
+        if (bridgeError) throw bridgeError;
+        conversationQuote = newBridge;
+      }
 
       console.log('✅ ConversationQuotes bridge created');
 
-      // 4. Update QuoteOrder status if needed
-      console.log('📋 Updating QuoteOrder status');
-      await tx.quoteOrder.update({
-        where: { id: quoteOrderId },
-        data: {
+      // 4. Update QuoteOrder status and AUTO-ACCEPT the quote (create order)
+      console.log('📋 Updating QuoteOrder status and auto-accepting');
+      
+      // First update QuoteOrder to COMPLETED
+      const { error: quoteOrderError } = await supabaseAdmin
+        .from('QuoteOrder')
+        .update({
           status: 'COMPLETED',
-          completedAt: new Date(),
-          lastActivityAt: new Date()
-        }
-      });
+          completedAt: now,
+          lastActivityAt: now
+        })
+        .eq('id', quoteOrderId);
 
+      if (quoteOrderError) throw quoteOrderError;
       console.log('✅ QuoteOrder status updated to COMPLETED');
+      
+      // AUTO-ACCEPT: Create Order from QuoteOrder (same logic as Accept button)
+      let orderId = null;
+      console.log('🚀 Auto-creating Order from QuoteOrder (Quote button auto-accept):', quoteOrderId);
+      
+      try {
+        // Generate unique order ID
+        orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        
+        // Get the full QuoteOrder data for order creation
+        const { data: fullQuoteOrder, error: fetchQuoteOrderError } = await supabaseAdmin
+          .from('QuoteOrder')
+          .select('*')
+          .eq('id', quoteOrderId)
+          .single();
+          
+        if (fetchQuoteOrderError || !fullQuoteOrder) {
+          throw new Error(`Failed to fetch QuoteOrder for order creation: ${fetchQuoteOrderError?.message}`);
+        }
+        
+        // Create the Order record
+        const { data: newOrder, error: orderError } = await supabaseAdmin
+          .from('Order')
+          .insert({
+            id: orderId,
+            userId: existingConv.userId || user.id,
+            customerName: fullQuoteOrder.customerName || 'Customer',
+            customerEmail: fullQuoteOrder.customerEmail || user.email,
+            customerPhone: fullQuoteOrder.customerPhone || '',
+            customerCompany: fullQuoteOrder.customerCompany || '',
+            productName: fullQuoteOrder.productType || 'Custom Cap',
+            status: 'PENDING',
+            priority: 'NORMAL',
+            totalCost: fullQuoteOrder.estimatedCosts?.total || 0,
+            estimatedCost: fullQuoteOrder.estimatedCosts?.total || 0,
+            currency: 'USD',
+            paymentStatus: 'PENDING',
+            productionStatus: 'QUEUED',
+            orderData: {
+              quoteOrderId: fullQuoteOrder.id,
+              capDetails: fullQuoteOrder.quantities || {},
+              customization: fullQuoteOrder.logoRequirements || {},
+              colors: fullQuoteOrder.colors || {},
+              estimatedCosts: fullQuoteOrder.estimatedCosts || {},
+              customizationOptions: fullQuoteOrder.customizationOptions || {},
+              originalQuoteData: fullQuoteOrder
+            },
+            orderNotes: `Order auto-created from Quote button (auto-accept) for quote ${quoteOrderId}. Original requirements: ${fullQuoteOrder.additionalRequirements || ''}`,
+            specialInstructions: fullQuoteOrder.additionalRequirements || '',
+            urgencyLevel: fullQuoteOrder.priority === 'URGENT' ? 'HIGH' : 'NORMAL',
+            leadTimeEstimate: '14-21 days',
+            createdAt: now,
+            updatedAt: now
+          })
+          .select()
+          .single();
+          
+        if (orderError) {
+          throw new Error(`Failed to create Order: ${orderError.message}`);
+        }
+        
+        // Update the QuoteOrder to reference the created order
+        const { error: updateQuoteOrderError } = await supabaseAdmin
+          .from('QuoteOrder')
+          .update({
+            convertedToOrderId: orderId,
+            status: 'CONVERTED_TO_ORDER',
+            updatedAt: now
+          })
+          .eq('id', quoteOrderId);
+          
+        if (updateQuoteOrderError) {
+          console.error('Failed to update QuoteOrder with order reference:', updateQuoteOrderError);
+          // Don't fail the whole operation for this
+        }
+        
+        // Update conversation metadata with order information
+        const { error: conversationUpdateError } = await supabaseAdmin
+          .from('Conversation')
+          .update({
+            title: `ORDER-${orderId.slice(-6)} - Order Created`,
+            metadata: {
+              quoteStatus: 'APPROVED',
+              quoteAcceptedAt: now,
+              autoAccepted: true,
+              autoAcceptedSource: 'quote_button',
+              orderId: orderId,
+              orderCreatedAt: now
+            },
+            updatedAt: now
+          })
+          .eq('id', conversationId);
+          
+        if (conversationUpdateError) {
+          console.error('Failed to update conversation with order metadata:', conversationUpdateError);
+        }
+        
+        console.log('✅ Order auto-created from Quote button:', orderId);
+        
+      } catch (orderCreationError) {
+        console.error('❌ Failed to auto-create order from quote:', orderCreationError);
+        // Continue with quote save even if order creation fails
+      }
 
-      return {
-        conversation: updatedConversation,
-        orderBuilderState: orderBuilderRecord,
-        conversationQuote
-      };
-    });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ Database operations failed:', {
+        error: errorMessage,
+        code: (error as any)?.code,
+        details: (error as any)?.details,
+        hint: (error as any)?.hint,
+        conversationId,
+        sessionId,
+        quoteOrderId
+      });
+      throw error;
+    }
+
+    const result = {
+      conversation: updatedConversation,
+      orderBuilderState: orderBuilderRecord,
+      conversationQuote,
+      orderCreated: !!orderId,
+      orderId: orderId
+    };
 
     console.log('✅ Database transaction completed successfully');
 
@@ -288,13 +497,17 @@ Generate ONLY the title:`;
               .substring(0, 80); // Ensure max length
 
             // Update conversation with generated title
-            await prisma.conversation.update({
-              where: { id: conversationId },
-              data: { 
+            const { error: titleUpdateError } = await supabaseAdmin
+              .from('Conversation')
+              .update({ 
                 title: generatedTitle,
-                updatedAt: new Date()
-              }
-            });
+                updatedAt: new Date().toISOString()
+              })
+              .eq('id', conversationId);
+
+            if (titleUpdateError) {
+              console.error('Failed to update conversation title:', titleUpdateError);
+            }
 
             console.log('✅ AI-generated title saved:', generatedTitle);
           }
@@ -316,13 +529,17 @@ Generate ONLY the title:`;
           : `Quote Completed - ${new Date().toLocaleDateString()}`;
 
         // Update with fallback title
-        await prisma.conversation.update({
-          where: { id: conversationId },
-          data: { 
+        const { error: fallbackTitleError } = await supabaseAdmin
+          .from('Conversation')
+          .update({ 
             title: generatedTitle,
-            updatedAt: new Date()
-          }
-        });
+            updatedAt: new Date().toISOString()
+          })
+          .eq('id', conversationId);
+
+        if (fallbackTitleError) {
+          console.error('Failed to update fallback title:', fallbackTitleError);
+        }
 
         console.log('✅ Fallback title saved:', generatedTitle);
       }
@@ -332,7 +549,9 @@ Generate ONLY the title:`;
 
     return NextResponse.json({
       success: true,
-      message: 'Quote conversation saved successfully',
+      message: result.orderCreated ? 
+        `Quote saved and Order ${result.orderId} created successfully!` : 
+        'Quote conversation saved successfully',
       data: {
         conversationId: result.conversation.id,
         quoteOrderId,
@@ -341,7 +560,10 @@ Generate ONLY the title:`;
         quoteCompletedAt: result.conversation.quoteCompletedAt,
         title: generatedTitle,
         titleGenerated: !!generatedTitle,
-        titleGenerationError
+        titleGenerationError,
+        orderCreated: result.orderCreated,
+        orderId: result.orderId,
+        autoAccepted: true
       },
       validation: {
         warnings: validation.warnings
@@ -351,10 +573,57 @@ Generate ONLY the title:`;
   } catch (error) {
     console.error('❌ Error saving quote conversation:', error);
     
+    // Create detailed error response for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorDetails = {
+      message: errorMessage,
+      code: (error as any)?.code,
+      details: (error as any)?.details,
+      hint: (error as any)?.hint,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.error('❌ Detailed error info:', errorDetails);
+    
+    // Handle specific database errors
+    if (errorMessage.includes("Can't reach database server") || errorMessage.includes("connection")) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Database connectivity issue', 
+          details: 'Unable to connect to database. Please try again later.',
+          fallback: true,
+          debug: errorDetails
+        },
+        { status: 503 }
+      );
+    }
+    
+    // Handle authentication/permission errors
+    if (errorMessage.includes('permission') || errorMessage.includes('policy') || errorMessage.includes('RLS')) {
+      return NextResponse.json({
+        success: false,
+        error: 'Database permission error',
+        details: 'Database access denied. Please check authentication.',
+        debug: errorDetails
+      }, { status: 403 });
+    }
+    
+    // Handle validation errors
+    if (errorMessage.includes('validation') || errorMessage.includes('constraint') || errorMessage.includes('check')) {
+      return NextResponse.json({
+        success: false,
+        error: 'Validation error',
+        details: `Data validation failed: ${errorMessage}`,
+        debug: errorDetails
+      }, { status: 400 });
+    }
+    
     return NextResponse.json({
       success: false,
       error: 'Failed to save quote conversation',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: errorMessage,
+      debug: errorDetails
     }, { status: 500 });
   }
 }

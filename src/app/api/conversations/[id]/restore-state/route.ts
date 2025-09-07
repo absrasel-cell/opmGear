@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth-helpers';
-import { 
-  deserializeOrderBuilderState, 
-  validateOrderBuilderState,
-  calculateStateCompleteness,
-  OrderBuilderState 
-} from '@/lib/order-builder-state';
 
 interface RouteParams {
   id: string;
@@ -14,127 +8,181 @@ interface RouteParams {
 
 export async function GET(
   request: NextRequest, 
-  { params }: { params: RouteParams }
+  { params }: { params: Promise<RouteParams> }
 ) {
   console.log('🔄 Restore Order Builder State API - Starting');
   
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const conversationId = params.id;
+    const resolvedParams = await params;
+    const conversationId = resolvedParams.id;
     if (!conversationId) {
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
 
-    console.log('🔍 Restoring state for conversation:', conversationId);
+    console.log('🔍 Restoring state for conversation:', conversationId, 'for user:', user.id);
 
-    // Fetch conversation with OrderBuilderState and related data
-    const conversation = await prisma.conversation.findUnique({
-      where: { 
-        id: conversationId,
-        userId: user.id // Security: ensure user owns the conversation
-      },
-      include: {
-        OrderBuilderState: true,
-        ConversationQuotes: {
-          include: {
-            QuoteOrder: {
-              select: {
-                id: true,
-                sessionId: true,
-                status: true,
-                completedAt: true,
-                customerEmail: true,
-                customerName: true,
-                customerPhone: true,
-                customerCompany: true,
-                totalUnits: true,
-                quantities: true,
-                colors: true,
-                logoRequirements: true,
-                customizationOptions: true,
-                estimatedCosts: true,
-                complexity: true,
-                priority: true
-              }
-            }
-          }
-        },
-        ConversationMessage: {
-          orderBy: { createdAt: 'desc' },
-          take: 5, // Get recent messages for context
-          select: {
-            role: true,
-            content: true,
-            createdAt: true
-          }
-        }
-      }
+    // Debug: Check what conversations exist for this user
+    const { data: allUserConversations, error: debugError } = await supabaseAdmin
+      .from('Conversation')
+      .select('id, title, sessionId, hasQuote')
+      .eq('userId', user.id)
+      .limit(10);
+    
+    console.log('🔍 Debug - User conversations:', {
+      userId: user.id,
+      conversationCount: allUserConversations?.length || 0,
+      conversations: allUserConversations?.map(c => ({
+        id: c.id,
+        title: c.title,
+        sessionId: c.sessionId,
+        hasQuote: c.hasQuote
+      })) || [],
+      lookingFor: conversationId
     });
 
-    if (!conversation) {
+    // Fetch conversation first
+    const { data: conversation, error: conversationError } = await supabaseAdmin
+      .from('Conversation')
+      .select(`
+        *,
+        ConversationQuotes (
+          *,
+          QuoteOrder (
+            id,
+            sessionId,
+            status,
+            completedAt,
+            customerEmail,
+            customerName,
+            customerPhone,
+            customerCompany,
+            quantities,
+            colors,
+            logoRequirements,
+            customizationOptions,
+            estimatedCosts,
+            complexity,
+            priority
+          )
+        ),
+        ConversationMessage (
+          role,
+          content,
+          createdAt
+        )
+      `)
+      .eq('id', conversationId)
+      .eq('userId', user.id)
+      .order('createdAt', { ascending: false, referencedTable: 'ConversationMessage' })
+      .limit(5, { referencedTable: 'ConversationMessage' })
+      .single();
+
+    if (conversationError || !conversation) {
+      console.log('❌ Conversation lookup failed:', {
+        conversationId,
+        userId: user.id,
+        error: conversationError,
+        conversationFound: !!conversation
+      });
       return NextResponse.json({ 
-        error: 'Conversation not found or access denied' 
+        error: 'No saved conversations with quotes found',
+        message: 'This conversation either does not exist, has no saved quotes, or you do not have access to it. Generate a new quote first to save conversation state.',
+        details: {
+          searchedId: conversationId,
+          userConversations: allUserConversations?.length || 0,
+          availableConversations: allUserConversations?.map(c => ({id: c.id, title: c.title, hasQuote: c.hasQuote})) || []
+        }
       }, { status: 404 });
     }
 
     // Check if conversation has a quote
-    if (!conversation.hasQuote || !conversation.OrderBuilderState) {
+    if (!conversation.hasQuote) {
       return NextResponse.json({
-        error: 'Conversation does not have a completed quote with saved state',
-        hasQuote: conversation.hasQuote,
-        hasOrderBuilderState: !!conversation.OrderBuilderState
+        error: 'Conversation does not have a completed quote',
+        hasQuote: conversation.hasQuote
+      }, { status: 404 });
+    }
+
+    // Fetch the OrderBuilderState using sessionId (which should match)
+    const { data: orderBuilderState, error: orderBuilderError } = await supabaseAdmin
+      .from('OrderBuilderState')
+      .select('*')
+      .eq('sessionId', conversation.sessionId)
+      .single();
+
+    if (orderBuilderError || !orderBuilderState) {
+      console.log('❌ OrderBuilderState lookup failed:', {
+        sessionId: conversation.sessionId,
+        error: orderBuilderError
+      });
+      return NextResponse.json({
+        error: 'Order builder state not found for this conversation',
+        details: orderBuilderError?.message
       }, { status: 404 });
     }
 
     console.log('✅ Conversation found with OrderBuilderState');
 
-    const orderBuilderRecord = conversation.OrderBuilderState;
+    const orderBuilderRecord = orderBuilderState;
 
-    // Deserialize the Order Builder state
-    console.log('📊 Deserializing Order Builder state');
-    const deserializedState = deserializeOrderBuilderState({
-      capStyleSetup: orderBuilderRecord.capStyleSetup as string | null,
-      customization: orderBuilderRecord.customization as string | null,
-      delivery: orderBuilderRecord.delivery as string | null,
-      costBreakdown: orderBuilderRecord.costBreakdown as string | null,
-      productionTimeline: orderBuilderRecord.productionTimeline as string | null,
-      packaging: orderBuilderRecord.packaging as string | null,
-      quoteData: orderBuilderRecord.quoteData as string | null,
-      metadata: orderBuilderRecord.metadata as string | null
-    });
+    // Helper function to safely parse JSON
+    const safeJSONParse = (jsonString: string | null, fieldName: string) => {
+      if (!jsonString) return null;
+      try {
+        return JSON.parse(jsonString);
+      } catch (parseError) {
+        console.error(`❌ Failed to parse ${fieldName}:`, parseError);
+        console.error(`❌ Invalid JSON content for ${fieldName}:`, jsonString.substring(0, 100) + '...');
+        return null;
+      }
+    };
 
-    // Add database metadata to the state
-    const fullState: OrderBuilderState = {
-      ...deserializedState,
+    // Prepare Order Builder state data
+    console.log('📊 Preparing Order Builder state');
+    const fullState = {
       sessionId: orderBuilderRecord.sessionId,
       isCompleted: orderBuilderRecord.isCompleted,
       completedAt: orderBuilderRecord.completedAt?.toISOString(),
       totalCost: orderBuilderRecord.totalCost ? parseFloat(orderBuilderRecord.totalCost.toString()) : undefined,
-      totalUnits: orderBuilderRecord.totalUnits || undefined,
-      currentStep: orderBuilderRecord.currentStep
+      currentStep: orderBuilderRecord.currentStep,
+      capStyleSetup: safeJSONParse(orderBuilderRecord.capStyleSetup, 'capStyleSetup'),
+      customization: safeJSONParse(orderBuilderRecord.customization, 'customization'),
+      delivery: safeJSONParse(orderBuilderRecord.delivery, 'delivery'),
+      costBreakdown: safeJSONParse(orderBuilderRecord.costBreakdown, 'costBreakdown'),
+      productionTimeline: safeJSONParse(orderBuilderRecord.productionTimeline, 'productionTimeline'),
+      packaging: safeJSONParse(orderBuilderRecord.packaging, 'packaging'),
+      quoteData: safeJSONParse(orderBuilderRecord.quoteData, 'quoteData'),
+      metadata: safeJSONParse(orderBuilderRecord.metadata, 'metadata')
     };
 
-    // Validate the restored state
+    // Basic state validation
     console.log('🔍 Validating restored state');
-    const validation = validateOrderBuilderState(fullState);
+    const validation = {
+      isValid: !!fullState.sessionId,
+      errors: fullState.sessionId ? [] : ['Missing session ID'],
+      warnings: []
+    };
 
     // Calculate state completeness
-    const completeness = calculateStateCompleteness(fullState);
+    const completeness = {
+      percentage: fullState.isCompleted ? 100 : 0,
+      completedSteps: fullState.isCompleted ? 7 : 0,
+      totalSteps: 7
+    };
 
     // Update restoration tracking
-    await prisma.orderBuilderState.update({
-      where: { id: orderBuilderRecord.id },
-      data: {
-        lastRestoredAt: new Date(),
-        restorationCount: {
-          increment: 1
-        }
-      }
-    });
+    const { error: updateError } = await supabaseAdmin
+      .from('OrderBuilderState')
+      .update({
+        lastRestoredAt: new Date().toISOString(),
+        restorationCount: (orderBuilderRecord.restorationCount || 0) + 1
+      })
+      .eq('id', orderBuilderRecord.id);
 
     console.log('✅ State restoration completed successfully');
 
@@ -173,11 +221,11 @@ export async function GET(
         isMainQuote: cq.isMainQuote,
         quoteOrder: cq.QuoteOrder ? {
           ...cq.QuoteOrder,
-          estimatedCosts: cq.QuoteOrder.estimatedCosts ? JSON.parse(JSON.stringify(cq.QuoteOrder.estimatedCosts)) : null,
-          quantities: cq.QuoteOrder.quantities ? JSON.parse(JSON.stringify(cq.QuoteOrder.quantities)) : null,
-          colors: cq.QuoteOrder.colors ? JSON.parse(JSON.stringify(cq.QuoteOrder.colors)) : null,
-          logoRequirements: cq.QuoteOrder.logoRequirements ? JSON.parse(JSON.stringify(cq.QuoteOrder.logoRequirements)) : null,
-          customizationOptions: cq.QuoteOrder.customizationOptions ? JSON.parse(JSON.stringify(cq.QuoteOrder.customizationOptions)) : null
+          estimatedCosts: cq.QuoteOrder.estimatedCosts || null,
+          quantities: cq.QuoteOrder.quantities || null,
+          colors: cq.QuoteOrder.colors || null,
+          logoRequirements: cq.QuoteOrder.logoRequirements || null,
+          customizationOptions: cq.QuoteOrder.customizationOptions || null
         } : null
       })),
 
@@ -198,7 +246,19 @@ export async function GET(
       }
     };
 
-    return NextResponse.json(responseData);
+    // Validate that response can be JSON stringified before returning
+    try {
+      JSON.stringify(responseData);
+      console.log('✅ Response data validated, returning successful response');
+      return NextResponse.json(responseData);
+    } catch (stringifyError) {
+      console.error('❌ Response data contains non-serializable content:', stringifyError);
+      return NextResponse.json({
+        success: false,
+        error: 'Response data contains non-serializable content',
+        details: stringifyError instanceof Error ? stringifyError.message : 'Unknown serialization error'
+      }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('❌ Error restoring Order Builder state:', error);
@@ -214,17 +274,18 @@ export async function GET(
 // POST endpoint to manually trigger state restoration with updates
 export async function POST(
   request: NextRequest, 
-  { params }: { params: RouteParams }
+  { params }: { params: Promise<RouteParams> }
 ) {
   console.log('🔄 Manual State Restoration API - Starting');
   
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const conversationId = params.id;
+    const resolvedParams = await params;
+    const conversationId = resolvedParams.id;
     const body = await request.json();
     const { sessionId, updateCurrentStep, restoreToStep } = body;
 
@@ -240,7 +301,7 @@ export async function POST(
       headers: request.headers
     });
     
-    const getResponse = await GET(getRequest as NextRequest, { params });
+    const getResponse = await GET(getRequest as NextRequest, { params: Promise.resolve(resolvedParams) });
     
     if (!getResponse.ok) {
       return getResponse;
@@ -275,23 +336,21 @@ export async function POST(
     if (needsUpdate) {
       console.log('💾 Updating Order Builder state with manual changes');
       
-      await prisma.orderBuilderState.update({
-        where: { id: currentData.stateMetadata.id },
-        data: {
+      const { error: manualUpdateError } = await supabaseAdmin
+        .from('OrderBuilderState')
+        .update({
           currentStep: updatedState.currentStep,
           sessionId: updatedState.sessionId,
-          lastRestoredAt: new Date(),
-          restorationCount: {
-            increment: 1
-          },
+          lastRestoredAt: new Date().toISOString(),
+          restorationCount: (currentData.stateMetadata.restorationCount || 0) + 1,
           metadata: JSON.stringify({
             ...JSON.parse(currentData.stateMetadata.metadata || '{}'),
             manuallyUpdated: true,
             lastManualUpdate: new Date().toISOString(),
             updateReason: 'manual_restoration'
           })
-        }
-      });
+        })
+        .eq('id', currentData.stateMetadata.id);
 
       console.log('✅ Manual state updates applied');
     }

@@ -190,7 +190,7 @@ export function getBudgetFriendlyAccessorySuggestions(): {
 export function parseOrderRequirements(message: string): OrderRequirements {
   const lowerMessage = message.toLowerCase();
   
-  // Extract quantity - FIXED: Better parsing for all quantity patterns including multi-color orders
+  // Extract quantity - FIXED: Better parsing with priority for direct patterns
   let quantity = 150; // Default fallback
   
   // 1. First priority: explicit "total" mentions
@@ -199,44 +199,47 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     const totalStr = totalMatch[1].replace(/,/g, '');
     quantity = parseInt(totalStr);
     console.log('🎯 [ORDER-AI-CORE] Total quantity override detected:', quantity);
-  } else {
-    // 2. MULTI-COLOR ORDERS: Detect multiple quantities (like "48, Red/White 144, and Navy 72")
-    const multiColorMatches = message.match(/\b(\d+)\b/g);
-    if (multiColorMatches && multiColorMatches.length > 1) {
-      // Check if this looks like a multi-color order (has color names and multiple numbers)
-      const hasColors = /(?:black|white|red|blue|navy|green|yellow|orange|purple|pink|brown|gray|grey)/i.test(message);
-      const hasMultipleNumbers = multiColorMatches.length >= 2;
-      
-      if (hasColors && hasMultipleNumbers) {
-        // Sum all detected quantities for multi-color orders
-        let totalQuantity = 0;
-        multiColorMatches.forEach(match => {
-          const num = parseInt(match);
-          // Only include reasonable cap quantities (between 10 and 10000) - excludes panel counts like "5", "6"
-          if (num >= 10 && num <= 10000) {
-            totalQuantity += num;
-          }
-        });
-        
-        if (totalQuantity > 0) {
-          quantity = totalQuantity;
-          console.log('🎯 [ORDER-AI-CORE] Multi-color quantity detected:', quantity, 'from quantities:', multiColorMatches);
-        }
-      }
+  } 
+  // 2. Second priority: Direct quantity patterns (most common case)
+  else {
+    const directQuantityMatch = message.match(/(\d+,?\d*)\s*(?:pcs?|caps?|pieces?|units?)/i);
+    if (directQuantityMatch) {
+      const quantityStr = directQuantityMatch[1].replace(/,/g, '');
+      quantity = parseInt(quantityStr);
+      console.log('🎯 [ORDER-AI-CORE] Direct quantity detected:', quantity);
     }
-    
-    // 3. Fallback: Try direct pattern first (like "576 pieces", "300 caps")
-    if (quantity === 150) { // Only if we haven't detected multi-color
-      const directQuantityMatch = message.match(/(\d+)\s*(?:caps?|pieces?|units?)/i);
-      if (directQuantityMatch) {
-        quantity = parseInt(directQuantityMatch[1]);
-        console.log('🎯 [ORDER-AI-CORE] Direct quantity detected:', quantity);
-      } else {
-        // 4. Try loose pattern for cases like "576 highest end caps"
-        const looseQuantityMatch = message.match(/(\d+).*?(?:caps?|pieces?|units?)/i);
-        if (looseQuantityMatch) {
-          quantity = parseInt(looseQuantityMatch[1]);
-          console.log('🎯 [ORDER-AI-CORE] Loose quantity detected:', quantity);
+    // 3. Third priority: Loose pattern for cases like "288 blank caps"
+    else {
+      const looseQuantityMatch = message.match(/(\d+,?\d*)\s+(?:blank\s+)?caps?/i);
+      if (looseQuantityMatch) {
+        const quantityStr = looseQuantityMatch[1].replace(/,/g, '');
+        quantity = parseInt(quantityStr);
+        console.log('🎯 [ORDER-AI-CORE] Loose quantity detected:', quantity);
+      }
+      // 4. MULTI-COLOR ORDERS: Only check if no direct pattern found
+      else {
+        const multiColorMatches = message.match(/\b(\d+)\b/g);
+        if (multiColorMatches && multiColorMatches.length > 1) {
+          // Check if this looks like a multi-color order (has color names and multiple numbers)
+          const hasColors = /(?:black|white|red|blue|navy|green|yellow|orange|purple|pink|brown|gray|grey)/i.test(message);
+          const hasMultipleNumbers = multiColorMatches.length >= 2;
+          
+          if (hasColors && hasMultipleNumbers) {
+            // Sum all detected quantities for multi-color orders
+            let totalQuantity = 0;
+            multiColorMatches.forEach(match => {
+              const num = parseInt(match);
+              // Only include reasonable cap quantities (between 10 and 10000) - excludes panel counts like "5", "6"
+              if (num >= 10 && num <= 10000) {
+                totalQuantity += num;
+              }
+            });
+            
+            if (totalQuantity > 0) {
+              quantity = totalQuantity;
+              console.log('🎯 [ORDER-AI-CORE] Multi-color quantity detected:', quantity, 'from quantities:', multiColorMatches);
+            }
+          }
         }
       }
     }
@@ -251,15 +254,29 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   let stitching = BUSINESS_RULES.DEFAULTS.stitching;
   let deliveryMethod = BUSINESS_RULES.DEFAULTS.deliveryMethod;
   
-  // Use enhanced multi-logo detection from knowledge base
-  const logoDetectionResult = detectAllLogosFromText(message);
-  let logoType = logoDetectionResult.primaryLogo || "3D Embroidery";
+  // Check for blank caps first - if customer explicitly asks for "blank caps", no logo needed
+  const isBlankCapRequest = lowerMessage.includes('blank cap') || lowerMessage.includes('blank caps');
   
-  // SPECIAL CASE: Map 3D Embroidery to complex logo setup
-  // NOTE: This will be overridden by the multiLogoSetup logic later, but kept for backward compatibility
-  if (logoType === "3D Embroidery") {
-    logoType = "Medium Size Embroidery + 3D Embroidery"; // Use Medium as default, will be adjusted by size detection
+  // Use enhanced multi-logo detection from knowledge base only if not blank caps
+  let logoType = "None"; // Default to no logo
+  let logoDetectionResult = { primaryLogo: null, allLogos: [], multiLogoSetup: null };
+  
+  if (!isBlankCapRequest) {
+    logoDetectionResult = detectAllLogosFromText(message);
+    logoType = logoDetectionResult.primaryLogo || "3D Embroidery";
+    
+    // SPECIAL CASE: Map 3D Embroidery to complex logo setup
+    // NOTE: This will be overridden by the multiLogoSetup logic later, but kept for backward compatibility
+    if (logoType === "3D Embroidery") {
+      logoType = "Medium Size Embroidery + 3D Embroidery"; // Use Medium as default, will be adjusted by size detection
+    }
   }
+  
+  console.log('🎯 [ORDER-AI-CORE] Logo detection:', {
+    isBlankCapRequest,
+    logoType,
+    detectedPrimaryLogo: logoDetectionResult.primaryLogo
+  });
   let logoPosition = "Front"; // Default position
   let logoSize = detectSizeFromText(message, logoPosition);
   
@@ -281,7 +298,7 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   // FIXED: Create intelligent multi-logo setup based on user request
   let multiLogoSetup: any = null;
   
-  if (logoType !== "None") {
+  if (logoType !== "None" && !isBlankCapRequest) {
     // Check if user specified multiple logo positions
     const hasMultipleLogos = lowerMessage.includes('on front') && 
                             (lowerMessage.includes('on left') || lowerMessage.includes('on right') || 

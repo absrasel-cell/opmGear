@@ -1,28 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { supabaseAdmin } from '@/lib/supabase';
 
 // GET - Retrieve a specific form submission
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TODO: Add authentication check for admin users
+    const { id } = await params;
     
-    const submission = await prisma.formSubmission.findUnique({
-      where: { id: params.id },
-      include: {
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      }
-    });
+    const { data: submission, error } = await supabaseAdmin
+      .from('FormSubmission')
+      .select('*, User(id, name, email)')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Error retrieving form submission:', error);
+      return NextResponse.json(
+        { error: 'Failed to retrieve submission' },
+        { status: 500 }
+      );
+    }
 
     if (!submission) {
       return NextResponse.json(
@@ -45,11 +45,12 @@ export async function GET(
 // PATCH - Update a form submission (admin only)
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TODO: Add authentication check for admin users
     // TODO: Get current user ID for tracking who made changes
+    const { id } = await params;
     
     const body = await req.json();
     const {
@@ -81,19 +82,40 @@ export async function PATCH(
       }
     }
 
-    const submission = await prisma.formSubmission.update({
-      where: { id: params.id },
-      data: updateData,
-      include: {
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
+    // Use PascalCase for Supabase (matching schema)
+    const supabaseUpdateData: any = {};
+    if (status !== undefined) supabaseUpdateData.status = status;
+    if (priority !== undefined) supabaseUpdateData.priority = priority;
+    if (assignedToId !== undefined) supabaseUpdateData.assignedToId = assignedToId;
+    if (responseDate !== undefined) supabaseUpdateData.responseDate = new Date(responseDate).toISOString();
+    
+    // Handle resolved status
+    if (resolved !== undefined) {
+      supabaseUpdateData.resolved = resolved;
+      if (resolved) {
+        supabaseUpdateData.resolvedAt = new Date().toISOString();
+        supabaseUpdateData.resolvedBy = resolvedBy || 'admin';
+        supabaseUpdateData.status = 'RESOLVED';
+      } else {
+        supabaseUpdateData.resolvedAt = null;
+        supabaseUpdateData.resolvedBy = null;
       }
-    });
+    }
+
+    const { data: submission, error } = await supabaseAdmin
+      .from('FormSubmission')
+      .update(supabaseUpdateData)
+      .eq('id', id)
+      .select('*, User(id, name, email)')
+      .single();
+
+    if (error) {
+      console.error('Error updating form submission:', error);
+      return NextResponse.json(
+        { error: 'Failed to update submission' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -112,14 +134,24 @@ export async function PATCH(
 // DELETE - Delete a form submission (admin only)
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TODO: Add authentication check for admin users with proper permissions
+    const { id } = await params;
     
-    await prisma.formSubmission.delete({
-      where: { id: params.id }
-    });
+    const { error } = await supabaseAdmin
+      .from('FormSubmission')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting form submission:', error);
+      return NextResponse.json(
+        { error: 'Failed to delete submission' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

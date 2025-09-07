@@ -20,7 +20,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { ConversationService } from '@/lib/conversation';
-import { ConversationContext, MessageRole } from '@prisma/client';
+
+// Define types locally (previously from Prisma)
+type ConversationContext = 'ORDER_REQUEST' | 'QUOTE_REQUEST' | 'SUPPORT' | 'GENERAL';
+type MessageRole = 'USER' | 'ASSISTANT';
 import { 
  parseOrderRequirements,
  optimizeQuantityForBudget,

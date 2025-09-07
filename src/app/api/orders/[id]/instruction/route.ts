@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { UpdateInstructionReqSchema } from '@/lib/validation/orderAssets';
 
 export async function PATCH(

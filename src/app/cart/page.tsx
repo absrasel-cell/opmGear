@@ -6,7 +6,7 @@ import { useCart } from '@/components/cart/CartContext';
 import { useAuth } from '@/components/auth/AuthContext';
 import CustomerInfoForm from '@/components/forms/CustomerInfoForm';
 import { useRouter } from 'next/navigation';
-import { calculateGrandTotal, CostBreakdown, calculateVolumeDiscount, VolumeDiscountInfo } from '@/lib/pricing';
+import { calculateGrandTotal, CostBreakdown, calculateVolumeDiscount, VolumeDiscountInfo, getBaseProductPricing } from '@/lib/pricing';
 
 
 // Component to display discounted pricing with savings notification
@@ -202,11 +202,10 @@ export default function CartPage() {
  useEffect(() => {
   const loadBaseProductPricing = async () => {
    try {
-    const { getBaseProductPricing } = await import('@/lib/pricing');
-    const pricing = getBaseProductPricing('Tier 1'); // Default tier for cart discounts
+    const pricing = getBaseProductPricing('Tier 1'); // Load fallback pricing
     setBaseProductPricing(pricing);
    } catch (error) {
-    console.error('Error loading base product pricing:', error);
+    console.error('Error loading base product pricing from CSV:', error);
    }
   };
 
@@ -299,9 +298,8 @@ export default function CartPage() {
 
  const calculateItemCost = async (item: any): Promise<CostBreakdown | null> => {
   try {
-   // Use consistent centralized pricing across all pages
-   const { getBaseProductPricing: getCentralizedPricing } = await import('@/lib/pricing');
-   const baseProductPricing = getCentralizedPricing(item.priceTier || 'Tier 1');
+   // Use fallback pricing
+   const baseProductPricing = getBaseProductPricing(item.priceTier || 'Tier 1');
 
 
    const shipmentData = item.shipmentId ? await getShipmentData(item.shipmentId) : undefined;
@@ -410,17 +408,17 @@ export default function CartPage() {
  if (cart.items.length === 0) {
   return (
    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)] before:z-[-1] relative">
-    <main className="mx-auto max-w-[1800px] px-6 md:px-10 pt-16 md:pt-24 lg:pt-28 pb-24">
-     <div className="mx-auto max-w-xl text-center">
-      <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full glass-card-lg ring-1 ring-white/10">
-       <svg className="h-10 w-10 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <main className="mx-auto max-w-[1800px] px-4 sm:px-6 md:px-10 pt-20 sm:pt-24 md:pt-28 pb-24">
+     <div className="mx-auto max-w-xl text-center px-4">
+      <div className="mx-auto mb-6 sm:mb-8 flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-full glass-card-lg ring-1 ring-white/10">
+       <svg className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-1.1 5H19M7 13v8a2 2 0 002 2h6a2 2 0 002-2v-8m-8 0V9a2 2 0 012-2h4a2 2 0 012 2v4.01" />
        </svg>
       </div>
-      <h1 className="text-3xl md:text-4xl font-bold text-white">Your cart is empty</h1>
-      <p className="mt-3 text-slate-300">Start customizing caps and adding them to your cart to see them here.</p>
-      <div className="mt-8">
-       <Link href="/store" className="inline-flex items-center gap-2 rounded-full glass-button-primary px-6 py-3 font-semibold text-white shadow-[0_0_30px_rgba(163,230,53,0.25)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">Your cart is empty</h1>
+      <p className="mt-3 text-sm sm:text-base text-slate-300">Start customizing caps and adding them to your cart to see them here.</p>
+      <div className="mt-6 sm:mt-8">
+       <Link href="/store" className="inline-flex items-center gap-2 rounded-full glass-button-primary px-6 py-4 sm:py-3 font-semibold text-white shadow-[0_0_30px_rgba(163,230,53,0.25)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[48px] touch-manipulation">
         Browse Products
        </Link>
       </div>
@@ -432,28 +430,85 @@ export default function CartPage() {
 
  return (
   <div className="relative min-h-screen overflow-x-hidden text-slate-200">
-   {/* Background: dark gradient + accent glows */}
-   <div className="pointer-events-none absolute inset-0 -z-10">
-    <div className="absolute inset-0 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
-    <div className="absolute inset-x-0 top-0 h-[40vh] bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" />
-    <div className="absolute -top-10 -left-20 h-80 w-80 rounded-full bg-lime-400/10 blur-3xl" />
-    <div className="absolute top-40 -right-24 h-96 w-96 rounded-full bg-orange-400/10 blur-3xl" />
-    <div className="absolute bottom-0 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
-   </div>
+   {/* Background: clean dark override for cart page */}
+   <div className="pointer-events-none fixed inset-0 -z-20 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
+   
+   <style jsx>{`
+     html {
+       background: linear-gradient(180deg, #000, rgba(5,7,14,1) 40%, #000) !important;
+     }
+     .cart-glass-section {
+       background: rgba(0, 0, 0, 0.4) !important;
+       border: 1px solid rgba(255, 255, 255, 0.1) !important;
+       backdrop-filter: blur(24px) !important;
+       transition: all 0.3s ease !important;
+     }
+     .cart-glass-section:hover {
+       background: rgba(0, 0, 0, 0.6) !important;
+       border: 1px solid rgba(255, 255, 255, 0.15) !important;
+       backdrop-filter: blur(28px) !important;
+     }
+     .cart-glass-item {
+       background: rgba(0, 0, 0, 0.3) !important;
+       border: 1px solid rgba(255, 255, 255, 0.08) !important;
+       backdrop-filter: blur(16px) !important;
+       transition: all 0.3s ease !important;
+     }
+     .cart-glass-item:hover {
+       background: rgba(0, 0, 0, 0.5) !important;
+       border: 1px solid rgba(255, 255, 255, 0.12) !important;
+       backdrop-filter: blur(20px) !important;
+     }
+     
+     /* Mobile-specific optimizations */
+     @media (max-width: 640px) {
+       .cart-glass-section {
+         backdrop-filter: blur(16px) !important;
+       }
+       .cart-glass-item {
+         backdrop-filter: blur(12px) !important;
+       }
+       
+       /* Ensure smooth scrolling on mobile */
+       .cart-scroll-container {
+         -webkit-overflow-scrolling: touch;
+         scroll-behavior: smooth;
+       }
+       
+       /* Improve tap targets */
+       button, input, select {
+         -webkit-tap-highlight-color: rgba(163, 230, 53, 0.2);
+         touch-action: manipulation;
+       }
+       
+       /* Optimize glass effects for mobile performance */
+       .mobile-glass-optimized {
+         backdrop-filter: blur(8px) !important;
+         will-change: backdrop-filter;
+       }
+     }
+     
+     /* Extra small screens */
+     @media (max-width: 480px) {
+       .cart-glass-section, .cart-glass-item {
+         backdrop-filter: blur(8px) !important;
+       }
+     }
+   `}</style>
 
-   <main className="mx-auto max-w-[1800px] px-6 md:px-10 pt-16 md:pt-24 lg:pt-28 pb-10 md:pb-14">
-    {/* Sticky page heading */}
-    <div className="sticky top-16 z-10 mb-8 md:mb-10">
-     <GlassCard className="px-5 py-4">
-      <div className="flex items-center justify-between">
+   <main className="mx-auto max-w-[1800px] px-4 sm:px-6 md:px-10 pt-20 sm:pt-24 md:pt-28 pb-6 sm:pb-10 md:pb-14 cart-scroll-container">
+    {/* Mobile-optimized sticky page heading */}
+    <div className="sticky top-16 z-10 mb-6 sm:mb-8 md:mb-10">
+     <GlassCard className="px-4 sm:px-5 py-3 sm:py-4 cart-glass-section">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
        <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Shopping Cart</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Shopping Cart</h1>
         <p className="mt-1 text-sm md:text-base text-slate-300">{getItemCount()} items in your cart</p>
        </div>
-       <div className="flex gap-2">
+       <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
         <button
          onClick={clearCart}
-         className="rounded-full glass-button glass-hover px-4 py-2 text-sm font-medium text-red-300 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
+         className="rounded-full glass-button glass-hover px-4 py-2.5 text-sm font-medium text-red-300 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[44px] touch-manipulation"
         >
          Clear Cart
         </button>
@@ -484,7 +539,7 @@ export default function CartPage() {
            router.push('/store');
           }
          }}
-         className="rounded-full glass-button glass-hover px-4 py-2 text-sm font-medium text-lime-300 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
+         className="rounded-full glass-button glass-hover px-4 py-2.5 text-sm font-medium text-lime-300 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[44px] touch-manipulation"
         >
          Back to Product Page
         </button>
@@ -493,21 +548,21 @@ export default function CartPage() {
      </GlassCard>
     </div>
 
-    {/* Grid: 12 columns */}
-    <div className="grid grid-cols-12 gap-6 md:gap-8">
-     {/* Left: items (span 8-9) */}
-     <div className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-6 md:space-y-8">
-      <GlassCard className="p-4 md:p-6 lg:p-8">
-       <div className="space-y-8">
+    {/* Mobile-first responsive layout */}
+    <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 md:gap-8">
+     {/* Cart items - full width on mobile, left column on desktop */}
+     <div className="lg:col-span-8 xl:col-span-9 space-y-4 sm:space-y-6 md:space-y-8">
+      <GlassCard className="p-3 sm:p-4 md:p-6 lg:p-8 bg-black/20 backdrop-blur-xl cart-glass-section">
+       <div className="space-y-6 sm:space-y-8">
         {cart.items.map((item) => (
-         <div key={item.id} className="border-t border-stone-600 pt-8 first:border-t-0 first:pt-0">
-          <div className="flex items-start gap-4 md:gap-6">
+         <div key={item.id} className="border-t border-stone-600 pt-6 sm:pt-8 first:border-t-0 first:pt-0">
+          <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 md:gap-6">
            {/* Content */}
-           <div className="flex-1">
-            {/* Header */}
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-             <h3 className="text-lg md:text-xl font-semibold text-white">{item.productName}</h3>
-             <div className="text-right">
+           <div className="flex-1 w-full">
+            {/* Mobile-optimized header */}
+            <div className="mb-4 sm:mb-5 flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
+             <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white pr-2">{item.productName}</h3>
+             <div className="text-left sm:text-right flex-shrink-0">
               <div className="text-xs md:text-sm text-slate-300">{item.pricing.volume} units</div>
               <div className="text-sm md:text-base font-semibold text-slate-200">
                Base: {formatPrice(item.pricing.totalPrice)}
@@ -520,19 +575,19 @@ export default function CartPage() {
              </div>
             </div>
 
-            {/* Colors & Quantities */}
-            <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+            {/* Colors & Quantities - Mobile optimized */}
+            <div className="rounded-xl glass-card-md p-3 sm:p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
              <SectionTitle icon="🎨" accent="text-cyan-200">Colors & Quantities</SectionTitle>
-             <div className="space-y-4">
+             <div className="space-y-3 sm:space-y-4">
               {Object.entries(item.selectedColors).map(([colorName, colorData]: any) => {
                const sizeEntries = Object.entries(colorData.sizes);
                return (
-                <div key={colorName} className="rounded-lg glass-morphism-subtle p-4">
+                <div key={colorName} className="rounded-lg glass-morphism-subtle p-3 sm:p-4 bg-black/20 backdrop-blur-lg cart-glass-item">
                  <div className="mb-3 flex items-center justify-between">
                   <h5 className="text-sm font-semibold text-white">{colorName}</h5>
                   <span className="rounded-full glass-badge px-2 py-0.5 text-xs text-slate-300">{sizeEntries.length} sizes</span>
                  </div>
-                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                 <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {sizeEntries.map(([size, quantity]: any) => {
                    const key = `${item.id}-${colorName}-${size}`;
                    
@@ -553,7 +608,7 @@ export default function CartPage() {
                       onChange={handleInputChange}
                       onBlur={(e) => handleQuantityBlur(e, item.id, colorName as string, size as string)}
                       onKeyDown={(e) => handleKeyPress(e, item.id, colorName as string, size as string)}
-                      className="w-full rounded-lg glass-input p-2.5 text-center text-sm text-white outline-none ring-0 transition focus:border-lime-300/60 focus:ring-2 focus:ring-lime-400/50"
+                      className="w-full rounded-lg glass-input p-3 sm:p-2.5 text-center text-sm text-white outline-none ring-0 transition focus:border-lime-300/60 focus:ring-2 focus:ring-lime-400/50 min-h-[44px] touch-manipulation"
                       placeholder="Min 48"
                      />
                     </div>
@@ -570,7 +625,7 @@ export default function CartPage() {
             <div className="mt-6 space-y-6">
              {/* Logo Setup */}
              {Object.keys(item.logoSetupSelections).length > 0 && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <div className="mb-3 flex items-center justify-between">
                 <SectionTitle icon="⚙️" accent="text-lime-200">Logo Setup</SectionTitle>
                 {isCalculatingCosts ? (
@@ -625,7 +680,7 @@ export default function CartPage() {
 
              {/* Accessories */}
              {item.multiSelectOptions.accessories && item.multiSelectOptions.accessories.length > 0 && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <div className="mb-3 flex items-center justify-between">
                 <SectionTitle icon="🎒" accent="text-purple-200">Accessories</SectionTitle>
                 {isCalculatingCosts ? (
@@ -673,7 +728,7 @@ export default function CartPage() {
 
              {/* Premium Fabric */}
              {itemCostBreakdowns[item.id] && itemCostBreakdowns[item.id].premiumFabricCosts.length > 0 && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <div className="mb-3 flex items-center justify-between">
                 <SectionTitle icon="⭐" accent="text-purple-200">Premium Fabric</SectionTitle>
                 {isCalculatingCosts ? (
@@ -715,7 +770,7 @@ export default function CartPage() {
 
              {/* Delivery Type */}
              {item.selectedOptions['delivery-type'] && item.selectedOptions['delivery-type'] !== 'regular' && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <div className="mb-3 flex items-center justify-between">
                 <SectionTitle icon="🚚" accent="text-orange-200">Delivery Type</SectionTitle>
                 {isCalculatingCosts ? (
@@ -767,7 +822,7 @@ export default function CartPage() {
 
              {/* Additional Services */}
              {item.multiSelectOptions.services && item.multiSelectOptions.services.length > 0 && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <div className="mb-3 flex items-center justify-between">
                 <SectionTitle icon="⭐" accent="text-cyan-200">Premium Closures</SectionTitle>
                 {isCalculatingCosts ? (
@@ -818,7 +873,7 @@ export default function CartPage() {
 
              {/* Cap Style Setup (always included) */}
              {(item.selectedOptions['bill-shape'] || item.selectedOptions['profile'] || item.selectedOptions['closure-type'] || item.selectedOptions['structure']) && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <div className="mb-3 flex items-center gap-2">
                 <SectionTitle icon="🧢" accent="text-indigo-200">Cap Style Setup</SectionTitle>
                 <span className="rounded-full glass-badge px-2 py-0.5 text-xs text-indigo-200">Included</span>
@@ -854,7 +909,7 @@ export default function CartPage() {
 
              {/* Additional Instructions */}
              {item.additionalInstructions && (
-              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10">
+              <div className="rounded-xl glass-card-md p-4 md:p-5 ring-1 ring-white/10 bg-black/30 backdrop-blur-xl cart-glass-section">
                <SectionTitle icon="📝" accent="text-amber-200">Additional Instructions</SectionTitle>
                <div className="rounded-lg glass-morphism-subtle p-4">
                 <p className="text-sm text-slate-200 whitespace-pre-wrap">{item.additionalInstructions}</p>
@@ -864,8 +919,8 @@ export default function CartPage() {
             </div>
            </div>
 
-           {/* Edit and Remove */}
-           <div className="flex flex-col gap-2 ml-2">
+           {/* Mobile-optimized Edit and Remove buttons */}
+           <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto sm:ml-2 mt-3 sm:mt-0 justify-center sm:justify-start">
             <button
              onClick={() => {
               // Store this specific item's configuration for restoration
@@ -887,22 +942,24 @@ export default function CartPage() {
               }
              }}
              title="Edit this item"
-             className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl glass-button text-lime-300 transition hover:bg-lime-400/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
+             className="flex-1 sm:flex-none inline-flex h-12 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-xl glass-button text-lime-300 transition hover:bg-lime-400/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[44px] touch-manipulation"
              aria-label={`Edit ${item.productName}`}
             >
              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
              </svg>
+             <span className="ml-2 sm:hidden text-sm font-medium">Edit</span>
             </button>
             <button
              onClick={() => removeFromCart(item.id)}
              title="Remove from cart"
-             className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl glass-button text-red-300 transition hover:bg-red-400/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
+             className="flex-1 sm:flex-none inline-flex h-12 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-xl glass-button text-red-300 transition hover:bg-red-400/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[44px] touch-manipulation"
              aria-label={`Remove ${item.productName} from cart`}
             >
              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
              </svg>
+             <span className="ml-2 sm:hidden text-sm font-medium">Remove</span>
             </button>
            </div>
           </div>
@@ -912,13 +969,13 @@ export default function CartPage() {
       </GlassCard>
      </div>
 
-     {/* Right: summary (span 3-4) */}
-     <div className="col-span-12 lg:col-span-4 xl:col-span-3">
-      <div className="sticky top-24">
-       <GlassCard className="p-5 md:p-6">
-        <h2 className="mb-5 text-lg md:text-xl font-bold text-white">Order Summary</h2>
-        <div className="space-y-5">
-         <div className="rounded-lg glass-morphism-subtle p-4">
+     {/* Order summary - full width on mobile, right column on desktop */}
+     <div className="lg:col-span-4 xl:col-span-3 order-first lg:order-last">
+      <div className="lg:sticky lg:top-24">
+       <GlassCard className="p-4 sm:p-5 md:p-6 bg-black/20 backdrop-blur-xl cart-glass-section">
+        <h2 className="mb-4 sm:mb-5 text-lg md:text-xl font-bold text-white">Order Summary</h2>
+        <div className="space-y-4 sm:space-y-5">
+         <div className="rounded-lg glass-morphism-subtle p-3 sm:p-4">
           <div className="flex items-center gap-3">
            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-600 text-sm font-bold">{cart.items.length}</div>
            <div>
@@ -1022,7 +1079,7 @@ export default function CartPage() {
           </div>
          </div>
 
-         {/* Actions */}
+         {/* Mobile-optimized action buttons */}
          <div className="pt-4 space-y-3">
           <button
            onClick={() => {
@@ -1030,14 +1087,14 @@ export default function CartPage() {
             sessionStorage.setItem('cart_cost_breakdowns', JSON.stringify(itemCostBreakdowns));
             router.push('/checkout');
            }}
-           className="block w-full rounded-full bg-lime-400 px-6 py-3 text-center font-semibold text-black shadow-[0_0_30px_rgba(163,230,53,0.25)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
+           className="block w-full rounded-full bg-lime-400 px-6 py-4 sm:py-3 text-center font-semibold text-black shadow-[0_0_30px_rgba(163,230,53,0.25)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[48px] touch-manipulation"
            disabled={isCalculatingCosts}
           >
            {isCalculatingCosts ? 'Calculating...' : 'Proceed to Checkout'}
           </button>
           <Link
            href="/store"
-           className="block w-full rounded-full glass-button px-6 py-3 text-center font-semibold text-white transition hover:bg-stone-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60"
+           className="block w-full rounded-full glass-button px-6 py-4 sm:py-3 text-center font-semibold text-white transition hover:bg-stone-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/60 min-h-[48px] touch-manipulation"
           >
            Continue Shopping
           </Link>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
-import prisma from '@/lib/prisma';
+// TODO: Remove Prisma import - convert to Supabase
+// // Removed Prisma - migrated to Supabase
 
 export async function GET(request: NextRequest) {
  try {
@@ -55,32 +56,10 @@ export async function GET(request: NextRequest) {
   console.log('Users API: Query params - limit:', limit, 'offset:', offset);
 
   try {
-   console.log('Users API: Starting database query...');
-   const users = await prisma.user.findMany({
-    select: {
-     id: true,
-     email: true,
-     name: true,
-     accessRole: true,
-     customerRole: true,
-     adminLevel: true,
-     phone: true,
-     company: true,
-     avatarUrl: true,
-     isBanned: true,
-     lastLoginAt: true,
-     createdAt: true,
-     updatedAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    skip: offset,
-   });
-   console.log('Users API: Users fetched successfully:', users.length);
-
-   console.log('Users API: Getting total count...');
-   const totalCount = await prisma.user.count();
-   console.log('Users API: Total count:', totalCount);
+   console.log('Users API temporarily disabled - TODO: implement with Supabase');
+   // TODO: Replace with Supabase query
+   const users = [];
+   const totalCount = 0;
 
    // Transform users to match the expected structure
    const transformedUsers = users.map(user => ({
@@ -152,24 +131,19 @@ export async function PATCH(request: NextRequest) {
    );
   }
 
-  // Update user
-  const updatedUser = await prisma.user.update({
-   where: { id: userId },
-   data: updates,
-   select: {
-    id: true,
-    email: true,
-    name: true,
-    accessRole: true,
-    customerRole: true,
-    adminLevel: true,
-    phone: true,
-    company: true,
-    avatarUrl: true,
-    createdAt: true,
-    updatedAt: true,
-   },
-  });
+  // TODO: Replace with Supabase update
+  console.log('User update temporarily disabled - TODO: implement with Supabase');
+  return NextResponse.json({
+   error: 'User updates temporarily unavailable due to database maintenance'
+  }, { status: 503 });
+  
+  /*
+  const updatedUser = {
+   id: userId,
+   ...updates,
+   updatedAt: new Date()
+  };
+  */
 
   return NextResponse.json({
    message: 'User updated successfully',

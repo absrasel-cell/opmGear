@@ -5,9 +5,7 @@
 
 import { ConversationService } from '../conversation';
 import { LogoAnalysisResult, LogoAnalysisContext, AIHandoffData, PricingConsistencyCheck } from './logo-analysis-types';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { supabaseAdmin } from '@/lib/supabase';
 
 export interface EnhancedConversationContext {
   // Base context data

@@ -12,7 +12,8 @@ export default function DashboardPage() {
     if (loading) return; // Wait for auth to load
 
     if (!isAuthenticated || !user) {
-      router.push('/login');
+      const currentPath = window.location.pathname + window.location.search;
+      router.push('/login?redirect=' + encodeURIComponent(currentPath));
       return;
     }
 

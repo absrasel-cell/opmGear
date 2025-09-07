@@ -1,32 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
  try {
   const { searchParams } = new URL(request.url);
   const includeOrders = searchParams.get('includeOrders') === 'true';
 
-  const shipments = await prisma.shipment.findMany({
-   include: {
-    Order: includeOrders ? {
-     select: {
-      id: true,
-      productName: true,
-      customerInfo: true,
-      status: true,
-      createdAt: true,
-      selectedColors: true,
-      selectedOptions: true,
-      multiSelectOptions: true,
-     }
-    } : false,
-   },
-   orderBy: {
-    createdAt: 'desc',
-   },
-  });
+  const supabase = createClient(
+   process.env.NEXT_PUBLIC_SUPABASE_URL!,
+   process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  let query = supabase
+   .from('Shipment')
+   .select('*')
+   .order('createdAt', { ascending: false });
+
+  if (includeOrders) {
+   query = supabase
+    .from('Shipment')
+    .select(`
+     *,
+     orders:Order(
+      id,
+      productName,
+      customerInfo,
+      status,
+      createdAt,
+      selectedColors,
+      selectedOptions,
+      multiSelectOptions
+     )
+    `)
+    .order('createdAt', { ascending: false });
+  }
+
+  const { data: shipments, error } = await query;
+
+  if (error) {
+   throw error;
+  }
 
   return NextResponse.json({ shipments });
  } catch (error) {
@@ -58,10 +71,17 @@ export async function POST(request: NextRequest) {
    );
   }
 
+  const supabase = createClient(
+   process.env.NEXT_PUBLIC_SUPABASE_URL!,
+   process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   // Check if build number already exists
-  const existingShipment = await prisma.shipment.findUnique({
-   where: { buildNumber },
-  });
+  const { data: existingShipment } = await supabase
+   .from('Shipment')
+   .select('buildNumber')
+   .eq('buildNumber', buildNumber)
+   .single();
 
   if (existingShipment) {
    return NextResponse.json(
@@ -70,32 +90,38 @@ export async function POST(request: NextRequest) {
    );
   }
 
-  const shipment = await prisma.shipment.create({
-   data: {
-    id: `ship_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    buildNumber,
-    shippingMethod,
-    estimatedDeparture: estimatedDeparture ? new Date(estimatedDeparture) : null,
-    estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
-    notes,
-    createdBy,
-    updatedAt: new Date(),
-   },
-   include: {
-    Order: {
-     select: {
-      id: true,
-      productName: true,
-      customerInfo: true,
-      status: true,
-      createdAt: true,
-      selectedColors: true,
-      selectedOptions: true,
-      multiSelectOptions: true,
-     }
-    },
-   },
-  });
+  const shipmentData = {
+   id: `ship_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+   buildNumber,
+   shippingMethod,
+   estimatedDeparture: estimatedDeparture ? new Date(estimatedDeparture).toISOString() : null,
+   estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery).toISOString() : null,
+   notes,
+   createdBy,
+   updatedAt: new Date().toISOString(),
+  };
+
+  const { data: shipment, error } = await supabase
+   .from('Shipment')
+   .insert([shipmentData])
+   .select(`
+    *,
+    orders:Order(
+     id,
+     productName,
+     customerInfo,
+     status,
+     createdAt,
+     selectedColors,
+     selectedOptions,
+     multiSelectOptions
+    )
+   `)
+   .single();
+
+  if (error) {
+   throw error;
+  }
 
   return NextResponse.json({ shipment }, { status: 201 });
  } catch (error) {

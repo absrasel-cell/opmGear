@@ -128,7 +128,7 @@ function formatCapColors(frontCrown: string, backCrown: string, bill: string): s
   }
   
   // For multi-color caps, create simplified format
-  const colors = [];
+  const colors: string[] = [];
   
   // Collect unique colors in order of dominance
   // Front Crown, Bill, Upper Bill, Under Bill = First color
@@ -242,6 +242,7 @@ export default function SupportPage() {
     costBreakdown: true
   });
   const [currentQuoteData, setCurrentQuoteData] = useState<any>(null);
+  const [quoteSelectionMode, setQuoteSelectionMode] = useState<any>(null);
   
   // Temporary storage for routing message to be saved with conversations
   let temporaryRoutingMessage: Message | null = null;
@@ -314,12 +315,12 @@ export default function SupportPage() {
     try {
       // The authUser already contains profile data, use it directly
       setUserProfile({
-        id: authUser.id,
-        name: authUser.name,
-        email: authUser.email,
-        phone: authUser.phone,
-        company: authUser.company,
-        address: null // Not available in AuthContext
+        id: authUser.id || undefined,
+        name: authUser.name || undefined,
+        email: authUser.email || undefined,
+        phone: authUser.phone || undefined,
+        company: authUser.company || undefined,
+        address: undefined // Not available in AuthContext
       });
     } catch (error) {
       console.error('Failed to load user profile:', error);
@@ -367,13 +368,15 @@ export default function SupportPage() {
   };
 
   // Store conversation and messages in database
-  const storeConversation = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any) => {
+  const storeConversation = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any, existingConversationId?: string) => {
     console.log('🔥 storeConversation V3.0 - COMPREHENSIVE SESSION-INDEPENDENT VERSION called with:', { 
       userMessage: userMessage.content.substring(0, 50), 
       assistantMessage: assistantMessage.content.substring(0, 50),
       intent,
       hasQuoteData: !!quoteData,
       hasConversationId: !!conversationId,
+      hasExistingConversationId: !!existingConversationId,
+      existingConversationId: existingConversationId,
       authUser: !!authUser,
       sessionId: sessionId
     });
@@ -392,23 +395,26 @@ export default function SupportPage() {
         console.log('🔄 Attempting authenticated session storage...');
         const { data: { session } } = await supabase.auth.getSession();
         
+        // Use authUser.id as the primary userId source
+        userId = authUser.id;
+        
         if (session?.access_token) {
           authHeaders['Authorization'] = `Bearer ${session.access_token}`;
-          userId = session.user?.id || null;
           useSessionAuth = true;
-          console.log('✅ Session available - using authenticated storage');
+          console.log('✅ Session available - using authenticated storage with userId:', userId);
         } else {
-          console.log('⚠️ No session available for authenticated user - falling back to sessionless storage');
+          console.log('⚠️ No session available for authenticated user - falling back to sessionless storage with userId:', userId);
         }
       } else {
         console.log('👤 Guest user detected - using sessionless storage');
       }
 
-      // Create or get conversation
-      let currentConversationId = conversationId;
+      // Use existing conversation if available (created before AI call to prevent duplicates)
+      let currentConversationId: string | null = existingConversationId || conversationId;
       
       if (!currentConversationId) {
-        console.log('💾 Creating new conversation...');
+        console.log('⚠️ No conversationId provided - this should not happen with new pre-AI conversation creation');
+        console.log('💾 Creating fallback conversation...');
         const conversationResponse = await fetch('/api/conversations', {
           method: 'POST',
           headers: authHeaders,
@@ -420,6 +426,7 @@ export default function SupportPage() {
             metadata: {
               intent,
               hasQuoteData: !!quoteData,
+              quoteStatus: intent === 'ORDER_CREATION' && quoteData ? 'QUOTE_PENDING' : undefined,
               firstMessage: userMessage.content.substring(0, 100),
               storageMethod: useSessionAuth ? 'session_auth' : 'sessionless',
               orderBuilder: {
@@ -472,6 +479,10 @@ export default function SupportPage() {
       if (temporaryRoutingMessage) {
         console.log('💾 Storing routing message in database:', temporaryRoutingMessage.content.substring(0, 100));
         
+        if (!currentConversationId) {
+          throw new Error('No conversation ID available for routing message storage');
+        }
+        
         try {
           await storeMessage(currentConversationId, {
             role: 'SYSTEM',
@@ -497,6 +508,10 @@ export default function SupportPage() {
       // Store user message
       console.log('💾 Storing user message in database:', userMessage.content.substring(0, 100) + '...');
       
+      if (!currentConversationId) {
+        throw new Error('No conversation ID available for user message storage');
+      }
+      
       try {
         await storeMessage(currentConversationId, {
           role: 'USER',
@@ -511,7 +526,7 @@ export default function SupportPage() {
         console.log('✅ User message stored successfully');
       } catch (userError) {
         console.error('❌ Failed to store user message:', userError);
-        throw new Error(`User message storage failed: ${userError.message}`);
+        throw new Error(`User message storage failed: ${userError instanceof Error ? userError.message : String(userError)}`);
       }
 
       // Store assistant message - CRITICAL: This contains the detailed quote content
@@ -523,6 +538,10 @@ export default function SupportPage() {
         hasQuoteData: !!(assistantMessage.metadata && assistantMessage.metadata.quoteData),
         storageMethod: useSessionAuth ? 'session_auth' : 'sessionless'
       });
+      
+      if (!currentConversationId) {
+        throw new Error('No conversation ID available for assistant message storage');
+      }
       
       try {
         await storeMessage(currentConversationId, {
@@ -542,11 +561,11 @@ export default function SupportPage() {
         console.log('✅ CRITICAL SUCCESS: Assistant message (detailed quote) stored successfully!');
       } catch (assistantError) {
         console.error('❌ CRITICAL FAILURE: Assistant message (detailed quote) storage failed:', assistantError);
-        throw new Error(`CRITICAL: Assistant message storage failed - detailed quote content will be lost: ${assistantError.message}`);
+        throw new Error(`CRITICAL: Assistant message storage failed - detailed quote content will be lost: ${assistantError instanceof Error ? assistantError.message : String(assistantError)}`);
       }
 
       // Generate and update conversation title with comprehensive context
-      if (!conversationId) {
+      if (!conversationId && currentConversationId) {
         try {
           console.log('🏷️ Generating title for new conversation:', currentConversationId);
           
@@ -600,8 +619,8 @@ export default function SupportPage() {
         console.log('✅ Fallback storage completed successfully - conversation saved!');
       } catch (fallbackError) {
         console.error('❌ CRITICAL: Both primary and fallback storage methods failed:', {
-          primaryError: error.message,
-          fallbackError: fallbackError.message
+          primaryError: error instanceof Error ? error.message : String(error),
+          fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
         });
         // Still don't throw - we don't want to crash the UI
         console.error('🚨 IMPACT: This conversation will NOT be saved to database - user will lose conversation history');
@@ -1305,6 +1324,48 @@ export default function SupportPage() {
         ? `quote-${Date.now()}-${Math.random().toString(36).substring(7)}`
         : sessionId;
       
+      // Create conversation BEFORE calling AI API to ensure we have a conversationId
+      let currentConversationId = conversationId;
+      if (!currentConversationId && (authUser || guestContactInfo)) {
+        console.log('🔄 Creating conversation before AI API call to prevent duplicates');
+        try {
+          const conversationResponse = await fetch('/api/conversations', {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              userId: authUser?.id || null,
+              sessionId: requestSessionId,
+              context: detectedIntent === 'ORDER_CREATION' ? 'QUOTE_REQUEST' : 'SUPPORT',
+              title: detectedIntent === 'ORDER_CREATION' ? 'Quote Request' : 'Support Conversation',
+              metadata: {
+                intent: detectedIntent,
+                hasQuoteData: false, // Will be updated later if quote data is found
+                firstMessage: inputMessage.substring(0, 100),
+                storageMethod: 'pre_ai_creation',
+                userProfile: {
+                  name: userProfile?.name || authUser?.name || guestContactInfo?.name,
+                  email: userProfile?.email || authUser?.email || guestContactInfo?.email,
+                  company: userProfile?.company || guestContactInfo?.company,
+                  phone: userProfile?.phone || guestContactInfo?.phone,
+                  address: userProfile?.address || guestContactInfo?.address
+                }
+              }
+            })
+          });
+
+          if (conversationResponse.ok) {
+            const newConversation = await conversationResponse.json();
+            currentConversationId = newConversation.id;
+            setConversationId(currentConversationId);
+            console.log('✅ Conversation created before AI call:', currentConversationId);
+          } else {
+            console.error('❌ Failed to create conversation before AI call');
+          }
+        } catch (createError) {
+          console.error('❌ Error creating conversation before AI call:', createError);
+        }
+      }
+      
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: authHeaders,
@@ -1319,7 +1380,7 @@ export default function SupportPage() {
             address: guestContactInfo.address,
             company: guestContactInfo.company
           } : null),
-          conversationId: conversationId,
+          conversationId: currentConversationId,
           sessionId: requestSessionId,
           attachedFiles: validUploadedFiles.length > 0 ? validUploadedFiles : undefined
         })
@@ -1362,8 +1423,8 @@ export default function SupportPage() {
 
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Store ALL conversations in database for complete conversation history
-      // Every interaction with AI assistants will be preserved
+      // Always use storeConversation but pass the existing conversationId to prevent duplicates
+      // The storeConversation function will use the existing conversation if provided
       try {
         // Get session before calling storeConversation to ensure it's available
         const { data: { session: preStorageSession } } = await supabase.auth.getSession();
@@ -1387,12 +1448,12 @@ export default function SupportPage() {
           }
         }
         
-        await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData);
+        await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData, currentConversationId);
         console.log('✅ storeConversation completed successfully');
       } catch (storeError) {
         console.error('❌ CRITICAL: storeConversation failed:', {
           error: storeError,
-          errorMessage: storeError.message,
+          errorMessage: storeError instanceof Error ? storeError.message : String(storeError),
           userMessage: userMessage.content.substring(0, 100),
           assistantMessage: assistantMessage.content.substring(0, 100),
           assistantMessageLength: assistantMessage.content.length
@@ -1409,13 +1470,24 @@ export default function SupportPage() {
 
       // Ensure sidebar refreshes after AI quote response (even if storage partially failed)
       // This provides visual confirmation that the conversation is being updated
+      console.log('🔍 DEBUG: Checking conditions for sidebar refresh after AI response:', {
+        hasAuthUser: !!authUser,
+        authUserId: authUser?.id,
+        detectedIntent,
+        hasExtractedQuoteData: !!extractedQuoteData,
+        shouldRefresh: !!authUser?.id
+      });
+      
       if (authUser?.id) {
         try {
-          console.log('🔄 Ensuring sidebar refresh after AI quote response');
+          console.log('🔄 REFRESHING SIDEBAR: After CapCraft AI quote response - this should make new conversation visible');
           await loadUserConversations();
+          console.log('✅ SIDEBAR REFRESH COMPLETED: New conversation should now be visible in sidebar');
         } catch (refreshError) {
-          console.error('Failed to refresh conversations after AI response:', refreshError);
+          console.error('❌ Failed to refresh conversations after AI response:', refreshError);
         }
+      } else {
+        console.warn('⚠️ NO SIDEBAR REFRESH: User not authenticated, cannot refresh conversation sidebar');
       }
       
       // Only clear uploaded files after successful message send
@@ -1822,6 +1894,11 @@ Would you like me to save this quote or would you like to modify any specificati
 
       // Store user message first
       console.log('💾 Fallback: Storing user message...');
+      
+      if (!currentConversationId) {
+        throw new Error('No conversation ID available for fallback user message storage');
+      }
+      
       await storeMessage(currentConversationId, {
         role: 'USER',
         content: userMessage.content,
@@ -1875,6 +1952,39 @@ Would you like me to save this quote or would you like to modify any specificati
     }
   }, [orderBuilderStatus.costBreakdown.selectedVersionId]);
 
+  // Ensure Order Builder stays visible when we have quote data
+  useEffect(() => {
+    if (currentQuoteData && !isOrderBuilderVisible) {
+      console.log('🔧 Auto-fixing Order Builder visibility - quote data exists but builder is hidden');
+      setIsOrderBuilderVisible(true);
+    }
+    
+    // Also check if we have Order Builder versions but no currentQuoteData (state sync issue)
+    if (!currentQuoteData && orderBuilderStatus?.costBreakdown?.versions?.length > 0) {
+      const firstVersion = orderBuilderStatus.costBreakdown.versions[0];
+      if (firstVersion?.quoteData) {
+        console.log('🔧 Auto-restoring currentQuoteData from Order Builder versions');
+        setCurrentQuoteData(firstVersion.quoteData);
+        setIsOrderBuilderVisible(true);
+      }
+    }
+    
+    // Last resort: try to restore from localStorage if we have a conversationId but no quote data
+    if (!currentQuoteData && !isOrderBuilderVisible && conversationId) {
+      try {
+        const backupData = localStorage.getItem(`currentQuoteData_${conversationId}`);
+        if (backupData) {
+          const parsedData = JSON.parse(backupData);
+          console.log('🔧 Emergency restore: Restoring quote data from localStorage');
+          setCurrentQuoteData(parsedData);
+          setIsOrderBuilderVisible(true);
+        }
+      } catch (e) {
+        console.warn('Failed to restore from localStorage:', e);
+      }
+    }
+  }, [currentQuoteData, isOrderBuilderVisible, orderBuilderStatus?.costBreakdown?.versions]);
+
   // Auto-update conversation metadata when Order Builder data changes
   useEffect(() => {
     // Update metadata when we have an active conversation AND any significant data changes
@@ -1919,11 +2029,39 @@ Would you like me to save this quote or would you like to modify any specificati
   };
 
   const handleQuoteOrder = async () => {
-    if (!canQuoteOrder()) return;
+    console.log('🎯 QUOTE CREATION: handleQuoteOrder triggered');
+    
+    const canQuote = canQuoteOrder();
+    console.log('🔍 QUOTE CREATION: canQuoteOrder result:', {
+      canQuote,
+      orderBuilderStatus: {
+        capStyleStatus: orderBuilderStatus.capStyle.status,
+        capStyleCompleted: orderBuilderStatus.capStyle.completed,
+        deliveryStatus: orderBuilderStatus.delivery.status,
+        deliveryCompleted: orderBuilderStatus.delivery.completed,
+        costBreakdownAvailable: orderBuilderStatus.costBreakdown.available,
+        versionsCount: orderBuilderStatus.costBreakdown.versions?.length
+      }
+    });
+    
+    if (!canQuote) {
+      console.log('❌ QUOTE CREATION: Blocked by canQuoteOrder check');
+      return;
+    }
     
     try {
       // Get the selected quote version data
       const selectedVersion = getSelectedVersion();
+      console.log('🔍 QUOTE CREATION: getSelectedVersion result:', {
+        hasSelectedVersion: !!selectedVersion,
+        selectedVersionId: orderBuilderStatus.costBreakdown.selectedVersionId,
+        availableVersionIds: orderBuilderStatus.costBreakdown.versions?.map(v => v.id),
+        selectedVersionPreview: selectedVersion ? {
+          id: selectedVersion.id,
+          hasQuoteData: !!selectedVersion.quoteData,
+          hasPricing: !!selectedVersion.pricing
+        } : null
+      });
       
       if (!selectedVersion) {
         console.error('No selected quote version available');
@@ -1938,6 +2076,14 @@ Would you like me to save this quote or would you like to modify any specificati
       if (session?.access_token) {
         authHeaders['Authorization'] = `Bearer ${session.access_token}`;
       }
+
+      console.log('📡 QUOTE CREATION: Making API call to save-quote', {
+        hasQuoteData: !!selectedVersion.quoteData,
+        conversationId,
+        sessionId: quoteSessionId,
+        hasUserProfile: !!(userProfile || guestContactInfo),
+        uploadedFilesCount: uploadedFiles.length
+      });
 
       const response = await fetch('/api/support/save-quote', {
         method: 'POST',
@@ -1955,6 +2101,12 @@ Would you like me to save this quote or would you like to modify any specificati
           } : null),
           uploadedFiles: uploadedFiles
         })
+      });
+
+      console.log('📡 QUOTE CREATION: API Response received', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
       });
 
       if (response.ok) {
@@ -2080,8 +2232,20 @@ Would you like me to save this quote or would you like to modify any specificati
               // Map leadTimeData to proper OrderBuilderState structure
               productionTimeline: leadTimeData?.leadTime ? {
                 setupTime: '1-2 business days',
-                productionTime: leadTimeData.leadTime.details?.find((d: any) => d.phase?.toLowerCase().includes('production'))?.duration || 'Standard production time',
-                shippingTime: leadTimeData.leadTime.details?.find((d: any) => d.phase?.toLowerCase().includes('shipping'))?.duration || 'Estimated shipping time',
+                productionTime: (() => {
+                  const prod = leadTimeData.leadTime.details?.find((d: any) => d.phase?.toLowerCase().includes('production'));
+                  if (prod) {
+                    return typeof prod === 'string' ? prod : (prod.duration || 'Standard production time');
+                  }
+                  return 'Standard production time';
+                })(),
+                shippingTime: (() => {
+                  const ship = leadTimeData.leadTime.details?.find((d: any) => d.phase?.toLowerCase().includes('shipping'));
+                  if (ship) {
+                    return typeof ship === 'string' ? ship : (ship.duration || 'Estimated shipping time');
+                  }
+                  return 'Estimated shipping time';
+                })(),
                 totalTime: `${leadTimeData.leadTime.totalDays} days`,
                 estimatedDelivery: leadTimeData.leadTime.deliveryDate,
                 urgencyLevel: selectedVersion.quoteData.delivery?.urgency || 'standard'
@@ -2156,7 +2320,7 @@ Would you like me to save this quote or would you like to modify any specificati
       const errorMessage: Message = {
         id: Date.now().toString() + '_quote_error',
         role: 'assistant',
-        content: `❌ **Failed to save quote:** ${error.message}\n\nPlease try again or contact support if the issue persists.`,
+        content: `❌ **Failed to save quote:** ${error instanceof Error ? error.message : String(error)}\n\nPlease try again or contact support if the issue persists.`,
         timestamp: new Date()
       };
       
@@ -2354,8 +2518,8 @@ Would you like me to save this quote or would you like to modify any specificati
           }));
 
           // Verify we have the detailed quote content
-          const assistantMessages = formattedMessages.filter(msg => msg.role === 'assistant');
-          const detailedQuoteMessage = assistantMessages.find(msg => 
+          const assistantMessages = formattedMessages.filter((msg: any) => msg.role === 'assistant');
+          const detailedQuoteMessage = assistantMessages.find((msg: any) => 
             msg.content && msg.content.length > 200 && 
             (msg.content.includes('detailed quote') || msg.content.includes('💰 Total Order') || msg.content.includes('📊') ||
              msg.content.includes('Complete Quote Summary') || msg.metadata?.hasDetailedQuote)
@@ -2363,7 +2527,7 @@ Would you like me to save this quote or would you like to modify any specificati
 
           if (assistantMessages.length > 0 && !detailedQuoteMessage) {
             console.warn('⚠️ Potential quote content missing - only found short assistant messages:', 
-              assistantMessages.map(msg => ({
+              assistantMessages.map((msg: any) => ({
                 id: msg.id,
                 contentLength: msg.content.length,
                 preview: msg.content.substring(0, 100) + '...',
@@ -2408,15 +2572,6 @@ Would you like me to save this quote or would you like to modify any specificati
         if (hasQuotes) {
           console.log('✅ Quote conversation detected - showing Order Builder');
           setIsOrderBuilderVisible(true);
-          
-          // Enable costBreakdown so Production Timeline & Packaging block appears
-          setOrderBuilderStatus(prev => ({
-            ...prev,
-            costBreakdown: {
-              ...prev.costBreakdown,
-              available: true
-            }
-          }));
 
           // Create quote versions from conversation data if available
           if (data.quoteData && data.quoteData.quoteOrder) {
@@ -2425,8 +2580,16 @@ Would you like me to save this quote or would you like to modify any specificati
               // Create a quote version from the loaded conversation data
               const quoteVersion = {
                 id: `version_${Date.now()}_loaded`,
+                version: 1,
                 label: 'Loaded Quote',
-                timestamp: new Date().toISOString(),
+                timestamp: new Date(),
+                pricing: {
+                  baseProductCost: quoteOrder.estimatedCosts.baseProductCost || 0,
+                  logosCost: quoteOrder.estimatedCosts.logosCost || 0,
+                  deliveryCost: quoteOrder.estimatedCosts.deliveryCost || 0,
+                  total: quoteOrder.estimatedCosts.total || 0,
+                  quantity: quoteOrder.estimatedCosts.totalUnits || 50
+                },
                 quoteData: {
                   capDetails: {
                     quantity: quoteOrder.estimatedCosts.totalUnits || 50,
@@ -2475,6 +2638,56 @@ Would you like me to save this quote or would you like to modify any specificati
           setIsOrderBuilderVisible(false);
         }
 
+        // If no quote data was found in metadata, try to extract from conversation messages
+        if (hasQuotes && !currentQuoteData && data.ConversationMessage && data.ConversationMessage.length > 0) {
+          console.log('🔍 No saved quote data found, attempting to extract from conversation messages');
+          
+          // Look for AI messages that might contain quote data
+          const assistantMessages = data.ConversationMessage.filter((msg: any) => 
+            msg.role.toLowerCase() === 'assistant' && msg.metadata?.quoteData
+          );
+          
+          if (assistantMessages.length > 0) {
+            const latestQuoteMessage = assistantMessages[assistantMessages.length - 1];
+            const extractedQuoteData = latestQuoteMessage.metadata.quoteData;
+            
+            console.log('✅ Found quote data in message metadata:', extractedQuoteData);
+            
+            // Set states immediately and force Order Builder visibility
+            setCurrentQuoteData(extractedQuoteData);
+            setIsOrderBuilderVisible(true);
+            
+            // Also backup to localStorage to prevent state loss
+            try {
+              localStorage.setItem(`currentQuoteData_${data.id}`, JSON.stringify(extractedQuoteData));
+              console.log('💾 Backed up quote data to localStorage');
+            } catch (e) {
+              console.warn('Failed to backup quote data:', e);
+            }
+            
+            console.log('🔧 Forcing Order Builder visibility and quote data set');
+            
+            updateOrderBuilderStatus(extractedQuoteData);
+          } else {
+            console.log('⚠️ No quote data found in message metadata, trying message content extraction');
+            
+            // Try parsing quote data from message content
+            const detailedMessages = data.ConversationMessage.filter((msg: any) => 
+              msg.role.toLowerCase() === 'assistant' && msg.content && msg.content.length > 200
+            );
+            
+            for (const msg of detailedMessages) {
+              const extractedData = parseQuoteFromMessage(msg.content);
+              if (extractedData) {
+                console.log('✅ Extracted quote data from message content:', extractedData);
+                setCurrentQuoteData(extractedData);
+                updateOrderBuilderStatus(extractedData);
+                break;
+              }
+            }
+          }
+        }
+
         // Restore Order Builder state from conversation metadata (if available)
         if (data.metadata && data.metadata.orderBuilder) {
           const orderBuilder = data.metadata.orderBuilder;
@@ -2506,22 +2719,60 @@ Would you like me to save this quote or would you like to modify any specificati
             
             console.log('✅ Restoring quote data:', restoredQuoteData);
             setCurrentQuoteData(restoredQuoteData);
+            
+            // Use the proper updateOrderBuilderStatus function to dynamically calculate completion states
+            console.log('🔄 Calling updateOrderBuilderStatus to properly populate Order Builder from quote data');
+            updateOrderBuilderStatus(restoredQuoteData);
           }
           
-          // Restore order builder status - CRITICAL for UI state
-          if (orderBuilder.orderBuilderStatus) {
-            console.log('✅ Restoring Order Builder Status:', {
-              capStyle: orderBuilder.orderBuilderStatus.capStyle,
-              customization: orderBuilder.orderBuilderStatus.customization,
-              delivery: orderBuilder.orderBuilderStatus.delivery,
-              costBreakdown: orderBuilder.orderBuilderStatus.costBreakdown
-            });
-            setOrderBuilderStatus(orderBuilder.orderBuilderStatus);
+          // Skip manual orderBuilderStatus restoration - let updateOrderBuilderStatus handle it
+          // The updateOrderBuilderStatus function called above will properly calculate all states
+          console.log('✅ Order Builder status will be calculated dynamically from quote data');
+        } else {
+          // If no metadata orderBuilder but hasQuotes, try to restore from conversation data
+          if (data.quoteData && data.quoteData.quoteOrder) {
+            const quoteOrder = data.quoteData.quoteOrder;
+            if (quoteOrder.estimatedCosts) {
+              // Try to reconstruct quote data from quoteOrder
+              const reconstructedQuoteData = {
+                capDetails: {
+                  quantity: quoteOrder.estimatedCosts.totalUnits || 50,
+                  sizes: ['One Size'],
+                  colors: ['Primary Color'],
+                  productName: 'Custom Cap'
+                },
+                customization: {
+                  logos: [{
+                    location: 'front',
+                    technique: 'embroidery',
+                    colors: 1
+                  }]
+                },
+                delivery: {
+                  method: 'standard',
+                  totalCost: quoteOrder.estimatedCosts.deliveryCost || 0
+                },
+                pricing: {
+                  baseProductCost: quoteOrder.estimatedCosts.baseProductCost || 0,
+                  logosCost: quoteOrder.estimatedCosts.logosCost || 0,
+                  deliveryCost: quoteOrder.estimatedCosts.deliveryCost || 0,
+                  total: quoteOrder.estimatedCosts.total || 0,
+                  quantity: quoteOrder.estimatedCosts.totalUnits || 50
+                }
+              };
+
+              console.log('🔄 Reconstructing quote data from quoteOrder for Order Builder');
+              setCurrentQuoteData(reconstructedQuoteData);
+              updateOrderBuilderStatus(reconstructedQuoteData);
+            }
           } else {
-            console.warn('⚠️ No orderBuilderStatus found in metadata - UI states may not restore correctly');
+            console.warn('⚠️ No quote data found to populate Order Builder - buttons may remain disabled');
           }
-          
-          // Restore quote versions if available
+        }
+        
+        // Restore quote versions if available (if orderBuilder exists)
+        if (data.metadata && data.metadata.orderBuilder) {
+          const orderBuilder = data.metadata.orderBuilder;
           if (orderBuilder.quoteVersions && orderBuilder.quoteVersions.length > 0) {
             console.log('✅ Restoring quote versions:', orderBuilder.quoteVersions.length, 'versions');
             setOrderBuilderStatus(prev => ({
@@ -2584,6 +2835,8 @@ Would you like me to save this quote or would you like to modify any specificati
         }, 100); // Small delay to ensure state updates are complete
         
         console.log('✅ Conversation loaded successfully:', data.id);
+      } else {
+        console.error('Failed to load conversation:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Failed to load specific conversation:', error);
@@ -3160,19 +3413,14 @@ Would you like me to save this quote or would you like to modify any specificati
   };
 
   // Update quote status (Accept/Reject)
-  const updateQuoteStatus = async (conversationId: string, newStatus: 'ACCEPTED' | 'REJECTED') => {
+  const updateQuoteStatus = async (conversationId: string, newStatus: 'APPROVED' | 'REJECTED') => {
     try {
       console.log(`🔄 Updating quote status for conversation ${conversationId} to ${newStatus}`);
       
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.error('No session available for status update');
-        return;
-      }
-
+      // Use same auth approach as other functions - the session API call automatically handles auth
       const authHeaders: Record<string, string> = { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
+        'Content-Type': 'application/json'
+        // Don't manually add Authorization header - let the API handle auth via cookies
       };
 
       // Call API to update quote status
@@ -3186,23 +3434,77 @@ Would you like me to save this quote or would you like to modify any specificati
         const data = await response.json();
         console.log(`✅ Quote status updated to ${newStatus}:`, data);
         
-        // Show success message
+        // Update local conversations state immediately for real-time UI update
+        setConversations(prev => prev.map(conv => {
+          if (conv.id === conversationId) {
+            const updatedConv = {
+              ...conv,
+              metadata: {
+                ...conv.metadata,
+                quoteStatus: newStatus,
+                quoteAcceptedAt: newStatus === 'APPROVED' ? new Date().toISOString() : null,
+                quoteRejectedAt: newStatus === 'REJECTED' ? new Date().toISOString() : null
+              },
+              updatedAt: new Date().toISOString(),
+              lastActivity: new Date().toISOString()
+            };
+            
+            // Update title based on order creation or quote status
+            if (newStatus === 'APPROVED') {
+              if (data.orderCreated && data.orderId) {
+                updatedConv.title = `ORDER-${data.orderId.slice(-6)} - Order Created`;
+                updatedConv.metadata.orderId = data.orderId;
+                updatedConv.metadata.orderCreatedAt = new Date().toISOString();
+              } else {
+                updatedConv.title = updatedConv.title?.replace(/Quote.*/, 'Quote Accepted') || 'Quote Accepted';
+              }
+            } else if (newStatus === 'REJECTED') {
+              updatedConv.title = updatedConv.title?.replace(/Quote.*/, 'Quote Rejected') || 'Quote Rejected';
+            }
+            
+            console.log('🔄 Updated local conversation state:', updatedConv);
+            return updatedConv;
+          }
+          return conv;
+        }));
+        
+        // Show success message with order creation info
+        const orderInfo = data.orderCreated ? {
+          orderCreated: true,
+          orderId: data.orderId,
+          message: data.message
+        } : { orderCreated: false };
+        
         const successMessage: Message = {
           id: `msg-${Date.now()}`,
           role: 'system',
-          content: `✅ **Quote ${newStatus.toLowerCase()}!**\n\n` +
-                   `The quote status has been updated to: **${newStatus}**\n\n` +
-                   `${newStatus === 'ACCEPTED' ? 
-                     'This quote is now accepted and ready for processing. ' +
-                     'You can proceed with order finalization if needed.' :
-                     'This quote has been rejected. You can request a new quote ' +
-                     'with different specifications if desired.'
-                   }`,
+          content: orderInfo.orderCreated ? 
+            `✅ **Quote Accepted & Order Created!**\n\n` +
+            `🎉 **SUCCESS!** Your quote has been accepted and converted to a finalized order.\n\n` +
+            `📋 **Order Details:**\n` +
+            `• Order ID: **${orderInfo.orderId}**\n` +
+            `• Status: **Pending Production**\n` +
+            `• Payment Status: **Pending**\n\n` +
+            `🚀 **Next Steps:**\n` +
+            `1. Review your order details in the dashboard\n` +
+            `2. Complete payment to start production\n` +
+            `3. Track your order progress\n\n` +
+            `Your order is now in the production queue and will be processed once payment is received.` :
+            `✅ **Quote ${newStatus.toLowerCase()}!**\n\n` +
+            `The quote status has been updated to: **${newStatus}**\n\n` +
+            `${newStatus === 'APPROVED' ? 
+              'This quote is now accepted and ready for processing. ' +
+              'You can proceed with order finalization if needed.' :
+              'This quote has been rejected. You can request a new quote ' +
+              'with different specifications if desired.'
+            }`,
           timestamp: new Date(),
           metadata: {
             type: 'quote_status_update',
             conversationId,
             newStatus,
+            orderCreated: orderInfo.orderCreated,
+            orderId: orderInfo.orderId,
             updatedAt: new Date().toISOString()
           }
         };
@@ -3265,12 +3567,59 @@ Would you like me to save this quote or would you like to modify any specificati
 
   // Determine conversation status and color coding
   const getConversationStatus = (conversation: any) => {
-    // Check if this is a quote conversation with order data
+    console.log('🔍 getConversationStatus called for:', conversation.id, {
+      hasQuote: conversation.hasQuote,
+      context: conversation.context,
+      quoteDataExists: !!conversation.quoteData,
+      conversationQuotesExists: !!conversation.ConversationQuotes,
+      conversationQuotesLength: conversation.ConversationQuotes?.length || 0,
+      metadata: conversation.metadata
+    });
+    
+    // Priority 0: Check metadata for quote status (stored by new acceptance system)
+    if (conversation.metadata?.quoteStatus) {
+      const metadataStatus = conversation.metadata.quoteStatus;
+      
+      // Check if an order was created from this quote
+      if (metadataStatus === 'APPROVED' && conversation.metadata?.orderId) {
+        return {
+          type: 'order-created',
+          label: 'Order Created',
+          color: 'blue',
+          dotClass: 'bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]',
+          badgeClass: 'bg-blue-400/20 text-blue-300 border-blue-400/30',
+          borderClass: 'border-blue-400/20 hover:border-blue-400/30'
+        };
+      }
+      
+      switch (metadataStatus) {
+        case 'APPROVED':
+          return {
+            type: 'quote-accepted',
+            label: 'Quote Accepted',
+            color: 'green',
+            dotClass: 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]',
+            badgeClass: 'bg-green-400/20 text-green-300 border-green-400/30',
+            borderClass: 'border-green-400/20 hover:border-green-400/30'
+          };
+        case 'REJECTED':
+          return {
+            type: 'quote-rejected',
+            label: 'Quote Rejected',
+            color: 'red',
+            dotClass: 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]',
+            badgeClass: 'bg-red-400/20 text-red-300 border-red-400/30',
+            borderClass: 'border-red-400/20 hover:border-red-400/30'
+          };
+      }
+    }
+    
+    // Priority 1: Check if this is a quote conversation with actual QuoteOrder data
     if (conversation.hasQuote && conversation.quoteData?.quoteOrder?.status) {
       const quoteStatus = conversation.quoteData.quoteOrder.status;
       
       switch (quoteStatus) {
-        case 'ACCEPTED':
+        case 'APPROVED':
           return {
             type: 'quote-accepted',
             label: 'Quote Accepted',
@@ -3304,7 +3653,89 @@ Would you like me to save this quote or would you like to modify any specificati
       }
     }
     
-    // Check conversation context for general AI conversations (Sage AI)
+    // Priority 2: Check if this is a quote conversation (hasQuote flag or quote-related context)
+    // For quotes without quoteData.quoteOrder (older quotes or quotes being loaded)
+    if (conversation.hasQuote || conversation.context === 'QUOTE_REQUEST') {
+      // If we have ConversationQuotes data, check the QuoteOrder status
+      if (conversation.ConversationQuotes && conversation.ConversationQuotes.length > 0) {
+        const mainQuote = conversation.ConversationQuotes.find(cq => cq.isMainQuote) || conversation.ConversationQuotes[0];
+        if (mainQuote?.QuoteOrder?.status) {
+          switch (mainQuote.QuoteOrder.status) {
+            case 'APPROVED':
+              return {
+                type: 'quote-accepted',
+                label: 'Quote Accepted',
+                color: 'green',
+                dotClass: 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]',
+                badgeClass: 'bg-green-400/20 text-green-300 border-green-400/30',
+                borderClass: 'border-green-400/20 hover:border-green-400/30'
+              };
+            case 'REJECTED':
+              return {
+                type: 'quote-rejected',
+                label: 'Quote Rejected',
+                color: 'red',
+                dotClass: 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]',
+                badgeClass: 'bg-red-400/20 text-red-300 border-red-400/30',
+                borderClass: 'border-red-400/20 hover:border-red-400/30'
+              };
+            case 'COMPLETED':
+            case 'IN_PROGRESS':
+            case 'QUOTED':
+            case 'PENDING_REVIEW':
+            default:
+              return {
+                type: 'quote-pending',
+                label: 'Quote Pending',
+                color: 'yellow',
+                dotClass: 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]',
+                badgeClass: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
+                borderClass: 'border-yellow-400/20 hover:border-yellow-400/30'
+              };
+          }
+        }
+      }
+      
+      // Default to Quote Pending for quotes without specific status
+      return {
+        type: 'quote-pending',
+        label: 'Quote Pending',
+        color: 'yellow',
+        dotClass: 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]',
+        badgeClass: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
+        borderClass: 'border-yellow-400/20 hover:border-yellow-400/30'
+      };
+    }
+    
+    // Priority 3: Check if this is a quote conversation (hasQuote flag or QUOTE_REQUEST context)
+    if (conversation.hasQuote || conversation.context === 'QUOTE_REQUEST') {
+      // Check metadata for quote status during preparation phase
+      const metadataQuoteStatus = conversation.metadata?.quoteStatus;
+      if (metadataQuoteStatus === 'QUOTE_PENDING' || conversation.hasQuote) {
+        return {
+          type: 'quote-pending',
+          label: 'Quote Pending',
+          color: 'yellow',
+          dotClass: 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]',
+          badgeClass: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
+          borderClass: 'border-yellow-400/20 hover:border-yellow-400/30'
+        };
+      }
+    }
+    
+    // Priority 4: Check for ORDER_CREATION intent in metadata (AI preparing quote)
+    if (conversation.metadata?.intent === 'ORDER_CREATION') {
+      return {
+        type: 'quote-pending',
+        label: 'Quote Pending',
+        color: 'yellow',
+        dotClass: 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]',
+        badgeClass: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
+        borderClass: 'border-yellow-400/20 hover:border-yellow-400/30'
+      };
+    }
+    
+    // Priority 5: Check conversation context for general AI conversations (Sage AI)
     if (conversation.context === 'SUPPORT' || conversation.context === 'GENERAL') {
       return {
         type: 'general-ai',
@@ -3355,7 +3786,7 @@ Would you like me to save this quote or would you like to modify any specificati
       }
       
       // Optional phone validation - allow numbers starting with 0
-      if (formData.phone.trim() && !/^[\+]?[0-9][\d]{0,15}$/.test(formData.phone.replace(/[\s\-\(\)]/g, ''))) {
+      if (formData.phone && formData.phone.trim() && !/^[\+]?[0-9][\d]{0,15}$/.test(formData.phone.replace(/[\s\-\(\)]/g, ''))) {
         newErrors.phone = 'Please enter a valid phone number';
       }
       
@@ -3755,19 +4186,19 @@ Would you like me to save this quote or would you like to modify any specificati
                   </button>
                 )}
                 <div className="hidden md:flex items-center gap-2">
+                  <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">Secure</div>
+                  <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">24/7</div>
                   <button 
                     onClick={() => setShowConversationHistory(!showConversationHistory)}
                     className={`px-3 py-1.5 rounded-full text-xs border transition-colors flex items-center gap-1.5 ${
                       showConversationHistory 
-                        ? 'border-blue-400/30 bg-blue-400/10 text-blue-300'
-                        : 'border-stone-600 text-stone-300 hover:border-stone-500 hover:text-stone-200'
+                        ? 'border-lime-400/40 bg-lime-400/15 text-lime-300 shadow-lg shadow-lime-400/10'
+                        : 'border-lime-500/30 bg-lime-500/5 text-lime-400 hover:border-lime-400/50 hover:bg-lime-400/10 hover:text-lime-300 hover:shadow-md hover:shadow-lime-400/10'
                     }`}
                   >
                     <ChatBubbleLeftRightIcon className="h-3 w-3" />
                     History
                   </button>
-                  <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">Secure</div>
-                  <div className="px-2.5 py-1 rounded-full text-xs border border-stone-600 text-stone-300">24/7</div>
                 </div>
               </div>
             </div>
@@ -4761,9 +5192,10 @@ Please provide a detailed quote with cost breakdown.`;
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      updateQuoteStatus(conversation.id, 'ACCEPTED');
+                                      console.log('🔄 Accept Quote clicked for conversation:', conversation.id, 'Current status:', status);
+                                      updateQuoteStatus(conversation.id, 'APPROVED');
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg border border-green-400/30 bg-green-400/10 text-green-400/80 hover:text-green-400 hover:bg-green-400/20 transition-all duration-200"
+                                    className="opacity-100 p-1.5 rounded-lg border border-green-400/30 bg-green-400/10 text-green-400/80 hover:text-green-400 hover:bg-green-400/20 transition-all duration-200"
                                     title="Accept Quote"
                                   >
                                     <CheckIcon className="h-3.5 w-3.5" />

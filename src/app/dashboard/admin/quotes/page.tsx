@@ -571,8 +571,8 @@ export default function AdminQuotesPage() {
         `"${quote.estimatedCosts?.baseProductCost?.toFixed(2) || '0.00'}"`,
         `"${quote.estimatedCosts?.logosCost?.toFixed(2) || '0.00'}"`,
         `"${quote.estimatedCosts?.deliveryCost?.toFixed(2) || '0.00'}"`,
-        `"${new Date(quote.createdAt).toLocaleDateString()}"`,
-        `"${new Date(quote.lastActivityAt).toLocaleDateString()}"`,
+        `"${new Date(quote.createdAt).toLocaleString()}"`,
+        `"${new Date(quote.lastActivityAt).toLocaleString()}"`,
         `"${(quote.aiSummary || '').replace(/"/g, '""')}"`
       ].join(','))
     ].join('\n');
@@ -922,7 +922,7 @@ export default function AdminQuotesPage() {
                                   <div>
                                     <div className="text-sm font-semibold text-white">{quote.title || quote.productType}</div>
                                     <div className="text-sm text-slate-400 mt-1">
-                                      {quote.id.slice(-8)} • {quote.customerInfo?.name || 'No Name'} • {new Date(quote.createdAt).toLocaleDateString()}
+                                      {quote.id.slice(-8)} • {quote.customerInfo?.name || 'No Name'} • {new Date(quote.createdAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                     </div>
                                     <div className="text-sm text-slate-500 mt-1">
                                       {quote.customerInfo?.email || 'No Email'} • {quote.customerInfo?.company || 'No Company'}
@@ -1158,7 +1158,7 @@ export default function AdminQuotesPage() {
                                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
-                                                    <span>{new Date(file.uploadedAt).toLocaleDateString()}</span>
+                                                    <span>{new Date(file.uploadedAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                                                   </div>
                                                   <div className="flex items-center space-x-1">
                                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1531,7 +1531,7 @@ export default function AdminQuotesPage() {
                                   <div>
                                     <div className="text-sm font-semibold text-white">{quote.productName || 'Custom Cap Request'}</div>
                                     <div className="text-sm text-slate-400 mt-1">
-                                      {quote.id.slice(-8)} • {quote.customerInfo?.name || 'No Name'} • {new Date(quote.createdAt).toLocaleDateString()}
+                                      {quote.id.slice(-8)} • {quote.customerInfo?.name || 'No Name'} • {new Date(quote.createdAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                     </div>
                                     <div className="text-sm text-slate-500 mt-1">
                                       {quote.customerInfo?.email || 'No Email'} • {quote.customerInfo?.company || 'No Company'}
@@ -1870,7 +1870,7 @@ export default function AdminQuotesPage() {
                                   {quote.status}
                                 </div>
                                 <div className="text-xs text-slate-400 mt-1">
-                                  {new Date(quote.createdAt).toLocaleDateString()}
+                                  {new Date(quote.createdAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                 </div>
                               </div>
                               <div className="text-slate-400">

@@ -409,13 +409,14 @@ function SuccessPageContent() {
  if (loading) {
   return (
    <div className="relative min-h-screen overflow-x-hidden text-slate-200">
-    {/* Background: dark gradient + accent glows */}
-    <div className="pointer-events-none absolute inset-0 -z-10">
-     <div className="absolute inset-0 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
-     <div className="absolute inset-x-0 top-0 h-[40vh] bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" />
-     <div className="absolute -top-10 -left-20 h-80 w-80 rounded-full bg-lime-400/10 blur-3xl" />
-     <div className="absolute top-40 -right-24 h-96 w-96 rounded-full bg-orange-400/10 blur-3xl" />
-    </div>
+    {/* Background: clean dark background */}
+    <div className="pointer-events-none fixed inset-0 -z-20 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
+    
+    <style jsx>{`
+      html {
+        background: linear-gradient(180deg, #000, rgba(5,7,14,1) 40%, #000) !important;
+      }
+    `}</style>
     
     <div className="flex items-center justify-center min-h-screen">
      <div className="text-center">
@@ -435,17 +436,39 @@ function SuccessPageContent() {
 
  return (
   <div className="relative min-h-screen overflow-x-hidden text-slate-200">
-   {/* Background: dark gradient + accent glows */}
-   <div className="pointer-events-none absolute inset-0 -z-10">
-    <div className="absolute inset-0 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
-    <div className="absolute inset-x-0 top-0 h-[40vh] bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" />
-    <div className="absolute -top-10 -left-20 h-80 w-80 rounded-full bg-lime-400/10 blur-3xl" />
-    <div className="absolute top-40 -right-24 h-96 w-96 rounded-full bg-orange-400/10 blur-3xl" />
-    <div className="absolute bottom-0 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
-   </div>
+   {/* Background: clean dark override for receipt page */}
+   <div className="pointer-events-none fixed inset-0 -z-20 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
+   
+   <style jsx>{`
+     html {
+       background: linear-gradient(180deg, #000, rgba(5,7,14,1) 40%, #000) !important;
+     }
+     .receipt-glass-section {
+       background: rgba(0, 0, 0, 0.4) !important;
+       border: 1px solid rgba(255, 255, 255, 0.1) !important;
+       backdrop-filter: blur(24px) !important;
+       transition: all 0.3s ease !important;
+     }
+     .receipt-glass-section:hover {
+       background: rgba(0, 0, 0, 0.6) !important;
+       border: 1px solid rgba(255, 255, 255, 0.15) !important;
+       backdrop-filter: blur(28px) !important;
+     }
+     .receipt-glass-item {
+       background: rgba(0, 0, 0, 0.3) !important;
+       border: 1px solid rgba(255, 255, 255, 0.08) !important;
+       backdrop-filter: blur(16px) !important;
+       transition: all 0.3s ease !important;
+     }
+     .receipt-glass-item:hover {
+       background: rgba(0, 0, 0, 0.5) !important;
+       border: 1px solid rgba(255, 255, 255, 0.12) !important;
+       backdrop-filter: blur(20px) !important;
+     }
+   `}</style>
 
    <main className="mx-auto max-w-[1200px] px-6 md:px-10 pt-16 md:pt-24 lg:pt-28 pb-24">
-    <GlassCard className="p-8 md:p-12">
+    <GlassCard className="p-8 md:p-12 receipt-glass-section">
      {/* Success Header */}
      <div className="text-center mb-10">
       <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-lime-400/20 bg-lime-400/10 ring-1 ring-lime-400/10">
@@ -463,7 +486,7 @@ function SuccessPageContent() {
       
       {/* Order Total Summary */}
       {Object.values(costBreakdowns).length > 0 && (
-       <div className="mt-8 p-6 rounded-2xl border border-lime-400/20 bg-lime-400/5 ring-1 ring-lime-400/10">
+       <div className="mt-8 p-6 rounded-2xl border border-lime-400/20 bg-lime-400/5 ring-1 ring-lime-400/10 receipt-glass-item">
         <div className="text-center">
          <p className="text-lime-300 font-semibold text-lg mb-2">Order Total</p>
          <div className="text-4xl font-bold text-white mb-2">
@@ -487,7 +510,7 @@ function SuccessPageContent() {
      {/* Order Details */}
      {orderDetails.map((order, index) => (
       <div key={order.id} className="mb-8">
-       <GlassCard className="p-6 md:p-8">
+       <GlassCard className="p-6 md:p-8 receipt-glass-section">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
          <div>
           <h2 className="text-2xl font-bold text-white mb-2">
@@ -737,7 +760,7 @@ function SuccessPageContent() {
            </div>
 
            {/* Right Column - Summary */}
-           <div className="bg-stone-700 rounded-xl p-6 border border-stone-600">
+           <div className="bg-stone-700 rounded-xl p-6 border border-stone-600 receipt-glass-item">
             <h4 className="text-white font-semibold mb-4">Order Summary</h4>
             <div className="space-y-3">
              <div className="flex justify-between">
@@ -771,7 +794,7 @@ function SuccessPageContent() {
 
      {/* Summary for Multiple Orders */}
      {isMultipleOrders && Object.values(costBreakdowns).length > 0 && (
-      <GlassCard className="p-6 md:p-8 mb-8">
+      <GlassCard className="p-6 md:p-8 mb-8 receipt-glass-section">
        <h3 className="text-xl font-bold text-white mb-6">Order Summary</h3>
        <div className="space-y-4">
         {/* Individual Order Totals */}
@@ -802,7 +825,7 @@ function SuccessPageContent() {
      )}
 
      {/* Next Steps */}
-     <GlassCard className="p-6 md:p-8 mb-8">
+     <GlassCard className="p-6 md:p-8 mb-8 receipt-glass-section">
       <h3 className="text-xl font-bold text-lime-300 mb-6">What happens next?</h3>
       <div className="space-y-4">
        {[
@@ -841,7 +864,7 @@ function SuccessPageContent() {
      </GlassCard>
 
      {/* Contact Information */}
-     <GlassCard className="p-6 md:p-8 mb-8">
+     <GlassCard className="p-6 md:p-8 mb-8 receipt-glass-section">
       <h3 className="text-xl font-bold text-orange-300 mb-4">Need Help?</h3>
       <p className="text-slate-300 mb-4">
        If you have any questions about your order, please don't hesitate to contact us.

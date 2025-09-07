@@ -3,9 +3,21 @@
  * Used by the Order AI system for maintaining conversation context
  */
 
-import { PrismaClient, MessageRole, ConversationContext } from '@prisma/client';
+import { supabaseAdmin } from './supabase';
 
-const prisma = new PrismaClient();
+// Define the enums locally since we're moving away from Prisma
+enum MessageRole {
+  USER = 'USER',
+  ASSISTANT = 'ASSISTANT',
+  SYSTEM = 'SYSTEM'
+}
+
+enum ConversationContext {
+  SUPPORT = 'SUPPORT',
+  SALES = 'SALES',
+  ORDER = 'ORDER',
+  QUOTE = 'QUOTE'
+}
 
 export interface MessageData {
   role: MessageRole | 'user' | 'assistant' | 'system';
@@ -26,9 +38,16 @@ export class ConversationService {
    */
   static async getConversationById(conversationId: string) {
     try {
-      const conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId }
-      });
+      const { data: conversation, error } = await supabaseAdmin
+        .from('Conversation')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to get conversation by ID: ${error.message}`);
+      }
+
       return conversation;
     } catch (error) {
       console.error('Failed to get conversation by ID:', error);
@@ -47,16 +66,15 @@ export class ConversationService {
         userId: data.userId 
       });
 
-      // Try to find existing conversation by sessionId
-      const conversation = await prisma.conversation.findFirst({
-        where: {
-          sessionId: data.sessionId,
-          context: data.context,
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
+      // Try to find existing conversation by sessionId using Supabase
+      const { data: conversation, error } = await supabaseAdmin
+        .from('Conversation')
+        .select('*')
+        .eq('sessionId', data.sessionId)
+        .eq('context', data.context)
+        .order('createdAt', { ascending: false })
+        .limit(1)
+        .single();
 
       if (conversation) {
         console.log('Found existing conversation:', conversation.id, 'for user:', conversation.userId);
@@ -82,31 +100,44 @@ export class ConversationService {
         userId: data.userId 
       });
 
-      // Try to find existing conversation by sessionId
-      let conversation = await prisma.conversation.findFirst({
-        where: {
-          sessionId: data.sessionId,
-          context: data.context,
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
+      // Try to find existing conversation by sessionId using Supabase
+      const { data: conversations, error: findError } = await supabaseAdmin
+        .from('Conversation')
+        .select('*')
+        .eq('sessionId', data.sessionId)
+        .eq('context', data.context)
+        .order('createdAt', { ascending: false })
+        .limit(1);
+      
+      let conversation = conversations && conversations.length > 0 ? conversations[0] : null;
 
       // If no conversation found, create a new one
       if (!conversation) {
         console.log('Creating new conversation for userId:', data.userId);
-        conversation = await prisma.conversation.create({
-          data: {
-            id: `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        const { data: newConversation, error: createError } = await supabaseAdmin
+          .from('Conversation')
+          .insert({
+            id: conversationId,
             userId: data.userId,
             sessionId: data.sessionId,
             context: data.context,
             metadata: data.metadata || {},
             status: 'ACTIVE',
-            updatedAt: new Date(),
-          },
-        });
+            isArchived: false,
+            lastActivity: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        
+        if (createError) {
+          throw new Error(`Failed to create conversation: ${createError.message}`);
+        }
+        
+        conversation = newConversation;
         console.log('Created conversation:', conversation.id, 'for user:', conversation.userId);
       } else {
         console.log('Found existing conversation:', conversation.id, 'for user:', conversation.userId);
@@ -134,17 +165,18 @@ export class ConversationService {
    */
   static async getConversationHistory(conversationId: string, limit: number = 10) {
     try {
-      const messages = await prisma.conversationMessage.findMany({
-        where: {
-          conversationId,
-        },
-        orderBy: {
-          createdAt: 'asc'
-        },
-        take: limit,
-      });
+      const { data: messages, error } = await supabaseAdmin
+        .from('ConversationMessage')
+        .select('*')
+        .eq('conversationId', conversationId)
+        .order('createdAt', { ascending: true })
+        .limit(limit);
 
-      return messages;
+      if (error) {
+        throw new Error(`Failed to get conversation history: ${error.message}`);
+      }
+
+      return messages || [];
     } catch (error) {
       console.error('Failed to get conversation history:', error);
       return [];
@@ -172,34 +204,47 @@ export class ConversationService {
       const roleMapping: Record<string, MessageRole> = {
         'user': MessageRole.USER,
         'assistant': MessageRole.ASSISTANT,
-        'system': MessageRole.SYSTEM
+        'system': MessageRole.SYSTEM,
+        'USER': MessageRole.USER,
+        'ASSISTANT': MessageRole.ASSISTANT,
+        'SYSTEM': MessageRole.SYSTEM
       };
 
       const mappedRole = typeof messageData.role === 'string' 
-        ? roleMapping[messageData.role.toLowerCase()] || MessageRole.USER
+        ? roleMapping[messageData.role] || roleMapping[messageData.role.toLowerCase()] || MessageRole.USER
         : messageData.role;
 
-      const message = await prisma.conversationMessage.create({
-        data: {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date().toISOString();
+
+      const { data: message, error } = await supabaseAdmin
+        .from('ConversationMessage')
+        .insert({
+          id: messageId,
           conversationId,
           role: mappedRole,
           content: messageData.content,
           metadata: messageData.metadata || {},
-          updatedAt: new Date(),
-        },
-      });
+          createdAt: now,
+          updatedAt: now
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to create message: ${error.message}`);
+      }
 
       console.log('Message saved with ID:', message.id);
 
       // Update conversation's updatedAt timestamp
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { 
-          lastActivity: new Date(),
-          updatedAt: new Date() 
-        }
-      });
+      await supabaseAdmin
+        .from('Conversation')
+        .update({
+          lastActivity: now,
+          updatedAt: now
+        })
+        .eq('id', conversationId);
 
       return message;
     } catch (error) {
@@ -222,13 +267,17 @@ export class ConversationService {
    */
   static async endConversation(conversationId: string) {
     try {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { 
+      const { error } = await supabaseAdmin
+        .from('Conversation')
+        .update({
           status: 'ARCHIVED',
-          updatedAt: new Date()
-        }
-      });
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', conversationId);
+
+      if (error) {
+        throw new Error(`Failed to end conversation: ${error.message}`);
+      }
     } catch (error) {
       console.error('Failed to end conversation:', error);
     }
@@ -239,22 +288,30 @@ export class ConversationService {
    */
   static async deleteConversationMessages(conversationId: string) {
     try {
-      const deletedMessages = await prisma.conversationMessage.deleteMany({
-        where: {
-          conversationId,
-        }
-      });
+      const { error: deleteError } = await supabaseAdmin
+        .from('ConversationMessage')
+        .delete()
+        .eq('conversationId', conversationId);
+
+      if (deleteError) {
+        throw new Error(`Failed to delete messages: ${deleteError.message}`);
+      }
 
       // Update conversation timestamp
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { 
-          updatedAt: new Date(),
-          lastActivity: new Date()
-        }
-      });
+      const now = new Date().toISOString();
+      const { error: updateError } = await supabaseAdmin
+        .from('Conversation')
+        .update({
+          updatedAt: now,
+          lastActivity: now
+        })
+        .eq('id', conversationId);
 
-      return deletedMessages;
+      if (updateError) {
+        throw new Error(`Failed to update conversation: ${updateError.message}`);
+      }
+
+      return { count: 1 }; // Supabase doesn't return count by default
     } catch (error) {
       console.error('Failed to delete conversation messages:', error);
       throw error;
@@ -267,16 +324,24 @@ export class ConversationService {
   static async deleteConversation(conversationId: string) {
     try {
       // First delete all messages (cascade should handle this, but being explicit)
-      await prisma.conversationMessage.deleteMany({
-        where: {
-          conversationId,
-        }
-      });
+      const { error: messagesError } = await supabaseAdmin
+        .from('ConversationMessage')
+        .delete()
+        .eq('conversationId', conversationId);
+
+      if (messagesError) {
+        throw new Error(`Failed to delete messages: ${messagesError.message}`);
+      }
 
       // Then delete the conversation
-      await prisma.conversation.delete({
-        where: { id: conversationId }
-      });
+      const { error: conversationError } = await supabaseAdmin
+        .from('Conversation')
+        .delete()
+        .eq('id', conversationId);
+
+      if (conversationError) {
+        throw new Error(`Failed to delete conversation: ${conversationError.message}`);
+      }
 
       return true;
     } catch (error) {

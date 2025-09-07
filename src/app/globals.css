@@ -963,12 +963,36 @@ select option:checked {
     -webkit-backdrop-filter: blur(24px);
   }
 
+  /* Darker Glass for Product Cards - Pure black to charcoal with enhanced glass effect */
+  .glass-morphism-darker {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(64, 64, 64, 0.6);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  }
+
   .glass-hover-dark:hover {
     background: rgba(55, 65, 81, 0.85);
     border-color: rgba(156, 163, 175, 0.6);
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     transition: all 0.3s ease;
+  }
+
+  .glass-hover-darker:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(80, 80, 80, 0.8);
+    backdrop-filter: blur(36px);
+    -webkit-backdrop-filter: blur(36px);
+    transition: all 0.3s ease;
+    box-shadow: 
+      0 16px 50px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
   }
 
   .glass-hover-light:hover {
@@ -1002,6 +1026,41 @@ select option:checked {
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     border-radius: 24px;
+  }
+
+  /* Darker variants of glass cards - Pure black to charcoal with enhanced glass effects */
+  .glass-card-sm-darker {
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(60, 60, 60, 0.5);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-radius: 12px;
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-card-md-darker {
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(64, 64, 64, 0.6);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border-radius: 16px;
+    box-shadow: 
+      0 10px 36px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-card-lg-darker {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(68, 68, 68, 0.7);
+    backdrop-filter: blur(36px);
+    -webkit-backdrop-filter: blur(36px);
+    border-radius: 24px;
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
   }
 
   /* Glass Buttons */

@@ -6,6 +6,12 @@ import Navbar from './Navbar';
 export default function ConditionalNavbar() {
   const pathname = usePathname();
   
-  // Show navbar on all pages now - no conditional logic needed
+  // Hide navbar on login and register pages
+  const hideNavbarPaths = ['/login', '/register'];
+  
+  if (hideNavbarPaths.includes(pathname)) {
+    return null;
+  }
+  
   return <Navbar />;
 }

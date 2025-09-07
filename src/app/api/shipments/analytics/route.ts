@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+// TODO: Remove Prisma imports - convert to Supabase
+// import { PrismaClient } from '@prisma/client';
+// const prisma = new PrismaClient();
 
 // Simplified order total calculation for analytics
 function calculateOrderTotalSimple(order: any): number {
@@ -87,47 +87,12 @@ export async function GET(request: NextRequest) {
    };
   }
 
-  // Get shipment analytics
-  const [shipments, orders] = await Promise.all([
-   prisma.shipment.findMany({
-    where: dateFilter,
-    include: {
-     orders: {
-      select: {
-       id: true,
-       selectedColors: true,
-       selectedOptions: true,
-       multiSelectOptions: true,
-       logoSetupSelections: true,
-       orderType: true
-      }
-     }
-    },
-    orderBy: { createdAt: 'desc' }
-   }).catch(error => {
-    console.error('Error fetching shipments:', error);
-    return [];
-   }),
-   prisma.order.findMany({
-    where: {
-     ...dateFilter,
-     shipmentId: { not: null }
-    },
-    select: {
-     id: true,
-     selectedColors: true,
-     selectedOptions: true,
-     multiSelectOptions: true,
-     logoSetupSelections: true,
-     orderType: true,
-     shipmentId: true,
-     createdAt: true
-    }
-   }).catch(error => {
-    console.error('Error fetching orders:', error);
-    return [];
-   })
-  ]);
+  // TODO: Replace with Supabase queries
+  console.log('Shipments analytics temporarily disabled - TODO: implement with Supabase');
+  
+  // Return empty data for now
+  const shipments = [];
+  const orders = [];
 
   // Calculate analytics
   const totalShipments = shipments.length;
@@ -135,7 +100,7 @@ export async function GET(request: NextRequest) {
   
   // Volume utilization analysis
   const volumeAnalysis = shipments.map(shipment => {
-   const shipmentOrders = shipment.orders;
+   const shipmentOrders = shipment.Order;
    
    // Extract quantity and pricing from order data
    const totalQuantity = shipmentOrders.reduce((sum, order) => {
@@ -304,12 +269,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
    { 
     success: false, 
-    error: 'Failed to fetch shipment analytics',
+    error: 'Shipment analytics temporarily unavailable due to database maintenance',
     details: error instanceof Error ? error.message : 'Unknown error'
    },
-   { status: 500 }
+   { status: 503 }
   );
- } finally {
-  await prisma.$disconnect();
  }
 }

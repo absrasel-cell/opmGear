@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
  try {
@@ -20,11 +20,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Find the user by email
-  const user = await prisma.user.findUnique({
-   where: { email }
-  });
+  const { data: user, error: userError } = await supabaseAdmin
+   .from('User')
+   .select('*')
+   .eq('email', email)
+   .single();
 
-  if (!user) {
+  if (userError || !user) {
    return NextResponse.json(
     { error: 'User not found' },
     { status: 404 }
@@ -86,10 +88,20 @@ export async function POST(request: NextRequest) {
   updateData.preferences = preferences;
 
   // Update user with intake data
-  const updatedUser = await prisma.user.update({
-   where: { email },
-   data: updateData
-  });
+  const { data: updatedUser, error: updateError } = await supabaseAdmin
+   .from('User')
+   .update(updateData)
+   .eq('email', email)
+   .select()
+   .single();
+
+  if (updateError) {
+   console.error('Error updating user:', updateError);
+   return NextResponse.json(
+    { error: 'Failed to update user account details' },
+    { status: 500 }
+   );
+  }
 
   console.log('User intake data updated for:', email, 'customerRole:', updatedUser.customerRole);
 

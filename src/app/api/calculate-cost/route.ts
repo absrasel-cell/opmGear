@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { getBaseProductPricing, calculateUnitPrice } from '@/lib/pricing';
+import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV } from '@/lib/pricing-server';
 
 interface CustomizationPricing {
  Name: string;
@@ -41,6 +39,7 @@ interface CostCalculationRequest {
   totalQuantity: number;
   shippingMethod: string;
  };
+ priceTier?: string; // ✅ Add priceTier as proper interface field
  fabricSetup?: string;
  customFabricSetup?: string;
  productType?: string;
@@ -92,70 +91,7 @@ interface CostBreakdown {
  totalUnits: number;
 }
 
-// Helper function to properly parse CSV lines with quoted values
-function parseCSVLine(line: string): string[] {
- const result: string[] = [];
- let current = '';
- let inQuotes = false;
- 
- for (let i = 0; i < line.length; i++) {
-  const char = line[i];
-  
-  if (char === '"') {
-   inQuotes = !inQuotes;
-  } else if (char === ',' && !inQuotes) {
-   result.push(current);
-   current = '';
-  } else {
-   current += char;
-  }
- }
- 
- result.push(current); // Add the last field
- return result;
-}
-
-async function loadCustomizationPricing(): Promise<CustomizationPricing[]> {
- try {
-  // Load pricing data from CSV file only
-  const csvPath = path.join(process.cwd(), 'src/app/csv/Customization Pricings.csv');
-  const csvContent = await fs.readFile(csvPath, 'utf-8');
-  
-  const lines = csvContent.split('\n').filter(line => line.trim()); // Remove empty lines
-  
-  // Skip header row
-  const dataLines = lines.slice(1);
-  
-  return dataLines.map(line => {
-   // Parse CSV line, handling quoted values
-   const values = parseCSVLine(line);
-   
-       return {
-     Name: (values[0] || '').replace(/"/g, '').trim(),
-     Slug: '', // Generate slug from name if needed
-     type: (values[1] || '').trim(),
-     price48: parseFloat(values[2]) || 0,
-     price144: parseFloat(values[3]) || 0,
-     price576: parseFloat(values[4]) || 0,
-     price1152: parseFloat(values[5]) || 0,
-     price2880: parseFloat(values[6]) || 0,
-     price10000: parseFloat(values[7]) || 0,
-    };
-  }).filter(item => item.Name && item.Name.length > 0); // Filter out empty rows
- } catch (error) {
-  console.error('Error loading customization pricing from CSV:', error);
-  return [];
- }
-}
-
-function getPriceForQuantity(pricing: CustomizationPricing, quantity: number): number {
- if (quantity >= 10000) return pricing.price10000;
- if (quantity >= 2880) return pricing.price2880;
- if (quantity >= 1152) return pricing.price1152;
- if (quantity >= 576) return pricing.price576;
- if (quantity >= 144) return pricing.price144;
- return pricing.price48;
-}
+// Using shared CSV loading functions from @/lib/pricing
 
 // Check if a previous order number exists with same logo (placeholder for now)
 async function checkPreviousOrderForSameLogo(orderNumber: string, logoDetails: string): Promise<boolean> {
@@ -241,7 +177,7 @@ function calculateLogoSetupCost(
    );
    
    if (sizeEmbroideryPricing) {
-    const sizeUnitPrice = getPriceForQuantity(sizeEmbroideryPricing, totalQuantity);
+    const sizeUnitPrice = getPriceForQuantityFromCSV(sizeEmbroideryPricing, totalQuantity);
     unitPrice += sizeUnitPrice;
     cost += sizeUnitPrice * totalQuantity;
     details = `${size} Size Embroidery`;
@@ -253,7 +189,7 @@ function calculateLogoSetupCost(
    );
    
    if (threeDPricing) {
-    const threeDUnitPrice = getPriceForQuantity(threeDPricing, totalQuantity);
+    const threeDUnitPrice = getPriceForQuantityFromCSV(threeDPricing, totalQuantity);
     unitPrice += threeDUnitPrice;
     cost += threeDUnitPrice * totalQuantity;
     details += ` + 3D Embroidery`;
@@ -267,7 +203,7 @@ function calculateLogoSetupCost(
    );
    
    if (sizeEmbroideryPricing) {
-    const sizeUnitPrice = getPriceForQuantity(sizeEmbroideryPricing, totalQuantity);
+    const sizeUnitPrice = getPriceForQuantityFromCSV(sizeEmbroideryPricing, totalQuantity);
     unitPrice += sizeUnitPrice;
     cost += sizeUnitPrice * totalQuantity;
     details = `${size} Size Embroidery`;
@@ -314,7 +250,7 @@ function calculateLogoSetupCost(
    );
 
    if (basePricing) {
-    const baseUnitPrice = getPriceForQuantity(basePricing, totalQuantity);
+    const baseUnitPrice = getPriceForQuantityFromCSV(basePricing, totalQuantity);
     unitPrice += baseUnitPrice;
     cost += baseUnitPrice * totalQuantity;
     details = `${basePricing.Name}`;
@@ -325,11 +261,11 @@ function calculateLogoSetupCost(
  if (logoConfig.application && logoConfig.application !== 'Direct') {
   const applicationPricing = pricingData.find(p => 
    p.Name.toLowerCase() === logoConfig.application?.toLowerCase() ||
-   p.Slug.toLowerCase() === logoConfig.application?.toLowerCase()
+   (p.Slug && p.Slug.toLowerCase() === logoConfig.application?.toLowerCase())
   );
   
   if (applicationPricing) {
-   const applicationUnitPrice = getPriceForQuantity(applicationPricing, totalQuantity);
+   const applicationUnitPrice = getPriceForQuantityFromCSV(applicationPricing, totalQuantity);
    unitPrice += applicationUnitPrice;
    cost += applicationUnitPrice * totalQuantity;
    details += ` + ${logoConfig.application}`;
@@ -351,7 +287,8 @@ export async function POST(request: NextRequest) {
    hasMultiSelectOptions: !!body.multiSelectOptions,
    hasSelectedOptions: !!body.selectedOptions,
    hasBaseProductPricing: !!body.baseProductPricing,
-   priceTier: (body as any).priceTier,
+   priceTier: body.priceTier, // ✅ Use proper interface field
+   effectivePriceTier: body.priceTier || 'Tier 1', // ✅ Show what tier will be used
    logoSetupOptions: body.multiSelectOptions?.['logo-setup'] || [],
    logoSetupKeys: body.logoSetupSelections ? Object.keys(body.logoSetupSelections) : []
   });
@@ -381,6 +318,7 @@ export async function POST(request: NextRequest) {
    selectedOptions,
    baseProductPricing,
    shipmentData,
+   priceTier,
    previousOrderNumber
   } = body;
 
@@ -446,50 +384,49 @@ export async function POST(request: NextRequest) {
   // Calculate base product cost using centralized pricing logic
   let baseProductCost = 0;
   
-  // Determine the price tier if available in the request (for future consistency)
-  const priceTier = (body as any).priceTier || 'Tier 1';
+  // Use the price tier from the request body for consistent pricing calculations
+  const effectivePriceTier = priceTier || 'Tier 1';
   
-  // Helper function to get unit price from baseProductPricing or fallback to centralized pricing
-  const getUnitPrice = (quantity: number): number => {
-   if (baseProductPricing) {
-    // CRITICAL FIX: Use the TOTAL quantity to determine the correct price tier
-    // For 100 caps, totalUnits should determine if we use 48-tier ($3.60) or 144-tier ($3.00)
-    const effectiveQuantity = totalUnits; // Use total units for tier determination
+  // CSV-DRIVEN PRICING - Use CSV data for all pricing calculations
+  const getUnitPrice = async (quantity: number): Promise<number> => {
+    const csvBasePricing = await getBaseProductPricing(effectivePriceTier);
     
-    if (effectiveQuantity >= 10000) return baseProductPricing.price10000;
-    if (effectiveQuantity >= 2880) return baseProductPricing.price2880;
-    if (effectiveQuantity >= 1152) return baseProductPricing.price1152;
-    if (effectiveQuantity >= 576) return baseProductPricing.price576;
-    if (effectiveQuantity >= 144) return baseProductPricing.price144;
-    return baseProductPricing.price48;
-   } else {
-    // Fallback to centralized pricing
-    return calculateUnitPrice(totalUnits, priceTier);
-   }
+    if (!csvBasePricing) {
+      console.error(`Unable to load CSV pricing for tier: ${effectivePriceTier}`);
+      return 0;
+    }
+    
+    // Use quantity-based tier pricing from CSV
+    if (quantity >= 10000) return csvBasePricing.price10000;
+    if (quantity >= 2880) return csvBasePricing.price2880;
+    if (quantity >= 1152) return csvBasePricing.price1152;
+    if (quantity >= 576) return csvBasePricing.price576;
+    if (quantity >= 144) return csvBasePricing.price144;
+    return csvBasePricing.price48;
   };
 
   if (selectedColors) {
    // New structure: selectedColors with nested sizes
-   Object.entries(selectedColors).forEach(([, colorData]: [string, unknown]) => {
+   for (const [, colorData] of Object.entries(selectedColors)) {
     const colorObj = colorData as { sizes: Record<string, number> };
     const colorTotalQuantity = Object.values(colorObj.sizes).reduce((sum: number, qty: number) => sum + qty, 0);
     
-    // Use product-specific pricing if available
-    const unitPrice = getUnitPrice(totalUnits);
+    // Use CSV-based pricing
+    const unitPrice = await getUnitPrice(totalUnits);
     baseProductCost += colorTotalQuantity * unitPrice;
-   });
+   }
   } else if (selectedSizes) {
    // Fallback to old structure
-   Object.entries(selectedSizes).forEach(([, quantity]) => {
+   for (const [, quantity] of Object.entries(selectedSizes)) {
     const qty = quantity as number;
     
-    // Use product-specific pricing if available
-    const unitPrice = getUnitPrice(totalUnits);
+    // Use CSV-based pricing
+    const unitPrice = await getUnitPrice(totalUnits);
     baseProductCost += qty * unitPrice;
-   });
+   }
   } else {
    // If no color/size structure, use total units
-   const unitPrice = getUnitPrice(totalUnits);
+   const unitPrice = await getUnitPrice(totalUnits);
    baseProductCost = totalUnits * unitPrice;
   }
   totalCost += baseProductCost;
@@ -679,7 +616,7 @@ export async function POST(request: NextRequest) {
     );
     
     if (accessoryPricing) {
-     const unitPrice = getPriceForQuantity(accessoryPricing, totalUnits);
+     const unitPrice = getPriceForQuantityFromCSV(accessoryPricing, totalUnits);
      const cost = unitPrice * totalUnits;
      
      console.log(`🛍️ Accessory cost calculated:`, {
@@ -711,11 +648,11 @@ export async function POST(request: NextRequest) {
    const closurePricing = pricingData.find(p => 
     p.type === 'Premium Closure' && 
     (p.Name.toLowerCase() === selectedClosure.toLowerCase() || 
-     p.Slug.toLowerCase() === selectedClosure.toLowerCase())
+     (p.Slug && p.Slug.toLowerCase() === selectedClosure.toLowerCase()))
    );
    
    if (closurePricing) {
-    const unitPrice = getPriceForQuantity(closurePricing, totalUnits);
+    const unitPrice = getPriceForQuantityFromCSV(closurePricing, totalUnits);
     const cost = unitPrice * totalUnits;
     closureCosts.push({
      name: closurePricing.Name,
@@ -768,7 +705,7 @@ export async function POST(request: NextRequest) {
      );
      
      if (premiumFabricPricing) {
-      const unitPrice = getPriceForQuantity(premiumFabricPricing, totalUnits);
+      const unitPrice = getPriceForQuantityFromCSV(premiumFabricPricing, totalUnits);
       const cost = unitPrice * totalUnits;
       
       console.log('🔧 API Debug - Found premium fabric pricing:', {
@@ -843,7 +780,7 @@ export async function POST(request: NextRequest) {
      });
     }
     
-    const unitPrice = getPriceForQuantity(deliveryPricing, pricingQuantity);
+    const unitPrice = getPriceForQuantityFromCSV(deliveryPricing, pricingQuantity);
     const cost = unitPrice * totalUnits;
     
     console.log('🔧 API Debug - Delivery pricing calculation:', {

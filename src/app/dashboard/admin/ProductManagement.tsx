@@ -3,6 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/components/auth/AuthContext';
+import { 
+  exportProductsToCSV, 
+  importProductsFromCSV, 
+  validateCSVFile, 
+  downloadCSVTemplate,
+  previewCSVFile,
+  type CSVImportResult 
+} from '@/lib/csv-utils';
 
 interface ProductImage {
  url: string;
@@ -102,6 +110,19 @@ export function ProductManagement() {
  const [showMigrationTool, setShowMigrationTool] = useState(false);
  const [migrationUser, setMigrationUser] = useState({ id: '', name: '', email: '' });
  const [migratingProduct, setMigratingProduct] = useState<string | null>(null);
+ 
+ // CSV Import/Export state
+ const [showCSVOptions, setShowCSVOptions] = useState(false);
+ const [csvImporting, setCsvImporting] = useState(false);
+ const [csvExporting, setCsvExporting] = useState(false);
+ const [csvFile, setCsvFile] = useState<File | null>(null);
+ const [csvPreview, setCsvPreview] = useState<{
+   headers: string[];
+   rows: string[][];
+   totalRows: number;
+ } | null>(null);
+ const [importResult, setImportResult] = useState<CSVImportResult | null>(null);
+ const csvFileInputRef = useRef<HTMLInputElement>(null);
 
  // File input refs
  const mainImageRef = useRef<HTMLInputElement>(null);
@@ -757,6 +778,86 @@ export function ProductManagement() {
   }
  };
 
+ // CSV Import/Export handlers
+ const handleCSVExport = async (productType?: 'factory' | 'resale') => {
+  try {
+   setCsvExporting(true);
+   await exportProductsToCSV({ productType });
+   setError(null);
+  } catch (err) {
+   setError(err instanceof Error ? err.message : 'Failed to export products');
+  } finally {
+   setCsvExporting(false);
+  }
+ };
+
+ const handleCSVFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  
+  const validation = validateCSVFile(file);
+  if (!validation.valid) {
+   setError(validation.error || 'Invalid CSV file');
+   return;
+  }
+  
+  try {
+   setCsvFile(file);
+   const preview = await previewCSVFile(file);
+   setCsvPreview(preview);
+   setError(null);
+  } catch (err) {
+   setError(err instanceof Error ? err.message : 'Failed to preview CSV file');
+  }
+ };
+
+ const handleCSVImport = async () => {
+  if (!csvFile || !user) return;
+  
+  try {
+   setCsvImporting(true);
+   const userInfo = {
+    userId: user.id,
+    userName: user.name || user.email,
+    userEmail: user.email,
+    userRole: user.role,
+    userCompany: user.company
+   };
+   
+   const result = await importProductsFromCSV(csvFile, userInfo);
+   setImportResult(result);
+   
+   if (result.success && result.imported > 0) {
+    // Refresh products list
+    await fetchProducts();
+    // Reset CSV state
+    setCsvFile(null);
+    setCsvPreview(null);
+    setShowCSVOptions(false);
+   }
+   
+   setError(null);
+  } catch (err) {
+   setError(err instanceof Error ? err.message : 'Failed to import products');
+  } finally {
+   setCsvImporting(false);
+  }
+ };
+
+ const handleDownloadTemplate = (productType: 'factory' | 'resale') => {
+  downloadCSVTemplate(productType);
+ };
+
+ const resetCSVState = () => {
+  setCsvFile(null);
+  setCsvPreview(null);
+  setImportResult(null);
+  setShowCSVOptions(false);
+  if (csvFileInputRef.current) {
+   csvFileInputRef.current.value = '';
+  }
+ };
+
  const resetForm = () => {
   setEditingProduct(null);
   setFormData({
@@ -934,6 +1035,17 @@ export function ProductManagement() {
           </svg>
           Create New Product
          </button>
+
+         {/* CSV Import/Export button */}
+         <button
+          onClick={() => setShowCSVOptions(!showCSVOptions)}
+          className="inline-flex items-center px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500 rounded-lg hover:bg-orange-600 transition-all duration-200 shadow-[0_0_20px_rgba(234,88,12,0.15)]"
+         >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          CSV Tools
+         </button>
         </div>
         
         {/* Right side - Migration Tool and Back to Products buttons */}
@@ -954,13 +1066,33 @@ export function ProductManagement() {
            setShowForm(false);
            resetForm();
           }}
-          className="inline-flex items-center px-4 py-2 bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded-lg hover:bg-gray-600/30 transition-all duration-200"
+          className="inline-flex items-center px-4 py-2 bg-stone-800/50 backdrop-blur-sm border border-stone-600/50 text-white rounded-xl hover:bg-stone-700/60 hover:border-stone-500/60 transition-all duration-200 shadow-lg font-medium"
          >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
           Back to Products
          </button>
+
+         {/* Update/Create Product button */}
+         {showForm && (
+          <button
+           onClick={(e) => {
+            e.preventDefault();
+            const form = document.querySelector('form');
+            if (form) {
+             form.dispatchEvent(new Event('submit', { bubbles: true }));
+            }
+           }}
+           disabled={isSaving || uploadingImages}
+           className="inline-flex items-center px-6 py-3 bg-lime-400 text-black font-semibold rounded-lg hover:bg-lime-300 transition-all duration-200 shadow-[0_0_30px_rgba(163,230,53,0.3)] hover:shadow-[0_0_40px_rgba(163,230,53,0.4)] disabled:opacity-50"
+          >
+           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+           </svg>
+           {isSaving ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
+          </button>
+         )}
         </div>
        </div>
       </section>
@@ -1023,6 +1155,180 @@ export function ProductManagement() {
        </section>
       )}
 
+      {/* CSV Import/Export Tool */}
+      {showCSVOptions && (
+       <section className="px-6 md:px-10">
+        <div className="border border-orange-500 bg-orange-500/10 ring-1 ring-orange-500/5 shadow-lg rounded-lg p-6">
+         <div className="flex items-center mb-6">
+          <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center mr-3">
+           <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+           </svg>
+          </div>
+          <div>
+           <h3 className="text-lg font-medium text-orange-400">CSV Import/Export Tools</h3>
+           <p className="text-sm text-orange-300">Import and export products using CSV files</p>
+          </div>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Export Section */}
+          <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg p-4">
+           <h4 className="text-md font-medium text-orange-400 mb-4">Export Products</h4>
+           <div className="space-y-3">
+            <button
+             onClick={() => handleCSVExport()}
+             disabled={csvExporting}
+             className="w-full inline-flex items-center justify-center px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500 rounded-lg hover:bg-orange-600 transition-all duration-200 disabled:opacity-50"
+            >
+             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+             </svg>
+             {csvExporting ? 'Exporting...' : 'Export All Products'}
+            </button>
+            
+            <button
+             onClick={() => handleCSVExport('factory')}
+             disabled={csvExporting}
+             className="w-full inline-flex items-center justify-center px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500 rounded-lg hover:bg-orange-600 transition-all duration-200 disabled:opacity-50"
+            >
+             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+             </svg>
+             {csvExporting ? 'Exporting...' : 'Export Factory Products'}
+            </button>
+            
+            <button
+             onClick={() => handleCSVExport('resale')}
+             disabled={csvExporting}
+             className="w-full inline-flex items-center justify-center px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500 rounded-lg hover:bg-orange-600 transition-all duration-200 disabled:opacity-50"
+            >
+             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+             </svg>
+             {csvExporting ? 'Exporting...' : 'Export Resale Products'}
+            </button>
+           </div>
+          </div>
+
+          {/* Import Section */}
+          <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg p-4">
+           <h4 className="text-md font-medium text-orange-400 mb-4">Import Products</h4>
+           <div className="space-y-3">
+            {/* Template Downloads */}
+            <div className="mb-4">
+             <p className="text-sm text-orange-300 mb-2">Download templates:</p>
+             <div className="flex space-x-2">
+              <button
+               onClick={() => handleDownloadTemplate('factory')}
+               className="text-xs px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded hover:bg-orange-500/20 transition-all duration-200"
+              >
+               Factory Template
+              </button>
+              <button
+               onClick={() => handleDownloadTemplate('resale')}
+               className="text-xs px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded hover:bg-orange-500/20 transition-all duration-200"
+              >
+               Resale Template
+              </button>
+             </div>
+            </div>
+
+            {/* File Input */}
+            <input
+             type="file"
+             ref={csvFileInputRef}
+             accept=".csv"
+             onChange={handleCSVFileSelect}
+             className="hidden"
+            />
+            
+            <button
+             onClick={() => csvFileInputRef.current?.click()}
+             className="w-full inline-flex items-center justify-center px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500 rounded-lg hover:bg-orange-600 transition-all duration-200"
+            >
+             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+             </svg>
+             Select CSV File
+            </button>
+
+            {csvFile && (
+             <div className="text-sm text-orange-300">
+              <p>Selected: {csvFile.name}</p>
+              <p>Size: {(csvFile.size / 1024).toFixed(1)} KB</p>
+             </div>
+            )}
+
+            {csvPreview && (
+             <div className="mt-4">
+              <h5 className="text-sm font-medium text-orange-400 mb-2">Preview ({csvPreview.totalRows} rows):</h5>
+              <div className="bg-black/20 border border-orange-500/20 rounded p-2 overflow-x-auto">
+               <div className="text-xs text-orange-300">
+                <div className="font-medium mb-1">Headers: {csvPreview.headers.join(', ')}</div>
+                {csvPreview.rows.slice(0, 3).map((row, i) => (
+                 <div key={i} className="truncate">Row {i + 1}: {row.slice(0, 3).join(', ')}...</div>
+                ))}
+               </div>
+              </div>
+             </div>
+            )}
+
+            {csvFile && (
+             <button
+              onClick={handleCSVImport}
+              disabled={csvImporting}
+              className="w-full inline-flex items-center justify-center px-4 py-2 bg-lime-500/20 text-lime-400 border border-lime-500 rounded-lg hover:bg-lime-600 transition-all duration-200 disabled:opacity-50"
+             >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {csvImporting ? 'Importing...' : 'Import Products'}
+             </button>
+            )}
+           </div>
+          </div>
+         </div>
+
+         {/* Import Results */}
+         {importResult && (
+          <div className="mt-6 p-4 bg-lime-500/10 border border-lime-500/20 rounded-lg">
+           <h5 className="text-sm font-medium text-lime-400 mb-2">Import Results</h5>
+           <div className="text-sm text-lime-300">
+            <p>{importResult.message}</p>
+            <p>Imported: {importResult.imported} products</p>
+            {importResult.errors > 0 && (
+             <div className="mt-2">
+              <p className="text-red-400">Errors: {importResult.errors}</p>
+              <ul className="text-xs text-red-300 mt-1">
+               {importResult.errorDetails.slice(0, 5).map((error, i) => (
+                <li key={i}>• {error}</li>
+               ))}
+               {importResult.errorDetails.length > 5 && (
+                <li>• ... and {importResult.errorDetails.length - 5} more</li>
+               )}
+              </ul>
+             </div>
+            )}
+           </div>
+           <button
+            onClick={resetCSVState}
+            className="mt-3 text-xs px-3 py-1 bg-lime-500/20 text-lime-400 border border-lime-500/30 rounded hover:bg-lime-500/30 transition-all duration-200"
+           >
+            Close Results
+           </button>
+          </div>
+         )}
+
+         <div className="mt-4">
+          <p className="text-sm text-orange-300">
+           <strong>Instructions:</strong> Download a template, fill it with your product data, then upload the CSV file to import products. The system supports both Factory and Resale product types.
+          </p>
+         </div>
+        </div>
+       </section>
+      )}
+
       {/* Error Message */}
       {error && (
        <section className="px-6 md:px-10">
@@ -1044,28 +1350,28 @@ export function ProductManagement() {
 
       {/* Product Form */}
       {showForm && (
-       <section className="px-6 md:px-10">
-        <div className="border border-stone-600 bg-stone-700 ring-1 ring-stone-700 shadow-lg rounded-lg p-6">
-      <div className="flex items-center mb-6">
-      <div className="w-10 h-10 bg-lime-500/20 rounded-lg flex items-center justify-center mr-4">
-       <svg className="w-6 h-6 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+       <section className="px-3 xs:px-4 sm:px-6 md:px-10">
+        <div className="bg-black/40 backdrop-blur-md border border-stone-700/50 hover:border-orange-500/30 transition-all duration-300 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] p-6 sm:p-8 animate-slide-up">
+      <div className="flex items-center mb-6 sm:mb-8">
+      <div className="w-12 h-12 sm:w-14 sm:h-14 bg-stone-800/50 backdrop-blur-sm border border-lime-500/40 rounded-xl flex items-center justify-center mr-4 shadow-[0_0_20px_rgba(163,230,53,0.15)]">
+       <svg className="w-6 h-6 sm:w-7 sm:h-7 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
        </svg>
       </div>
       <div>
-       <h3 className="text-xl font-semibold text-white">
+       <h3 className="text-xl sm:text-2xl font-semibold text-white font-bricolage">
         {editingProduct ? 'Edit Product' : 'Create New Product'}
        </h3>
-       <p className="text-slate-400 text-sm">
-        {editingProduct ? 'Update product information and settings' : 'Add a new product to your catalog'}
+       <p className="text-stone-300 text-sm sm:text-base leading-relaxed">
+        {editingProduct ? 'Update product information and settings' : 'Add a new premium product to your catalog'}
        </p>
       </div>
      </div>
      
-     <div className="mb-6 border border-stone-600 bg-stone-700 p-6 rounded-lg">
-      <h4 className="text-lg font-medium mb-4 text-white">Product Type</h4>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-       <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all duration-200 ${formData.productType === 'factory' ? 'border-lime-400/50 bg-lime-400/10 shadow-[0_0_20px_rgba(163,230,53,0.15)]' : 'border-stone-600 bg-stone-700 hover:bg-stone-600'}`}>
+     <div className="mb-6 sm:mb-8 bg-stone-800/40 backdrop-blur-sm border border-stone-700/50 p-6 sm:p-8 rounded-2xl">
+      <h4 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 text-white font-bricolage">Product Type</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+       <label className={`flex items-center p-4 sm:p-6 border rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] ${formData.productType === 'factory' ? 'border-lime-500/50 bg-lime-500/10 shadow-[0_0_20px_rgba(163,230,53,0.15)]' : 'border-stone-600/50 bg-stone-800/30 hover:bg-stone-700/40 hover:border-stone-500/60'}`}>
         <input
          type="radio"
          name="productType"
@@ -1080,7 +1386,7 @@ export function ProductManagement() {
         </div>
        </label>
        
-       <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all duration-200 ${formData.productType === 'resale' ? 'border-lime-400/50 bg-lime-400/10 shadow-[0_0_20px_rgba(163,230,53,0.15)]' : 'border-stone-600 bg-stone-700 hover:bg-stone-600'}`}>
+       <label className={`flex items-center p-4 sm:p-6 border rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] ${formData.productType === 'resale' ? 'border-lime-500/50 bg-lime-500/10 shadow-[0_0_20px_rgba(163,230,53,0.15)]' : 'border-stone-600/50 bg-stone-800/30 hover:bg-stone-700/40 hover:border-stone-500/60'}`}>
         <input
          type="radio"
          name="productType"
@@ -1101,7 +1407,7 @@ export function ProductManagement() {
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
        <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+        <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
          Product Name *
         </label>
         <input
@@ -1115,12 +1421,12 @@ export function ProductManagement() {
           });
          }}
          required
-         className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+         className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
         />
        </div>
 
        <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+        <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
          Slug
         </label>
         <input
@@ -1128,33 +1434,29 @@ export function ProductManagement() {
          value={typeof formData.slug === 'string' ? formData.slug : formData.slug?.current || ''}
          onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
          required
-         className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+         className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
         />
        </div>
 
-       <div className="glass-dropdown">
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+       <div>
+        <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
          Price Tier
         </label>
         <select
          value={formData.priceTier}
          onChange={(e) => setFormData({ ...formData, priceTier: e.target.value })}
-         className="w-full px-3 py-2 border border-stone-500 bg-white/[0.08] text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-stone-400"
-         style={{
-          backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-         }}
+         className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
         >
-         <option value="Tier 1" className="bg-gray-900/95 text-white border-b border-stone-600">Tier 1</option>
-         <option value="Tier 2" className="bg-gray-900/95 text-white border-b border-stone-600">Tier 2</option>
-         <option value="Tier 3" className="bg-gray-900/95 text-white">Tier 3</option>
+         <option value="Tier 1" className="bg-stone-800 text-white">Tier 1</option>
+         <option value="Tier 2" className="bg-stone-800 text-white">Tier 2</option>
+         <option value="Tier 3" className="bg-stone-800 text-white">Tier 3</option>
         </select>
        </div>
        
        {formData.productType === 'resale' && (
         <>
          <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+          <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
            Selling Price ($) *
           </label>
           <input
@@ -1164,53 +1466,45 @@ export function ProductManagement() {
            required={formData.productType === 'resale'}
            min="0"
            step="0.01"
-           className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+           className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
           />
          </div>
          
-         <div className="glass-dropdown">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+         <div>
+          <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
            Shipping Source *
           </label>
           <select
            value={formData.shippingSource}
            onChange={(e) => setFormData({ ...formData, shippingSource: e.target.value as 'Factory' | 'Warehouse' })}
            required={formData.productType === 'resale'}
-           className="w-full px-3 py-2 border border-stone-500 bg-white/[0.08] text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-stone-400"
-           style={{
-            backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-           }}
+           className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
           >
-           <option value="Factory" className="bg-gray-900/95 text-white border-b border-stone-600">Factory</option>
-           <option value="Warehouse" className="bg-gray-900/95 text-white">Warehouse</option>
+           <option value="Factory" className="bg-stone-800 text-white">Factory</option>
+           <option value="Warehouse" className="bg-stone-800 text-white">Warehouse</option>
           </select>
          </div>
          
-         <div className="glass-dropdown">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+         <div>
+          <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
            Type of Product *
           </label>
           <select
            value={formData.productCategory}
            onChange={(e) => setFormData({ ...formData, productCategory: e.target.value as 'Caps' | 'Shirts' | 'Beanies' | 'Other' })}
            required={formData.productType === 'resale'}
-           className="w-full px-3 py-2 border border-stone-500 bg-white/[0.08] text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-stone-400"
-           style={{
-            backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-           }}
+           className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
           >
-           <option value="Caps" className="bg-gray-900/95 text-white border-b border-stone-600">Caps</option>
-           <option value="Shirts" className="bg-gray-900/95 text-white border-b border-stone-600">Shirts</option>
-           <option value="Beanies" className="bg-gray-900/95 text-white border-b border-stone-600">Beanies</option>
-           <option value="Other" className="bg-gray-900/95 text-white">Other</option>
+           <option value="Caps" className="bg-stone-800 text-white">Caps</option>
+           <option value="Shirts" className="bg-stone-800 text-white">Shirts</option>
+           <option value="Beanies" className="bg-stone-800 text-white">Beanies</option>
+           <option value="Other" className="bg-stone-800 text-white">Other</option>
           </select>
          </div>
          
          {formData.productCategory === 'Other' && (
           <div>
-           <label className="block text-sm font-medium text-slate-300 mb-2">
+           <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
             Custom Product Type *
            </label>
            <input
@@ -1218,34 +1512,30 @@ export function ProductManagement() {
             value={formData.customProductCategory}
             onChange={(e) => setFormData({ ...formData, customProductCategory: e.target.value })}
             required={formData.productType === 'resale' && formData.productCategory === 'Other'}
-            className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+            className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
             placeholder="Enter product type"
            />
           </div>
          )}
          
-         <div className="glass-dropdown">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+         <div>
+          <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
            QC Handler *
           </label>
           <select
            value={formData.qcHandler}
            onChange={(e) => setFormData({ ...formData, qcHandler: e.target.value as 'Factory' | '3rd Party' | 'Buyer' })}
            required={formData.productType === 'resale'}
-           className="w-full px-3 py-2 border border-stone-500 bg-white/[0.08] text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-stone-400"
-           style={{
-            backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-           }}
+           className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
           >
-           <option value="Factory" className="bg-gray-900/95 text-white border-b border-stone-600">Factory</option>
-           <option value="3rd Party" className="bg-gray-900/95 text-white border-b border-stone-600">3rd Party</option>
-           <option value="Buyer" className="bg-gray-900/95 text-white">Buyer</option>
+           <option value="Factory" className="bg-stone-800 text-white">Factory</option>
+           <option value="3rd Party" className="bg-stone-800 text-white">3rd Party</option>
+           <option value="Buyer" className="bg-stone-800 text-white">Buyer</option>
           </select>
          </div>
          
          <div className="col-span-2">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+          <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
            Product Readiness *
           </label>
           <div className="flex flex-wrap gap-4">
@@ -1495,27 +1785,23 @@ export function ProductManagement() {
         </>
        )}
 
-       <div className="glass-dropdown">
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+       <div>
+        <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
          Status
         </label>
         <select
          value={formData.isActive ? 'active' : 'inactive'}
          onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'active' })}
-         className="w-full px-3 py-2 border border-stone-500 bg-white/[0.08] text-white rounded-lg focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/30 transition-all duration-200 shadow-lg hover:bg-white/[0.12] hover:border-stone-400"
-         style={{
-          backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-         }}
+         className="w-full px-4 py-3 sm:py-4 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
         >
-         <option value="active" className="bg-gray-900/95 text-white border-b border-stone-600">Active</option>
-         <option value="inactive" className="bg-gray-900/95 text-white">Inactive</option>
+         <option value="active" className="bg-stone-800 text-white">Active</option>
+         <option value="inactive" className="bg-stone-800 text-white">Inactive</option>
         </select>
        </div>
        
        {/* Category/Tags for Store Page filters */}
        <div className="col-span-2">
-        <label className="block text-sm font-medium text-slate-300 mb-2">
+        <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
          Category/Tags for Store Filters
         </label>
         <div className="space-y-2">
@@ -1588,90 +1874,92 @@ export function ProductManagement() {
       </div>
 
       {/* Cap Style Setup */}
-      <div className="bg-stone-700 rounded-xl p-6 border border-stone-600 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
-       <h4 className="text-lg font-medium mb-6 text-white flex items-center">
-        <svg className="w-5 h-5 mr-2 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
+      <div className="bg-stone-800/40 backdrop-blur-sm border border-stone-700/50 rounded-2xl p-6 sm:p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+       <h4 className="text-lg sm:text-xl font-semibold mb-6 sm:mb-8 text-white flex items-center font-bricolage">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-stone-800/50 backdrop-blur-sm border border-lime-500/40 rounded-xl flex items-center justify-center mr-3 sm:mr-4 shadow-[0_0_20px_rgba(163,230,53,0.15)]">
+         <svg className="w-4 h-4 sm:w-5 sm:h-5 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+         </svg>
+        </div>
         Cap Style Setup
        </h4>
        
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {/* Bill Shape */}
         <div>
-         <label className="block text-sm font-medium text-white mb-2">
+         <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
           Bill Shape
          </label>
          <select
           value={formData.billShape || ''}
           onChange={(e) => setFormData({ ...formData, billShape: e.target.value as 'Slight Curved' | 'Curved' | 'Flat' || undefined })}
-          className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+          className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
          >
-          <option value="">Select Bill Shape</option>
-          <option value="Slight Curved">Slight Curved</option>
-          <option value="Curved">Curved</option>
-          <option value="Flat">Flat</option>
+          <option value="" className="bg-stone-800 text-white">Select Bill Shape</option>
+          <option value="Slight Curved" className="bg-stone-800 text-white">Slight Curved</option>
+          <option value="Curved" className="bg-stone-800 text-white">Curved</option>
+          <option value="Flat" className="bg-stone-800 text-white">Flat</option>
          </select>
         </div>
 
         {/* Profile */}
         <div>
-         <label className="block text-sm font-medium text-white mb-2">
+         <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
           Profile
          </label>
          <select
           value={formData.profile || ''}
           onChange={(e) => setFormData({ ...formData, profile: e.target.value as 'High' | 'Mid' | 'Low' || undefined })}
-          className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+          className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
          >
-          <option value="">Select Profile</option>
-          <option value="High">High</option>
-          <option value="Mid">Mid</option>
-          <option value="Low">Low</option>
+          <option value="" className="bg-stone-800 text-white">Select Profile</option>
+          <option value="High" className="bg-stone-800 text-white">High</option>
+          <option value="Mid" className="bg-stone-800 text-white">Mid</option>
+          <option value="Low" className="bg-stone-800 text-white">Low</option>
          </select>
         </div>
 
         {/* Closure Type */}
         <div>
-         <label className="block text-sm font-medium text-white mb-2">
+         <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
           Closure Type
          </label>
          <select
           value={formData.closureType || ''}
           onChange={(e) => setFormData({ ...formData, closureType: e.target.value as 'Snapback' | 'Velcro' | 'Fitted' | 'Stretched' || undefined })}
-          className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+          className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
          >
-          <option value="">Select Closure Type</option>
-          <option value="Snapback">Snapback</option>
-          <option value="Velcro">Velcro</option>
-          <option value="Fitted">Fitted</option>
-          <option value="Stretched">Stretched</option>
+          <option value="" className="bg-stone-800 text-white">Select Closure Type</option>
+          <option value="Snapback" className="bg-stone-800 text-white">Snapback</option>
+          <option value="Velcro" className="bg-stone-800 text-white">Velcro</option>
+          <option value="Fitted" className="bg-stone-800 text-white">Fitted</option>
+          <option value="Stretched" className="bg-stone-800 text-white">Stretched</option>
          </select>
         </div>
 
         {/* Structure */}
         <div>
-         <label className="block text-sm font-medium text-white mb-2">
+         <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
           Structure
          </label>
          <select
           value={formData.structure || ''}
           onChange={(e) => setFormData({ ...formData, structure: e.target.value as 'Structured' | 'Unstructured' | 'Foam' || undefined })}
-          className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+          className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
          >
-          <option value="">Select Structure</option>
-          <option value="Structured">Structured</option>
-          <option value="Unstructured">Unstructured</option>
-          <option value="Foam">Foam</option>
+          <option value="" className="bg-stone-800 text-white">Select Structure</option>
+          <option value="Structured" className="bg-stone-800 text-white">Structured</option>
+          <option value="Unstructured" className="bg-stone-800 text-white">Unstructured</option>
+          <option value="Foam" className="bg-stone-800 text-white">Foam</option>
          </select>
         </div>
        </div>
 
        {/* Fabric Setup */}
        <div>
-        <label className="block text-sm font-medium text-white mb-2">
+        <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
          Fabric Setup
-         <span className="text-xs text-slate-400 ml-2">(Premium fabrics add cost to customization)</span>
+         <span className="text-xs text-stone-300 ml-2">(Premium fabrics add cost to customization)</span>
         </label>
         <select
          value={formData.fabricSetup || ''}
@@ -1683,18 +1971,18 @@ export function ProductManagement() {
            customFabricSetup: value === 'Other' ? formData.customFabricSetup : ''
           });
          }}
-         className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+         className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
         >
-         <option value="">Select Fabric Setup</option>
+         <option value="" className="bg-stone-800 text-white">Select Fabric Setup</option>
          {FABRIC_OPTIONS.map((fabric) => (
-          <option key={fabric} value={fabric}>{fabric}</option>
+          <option key={fabric} value={fabric} className="bg-stone-800 text-white">{fabric}</option>
          ))}
         </select>
 
         {/* Custom Fabric Input */}
         {formData.fabricSetup === 'Other' && (
-         <div className="mt-3">
-          <label className="block text-sm font-medium text-white mb-2">
+         <div className="mt-4">
+          <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
            Custom Fabric Setup
           </label>
           <input
@@ -1702,17 +1990,17 @@ export function ProductManagement() {
            value={formData.customFabricSetup || ''}
            onChange={(e) => setFormData({ ...formData, customFabricSetup: e.target.value })}
            placeholder="Enter custom fabric setup"
-           className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+           className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60"
           />
          </div>
         )}
 
         {/* Fabric Setup Display */}
         {formData.fabricSetup && (
-         <div className={`mt-4 p-3 rounded-lg border ${
+         <div className={`mt-4 sm:mt-6 p-4 sm:p-6 rounded-xl border backdrop-blur-sm ${
           isPremiumFabric(formData.fabricSetup === 'Other' ? formData.customFabricSetup || '' : formData.fabricSetup)
-           ? 'bg-orange-400/10 border-orange-500'
-           : 'bg-lime-400/10 border-lime-400/20'
+           ? 'bg-orange-500/10 border-orange-500/40 shadow-[0_0_20px_rgba(249,115,22,0.15)]'
+           : 'bg-lime-500/10 border-lime-500/40 shadow-[0_0_20px_rgba(163,230,53,0.15)]'
          }`}>
           <div className="flex items-center justify-between">
            <p className={`text-sm font-medium ${
@@ -2602,18 +2890,25 @@ export function ProductManagement() {
          </div>
 
          {/* Method 2: Reference Factory Product */}
-         <div className={`border border-stone-600 rounded-lg p-4 transition-all duration-200 ${
+         <div className={`bg-stone-800/40 backdrop-blur-sm border border-stone-700/50 rounded-2xl p-4 sm:p-6 transition-all duration-200 ${
           (formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) 
-           ? 'bg-gray-800/50 opacity-60' 
-           : 'bg-stone-700 hover:bg-stone-600'
+           ? 'opacity-60' 
+           : 'hover:bg-stone-700/30 hover:border-stone-600/60'
          }`}>
-          <h4 className={`text-md font-medium mb-3 ${
-           (formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) ? 'text-gray-400' : 'text-white'
-          }`}>Method 2: Reference Existing Factory Product</h4>
+          <h4 className={`text-lg sm:text-xl font-semibold mb-4 sm:mb-6 font-bricolage flex items-center ${
+           (formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) ? 'text-stone-400' : 'text-white'
+          }`}>
+           <div className="w-8 h-8 sm:w-10 sm:h-10 bg-stone-800/50 backdrop-blur-sm border border-purple-500/40 rounded-xl flex items-center justify-center mr-3 sm:mr-4 shadow-[0_0_20px_rgba(168,85,247,0.15)]">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+           </div>
+           Method 2: Reference Existing Factory Product
+          </h4>
           
           {(formData.capColorImage?.length > 0 || formData.capColorNames?.trim()) && (
-           <div className="mb-3 p-2 bg-yellow-500/20 border border-yellow-500 rounded text-yellow-200 text-sm flex items-center justify-between">
-            <span><span className="font-medium">Method 1 is active:</span> Clear uploaded images or color names to use this method.</span>
+           <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/50 rounded-xl text-yellow-200 text-sm flex items-center justify-between shadow-[0_0_20px_rgba(234,179,8,0.15)]">
+            <span><span className="font-semibold">Method 1 is active:</span> Clear uploaded images or color names to use this method.</span>
             <button
              type="button"
              onClick={() => setFormData({ 
@@ -2621,14 +2916,14 @@ export function ProductManagement() {
               capColorImage: [],
               capColorNames: ''
              })}
-             className="ml-2 px-2 py-1 bg-yellow-500/30 hover:bg-yellow-500/40 text-yellow-200 text-xs rounded transition-colors"
+             className="ml-2 px-3 py-1.5 bg-yellow-500/30 hover:bg-yellow-500/40 text-yellow-200 text-xs rounded-lg transition-colors font-medium"
             >
              Clear
             </button>
            </div>
           )}
-          <div className="mb-4">
-           <label className="block text-sm font-medium text-slate-300 mb-2">
+          <div>
+           <label className="block text-sm sm:text-base font-semibold text-white mb-3 font-bricolage">
             Select Factory Product to use Front Color Images
            </label>
            <select
@@ -2641,20 +2936,20 @@ export function ProductManagement() {
              setFormData({ ...formData, referenceProductId: e.target.value });
             }}
             disabled={!!(formData.capColorImage?.length > 0 || formData.capColorNames?.trim())}
-            className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-white rounded-lg focus:ring-2 focus:ring-lime-400 focus:border-lime-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-3 border border-stone-600/50 bg-stone-800/40 backdrop-blur-sm text-white rounded-xl focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/60 transition-all duration-200 shadow-lg hover:bg-stone-700/50 hover:border-stone-500/60 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-stone-800/40"
            >
-            <option value="">Select a factory product...</option>
+            <option value="" className="bg-stone-800 text-white">Select a factory product...</option>
             {(() => {
              const factoryProducts = products.filter(product => product.productType === 'factory' && product.frontColorImages?.length > 0);
              console.log('🏭 Available Factory Products:', factoryProducts.map(p => ({ name: p.name, id: p._id || p.id, frontColorCount: p.frontColorImages?.length })));
              return factoryProducts.map(product => (
-              <option key={product._id || product.id} value={product._id || product.id}>
+              <option key={product._id || product.id} value={product._id || product.id} className="bg-stone-800 text-white">
                {product.name} ({product.frontColorImages?.length || 0} colors)
               </option>
              ));
             })()}
            </select>
-           <p className="text-xs text-slate-500 mt-1">This will use the Front Color Images from the selected factory product</p>
+           <p className="text-xs sm:text-sm text-stone-300 mt-2">This will use the Front Color Images from the selected factory product</p>
           </div>
          </div>
         </div>
@@ -2662,21 +2957,21 @@ export function ProductManagement() {
       </div>
 
       {/* Form Actions */}
-      <div className="flex items-center justify-end space-x-4 pt-6 border-t border-stone-600">
+      <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pt-6 sm:pt-8 border-t border-stone-700/50">
        <button
         type="button"
         onClick={() => {
          setShowForm(false);
          resetForm();
         }}
-        className="px-6 py-2 border border-stone-600 bg-stone-700 text-white rounded-lg hover:bg-stone-600 transition-colors"
+        className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-stone-800/50 backdrop-blur-sm border border-stone-600/50 text-white rounded-xl hover:bg-stone-700/60 hover:border-stone-500/60 transition-all duration-200 shadow-lg text-sm sm:text-base font-medium"
        >
         Cancel
        </button>
        <button
         type="submit"
         disabled={isSaving || uploadingImages}
-        className="px-6 py-2 bg-lime-400 text-black rounded-lg hover:bg-lime-300 transition-colors disabled:opacity-50 shadow-[0_0_20px_rgba(163,230,53,0.25)]"
+        className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-lime-600 to-green-600 text-white rounded-xl hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] text-sm sm:text-base font-semibold"
        >
         {isSaving ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
        </button>
@@ -2688,145 +2983,156 @@ export function ProductManagement() {
 
       {/* Products List */}
       {!showForm && (
-       <section className="px-6 md:px-10">
-        <div className="border border-stone-600 bg-stone-700 ring-1 ring-stone-700 shadow-lg rounded-lg overflow-hidden">
+       <section className="px-3 xs:px-4 sm:px-6 md:px-10">
+        <div className="bg-black/40 backdrop-blur-md border border-stone-700/50 hover:border-orange-500/50 transition-all duration-300 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden animate-slide-up">
      {isLoading ? (
       <div className="p-12 text-center">
        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-lime-400 mx-auto"></div>
-       <p className="mt-6 text-slate-300 text-lg">Loading products...</p>
-       <p className="text-slate-500 text-sm">Please wait while we fetch your product catalog</p>
+       <p className="mt-6 text-white text-lg font-bricolage font-semibold">Loading products...</p>
+       <p className="text-stone-300 text-sm">Please wait while we fetch your product catalog</p>
       </div>
      ) : products.length > 0 ? (
       <div className="overflow-x-auto">
-       <table className="min-w-full divide-y divide-white/10">
-        <thead className="border border-stone-600 bg-stone-700">
+       <table className="min-w-full">
+        <thead className="bg-stone-900/60 backdrop-blur-sm border-b border-stone-700/50">
          <tr>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Product
           </th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Type
           </th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Price Tier
           </th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Status
           </th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Colors
           </th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Created By
           </th>
-          <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+          <th className="px-4 sm:px-6 py-4 sm:py-5 text-left text-xs sm:text-sm font-semibold text-white uppercase tracking-wider font-bricolage">
            Created
           </th>
-          <th className="relative px-6 py-4">
+          <th className="relative px-4 sm:px-6 py-4 sm:py-5">
            <span className="sr-only">Actions</span>
           </th>
          </tr>
         </thead>
-        <tbody className="divide-y divide-white/10">
-         {products.map((product) => (
-          <tr key={product._id || product.id || `${product.name}-${product.slug}`} className="hover:bg-stone-700">
-           <td className="px-6 py-4 whitespace-nowrap">
+        <tbody className="divide-y divide-stone-700/30">
+         {products.map((product, index) => (
+          <tr key={product._id || product.id || `${product.name}-${product.slug}`} 
+              className="bg-black/20 hover:bg-stone-800/30 transition-all duration-200 hover:scale-[1.01] animate-slide-up"
+              style={{animationDelay: `${index * 0.1}s`}}>
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap">
             <div className="flex items-center">
-             <div className="h-10 w-10 flex-shrink-0">
+             <div className="h-12 w-12 sm:h-14 sm:w-14 flex-shrink-0">
               {product.mainImage?.url ? (
                <img
-                className="h-10 w-10 rounded-full object-cover"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl object-cover border-2 border-white/10 shadow-lg"
                 src={product.mainImage.url}
                 alt={product.name}
                />
               ) : (
-               <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-stone-800/50 border border-stone-600/40 flex items-center justify-center">
+                <svg className="h-6 w-6 sm:h-7 sm:w-7 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                </div>
               )}
              </div>
              <div className="ml-4">
-              <div className="text-sm font-medium text-white">
+              <div className="text-sm sm:text-base font-semibold text-white font-bricolage">
                {product.name}
               </div>
-              <div className="text-sm text-slate-400">
+              <div className="text-xs sm:text-sm text-stone-300">
                /{typeof product.slug === 'string' ? product.slug : product.slug?.current || ''}
               </div>
              </div>
             </div>
            </td>
-           <td className="px-6 py-4 whitespace-nowrap">
-            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full border ${product.productType === 'factory' ? 'bg-purple-500/20 text-purple-400 border-purple-500' : 'bg-orange-500/20 text-orange-400 border-orange-500'}`}>
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap">
+            <span className={`px-3 py-1.5 inline-flex text-xs leading-5 font-semibold rounded-full border shadow-lg ${product.productType === 'factory' ? 'bg-purple-500/20 text-purple-300 border-purple-500/50' : 'bg-orange-500/20 text-orange-300 border-orange-500/50'}`}>
              {product.productType === 'factory' ? 'Factory' : 'Resale'}
             </span>
            </td>
-           <td className="px-6 py-4 whitespace-nowrap">
-            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500">
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap">
+            <span className="px-3 py-1.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-lime-500/20 text-lime-300 border border-lime-500/50 shadow-lg">
              {product.priceTier}
              {product.productType === 'resale' && product.sellingPrice ? ` ($${product.sellingPrice})` : ''}
             </span>
            </td>
-           <td className="px-6 py-4 whitespace-nowrap">
-            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full border ${
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap">
+            <span className={`px-3 py-1.5 inline-flex text-xs leading-5 font-semibold rounded-full border shadow-lg ${
              product.isActive 
-              ? 'bg-green-500/20 text-green-400 border-green-500' 
-              : 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+              ? 'bg-green-500/20 text-green-300 border-green-500/50' 
+              : 'bg-slate-500/20 text-slate-300 border-slate-500/30'
             }`}>
              {product.isActive ? 'Active' : 'Inactive'}
             </span>
            </td>
-           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-            {product.frontColorImages?.length || 0} colors
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap">
+            <div className="flex items-center gap-2">
+             <div className="w-6 h-6 rounded-full bg-gradient-to-r from-lime-500 to-orange-500 flex items-center justify-center">
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9a2 2 0 00-2 2v12a4 4 0 004 4h8a2 2 0 002-2V7a2 2 0 00-2-2z" />
+              </svg>
+             </div>
+             <span className="text-sm text-stone-300 font-medium">{product.frontColorImages?.length || 0}</span>
+            </div>
            </td>
-           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap text-sm">
             {product.createdBy ? (
-             <div>
-              <div className="font-medium text-white">{product.createdBy.name}</div>
-              <div className="text-xs text-slate-500">{product.createdBy.email}</div>
+             <div className="bg-stone-800/40 backdrop-blur-sm p-2 rounded-lg border border-stone-600/30">
+              <div className="font-semibold text-white text-xs sm:text-sm">{product.createdBy.name}</div>
+              <div className="text-xs text-stone-400">{product.createdBy.email}</div>
               {product.createdBy.company && (
-               <div className="text-xs text-blue-400">{product.createdBy.company}</div>
+               <div className="text-xs text-blue-300 font-medium">{product.createdBy.company}</div>
               )}
               {product.createdBy.role && (
-               <div className="text-xs text-purple-400">{product.createdBy.role}</div>
+               <div className="text-xs text-purple-300 font-medium">{product.createdBy.role}</div>
               )}
              </div>
             ) : (
-             <span className="text-slate-500">System</span>
+             <span className="px-2 py-1 text-xs bg-stone-800/60 text-stone-300 rounded-lg border border-stone-600/40">System</span>
             )}
            </td>
-           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap text-sm text-stone-300 font-medium">
             {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : 'N/A'}
            </td>
-           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <button
-             onClick={() => handleEdit(product)}
-             className="text-lime-400 hover:text-lime-300 mr-4"
-            >
-             Edit
-            </button>
-            {!product.createdBy && showMigrationTool && (
+           <td className="px-4 sm:px-6 py-4 sm:py-5 whitespace-nowrap text-right text-sm font-medium">
+            <div className="flex items-center justify-end gap-2">
+             <button
+              onClick={() => handleEdit(product)}
+              className="bg-stone-800/50 backdrop-blur-sm px-3 py-1.5 text-lime-400 hover:text-lime-300 border border-lime-500/40 hover:border-lime-500/60 rounded-lg transition-all duration-200 hover:bg-stone-700/60 hover:shadow-[0_0_20px_rgba(163,230,53,0.15)] text-xs sm:text-sm"
+             >
+              Edit
+             </button>
+             {!product.createdBy && showMigrationTool && (
+              <button
+               onClick={() => {
+                const productId = product._id || product.id;
+                if (productId) handleMigrateProduct(productId);
+               }}
+               disabled={migratingProduct === (product._id || product.id)}
+               className="bg-stone-800/50 backdrop-blur-sm px-3 py-1.5 text-blue-400 hover:text-blue-300 border border-blue-500/40 hover:border-blue-500/60 rounded-lg transition-all duration-200 disabled:opacity-50 hover:bg-stone-700/60 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] text-xs sm:text-sm"
+              >
+               {migratingProduct === (product._id || product.id) ? 'Migrating...' : 'Migrate'}
+              </button>
+             )}
              <button
               onClick={() => {
                const productId = product._id || product.id;
-               if (productId) handleMigrateProduct(productId);
+               if (productId) handleDelete(productId);
               }}
-              disabled={migratingProduct === (product._id || product.id)}
-              className="text-blue-400 hover:text-blue-300 mr-4 disabled:opacity-50"
+              className="bg-stone-800/50 backdrop-blur-sm px-3 py-1.5 text-red-400 hover:text-red-300 border border-red-500/40 hover:border-red-500/60 rounded-lg transition-all duration-200 hover:bg-stone-700/60 hover:shadow-[0_0_20px_rgba(239,68,68,0.15)] text-xs sm:text-sm"
              >
-              {migratingProduct === (product._id || product.id) ? 'Migrating...' : 'Migrate'}
+              Delete
              </button>
-            )}
-            <button
-             onClick={() => {
-              const productId = product._id || product.id;
-              if (productId) handleDelete(productId);
-             }}
-             className="text-red-400 hover:text-red-300"
-            >
-             Delete
-            </button>
+            </div>
            </td>
           </tr>
          ))}
@@ -2834,22 +3140,24 @@ export function ProductManagement() {
        </table>
       </div>
      ) : (
-      <div className="px-8 py-16 text-center">
-       <div className="w-20 h-20 bg-slate-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg className="w-10 h-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      <div className="px-8 py-16 text-center animate-slide-up">
+       <div className="w-20 h-20 bg-stone-800/40 backdrop-blur-sm border border-lime-500/40 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_rgba(163,230,53,0.15)]">
+        <svg className="w-10 h-10 text-lime-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5z" />
+         <path d="m2 17 10 5 10-5"></path>
+         <path d="m2 12 10 5 10-5"></path>
         </svg>
        </div>
-       <h3 className="text-xl font-semibold text-white mb-2">No products found</h3>
-       <p className="text-slate-400 mb-6">Get started by creating your first product</p>
+       <h3 className="text-xl sm:text-2xl font-semibold text-white mb-2 font-bricolage">No products found</h3>
+       <p className="text-stone-300 mb-6 text-sm sm:text-base max-w-md mx-auto leading-relaxed">Get started by creating your first premium custom cap product</p>
        <button
         onClick={() => {
          resetForm();
          setShowForm(true);
         }}
-        className="inline-flex items-center px-6 py-3 bg-lime-400 text-black font-semibold rounded-lg hover:bg-lime-300 transition-all duration-200 shadow-[0_0_30px_rgba(163,230,53,0.3)]"
+        className="inline-flex items-center gap-2 px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-lime-600 to-green-600 text-white font-semibold rounded-full hover:scale-105 transition-all duration-200 shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] hover:shadow-lg text-sm sm:text-base"
        >
-        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
         </svg>
         Create Your First Product

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthContext";
 
 export default function LoginPage() {
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
+  const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -36,10 +38,11 @@ export default function LoginPage() {
 
     try {
       await login(formData.email, formData.password);
-      // small delay to ensure auth cookie writes before redirect
-      setTimeout(() => {
-        window.location.replace("/dashboard");
-      }, 800);
+      // Get redirect URL from query params or default to home
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectUrl = urlParams.get('redirect') || '/';
+      // Use router.push for proper Next.js navigation
+      router.push(redirectUrl);
     } catch (error) {
       setErrors({ general: error instanceof Error ? error.message : "Invalid email or password" });
       setIsLoading(false);
@@ -51,10 +54,20 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen text-slate-200">
-      {/* Background gradient only */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.035),_transparent_60%)]" />
+      {/* Background: cap store image for login page */}
+      <div className="pointer-events-none fixed inset-0 -z-20">
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: 'url(/uploads/cap-store-bg.jpg)' }}
+        />
+        <div className="absolute inset-0 bg-black/70" />
       </div>
+      
+      <style jsx>{`
+        html {
+          background: #000 !important;
+        }
+      `}</style>
 
       <div className="flex items-center justify-center min-h-screen px-6 md:px-10">
         <div className="w-full max-w-md">

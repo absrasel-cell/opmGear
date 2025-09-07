@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { requireAuth } from '@/lib/auth-helpers';
 import { supabase } from '@/lib/supabase';
 

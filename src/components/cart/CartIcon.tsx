@@ -58,16 +58,16 @@ export default function CartIcon({
           <div className="absolute inset-0 bg-gradient-to-br from-transparent via-lime-400/10 to-transparent rounded-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
         </div>
 
-        {/* Item Count Badge - Theme Matched */}
+        {/* Item Count Badge - Subtle Glass Style */}
         {showBadge && itemCount > 0 && (
           <div className={`
             absolute -top-1 -right-1 
             ${isLoading ? 'animate-pulse' : ''}
-            ${badgeClassName || 'bg-gradient-to-r from-lime-400 to-orange-400 text-black'}
+            ${badgeClassName || 'bg-white/90 backdrop-blur-sm text-slate-800 border border-white/20'}
             text-xs font-bold rounded-full h-5 w-5 
             flex items-center justify-center 
             min-w-[20px] text-center
-            shadow-[0_4px_12px_rgba(132,204,22,0.4)] border border-lime-300/30
+            shadow-[0_2px_8px_rgba(0,0,0,0.15)] 
             transition-all duration-300 transform group-hover:scale-110
             ${itemCount > 9 ? 'px-1' : ''}
           `}>

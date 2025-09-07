@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ConversationService } from '@/lib/conversation';
 import { AI_ASSISTANTS } from '@/lib/ai-assistants-config';
-import { PrismaClient } from '@prisma/client';
+import { supabaseAdmin } from '@/lib/supabase';
 import { promises as fs } from 'fs';
 import path from 'path';
-
-const prisma = new PrismaClient();
 
 // Load Logo customization data from CSV
 async function loadLogoCsvData() {
@@ -287,12 +285,12 @@ Offer to help them proceed with general logo recommendations based on common cus
    throw new Error('No response from LogoCraft Pro');
   }
 
-  // Save conversation if we have session/conversation context
-  if (conversationId || sessionId) {
+  // Save conversation if we have a valid conversation ID
+  if (conversationId && conversationId !== 'temp-conversation') {
    try {
     // Save user message
     if (message.trim()) {
-     await ConversationService.addMessage(conversationId || 'temp-conversation', {
+     await ConversationService.addMessage(conversationId, {
       role: 'user',
       content: message,
       metadata: {
@@ -306,7 +304,7 @@ Offer to help them proceed with general logo recommendations based on common cus
     }
 
     // Save assistant message
-    await ConversationService.addMessage(conversationId || 'temp-conversation', {
+    await ConversationService.addMessage(conversationId, {
      role: 'assistant',
      content: aiMessage,
      metadata: {
@@ -386,7 +384,5 @@ Offer to help them proceed with general logo recommendations based on common cus
     specialty: AI_ASSISTANTS.LOGO_EXPERT.specialty
    }
   }, { status: 500 });
- } finally {
-  await prisma.$disconnect();
  }
 }

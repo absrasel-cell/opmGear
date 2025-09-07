@@ -11,7 +11,7 @@ import {
  validateInvoiceForRegeneration,
  validateInvoiceData
 } from '@/lib/invoices/validation';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 
 export async function POST(request: NextRequest) {
@@ -32,13 +32,16 @@ export async function POST(request: NextRequest) {
 
   // Get the order with customer info
   console.log('🔍 Querying database for order:', orderId);
-  const order = await prisma.order.findUnique({
-   where: { id: orderId },
-   include: {
-    user: true
-   }
-  });
+  const { data: order, error: orderError } = await supabaseAdmin
+   .from('orders')
+   .select('*')
+   .eq('id', orderId)
+   .single();
+  
   console.log('📋 Order query result:', order ? 'Found' : 'Not found');
+  if (orderError) {
+   console.log('📋 Order query error:', orderError);
+  }
 
   // Validate order before proceeding
   console.log('🔍 Validating order...');

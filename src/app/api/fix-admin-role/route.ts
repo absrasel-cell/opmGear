@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
  try {
@@ -17,42 +17,38 @@ export async function POST(request: NextRequest) {
   if (!userProfile) {
    // Create user if they don't exist
    console.log('Creating user in database...');
-   userProfile = await prisma.user.create({
-    data: {
+   const { data: newUser, error: createError } = await supabaseAdmin
+    .from('User')
+    .insert({
      id: supabaseUser.id,
      email: supabaseUser.email!,
      name: supabaseUser.user_metadata?.name || null,
      role: 'ADMIN', // Set as admin for testing
-    },
-    select: {
-     id: true,
-     email: true,
-     name: true,
-     role: true,
-     adminLevel: true,
-     phone: true,
-     company: true,
-     avatarUrl: true,
-    },
-   });
+    })
+    .select('id, email, name, role, adminLevel, phone, company, avatarUrl')
+    .single();
+
+   if (createError || !newUser) {
+    throw new Error(`Failed to create user: ${createError?.message}`);
+   }
+   
+   userProfile = newUser;
    console.log('User created with admin role');
   } else {
    // Update existing user to admin role
    console.log('Updating user role to admin...');
-   userProfile = await prisma.user.update({
-    where: { id: supabaseUser.id },
-    data: { role: 'ADMIN' },
-    select: {
-     id: true,
-     email: true,
-     name: true,
-     role: true,
-     adminLevel: true,
-     phone: true,
-     company: true,
-     avatarUrl: true,
-    },
-   });
+   const { data: updatedUser, error: updateError } = await supabaseAdmin
+    .from('User')
+    .update({ role: 'ADMIN' })
+    .eq('id', supabaseUser.id)
+    .select('id, email, name, role, adminLevel, phone, company, avatarUrl')
+    .single();
+
+   if (updateError || !updatedUser) {
+    throw new Error(`Failed to update user: ${updateError?.message}`);
+   }
+   
+   userProfile = updatedUser;
    console.log('User role updated to admin');
   }
 

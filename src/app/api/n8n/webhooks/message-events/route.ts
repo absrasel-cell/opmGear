@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 // N8N Webhook Handler for Message Events
 export async function POST(request: NextRequest) {

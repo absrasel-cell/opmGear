@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { fetchProductBySlug, fetchPricingData, fetchProductOptions, fetchAltTextForImage, loadBlankCapPricing } from "../../lib/webflow";
 import { SanityService } from "../../../lib/sanity";
-import { getBaseProductPricing } from "@/lib/pricing";
+import { getBaseProductPricing } from "@/lib/pricing-server";
 
 // Define types
 interface Pricing {
@@ -151,19 +151,25 @@ async function fetchProduct(slug: string): Promise<Product> {
 
  // Get the product's price tier from the field data
  const productPriceTier = (getFieldValue('priceTier') as string) || 'Tier 1';
+
+console.log(`🎯 Webflow Pricing Debug for ${slug}:`, {
+ priceTier: productPriceTier,
+ hasExplicitTier: !!(getFieldValue('priceTier') as string),
+ availableTiers: blankCapPricingData.map(p => p.name)
+});
  
  // Find matching blank cap pricing based on the product's price tier
- const blankCapPricing = blankCapPricingData.find(p => p.Name === productPriceTier);
+ const blankCapPricing = blankCapPricingData.find(p => p.name === productPriceTier);
  
  // Use blank cap pricing if available, otherwise use centralized pricing
- const centralizedPricing = getBaseProductPricing(productPriceTier);
+ const centralizedPricing = await getBaseProductPricing(productPriceTier);
  const pricing: Pricing = {
-  price48: blankCapPricing?.price48 ?? centralizedPricing.price48,
-  price144: blankCapPricing?.price144 ?? centralizedPricing.price144,
-  price576: blankCapPricing?.price576 ?? centralizedPricing.price576,
-  price1152: blankCapPricing?.price1152 ?? centralizedPricing.price1152,
-  price2880: blankCapPricing?.price2880 ?? centralizedPricing.price2880,
-  price10000: blankCapPricing?.price10000 ?? centralizedPricing.price10000,
+  price48: blankCapPricing?.price48 ?? centralizedPricing?.price48 ?? 0,
+  price144: blankCapPricing?.price144 ?? centralizedPricing?.price144 ?? 0,
+  price576: blankCapPricing?.price576 ?? centralizedPricing?.price576 ?? 0,
+  price1152: blankCapPricing?.price1152 ?? centralizedPricing?.price1152 ?? 0,
+  price2880: blankCapPricing?.price2880 ?? centralizedPricing?.price2880 ?? 0,
+  price10000: blankCapPricing?.price10000 ?? centralizedPricing?.price10000 ?? 0,
  };
 
 
@@ -245,16 +251,36 @@ async function fetchProduct(slug: string): Promise<Product> {
  });
 
  // Get pricing data using centralized pricing for consistency
- let pricing: Pricing = getBaseProductPricing('Tier 1'); // Default to Tier 1 for consistency with /order AI and most affordable pricing
+ // Get the product's price tier from Sanity (default to Tier 1 if not available)
+const productPriceTier = (sanityProduct as any).priceTier || 'Tier 1';
+
+console.log(`🎯 Pricing Debug for ${slug}:`, {
+ priceTier: productPriceTier,
+ hasExplicitTier: !!(sanityProduct as any).priceTier
+});
+
+// Get pricing data using product's actual tier for dynamic pricing
+const csvPricing = await getBaseProductPricing(productPriceTier);
+ 
+ // Initialize with fallback if CSV pricing fails
+ let pricing: Pricing = csvPricing || {
+  price48: 0, price144: 0, price576: 0, price1152: 0, price2880: 0, price10000: 0
+ };
+ 
  try {
   // Load blank cap pricing data
   const blankCapPricingData = await loadBlankCapPricing();
   
-  // Get the product's price tier from Sanity (default to Tier 1 if not available)
-  const productPriceTier = (sanityProduct as any).priceTier || 'Tier 1';
+  // Product price tier already declared above
+  
+  console.log(`📊 CSV Pricing Debug for ${slug}:`, {
+   priceTier: productPriceTier,
+   availableTiers: blankCapPricingData.map(p => p.name),
+   foundTier: blankCapPricingData.find(p => p.name === productPriceTier)
+  });
   
   // Find matching blank cap pricing based on the product's price tier
-  const blankCapPricing = blankCapPricingData.find(p => p.Name === productPriceTier);
+  const blankCapPricing = blankCapPricingData.find(p => p.name === productPriceTier);
   
   // Use blank cap pricing if available, otherwise fall back to default pricing
   pricing = {
@@ -265,6 +291,8 @@ async function fetchProduct(slug: string): Promise<Product> {
    price2880: blankCapPricing?.price2880 ?? pricing.price2880,
    price10000: blankCapPricing?.price10000 ?? pricing.price10000,
   };
+  
+  console.log(`✅ Final Pricing for ${slug}:`, pricing);
  } catch (e) {
   // Use defaults if pricing fetch fails
   console.error('Error loading blank cap pricing for Sanity product:', e);
@@ -388,9 +416,9 @@ export default async function CustomizePage({ params, searchParams }: { params: 
  const isReorder = typeof query.reorder === 'string' ? (query.reorder === '1' || query.reorder === 'true') : false;
 
  return (
-  <div className="min-h-screen text-slate-200">
-   <main className="container-global-lg py-8">
-    <ProductClient product={product} productSlug={slug} prefillOrderId={orderId} reorder={isReorder} />
+  <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+   <main className="container mx-auto px-4 py-8">
+    <ProductClient product={product} productSlug={slug} prefillOrderId={orderId} reorder={isReorder} pricingData={product.pricing} />
    </main>
   </div>
  );

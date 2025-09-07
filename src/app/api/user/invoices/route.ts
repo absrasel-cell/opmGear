@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { generateInvoiceNumber } from '@/lib/invoices/generateNumber';
 import { calcInvoiceFromOrder } from '@/lib/invoices/calc';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 const createInvoiceSchema = z.object({
  orderId: z.string(),
@@ -24,25 +24,27 @@ export async function GET(request: NextRequest) {
   }
 
   // Get user's invoices
-  const invoices = await prisma.invoice.findMany({
-   where: {
-    customerId: user.id
-   },
-   include: {
-    items: true,
-    order: {
-     select: {
-      id: true,
-      productName: true,
-      createdAt: true
-     }
-    }
-   },
-   orderBy: { createdAt: 'desc' }
-  });
+  const { data: invoices, error: invoicesError } = await supabaseAdmin
+   .from('invoices')
+   .select(`
+    *,
+    invoice_items!inner (*),
+    orders!inner (
+     id,
+     productName,
+     createdAt
+    )
+   `)
+   .eq('customerId', user.id)
+   .order('createdAt', { ascending: false });
+
+  if (invoicesError) {
+   console.error('Error fetching invoices:', invoicesError);
+   return NextResponse.json({ error: 'Failed to fetch invoices' }, { status: 500 });
+  }
 
   return NextResponse.json({
-   invoices: invoices
+   invoices: invoices || []
   });
  } catch (error: any) {
   console.error('Error fetching user invoices:', error);
@@ -81,18 +83,18 @@ export async function POST(request: NextRequest) {
 
   // Get the order and verify ownership
   console.log('🧾 Looking up order:', orderId);
-  const order = await prisma.order.findUnique({
-   where: { id: orderId },
-   include: {
-    user: true
-   }
-  });
+  const { data: order, error: orderError } = await supabaseAdmin
+   .from('orders')
+   .select('*')
+   .eq('id', orderId)
+   .single();
 
   console.log('🧾 Order lookup result:', {
    found: !!order,
    id: order?.id,
    userId: order?.userId,
-   productName: order?.productName
+   productName: order?.productName,
+   error: orderError
   });
 
   if (!order) {
@@ -119,25 +121,39 @@ export async function POST(request: NextRequest) {
 
   // Check if invoice already exists for this order
   console.log('🧾 Checking for existing invoice');
-  const existingInvoice = await prisma.invoice.findFirst({
-   where: { orderId }
-  });
+  const { data: existingInvoice, error: existingInvoiceError } = await supabaseAdmin
+   .from('invoices')
+   .select('*')
+   .eq('orderId', orderId)
+   .single();
 
-  console.log('🧾 Existing invoice check:', { found: !!existingInvoice, id: existingInvoice?.id });
+  console.log('🧾 Existing invoice check:', { 
+   found: !!existingInvoice, 
+   id: existingInvoice?.id,
+   error: existingInvoiceError
+  });
 
   let invoice;
 
   if (existingInvoice) {
    console.log('🧾 Returning existing invoice:', existingInvoice.id);
-   // Return existing invoice
-   invoice = await prisma.invoice.findUnique({
-    where: { id: existingInvoice.id },
-    include: {
-     items: true,
-     customer: true,
-     order: true
-    }
-   });
+   // Return existing invoice with related data
+   const { data: invoiceWithDetails, error: detailsError } = await supabaseAdmin
+    .from('invoices')
+    .select(`
+     *,
+     invoice_items (*),
+     orders (*)
+    `)
+    .eq('id', existingInvoice.id)
+    .single();
+
+   if (detailsError) {
+    console.error('🧾 Error fetching invoice details:', detailsError);
+    return NextResponse.json({ error: 'Error fetching invoice details' }, { status: 500 });
+   }
+
+   invoice = invoiceWithDetails;
   } else {
    console.log('🧾 Creating new invoice');
    
@@ -154,8 +170,11 @@ export async function POST(request: NextRequest) {
    });
 
    console.log('🧾 Creating invoice in database...');
-   invoice = await prisma.invoice.create({
-    data: {
+   
+   // Create the invoice
+   const { data: newInvoice, error: invoiceError } = await supabaseAdmin
+    .from('invoices')
+    .insert({
      number: invoiceNumber,
      orderId,
      customerId: order.userId,
@@ -166,22 +185,49 @@ export async function POST(request: NextRequest) {
      total: calculation.total,
      notes: notes || `Invoice for Order #${order.id}`,
      status: 'ISSUED', // User-created invoices are automatically issued
-     items: {
-      create: calculation.items.map(item => ({
-       name: item.name,
-       description: item.description,
-       quantity: item.quantity,
-       unitPrice: item.unitPrice,
-       total: item.total
-      }))
-     }
-    },
-    include: {
-     items: true,
-     customer: true,
-     order: true
-    }
-   });
+    })
+    .select()
+    .single();
+
+   if (invoiceError) {
+    console.error('🧾 Error creating invoice:', invoiceError);
+    return NextResponse.json({ error: 'Error creating invoice' }, { status: 500 });
+   }
+
+   // Create invoice items
+   const { error: itemsError } = await supabaseAdmin
+    .from('invoice_items')
+    .insert(calculation.items.map(item => ({
+     invoiceId: newInvoice.id,
+     name: item.name,
+     description: item.description,
+     quantity: item.quantity,
+     unitPrice: item.unitPrice,
+     total: item.total
+    })));
+
+   if (itemsError) {
+    console.error('🧾 Error creating invoice items:', itemsError);
+    return NextResponse.json({ error: 'Error creating invoice items' }, { status: 500 });
+   }
+
+   // Get the complete invoice with items and order
+   const { data: completeInvoice, error: completeError } = await supabaseAdmin
+    .from('invoices')
+    .select(`
+     *,
+     invoice_items (*),
+     orders (*)
+    `)
+    .eq('id', newInvoice.id)
+    .single();
+
+   if (completeError) {
+    console.error('🧾 Error fetching complete invoice:', completeError);
+    return NextResponse.json({ error: 'Error fetching complete invoice' }, { status: 500 });
+   }
+
+   invoice = completeInvoice;
 
    console.log('🧾 User invoice created successfully:', invoice.id);
   }

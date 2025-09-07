@@ -272,8 +272,6 @@ export default function StorePage() {
             maskImage: 'radial-gradient(600px 300px at 50% 0%, black 0%, transparent 70%)',
             WebkitMaskImage: 'radial-gradient(600px 300px at 50% 0%, black 0%, transparent 70%)'
           }}></div>
-          <div className="absolute -top-32 -left-24 w-[40rem] h-[40rem] rounded-full bg-[#84cc16]/15 blur-3xl opacity-80 animate-pulse"></div>
-          <div className="absolute top-1/3 -right-32 w-[44rem] h-[44rem] rounded-full bg-[#fb923c]/12 blur-3xl opacity-70 animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
 
         <div className="relative z-10">
@@ -309,9 +307,6 @@ export default function StorePage() {
           maskImage: 'radial-gradient(600px 300px at 50% 0%, black 0%, transparent 70%)',
           WebkitMaskImage: 'radial-gradient(600px 300px at 50% 0%, black 0%, transparent 70%)'
         }}></div>
-        <div className="absolute -top-32 -left-24 w-[40rem] h-[40rem] rounded-full bg-[#84cc16]/15 blur-3xl opacity-80 animate-pulse"></div>
-        <div className="absolute top-1/3 -right-32 w-[44rem] h-[44rem] rounded-full bg-[#fb923c]/12 blur-3xl opacity-70 animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute bottom-0 left-1/4 w-[42rem] h-[42rem] rounded-full bg-[#a855f7]/18 blur-3xl opacity-75 animate-pulse" style={{animationDelay: '2s'}}></div>
       </div>
 
       <div className="relative z-10">
@@ -621,7 +616,7 @@ export default function StorePage() {
         </section>
 
         {/* Main Content */}
-        <main className="max-w-[1950px] mx-auto px-6 md:px-10 mt-6 md:mt-10">
+        <main className="max-w-[1950px] mx-auto px-6 md:px-10 mt-6 md:mt-10 pb-16 md:pb-20 lg:pb-24">
           <div className="grid grid-cols-12 gap-8">
             {/* Desktop Filters Sidebar */}
             <aside id="filters" className="hidden md:block md:col-span-3 lg:col-span-3">

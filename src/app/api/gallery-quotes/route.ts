@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { emailNotificationService } from '@/lib/email/notification-service';
 
@@ -63,8 +63,9 @@ export async function POST(request: NextRequest) {
         source: 'gallery'
       };
 
-      quote = await prisma.quote.create({
-        data: {
+      const { data: newQuote, error: createError } = await supabaseAdmin
+        .from('Quote')
+        .insert({
           productSlug: quoteData.productSlug,
           productName: quoteData.productName,
           customerInfo: quoteData.customerInfo,
@@ -73,8 +74,18 @@ export async function POST(request: NextRequest) {
           userId: user?.id,
           ipAddress,
           userAgent,
-        },
-      });
+        })
+        .select()
+        .single();
+
+      if (createError || !newQuote) {
+        throw new Error(`Database error: ${createError?.message}`);
+      }
+      
+      quote = {
+        ...newQuote,
+        createdAt: new Date(newQuote.createdAt)
+      };
 
       console.log('Gallery quote request saved with ID:', quote.id);
 
@@ -178,19 +189,24 @@ export async function GET(request: NextRequest) {
     // Fetch gallery quotes with graceful database failure handling
     let quotes = [];
     try {
-      quotes = await prisma.quote.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      });
+      const { data: fetchedQuotes, error: fetchError } = await supabaseAdmin
+        .from('Quote')
+        .select(`
+          *,
+          User:userId (
+            id,
+            name,
+            email
+          )
+        `)
+        .match(where)
+        .order('createdAt', { ascending: false });
+
+      if (fetchError) {
+        throw new Error(`Database error: ${fetchError.message}`);
+      }
+      
+      quotes = fetchedQuotes || [];
 
       // Transform quotes to include gallery-specific metadata
       const transformedQuotes = quotes.map(quote => {
@@ -259,15 +275,17 @@ export async function PATCH(request: NextRequest) {
 
     // Update the gallery quote status with graceful database failure handling
     try {
-      const updatedQuote = await prisma.quote.update({
-        where: { 
-          id,
-          productSlug: 'gallery-reference' // Ensure we're only updating gallery quotes
-        },
-        data: { 
-          status
-        },
-      });
+      const { data: updatedQuote, error: updateError } = await supabaseAdmin
+        .from('Quote')
+        .update({ status })
+        .eq('id', id)
+        .eq('productSlug', 'gallery-reference') // Ensure we're only updating gallery quotes
+        .select()
+        .single();
+
+      if (updateError || !updatedQuote) {
+        throw new Error(`Database error: ${updateError?.message}`);
+      }
 
       console.log('Gallery quote status updated:', id, status);
 
@@ -276,7 +294,7 @@ export async function PATCH(request: NextRequest) {
         quote: {
           id: updatedQuote.id,
           status: updatedQuote.status,
-          updatedAt: updatedQuote.updatedAt?.toISOString()
+          updatedAt: updatedQuote.updatedAt
         }
       }, { status: 200 });
 

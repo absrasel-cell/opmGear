@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(
  request: NextRequest,
@@ -11,10 +9,19 @@ export async function POST(
   const orderId = params.id;
 
   // Check if order exists
-  const existingOrder = await prisma.order.findUnique({
-   where: { id: orderId },
-   select: { id: true, shipmentId: true }
-  });
+  const { data: existingOrder, error } = await supabaseAdmin
+   .from('orders')
+   .select('id, shipment_id')
+   .eq('id', orderId)
+   .single();
+
+  if (error) {
+   console.error('Error fetching order:', error);
+   return NextResponse.json(
+    { error: 'Internal server error' },
+    { status: 500 }
+   );
+  }
 
   if (!existingOrder) {
    return NextResponse.json(
@@ -24,16 +31,20 @@ export async function POST(
   }
 
   // Unassign the order from its shipment
-  const updatedOrder = await prisma.order.update({
-   where: { id: orderId },
-   data: { shipmentId: null },
-   select: {
-    id: true,
-    shipmentId: true,
-    productName: true,
-    status: true
-   }
-  });
+  const { data: updatedOrder, error: updateError } = await supabaseAdmin
+   .from('orders')
+   .update({ shipment_id: null })
+   .eq('id', orderId)
+   .select('id, shipment_id, product_name, status')
+   .single();
+
+  if (updateError) {
+   console.error('Error updating order:', updateError);
+   return NextResponse.json(
+    { error: 'Failed to unassign order' },
+    { status: 500 }
+   );
+  }
 
   return NextResponse.json({ 
    message: 'Order unassigned successfully',

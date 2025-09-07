@@ -11,32 +11,17 @@ export default function AboutUsPage() {
         <div className="absolute inset-0 bg-black/10" />
       </div>
 
-      <div className="fixed inset-0 -z-5 pointer-events-none">
-        <div className="absolute -top-24 -left-24 h-[480px] w-[480px] rounded-full bg-lime-400/15 blur-[120px]" />
-        <div className="absolute top-1/3 -right-24 h-[520px] w-[520px] rounded-full bg-purple-500/15 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/3 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-[120px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.035),_transparent_60%)]" />
-      </div>
         
       <style jsx>{`
         body { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; opacity: 0; }
-        .animate-slide-up { animation: slideUp 0.8s ease-out forwards; opacity: 0; transform: translateY(20px); }
-        .animate-delay-200 { animation-delay: 0.2s; }
-        .animate-delay-400 { animation-delay: 0.4s; }
-        .animate-delay-600 { animation-delay: 0.6s; }
-        .animate-delay-800 { animation-delay: 0.8s; }
-        .animate-delay-1000 { animation-delay: 1.0s; }
-        @keyframes fadeIn { to { opacity: 1; } }
-        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
       <main>
-        <section className="mr-auto ml-auto pr-6 pb-20 pl-6 mt-[55px]" style={{maxWidth: '1850px'}}>
-          <div className="md:rounded-[40px] md:p-16 lg:p-24 overflow-hidden glass-morphism rounded-b-3xl pt-16 pr-8 pb-16 pl-8 min-h-screen animate-glass-slide-in">
+        <section className="mr-auto ml-auto px-4 md:px-6 pb-16 md:pb-20 mt-[55px]" style={{maxWidth: '1850px'}}>
+          <div className="md:rounded-[40px] px-4 md:px-8 lg:px-16 py-8 md:py-16 lg:py-24 overflow-hidden glass-morphism rounded-b-3xl min-h-screen">
             
             {/* Breadcrumbs */}
-            <nav className="mb-8 animate-slide-up">
+            <nav className="mb-8 ">
               <div className="flex items-center gap-2 text-sm text-stone-400">
                 <Link href="/" className="hover:text-lime-400 transition-colors">Home</Link>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -47,48 +32,48 @@ export default function AboutUsPage() {
             </nav>
 
             {/* Page Header */}
-            <div className="mb-20 text-center animate-slide-up">
-              <h1 className="text-5xl lg:text-7xl font-bricolage font-semibold text-white mb-6">
+            <div className="mb-12 md:mb-20 text-center">
+              <h1 className="text-3xl md:text-5xl lg:text-7xl font-bricolage font-semibold text-white mb-4 md:mb-6">
                 About US Custom Caps
               </h1>
-              <p className="text-xl text-stone-300 max-w-4xl mx-auto leading-relaxed">
+              <p className="text-lg md:text-xl text-stone-300 max-w-4xl mx-auto leading-relaxed px-2 md:px-0">
                 Learn about our company, mission, and what makes us the industry leader in custom baseball cap manufacturing. 
                 Discover our story, values, and commitment to delivering excellence in every order.
               </p>
             </div>
 
             {/* Hero Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-20 animate-slide-up animate-delay-200">
-              <div className="text-center glass-card-lg p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
-                <div className="text-4xl font-bold text-lime-400 mb-3 font-bricolage">48+</div>
-                <div className="text-lg text-white font-semibold mb-1">Minimum Order</div>
-                <div className="text-sm text-stone-400">vs 100+ industry average</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-12 md:mb-20">
+              <div className="text-center glass-card-lg-darker-darker p-4 md:p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
+                <div className="text-2xl md:text-4xl font-bold text-lime-400 mb-2 md:mb-3 font-bricolage">48+</div>
+                <div className="text-sm md:text-lg text-white font-semibold mb-1">Minimum Order</div>
+                <div className="text-xs md:text-sm text-stone-400">vs 100+ industry average</div>
               </div>
-              <div className="text-center glass-card-lg p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300">
-                <div className="text-4xl font-bold text-orange-400 mb-3 font-bricolage">7</div>
-                <div className="text-lg text-white font-semibold mb-1">Days Production</div>
-                <div className="text-sm text-stone-400">Industry leading speed</div>
+              <div className="text-center glass-card-lg-darker-darker p-4 md:p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300">
+                <div className="text-2xl md:text-4xl font-bold text-orange-400 mb-2 md:mb-3 font-bricolage">7</div>
+                <div className="text-sm md:text-lg text-white font-semibold mb-1">Days Production</div>
+                <div className="text-xs md:text-sm text-stone-400">Industry leading speed</div>
               </div>
-              <div className="text-center glass-card-lg p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300">
-                <div className="text-4xl font-bold text-purple-400 mb-3 font-bricolage">25+</div>
-                <div className="text-lg text-white font-semibold mb-1">Logo Options</div>
-                <div className="text-sm text-stone-400">Positions & techniques</div>
+              <div className="text-center glass-card-lg-darker-darker p-4 md:p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300">
+                <div className="text-2xl md:text-4xl font-bold text-purple-400 mb-2 md:mb-3 font-bricolage">25+</div>
+                <div className="text-sm md:text-lg text-white font-semibold mb-1">Logo Options</div>
+                <div className="text-xs md:text-sm text-stone-400">Positions & techniques</div>
               </div>
-              <div className="text-center glass-card-lg p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
-                <div className="text-4xl font-bold text-lime-400 mb-3 font-bricolage">98%</div>
-                <div className="text-lg text-white font-semibold mb-1">Satisfaction</div>
-                <div className="text-sm text-stone-400">Customer approval rating</div>
+              <div className="text-center glass-card-lg-darker-darker p-4 md:p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
+                <div className="text-2xl md:text-4xl font-bold text-lime-400 mb-2 md:mb-3 font-bricolage">98%</div>
+                <div className="text-sm md:text-lg text-white font-semibold mb-1">Satisfaction</div>
+                <div className="text-xs md:text-sm text-stone-400">Customer approval rating</div>
               </div>
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid lg:grid-cols-2 gap-12 mb-20">
+            <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 mb-12 md:mb-20">
               
               {/* Left Column - Key Differentiators */}
-              <div className="space-y-8 animate-slide-up animate-delay-400">
+              <div className="space-y-8">
                 <h2 className="text-3xl font-semibold text-white mb-8 font-bricolage">Our Competitive Advantages</h2>
                 
-                <div className="glass-card-lg p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
+                <div className="glass-card-lg-darker p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-xl bg-lime-500/20 flex items-center justify-center flex-shrink-0 border border-lime-500/30">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-lime-400">
@@ -131,7 +116,7 @@ export default function AboutUsPage() {
                   </div>
                 </div>
 
-                <div className="glass-card-lg p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300">
+                <div className="glass-card-lg-darker p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0 border border-orange-500/30">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-orange-400">
@@ -175,7 +160,7 @@ export default function AboutUsPage() {
                   </div>
                 </div>
 
-                <div className="glass-card-lg p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300">
+                <div className="glass-card-lg-darker p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0 border border-purple-500/30">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-purple-400">
@@ -219,10 +204,10 @@ export default function AboutUsPage() {
               </div>
 
               {/* Right Column - Premium Features */}
-              <div className="space-y-8 animate-slide-up animate-delay-600">
+              <div className="space-y-8">
                 <h2 className="text-3xl font-semibold text-white mb-8 font-bricolage">Premium Features & Services</h2>
                 
-                <div className="glass-card-lg p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
+                <div className="glass-card-lg-darker p-8 border border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-xl bg-lime-500/20 flex items-center justify-center flex-shrink-0 border border-lime-500/30">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-lime-400">
@@ -257,7 +242,7 @@ export default function AboutUsPage() {
                   </div>
                 </div>
 
-                <div className="glass-card-lg p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300">
+                <div className="glass-card-lg-darker p-8 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0 border border-orange-500/30">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-orange-400">
@@ -296,7 +281,7 @@ export default function AboutUsPage() {
                   </div>
                 </div>
 
-                <div className="glass-card-lg p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300">
+                <div className="glass-card-lg-darker p-8 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0 border border-purple-500/30">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-purple-400">
@@ -332,8 +317,294 @@ export default function AboutUsPage() {
               </div>
             </div>
 
+            {/* How it Works Section */}
+            <div className="mb-20 md:mb-32">
+              <div className="text-center mb-12 md:mb-16">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-white mb-4 md:mb-6 font-bricolage">How it Works?</h2>
+                <p className="text-lg md:text-xl text-stone-300 max-w-4xl mx-auto leading-relaxed px-2 md:px-0">
+                  From concept to delivery, our streamlined 6-step process ensures your custom caps exceed expectations. 
+                  Experience the difference of working with industry professionals who understand your vision.
+                </p>
+              </div>
+
+              {/* Process Steps - Cohesive Visual Flow */}
+              
+              {/* Top Row Text Content - Steps 1-3 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mb-6 md:mb-8">
+                {/* Step 1: Design & Consultation */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-lime-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-lime-500/40">
+                    <span className="text-xl font-bold text-lime-400 font-bricolage">1</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-3 font-bricolage">Design & Consultation</h3>
+                  <p className="text-stone-300 text-sm leading-relaxed mb-3">
+                    Share your vision with our expert design team. We'll help refine your concept and provide 
+                    professional design services to bring your ideas to life with precision.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-lime-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>Professional Graphics Design ($50)</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-lime-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>Free consultation & revisions</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 2: Material Selection */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-orange-500/40">
+                    <span className="text-xl font-bold text-orange-400 font-bricolage">2</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-3 font-bricolage">Material Selection</h3>
+                  <p className="text-stone-300 text-sm leading-relaxed mb-3">
+                    Choose from our 3-tier quality system featuring premium materials like Suede Cotton, 
+                    Genuine Leather, and multiple fabric weights to match your budget and vision.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-orange-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>3 Quality Tiers ($3.60-$4.80)</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-orange-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>Premium materials & custom dyeing</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3: Sample Creation */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-purple-500/40">
+                    <span className="text-xl font-bold text-purple-400 font-bricolage">3</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-3 font-bricolage">Sample Creation</h3>
+                  <p className="text-stone-300 text-sm leading-relaxed mb-3">
+                    We create a physical sample of your cap for approval before bulk production. 
+                    This ensures perfect color matching, logo placement, and overall quality meets your expectations.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-purple-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>Physical Sampling ($150)</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-purple-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>100% approval before production</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seamless 2x3 Grid - All Steps Connected (Fixed for all screen sizes) */}
+              <div className="grid grid-cols-3 gap-0 mb-0 bg-white/90">
+                <div className="overflow-hidden bg-white/80">
+                  <img 
+                    src="/uploads/how-it-works/1.png" 
+                    alt="Step 1: Design Consultation Process" 
+                    className="w-full h-full object-cover mix-blend-multiply opacity-90"
+                  />
+                </div>
+                <div className="overflow-hidden bg-white/80">
+                  <img 
+                    src="/uploads/how-it-works/2.png" 
+                    alt="Step 2: Premium Materials Selection" 
+                    className="w-full h-full object-cover mix-blend-multiply opacity-90"
+                  />
+                </div>
+                <div className="overflow-hidden bg-white/80">
+                  <img 
+                    src="/uploads/how-it-works/3.png" 
+                    alt="Step 3: Physical Sample Creation" 
+                    className="w-full h-full object-cover mix-blend-multiply opacity-90"
+                  />
+                </div>
+                <div className="overflow-hidden bg-white/80">
+                  <img 
+                    src="/uploads/how-it-works/4.png" 
+                    alt="Step 4: Production & Decoration Process" 
+                    className="w-full h-full object-cover mix-blend-multiply opacity-90"
+                  />
+                </div>
+                <div className="overflow-hidden bg-white/80">
+                  <img 
+                    src="/uploads/how-it-works/5.png" 
+                    alt="Step 5: Quality Inspection & Control" 
+                    className="w-full h-full object-cover mix-blend-multiply opacity-90"
+                  />
+                </div>
+                <div className="overflow-hidden bg-white/80">
+                  <img 
+                    src="/uploads/how-it-works/6.png" 
+                    alt="Step 6: Perfect Delivery & Customer Satisfaction" 
+                    className="w-full h-full object-cover mix-blend-multiply opacity-90"
+                  />
+                </div>
+              </div>
+
+              {/* Bottom Row Text Content - Steps 4-6 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mb-12 md:mb-16">
+                {/* Step 4: Production & Decoration */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-cyan-500/40">
+                    <span className="text-xl font-bold text-cyan-400 font-bricolage">4</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-3 font-bricolage">Production & Decoration</h3>
+                  <p className="text-stone-300 text-sm leading-relaxed mb-3">
+                    Our expert craftsmen use advanced techniques including 3D embroidery, leather patches, 
+                    screen printing, and heat transfer. Every cap undergoes rigorous quality control.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-cyan-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>7-Day Production Timeline</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-cyan-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>25+ logo positions & techniques</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 5: Quality Inspection */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-pink-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-pink-500/40">
+                    <span className="text-xl font-bold text-pink-400 font-bricolage">5</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-3 font-bricolage">Quality Inspection</h3>
+                  <p className="text-stone-300 text-sm leading-relaxed mb-3">
+                    Every cap undergoes our comprehensive 3-point quality inspection process. 
+                    We check decoration quality, material integrity, and overall finish before packaging.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-pink-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>3-Point Quality Inspection</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-pink-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>Zero defect tolerance policy</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 6: Delivery & Satisfaction */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/40">
+                    <span className="text-xl font-bold text-emerald-400 font-bricolage">6</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-white mb-3 font-bricolage">Delivery & Satisfaction</h3>
+                  <p className="text-stone-300 text-sm leading-relaxed mb-3">
+                    Fast, secure shipping with tracking. Your custom caps arrive exactly as envisioned, 
+                    backed by our 98% customer satisfaction guarantee and exceptional after-sales support.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-emerald-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>16-20 working days total delivery</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-emerald-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12l2 2 4-4"></path>
+                        <circle cx="12" cy="12" r="9"></circle>
+                      </svg>
+                      <span>98% customer satisfaction rate</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Process Timeline */}
+              <div className="glass-card-lg-darker p-10 border border-gradient-to-r border-lime-500/30 hover:border-lime-500/50 transition-all duration-300">
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl font-semibold text-white mb-4 font-bricolage">Complete Process Timeline</h3>
+                  <p className="text-stone-300 max-w-2xl mx-auto">
+                    From initial consultation to delivery, here's exactly what to expect when working with US Custom Caps
+                  </p>
+                </div>
+                
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                    <div className="text-2xl font-bold text-lime-400 mb-2 font-bricolage">Day 1-2</div>
+                    <div className="text-white font-medium mb-2">Design & Consultation</div>
+                    <div className="text-sm text-stone-400">Initial consultation and professional design creation</div>
+                  </div>
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                    <div className="text-2xl font-bold text-orange-400 mb-2 font-bricolage">Day 2-3</div>
+                    <div className="text-white font-medium mb-2">Material Selection</div>
+                    <div className="text-sm text-stone-400">Choose quality tier and premium materials</div>
+                  </div>
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                    <div className="text-2xl font-bold text-purple-400 mb-2 font-bricolage">Day 4-6</div>
+                    <div className="text-white font-medium mb-2">Sample Creation</div>
+                    <div className="text-sm text-stone-400">Physical sample for approval (optional)</div>
+                  </div>
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                    <div className="text-2xl font-bold text-cyan-400 mb-2 font-bricolage">Day 7-13</div>
+                    <div className="text-white font-medium mb-2">Production</div>
+                    <div className="text-sm text-stone-400">Manufacturing and decoration process</div>
+                  </div>
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                    <div className="text-2xl font-bold text-pink-400 mb-2 font-bricolage">Day 14-15</div>
+                    <div className="text-white font-medium mb-2">Quality Inspection</div>
+                    <div className="text-sm text-stone-400">3-point quality control and packaging</div>
+                  </div>
+                  <div className="text-center p-6 bg-white/5 rounded-xl border border-white/10">
+                    <div className="text-2xl font-bold text-emerald-400 mb-2 font-bricolage">Day 16-20</div>
+                    <div className="text-white font-medium mb-2">Delivery</div>
+                    <div className="text-sm text-stone-400">Fast shipping with tracking</div>
+                  </div>
+                </div>
+
+                <div className="text-center mt-8">
+                  <div className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-lime-500/20 to-green-500/20 rounded-full text-lime-300 border border-lime-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <span className="font-medium">Total Timeline: 16-20 working days from design to delivery</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Volume Pricing Section */}
-            <div className="glass-card-lg p-10 border border-gradient-to-r border-orange-500/40 hover:border-orange-500/60 transition-all duration-300 animate-slide-up animate-delay-800 mb-20">
+            <div className="glass-card-lg-darker p-10 border border-gradient-to-r border-orange-500/40 hover:border-orange-500/60 transition-all duration-300 mb-20">
               <div className="text-center mb-8">
                 <h2 className="text-4xl font-semibold text-white mb-4 font-bricolage">Volume Pricing That Scales With You</h2>
                 <p className="text-stone-300 max-w-3xl mx-auto text-lg">
@@ -384,19 +655,19 @@ export default function AboutUsPage() {
             </div>
 
             {/* Quality Guarantees */}
-            <div className="grid md:grid-cols-2 gap-12 mb-20 animate-slide-up animate-delay-1000">
+            <div className="grid md:grid-cols-2 gap-12 mb-20">
               <div>
                 <h2 className="text-3xl font-semibold text-white mb-8 font-bricolage">Quality Guarantees & Certifications</h2>
                 <div className="space-y-6">
-                  <div className="glass-card-md p-6 border border-lime-500/30">
+                  <div className="glass-card-md-darker p-6 border border-lime-500/30">
                     <h4 className="text-lg font-semibold text-lime-400 mb-2">98% Customer Satisfaction</h4>
                     <p className="text-stone-300 text-sm">Our customers consistently rate us 4.8/5 stars, with 98% reporting complete satisfaction with their orders.</p>
                   </div>
-                  <div className="glass-card-md p-6 border border-orange-500/30">
+                  <div className="glass-card-md-darker p-6 border border-orange-500/30">
                     <h4 className="text-lg font-semibold text-orange-400 mb-2">Quality Assurance Process</h4>
                     <p className="text-stone-300 text-sm">Every cap undergoes a 3-point quality inspection before shipping, ensuring consistent quality standards.</p>
                   </div>
-                  <div className="glass-card-md p-6 border border-purple-500/30">
+                  <div className="glass-card-md-darker p-6 border border-purple-500/30">
                     <h4 className="text-lg font-semibold text-purple-400 mb-2">Material Certifications</h4>
                     <p className="text-stone-300 text-sm">All materials are sourced from certified suppliers and meet international quality and safety standards.</p>
                   </div>
@@ -405,7 +676,7 @@ export default function AboutUsPage() {
               <div>
                 <h2 className="text-3xl font-semibold text-white mb-8 font-bricolage">Customer Testimonials</h2>
                 <div className="space-y-6">
-                  <div className="glass-card-md p-6 border border-lime-500/20">
+                  <div className="glass-card-md-darker p-6 border border-lime-500/20">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-lime-500/20 flex items-center justify-center">
                         <span className="text-lime-400 font-semibold text-sm">JD</span>
@@ -417,7 +688,7 @@ export default function AboutUsPage() {
                     </div>
                     <p className="text-stone-300 text-sm italic">&quot;The 48-unit minimum was perfect for our team. Quality exceeded expectations and the 7-day turnaround saved our season!&quot;</p>
                   </div>
-                  <div className="glass-card-md p-6 border border-orange-500/20">
+                  <div className="glass-card-md-darker p-6 border border-orange-500/20">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
                         <span className="text-orange-400 font-semibold text-sm">MW</span>
@@ -429,7 +700,7 @@ export default function AboutUsPage() {
                     </div>
                     <p className="text-stone-300 text-sm italic">&quot;Amazing customization options! The 3D embroidery looks professional and the pricing was unbeatable for our volume.&quot;</p>
                   </div>
-                  <div className="glass-card-md p-6 border border-purple-500/20">
+                  <div className="glass-card-md-darker p-6 border border-purple-500/20">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
                         <span className="text-purple-400 font-semibold text-sm">RT</span>
@@ -446,7 +717,7 @@ export default function AboutUsPage() {
             </div>
 
             {/* Call to Action */}
-            <div className="text-center animate-slide-up animate-delay-1000">
+            <div className="text-center">
               <h3 className="text-4xl font-semibold text-white mb-6 font-bricolage">Ready to Experience the Difference?</h3>
               <p className="text-xl text-stone-300 mb-10 max-w-3xl mx-auto">
                 Join thousands of satisfied customers who chose US Custom Caps for superior quality, competitive pricing, and exceptional service.

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { renderQuotePdfBuffer, updateQuoteOrderPdfUrl } from '@/lib/pdf/renderQuote';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

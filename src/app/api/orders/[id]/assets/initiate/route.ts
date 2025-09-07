@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { supabaseAdmin } from '@/lib/supabase';
 import { InitiateUploadReqSchema } from '@/lib/validation/orderAssets';
 import { v4 as uuidv4 } from 'uuid';

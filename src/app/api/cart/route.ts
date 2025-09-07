@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-helpers';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 interface CartItem {
  productId: string;
@@ -27,14 +27,15 @@ export async function GET(request: NextRequest) {
    return NextResponse.json({ error: 'User ID or session ID required' }, { status: 400 });
   }
 
-  const cart = await prisma.cart.findFirst({
-   where: {
-    OR: [
-     { userId: userId || undefined },
-     { sessionId: sessionId || undefined }
-    ]
-   }
-  });
+  const { data: cart, error } = await supabaseAdmin
+   .from('Cart')
+   .select('*')
+   .or(`userId.eq.${userId || 'null'},sessionId.eq.${sessionId || 'null'}`)
+   .single();
+
+  if (error && error.code !== 'PGRST116') {
+   throw error;
+  }
 
   return NextResponse.json({ cart: cart || { items: [], total: 0 } });
  } catch (error) {
@@ -62,16 +63,37 @@ export async function POST(request: NextRequest) {
    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
   };
 
-  const cart = await prisma.cart.upsert({
-   where: {
-    userId_sessionId: {
-     userId: user?.id || data.userId || null,
-     sessionId: data.sessionId || null,
-    }
-   },
-   update: cartData,
-   create: cartData,
-  });
+  // Try to find existing cart
+  const { data: existingCart } = await supabaseAdmin
+   .from('Cart')
+   .select('*')
+   .eq('userId', user?.id || data.userId || null)
+   .eq('sessionId', data.sessionId || null)
+   .single();
+
+  let cart;
+  if (existingCart) {
+   // Update existing cart
+   const { data: updatedCart, error: updateError } = await supabaseAdmin
+    .from('Cart')
+    .update(cartData)
+    .eq('id', existingCart.id)
+    .select()
+    .single();
+   
+   if (updateError) throw updateError;
+   cart = updatedCart;
+  } else {
+   // Create new cart
+   const { data: newCart, error: createError } = await supabaseAdmin
+    .from('Cart')
+    .insert([cartData])
+    .select()
+    .single();
+   
+   if (createError) throw createError;
+   cart = newCart;
+  }
 
   return NextResponse.json({ cart }, { status: 201 });
  } catch (error) {
@@ -90,14 +112,14 @@ export async function DELETE(request: NextRequest) {
    return NextResponse.json({ error: 'User ID or session ID required' }, { status: 400 });
   }
 
-  await prisma.cart.deleteMany({
-   where: {
-    OR: [
-     { userId: userId || undefined },
-     { sessionId: sessionId || undefined }
-    ]
-   }
-  });
+  const { error: deleteError } = await supabaseAdmin
+   .from('Cart')
+   .delete()
+   .or(`userId.eq.${userId || 'null'},sessionId.eq.${sessionId || 'null'}`);
+
+  if (deleteError) {
+   throw deleteError;
+  }
 
   return NextResponse.json({ message: 'Cart cleared successfully' });
  } catch (error) {

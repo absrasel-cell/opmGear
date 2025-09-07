@@ -14,7 +14,8 @@ export default function ClientDashboardLayout({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login');
+      const currentPath = window.location.pathname + window.location.search;
+      router.push('/login?redirect=' + encodeURIComponent(currentPath));
     }
   }, [loading, user, router]);
 
@@ -23,7 +24,8 @@ export default function ClientDashboardLayout({
     const timeout = setTimeout(() => {
       if (loading) {
         console.log('ClientDashboardLayout: Loading timeout, redirecting to login');
-        router.push('/login');
+        const currentPath = window.location.pathname + window.location.search;
+        router.push('/login?redirect=' + encodeURIComponent(currentPath));
       }
     }, 5000); // 5 second timeout
 

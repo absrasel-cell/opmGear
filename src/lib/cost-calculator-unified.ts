@@ -14,8 +14,8 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { getBaseProductPricing, calculateUnitPrice } from '@/lib/pricing';
-import prisma from '@/lib/prisma';
+import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV } from '@/lib/pricing-server';
+// Removed Prisma - migrated to Supabase
 
 export interface UnifiedCostInput {
   // Product configuration
@@ -115,65 +115,11 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-// Load customization pricing data with timeout
-async function loadCustomizationPricing(): Promise<any[]> {
-  try {
-    console.log('🔧 [UNIFIED] Loading CSV pricing data...');
-    const csvPath = path.join(process.cwd(), 'src/app/csv/Customization Pricings.csv');
-    
-    // Add timeout to file read operation
-    const timeoutMs = 5000; // 5 second timeout
-    const csvPromise = fs.readFile(csvPath, 'utf-8');
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('CSV loading timed out')), timeoutMs)
-    );
-    
-    const csvContent = await Promise.race([csvPromise, timeoutPromise]);
-    
-    const lines = csvContent.split('\n').filter(line => line.trim());
-    const dataLines = lines.slice(1); // Skip header
-    
-    const pricingData = dataLines.map(line => {
-      const values = parseCSVLine(line);
-      
-      return {
-        Name: (values[0] || '').replace(/"/g, '').trim(),
-        type: (values[1] || '').trim(),
-        price48: parseFloat(values[2]) || 0,
-        price144: parseFloat(values[3]) || 0,
-        price576: parseFloat(values[4]) || 0,
-        price1152: parseFloat(values[5]) || 0,
-        price2880: parseFloat(values[6]) || 0,
-        price10000: parseFloat(values[7]) || 0,
-      };
-    }).filter(item => item.Name && item.Name.length > 0);
-    
-    console.log('✅ [UNIFIED] Loaded', pricingData.length, 'pricing items from CSV');
-    return pricingData;
-    
-  } catch (error) {
-    console.error('❌ [UNIFIED] Error loading customization pricing:', error);
-    
-    // Return minimal fallback data to prevent system failure
-    return [
-      { Name: 'Medium Size Embroidery', type: 'Logo Setup', price48: 2.50, price144: 2.00, price576: 1.75, price1152: 1.50, price2880: 1.25, price10000: 1.00 },
-      { Name: 'Regular Delivery', type: 'Shipping', price48: 3.00, price144: 2.50, price576: 2.00, price1152: 1.50, price2880: 1.25, price10000: 1.00 },
-      { Name: 'Laser Cut', type: 'Premium Fabric', price48: 0.50, price144: 0.45, price576: 0.40, price1152: 0.35, price2880: 0.30, price10000: 0.25 }
-    ];
-  }
-}
+// Using shared CSV loading function from @/lib/pricing
 
 
 
-// Get price for quantity from pricing data
-function getPriceForQuantity(pricing: any, quantity: number): number {
-  if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
-  return pricing.price48;
-}
+// Using shared getPriceForQuantityFromCSVFromCSV function from @/lib/pricing
 
 /**
  * UNIFIED COST CALCULATOR - THE SINGLE SOURCE OF TRUTH
@@ -209,11 +155,15 @@ export async function calculateUnifiedCosts(input: UnifiedCostInput): Promise<Un
       throw new Error('No units found in selectedColors - invalid order data');
     }
     
-    // Get base product pricing
+    // Get CSV-based product pricing - NO HARDCODED VALUES
     const priceTier = input.priceTier || 'Tier 1';
-    const baseProductPricing = input.baseProductPricing || getBaseProductPricing(priceTier);
+    const baseProductPricing = input.baseProductPricing || await getBaseProductPricing(priceTier);
     
-    // Calculate base product unit price
+    if (!baseProductPricing) {
+      throw new Error(`Unable to load CSV pricing for tier: ${priceTier}`);
+    }
+    
+    // Calculate base product unit price using CSV data
     let baseUnitPrice = baseProductPricing.price48; // Default to lowest tier
     if (totalUnits >= 10000) baseUnitPrice = baseProductPricing.price10000;
     else if (totalUnits >= 2880) baseUnitPrice = baseProductPricing.price2880;
@@ -271,7 +221,7 @@ export async function calculateUnifiedCosts(input: UnifiedCostInput): Promise<Un
       );
       
       if (accessoryPricing) {
-        const unitPrice = getPriceForQuantity(accessoryPricing, totalUnits);
+        const unitPrice = getPriceForQuantityFromCSV(accessoryPricing, totalUnits);
         const cost = unitPrice * totalUnits;
         
         items.push({
@@ -295,7 +245,7 @@ export async function calculateUnifiedCosts(input: UnifiedCostInput): Promise<Un
       );
       
       if (closurePricing) {
-        const unitPrice = getPriceForQuantity(closurePricing, totalUnits);
+        const unitPrice = getPriceForQuantityFromCSV(closurePricing, totalUnits);
         const cost = unitPrice * totalUnits;
         
         items.push({
@@ -327,7 +277,7 @@ export async function calculateUnifiedCosts(input: UnifiedCostInput): Promise<Un
           );
           
           if (premiumFabricPricing) {
-            const unitPrice = getPriceForQuantity(premiumFabricPricing, totalUnits);
+            const unitPrice = getPriceForQuantityFromCSV(premiumFabricPricing, totalUnits);
             const cost = unitPrice * totalUnits;
             
             items.push({
@@ -368,7 +318,7 @@ export async function calculateUnifiedCosts(input: UnifiedCostInput): Promise<Un
           console.log(`🚚 [UNIFIED] Using bulk pricing: ${pricingQuantity} total units in shipment`);
         }
         
-        const unitPrice = getPriceForQuantity(deliveryPricing, pricingQuantity);
+        const unitPrice = getPriceForQuantityFromCSV(deliveryPricing, pricingQuantity);
         const cost = unitPrice * totalUnits; // Still cost for this order's units
         
         items.push({
@@ -478,7 +428,7 @@ function calculateLogoSetupCost(
     );
     
     if (sizeEmbroideryPricing) {
-      const sizeUnitPrice = getPriceForQuantity(sizeEmbroideryPricing, totalQuantity);
+      const sizeUnitPrice = getPriceForQuantityFromCSV(sizeEmbroideryPricing, totalQuantity);
       unitPrice += sizeUnitPrice;
       cost += sizeUnitPrice * totalQuantity;
       details = `${size} Size Embroidery`;
@@ -489,7 +439,7 @@ function calculateLogoSetupCost(
     );
     
     if (threeDPricing) {
-      const threeDUnitPrice = getPriceForQuantity(threeDPricing, totalQuantity);
+      const threeDUnitPrice = getPriceForQuantityFromCSV(threeDPricing, totalQuantity);
       unitPrice += threeDUnitPrice;
       cost += threeDUnitPrice * totalQuantity;
       details += ` + 3D Embroidery`;
@@ -501,7 +451,7 @@ function calculateLogoSetupCost(
     );
     
     if (sizeEmbroideryPricing) {
-      const sizeUnitPrice = getPriceForQuantity(sizeEmbroideryPricing, totalQuantity);
+      const sizeUnitPrice = getPriceForQuantityFromCSV(sizeEmbroideryPricing, totalQuantity);
       unitPrice = sizeUnitPrice;
       cost = sizeUnitPrice * totalQuantity;
       details = `${size} Size Embroidery`;
@@ -538,7 +488,7 @@ function calculateLogoSetupCost(
     );
     
     if (basePricing) {
-      const baseUnitPrice = getPriceForQuantity(basePricing, totalQuantity);
+      const baseUnitPrice = getPriceForQuantityFromCSV(basePricing, totalQuantity);
       unitPrice = baseUnitPrice;
       cost = baseUnitPrice * totalQuantity;
       details = basePricing.Name;
@@ -552,7 +502,7 @@ function calculateLogoSetupCost(
     );
     
     if (applicationPricing) {
-      const applicationUnitPrice = getPriceForQuantity(applicationPricing, totalQuantity);
+      const applicationUnitPrice = getPriceForQuantityFromCSV(applicationPricing, totalQuantity);
       unitPrice += applicationUnitPrice;
       cost += applicationUnitPrice * totalQuantity;
       details += ` + ${logoConfig.application}`;

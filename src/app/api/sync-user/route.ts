@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 export async function POST(request: NextRequest) {
  try {

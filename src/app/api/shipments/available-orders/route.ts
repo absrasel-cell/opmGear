@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
  try {
@@ -12,76 +10,53 @@ export async function GET(request: NextRequest) {
 
   console.log('🔍 API: Fetching orders with params:', { status, search, shipmentId });
 
-  // Build where clause
-  const where: any = {
-   AND: []
-  };
-  
-  // Shipment filter: either unassigned or assigned to the specified shipment
+  // Start with base query
+  let query = supabaseAdmin
+   .from('Order')
+   .select('id, productName, customerInfo, status, orderSource, orderType, createdAt, updatedAt, shipmentId, userEmail')
+   .order('createdAt', { ascending: false });
+
+  // Apply shipment filter
   if (shipmentId) {
-   where.AND.push({
-    OR: [
-     { shipmentId: null },
-     { shipmentId: shipmentId }
-    ]
-   });
+   query = query.or(`shipmentId.is.null,shipmentId.eq.${shipmentId}`);
   } else {
-   where.AND.push({ shipmentId: null });
+   query = query.is('shipmentId', null);
   }
 
-  // Filter by status if provided
+  // Apply status filter
   if (status && status !== 'all') {
-   where.AND.push({ status: status.toUpperCase() });
+   query = query.eq('status', status.toUpperCase());
   }
 
-  // Search functionality
+  // Apply search filter
   if (search) {
-   where.AND.push({
-    OR: [
-     { id: { contains: search, mode: 'insensitive' as const } },
-     { productName: { contains: search, mode: 'insensitive' as const } },
-     { userEmail: { contains: search, mode: 'insensitive' as const } }
-    ]
-   });
+   query = query.or(`id.ilike.%${search}%,productName.ilike.%${search}%,userEmail.ilike.%${search}%`);
   }
 
-  console.log('🔍 API: Final where clause:', JSON.stringify(where, null, 2));
+  console.log('🔍 API: Executing Supabase query');
 
-  const orders = await prisma.order.findMany({
-   where,
-   select: {
-    id: true,
-    productName: true,
-    customerInfo: true,
-    status: true,
-    orderSource: true,
-    orderType: true,
-    createdAt: true,
-    updatedAt: true,
-    shipmentId: true,
-    userEmail: true,
-   },
-   orderBy: {
-    createdAt: 'desc',
-   },
-  });
+  const { data: orders, error } = await query;
 
-  console.log('📦 API: Found', orders.length, 'orders');
-  console.log('📦 API: Orders with shipmentId:', orders.filter(o => o.shipmentId).length);
+  if (error) {
+   throw error;
+  }
+
+  console.log('📦 API: Found', orders?.length || 0, 'orders');
+  console.log('📦 API: Orders with shipmentId:', orders?.filter(o => o.shipmentId).length || 0);
   if (shipmentId) {
-   console.log('📦 API: Orders for this shipment:', orders.filter(o => o.shipmentId === shipmentId).length);
+   console.log('📦 API: Orders for this shipment:', orders?.filter(o => o.shipmentId === shipmentId).length || 0);
   }
 
   // Calculate statistics
   const stats = {
-   total: orders.length,
-   unassigned: orders.filter(order => !order.shipmentId).length,
-   pending: orders.filter(order => order.status === 'PENDING').length,
-   processing: orders.filter(order => order.status === 'PROCESSING').length,
-   confirmed: orders.filter(order => order.status === 'CONFIRMED').length,
+   total: orders?.length || 0,
+   unassigned: orders?.filter(order => !order.shipmentId).length || 0,
+   pending: orders?.filter(order => order.status === 'PENDING').length || 0,
+   processing: orders?.filter(order => order.status === 'PROCESSING').length || 0,
+   confirmed: orders?.filter(order => order.status === 'CONFIRMED').length || 0,
   };
 
-  return NextResponse.json({ orders, stats });
+  return NextResponse.json({ orders: orders || [], stats });
  } catch (error) {
   console.error('Error fetching available orders:', error);
   return NextResponse.json(

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ConversationService } from '@/lib/conversation';
-import { ConversationContext } from '@prisma/client';
+
+// Define the ConversationContext enum locally since we're moving away from Prisma
+enum ConversationContext {
+  SUPPORT = 'SUPPORT',
+  SALES = 'SALES', 
+  ORDER = 'ORDER',
+  QUOTE = 'QUOTE'
+}
 
 interface ConversationRequest {
  sessionId: string;

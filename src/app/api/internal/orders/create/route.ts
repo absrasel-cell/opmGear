@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-helpers';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 interface OrderCreationData {
  productName: string;

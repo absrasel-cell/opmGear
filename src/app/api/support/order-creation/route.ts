@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import prisma from '@/lib/prisma';
 import { AIDataLoader } from '@/lib/ai/csv-loader';
 import { ConversationService } from '@/lib/conversation';
 import { AI_ASSISTANTS, formatAssistantResponse } from '@/lib/ai-assistants-config';
@@ -849,36 +848,47 @@ This is a preliminary estimate. For an exact quote with your specific requiremen
     const quoteId = orderResponse.quoteData.quoteId || `Q-${Date.now()}`;
     
     // Create QuoteOrder instead of simple Quote for better file support
-    const createdQuoteOrder = await prisma.quoteOrder.create({
-     data: {
-      id: uuidv4(),
-      sessionId: sessionId || `session-${Date.now()}`,
-      title: `AI Generated Quote - ${orderResponse.quoteData.capDetails?.productName || 'Custom Cap'}`,
-      status: 'IN_PROGRESS',
-      customerEmail: userProfile?.email || userEmail,
-      customerName: userProfile?.name || 'Unknown',
-      customerPhone: userProfile?.phone || '',
-      customerCompany: userProfile?.company || '',
-      productType: orderResponse.quoteData.capDetails?.productName || 'Custom Cap',
-      quantities: orderResponse.quoteData.capDetails?.quantities || {},
-      colors: orderResponse.quoteData.capDetails?.colors || {},
-      logoRequirements: orderResponse.quoteData.customization?.logos || {},
-      customizationOptions: {
-       accessories: orderResponse.quoteData.accessories || [],
-       moldCharges: orderResponse.quoteData.moldCharges || 0,
-       delivery: orderResponse.quoteData.delivery || {}
-      },
-      estimatedCosts: orderResponse.quoteData.pricing || {},
-      aiSummary: orderResponse.message || '',
-      additionalRequirements: message || '',
-      complexity: 'SIMPLE',
-      priority: 'NORMAL',
-      followUpRequired: true,
-      followUpDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-      convertedToOrderId: null, // No associated order yet
-      updatedAt: new Date() // Add missing updatedAt field
-     }
-    });
+    const quoteOrderId = uuidv4();
+    const now = new Date().toISOString();
+    const followUpDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    
+    const { data: createdQuoteOrder, error: quoteOrderError } = await supabaseAdmin
+      .from('QuoteOrder')
+      .insert({
+        id: quoteOrderId,
+        sessionId: sessionId || `session-${Date.now()}`,
+        title: `AI Generated Quote - ${orderResponse.quoteData.capDetails?.productName || 'Custom Cap'}`,
+        status: 'IN_PROGRESS',
+        customerEmail: userProfile?.email || userEmail,
+        customerName: userProfile?.name || 'Unknown',
+        customerPhone: userProfile?.phone || '',
+        customerCompany: userProfile?.company || '',
+        productType: orderResponse.quoteData.capDetails?.productName || 'Custom Cap',
+        quantities: orderResponse.quoteData.capDetails?.quantities || {},
+        colors: orderResponse.quoteData.capDetails?.colors || {},
+        logoRequirements: orderResponse.quoteData.customization?.logos || {},
+        customizationOptions: {
+          accessories: orderResponse.quoteData.accessories || [],
+          moldCharges: orderResponse.quoteData.moldCharges || 0,
+          delivery: orderResponse.quoteData.delivery || {}
+        },
+        estimatedCosts: orderResponse.quoteData.pricing || {},
+        aiSummary: orderResponse.message || '',
+        additionalRequirements: message || '',
+        complexity: 'SIMPLE',
+        priority: 'NORMAL',
+        followUpRequired: true,
+        followUpDate: followUpDate,
+        convertedToOrderId: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      .select()
+      .single();
+
+    if (quoteOrderError) {
+      throw new Error(`Failed to create QuoteOrder: ${quoteOrderError.message}`);
+    }
 
     // Save attached files if any
     if (attachedFiles && attachedFiles.length > 0) {
@@ -893,23 +903,29 @@ This is a preliminary estimate. For an exact quote with your specific requiremen
                fileName.toLowerCase().includes('logo') ||
                (imageAnalysisData?.results?.some((r: any) => r.imageUrl === fileUrl && r.analysis));
         
-        await prisma.quoteOrderFile.create({
-         data: {
-          id: uuidv4(),
-          quoteOrderId: createdQuoteOrder.id,
-          originalName: fileName,
-          fileName: fileName,
-          fileType: fileName.includes('.png') ? 'image/png' : 
-               fileName.includes('.jpg') ? 'image/jpeg' :
-               fileName.includes('.webp') ? 'image/webp' : 'image/*',
-          fileSize: 0, // We don't have size info from URL
-          filePath: fileUrl,
-          bucket: 'uploads',
-          category: isLogo ? 'LOGO' : 'IMAGE',
-          isLogo: isLogo,
-          description: isLogo ? 'Logo uploaded for analysis' : 'Image attachment'
-         }
-        });
+        const { error: fileError } = await supabaseAdmin
+          .from('QuoteOrderFile')
+          .insert({
+            id: uuidv4(),
+            quoteOrderId: createdQuoteOrder.id,
+            originalName: fileName,
+            fileName: fileName,
+            fileType: fileName.includes('.png') ? 'image/png' : 
+                     fileName.includes('.jpg') ? 'image/jpeg' :
+                     fileName.includes('.webp') ? 'image/webp' : 'image/*',
+            fileSize: 0, // We don't have size info from URL
+            filePath: fileUrl,
+            bucket: 'uploads',
+            category: isLogo ? 'LOGO' : 'IMAGE',
+            isLogo: isLogo,
+            description: isLogo ? 'Logo uploaded for analysis' : 'Image attachment',
+            createdAt: now,
+            updatedAt: now
+          });
+
+        if (fileError) {
+          throw new Error(`Failed to create QuoteOrderFile: ${fileError.message}`);
+        }
         
         console.log('✅ Saved file to QuoteOrder:', fileName, isLogo ? '(Logo)' : '(Image)');
        } catch (fileError) {
@@ -924,6 +940,17 @@ This is a preliminary estimate. For an exact quote with your specific requiremen
     console.log('✅ QuoteOrder created successfully:', createdQuoteOrder.id);
    } catch (dbError) {
     console.error('Failed to save QuoteOrder to database:', dbError);
+    console.log('⚠️ Database connectivity issue detected:', dbError.message);
+    if (dbError.message.includes("Can't reach database server")) {
+      return NextResponse.json(
+        { 
+          error: 'Database connectivity issue', 
+          details: 'Unable to connect to database. Please try again later.',
+          fallback: true
+        },
+        { status: 503 }
+      );
+    }
     orderResponse.quoteData.savedToDatabase = false;
    }
   }
@@ -942,10 +969,57 @@ This is a preliminary estimate. For an exact quote with your specific requiremen
      }
     });
 
+    // Enhanced assistant response storage - ensure detailed quote content is preserved
+    let assistantMessageContent = orderResponse.message || 'Order processing completed';
+    
+    // CRITICAL FIX: Enhance message content for complete quote preservation
+    if (orderResponse.quoteData && orderResponse.quoteData.pricing) {
+      console.log('📝 Enhancing assistant message with complete quote details for conversation history');
+      
+      // Ensure the message includes detailed pricing breakdown for conversation history
+      if (!assistantMessageContent.includes('💰 Total Order') && 
+          !assistantMessageContent.includes('📊') && 
+          assistantMessageContent.length < 500) {
+        
+        console.log('⚠️ Original AI message appears incomplete, enhancing with quote details');
+        
+        // Build detailed quote summary for conversation history
+        const quote = orderResponse.quoteData;
+        const pricing = quote.pricing || {};
+        
+        const detailedQuoteBreakdown = `${assistantMessageContent}
+
+📊 **Complete Quote Summary:**
+
+**Cap Specifications:**
+• Product: ${quote.capDetails?.productName || 'Custom Cap'}
+• Quantity: ${pricing.quantity || 'Not specified'} pieces
+• Profile: ${quote.capDetails?.profile || 'Not specified'}
+• Colors: ${quote.capDetails?.colors?.join(', ') || 'Not specified'}
+• Closure: ${quote.capDetails?.closure || 'Not specified'}
+
+**Cost Breakdown:**
+• Base Product Cost: $${pricing.baseProductCost?.toFixed(2) || '0.00'}${pricing.premiumFabricCost > 0 ? `
+• Premium Fabric Cost: $${pricing.premiumFabricCost.toFixed(2)}` : ''}${pricing.premiumClosureCost > 0 ? `
+• Premium Closure Cost: $${pricing.premiumClosureCost.toFixed(2)}` : ''}${pricing.logosCost > 0 ? `
+• Customization Cost: $${pricing.logosCost.toFixed(2)}` : ''}${pricing.accessoriesCost > 0 ? `
+• Accessories Cost: $${pricing.accessoriesCost.toFixed(2)}` : ''}${pricing.moldChargesCost > 0 ? `
+• Mold Charges: $${pricing.moldChargesCost.toFixed(2)}` : ''}
+• Delivery Cost: $${pricing.deliveryCost?.toFixed(2) || '0.00'}
+
+💰 **Total Order: $${pricing.total?.toFixed(2) || '0.00'}**
+
+*This detailed quote has been saved to your conversation history and can be referenced using the quote ID provided.*`;
+
+        assistantMessageContent = detailedQuoteBreakdown;
+        console.log('✅ Enhanced message content with complete quote details for conversation history');
+      }
+    }
+
     // Save assistant response with enhanced LogoCraft Pro integration metadata
     await ConversationService.addMessage(conversationId, {
      role: 'assistant',
-     content: orderResponse.message || 'Order processing completed',
+     content: assistantMessageContent,
      metadata: {
       model: 'gpt-4o-mini',
       assistant: 'QUOTE_MASTER',
@@ -963,9 +1037,58 @@ This is a preliminary estimate. For an exact quote with your specific requiremen
       } : null,
       quoteMasterResponse: true,
       completedLogoCraftWorkflow: shouldUseAnalysisData && !!orderResponse.quoteData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      // Additional metadata to help identify detailed quote messages in conversation history
+      hasDetailedQuote: !!orderResponse.quoteData,
+      quoteOrderId: orderResponse.quoteData?.quoteOrderId || null,
+      messageEnhanced: assistantMessageContent !== (orderResponse.message || 'Order processing completed')
      }
     });
+
+    // CRITICAL FIX: Link QuoteOrder to Conversation if quote was created
+    if (orderResponse.quoteData?.savedToDatabase && orderResponse.quoteData?.quoteOrderId) {
+     try {
+      console.log('🔗 Creating ConversationQuotes link:', {
+       conversationId,
+       quoteOrderId: orderResponse.quoteData.quoteOrderId
+      });
+
+      const { error: conversationQuotesError } = await supabaseAdmin
+        .from('ConversationQuotes')
+        .insert({
+          conversationId: conversationId,
+          quoteOrderId: orderResponse.quoteData.quoteOrderId,
+          isMainQuote: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+      if (conversationQuotesError) {
+        throw new Error(`Failed to create ConversationQuotes: ${conversationQuotesError.message}`);
+      }
+
+      // Update conversation to mark it has a quote and update activity
+      const conversationUpdateTime = new Date().toISOString();
+      const { error: conversationUpdateError } = await supabaseAdmin
+        .from('Conversation')
+        .update({
+          hasQuote: true,
+          quoteCompletedAt: conversationUpdateTime,
+          lastActivity: conversationUpdateTime,
+          updatedAt: conversationUpdateTime
+        })
+        .eq('id', conversationId);
+
+      if (conversationUpdateError) {
+        throw new Error(`Failed to update Conversation: ${conversationUpdateError.message}`);
+      }
+
+      console.log('✅ Successfully linked QuoteOrder to Conversation');
+     } catch (linkError) {
+      console.error('❌ Failed to link QuoteOrder to Conversation:', linkError);
+      // Continue without failing the request
+     }
+    }
    } catch (conversationError) {
     console.error('Failed to save conversation messages:', conversationError);
     // Continue without failing the request

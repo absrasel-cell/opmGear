@@ -3,7 +3,7 @@
  * Pre-calculates and caches expensive statistics for instant dashboard loading
  */
 
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 export interface DashboardMetrics {
   // Revenue metrics

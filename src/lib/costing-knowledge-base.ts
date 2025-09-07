@@ -151,10 +151,10 @@ export const BUSINESS_RULES = {
     underBill: { type: 'Sublimated Print', size: 'Large', application: 'Direct' }
   } as const,
   
-  // Minimum quantities for freight shipping
+  // Minimum quantities for freight shipping (based on CSV availability)
   FREIGHT_SHIPPING: {
-    AIR_FREIGHT_MIN: 3168,
-    SEA_FREIGHT_MIN: 3168
+    AIR_FREIGHT_MIN: 2880,
+    SEA_FREIGHT_MIN: 2880
   } as const,
   
   // Mold charge waiver conditions
@@ -332,13 +332,24 @@ export function getQuantityTier(quantity: number): string {
 }
 
 export function getPriceForQuantity(pricing: any, quantity: number): number {
-  if (quantity >= 20000 && pricing.price20000) return pricing.price20000;
-  if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
-  return pricing.price48;
+  // Helper function to check if a price is valid (not null, undefined, or "Not Applicable")
+  const isValidPrice = (price: any): boolean => {
+    return price !== null && 
+           price !== undefined && 
+           !isNaN(parseFloat(price)) && 
+           price !== "Not Applicable" && 
+           parseFloat(price) > 0;
+  };
+
+  if (quantity >= 20000 && isValidPrice(pricing.price20000)) return pricing.price20000;
+  if (quantity >= 10000 && isValidPrice(pricing.price10000)) return pricing.price10000;
+  if (quantity >= 2880 && isValidPrice(pricing.price2880)) return pricing.price2880;
+  if (quantity >= 1152 && isValidPrice(pricing.price1152)) return pricing.price1152;
+  if (quantity >= 576 && isValidPrice(pricing.price576)) return pricing.price576;
+  if (quantity >= 144 && isValidPrice(pricing.price144)) return pricing.price144;
+  
+  // Return base price if valid, otherwise 0 (indicating service not available)
+  return isValidPrice(pricing.price48) ? pricing.price48 : 0;
 }
 
 // Business rule functions

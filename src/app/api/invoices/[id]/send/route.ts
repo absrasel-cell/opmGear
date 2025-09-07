@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { supabaseAdmin } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { emailProvider } from '@/lib/email';
-
-const prisma = new PrismaClient();
 
 export async function POST(
  request: NextRequest,
@@ -15,13 +13,20 @@ export async function POST(
   // Only admins can send invoice emails
   const { user, profile } = await requireAdmin(request);
 
-  const invoice = await prisma.invoice.findUnique({
-   where: { id },
-   include: {
-    customer: true,
-    order: true
-   }
-  });
+  const { data: invoice, error } = await supabaseAdmin
+   .from('invoices')
+   .select(`
+    *,
+    customers:customer_id(*),
+    orders:order_id(*)
+   `)
+   .eq('id', id)
+   .single();
+
+  if (error) {
+   console.error('Error fetching invoice:', error);
+   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
   if (!invoice) {
    return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
@@ -34,20 +39,24 @@ export async function POST(
 
   // Send the email
   await emailProvider.sendInvoiceEmail({
-   to: invoice.customer.email,
+   to: invoice.customers.email,
    invoiceId: invoice.id,
    invoiceNumber: invoice.number,
    downloadLink,
-   customerName: invoice.customer.name || undefined,
+   customerName: invoice.customers.name || undefined,
    total: invoice.total.toString()
   });
 
   // Update invoice status if it's still DRAFT
   if (invoice.status === 'DRAFT') {
-   await prisma.invoice.update({
-    where: { id: id },
-    data: { status: 'ISSUED' }
-   });
+   const { error: updateError } = await supabaseAdmin
+    .from('invoices')
+    .update({ status: 'ISSUED' })
+    .eq('id', id);
+
+   if (updateError) {
+    console.error('Error updating invoice status:', updateError);
+   }
   }
 
   return NextResponse.json({ 

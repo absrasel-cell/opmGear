@@ -1,6 +1,6 @@
 import { renderToBuffer } from '@react-pdf/renderer';
 import { InvoicePdf } from './InvoicePdf';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 // PDF cache to avoid regenerating the same PDFs
 const pdfCache = new Map<string, { buffer: Buffer; timestamp: number }>();

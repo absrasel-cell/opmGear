@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
  try {
-  const prisma = new PrismaClient();
   
   // Update absrasel@gmail.com to ADMIN role
   const updatedUser = await prisma.user.update({

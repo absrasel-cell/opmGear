@@ -147,11 +147,11 @@ export function Sidebar({
         className={`hidden lg:flex flex-col ${collapsed ? 'w-20' : 'w-80'} shrink-0 h-[100dvh] sticky top-0 pt-6 px-4 pb-4 gap-4 text-slate-200 transition-all duration-300 ${className}`}
       >
         <div className="flex-1 overflow-hidden">
-          <GlassCard className="p-4">
+          <div className="glass-morphism rounded-2xl p-4">
 
             {/* User Profile */}
             <Link href={isAdmin ? "/dashboard/admin/profile" : "/dashboard/member/profile"}>
-              <div className={`mt-5 flex items-center gap-3 p-3 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${collapsed ? 'justify-center' : ''}`}>
+              <div className={`mt-5 flex items-center gap-3 p-3 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${collapsed ? 'justify-center' : ''}`}>
                 {user?.avatarUrl ? (
                   <img 
                     src={user.avatarUrl}
@@ -203,8 +203,8 @@ export function Sidebar({
                 <Link 
                   key={index}
                   href={item.href}
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 ${
-                    item.active ? 'glass-button-primary' : ''
+                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 ${
+                    item.active ? 'ring-2 ring-lime-400/60' : ''
                   } ${collapsed ? 'justify-center' : ''}`}
                 >
                   <item.icon className={`w-5 h-5 ${item.active ? 'text-lime-400' : 'text-slate-300'}`} />
@@ -227,8 +227,8 @@ export function Sidebar({
                       <Link 
                         key={index}
                         href={item.href}
-                        className={`group flex items-center gap-3 px-4 py-3 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 ${
-                          item.active ? 'glass-button-primary' : ''
+                        className={`group flex items-center gap-3 px-4 py-3 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 ${
+                          item.active ? 'ring-2 ring-lime-400/60' : ''
                         }`}
                       >
                         <item.icon className={`w-5 h-5 ${item.active ? 'text-lime-400' : 'text-lime-300'}`} />
@@ -241,13 +241,13 @@ export function Sidebar({
                 </div>
               )}
             </nav>
-          </GlassCard>
+          </div>
         </div>
 
         {/* Logout */}
         <button 
           onClick={() => logout()}
-          className={`mt-2 flex items-center ${collapsed ? 'justify-center' : 'justify-center'} gap-2 w-full py-2 rounded-full glass-morphism hover:glass-hover text-slate-200 hover:-translate-y-0.5 transition-all duration-200`}
+          className={`mt-2 flex items-center ${collapsed ? 'justify-center' : 'justify-center'} gap-2 w-full py-2 rounded-full bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] text-slate-200 hover:-translate-y-0.5 transition-all duration-200`}
         >
           <LogOut className="w-5 h-5" />
           {!collapsed && <span className="text-sm font-medium">Log out</span>}
@@ -257,7 +257,7 @@ export function Sidebar({
         {collapsed && (
           <button 
             onClick={onToggleCollapse}
-            className="p-2 rounded-xl glass-morphism hover:glass-hover hover:-translate-y-0.5 transition-all duration-200 will-change-transform"
+            className="p-2 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] hover:-translate-y-0.5 transition-all duration-200 will-change-transform"
             title="Expand"
           >
             <PanelLeftOpen className="w-5 h-5 text-slate-300" />
@@ -279,7 +279,7 @@ export function Sidebar({
                   key={index}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl glass-morphism hover:glass-hover text-slate-300 hover:text-white transition-all duration-200"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] text-slate-300 hover:text-white transition-all duration-200"
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
@@ -293,7 +293,7 @@ export function Sidebar({
       {/* Mobile Menu Button */}
       <button 
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-30 p-2 rounded-xl glass-morphism hover:glass-hover transition-all duration-200"
+        className="lg:hidden fixed top-4 left-4 z-30 p-2 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg hover:scale-[1.02] transition-all duration-200"
         title="Menu"
       >
         <PanelLeftOpen className="w-5 h-5" />

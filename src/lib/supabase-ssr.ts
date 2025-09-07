@@ -1,5 +1,4 @@
 import { createBrowserClient, createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tfiemrpfsvxvzgbqisdp.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmaWVtcnBmc3Z4dnpnYnFpc2RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxODE1ODksImV4cCI6MjA3MTc1NzU4OX0.15QtT5Ueh_IVh3Mwa_EC9lR0yMzR0j2y8VEI-CGOHNs'
@@ -20,6 +19,7 @@ export function createClientComponentClient() {
 
 // Server-side Supabase client for Server Components
 export async function createServerComponentClient() {
+  const { cookies } = await import('next/headers')
   const cookieStore = await cookies()
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {

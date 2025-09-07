@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { supabaseAdmin } from '@/lib/supabase';
 import { Resend } from 'resend';
-
-const prisma = new PrismaClient();
 
 // Lazy initialize Resend to avoid build-time errors
 function getResendClient() {
@@ -45,8 +43,9 @@ export async function POST(req: NextRequest) {
     const referrer = req.headers.get('referer') || '';
 
     // Create form submission
-    const submission = await prisma.formSubmission.create({
-      data: {
+    const { data: submission, error } = await supabaseAdmin
+      .from('FormSubmission')
+      .insert({
         formType,
         name,
         email,
@@ -59,8 +58,17 @@ export async function POST(req: NextRequest) {
         userAgent,
         referrer,
         priority: subject === 'urgent' ? 'URGENT' : 'NORMAL'
-      }
-    });
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating form submission:', error);
+      return NextResponse.json(
+        { error: 'Failed to create form submission' },
+        { status: 500 }
+      );
+    }
 
     // Send confirmation email to user
     await sendUserConfirmationEmail({
@@ -111,38 +119,35 @@ export async function GET(req: NextRequest) {
     
     const skip = (page - 1) * limit;
 
-    // Build filter conditions
-    const where: any = {};
-    if (status) where.status = status;
-    if (formType) where.formType = formType;
-    if (priority) where.priority = priority;
+    // Build query
+    let query = supabaseAdmin
+      .from('FormSubmission')
+      .select('*, User(id, name, email)', { count: 'exact' })
+      .order('createdAt', { ascending: false })
+      .range(skip, skip + limit - 1);
 
-    const [submissions, total] = await Promise.all([
-      prisma.formSubmission.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        include: {
-          User: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          }
-        }
-      }),
-      prisma.formSubmission.count({ where })
-    ]);
+    // Apply filters
+    if (status) query = query.eq('status', status);
+    if (formType) query = query.eq('formType', formType);
+    if (priority) query = query.eq('priority', priority);
+
+    const { data: submissions, error, count: total } = await query;
+
+    if (error) {
+      console.error('Error retrieving form submissions:', error);
+      return NextResponse.json(
+        { error: 'Failed to retrieve submissions' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       submissions,
       pagination: {
         page,
         limit,
-        total,
-        pages: Math.ceil(total / limit)
+        total: total || 0,
+        pages: Math.ceil((total || 0) / limit)
       }
     });
 

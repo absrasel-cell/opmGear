@@ -1,10 +1,21 @@
 # CLAUDE.md - Project Context for US Custom Cap
-read current main Task from "\Claude Instruction\currentTask.txt"
-read current errors and follow up requests from "\Claude Instruction\errorReport.txt"
-read screenshot (only if I tell you to) at "\Claude Instruction\Screenshots"
+read current main Task from ""F:\Custom Cap - github\Claude Instruction\currentTask.txt""
+read current errors and follow up conversation of AI or other requests from ""F:\Custom Cap - github\Claude Instruction\errorReport.txt""
+read screenshot (only if I tell you to) at "F:\Custom Cap - github\Claude Instruction\Screenshots"
 General understanding of the overall business "F:\Custom Cap - github\Claude Instruction\custom cap 101.txt"
 
-# the /support page is excluded from any existing knowledgebase and uses resources from "\USCC\src\app\ai", and for detailed instruction about it found here "F:\Custom Cap - github\USCC\src\app\ai\instruction.txt"
+## We are no longer using PRISMA. We are only using SUPABASE now.
+
+# 🎯 CRITICAL REFERENCE FILES
+
+## Support Page Complete Memory
+**ALWAYS READ FIRST**: "F:\Custom Cap - github\Claude Instruction\SUPPORT_PAGE_MEMORY.md"
+- Comprehensive support page structure, state management, and troubleshooting guide
+- Contains complete Order Builder integration, AI routing, and conversation persistence logic
+- Critical for any support page related issues or modifications
+
+## Legacy Support Instructions  
+"F:\Custom Cap - github\USCC\src\app\ai\instruction.txt" - Original support page instructions
 
 # Dashboard Admin product page "src\app\dashboard\admin\products\create\page.tsx"
 

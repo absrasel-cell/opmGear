@@ -1,5 +1,16 @@
-import { Order } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
+// Define Order type locally (previously from Prisma)
+interface Order {
+  id: string;
+  productName: string;
+  calculatedTotal: number;
+  totalUnits: number;
+  user?: {
+    customerRole?: 'RETAIL' | 'WHOLESALE' | 'SUPPLIER';
+  };
+}
+
+// Use regular number instead of Prisma Decimal
+type Decimal = number;
 import { promises as fs } from 'fs';
 import path from 'path';
 import { calculateUnitPrice } from '@/lib/pricing';

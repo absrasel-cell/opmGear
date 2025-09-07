@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { renderInvoicePdfBuffer } from '@/lib/pdf/renderInvoice';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,16 +66,18 @@ export async function GET(
   console.log(`📄 PDF API called for invoice ID: ${id}`);
   
   // Verify the invoice exists and get customer ID
-  const invoice = await prisma.invoice.findUnique({
-   where: { id },
-   select: { id: true, customerId: true, number: true }
-  });
+  const { data: invoice, error: invoiceError } = await supabaseAdmin
+   .from('invoices')
+   .select('id, customerId, number')
+   .eq('id', id)
+   .single();
 
   console.log(`📄 Invoice lookup result:`, {
    found: !!invoice,
    id: invoice?.id,
    customerId: invoice?.customerId,
-   number: invoice?.number
+   number: invoice?.number,
+   error: invoiceError
   });
 
   if (!invoice) {

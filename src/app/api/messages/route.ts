@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { sendEmail } from '@/lib/resend';
 import { emailTemplates } from '@/lib/email/templates';

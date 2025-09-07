@@ -1,10 +1,10 @@
 /**
  * High-performance order total calculator with caching and hash-based change detection
  * Optimized for dashboard performance by pre-calculating and caching order totals
+ * TODO: Convert to Supabase implementation
  */
 
 import crypto from 'crypto';
-import prisma from '@/lib/prisma';
 
 interface OrderData {
   id: string;
@@ -25,286 +25,58 @@ interface CostBreakdown {
   deliveryCosts: number;
   totalCost: number;
   totalUnits: number;
+  priceTier: string;
+  calculations: {
+    baseProduct: Array<{ color: string; quantity: number; unitPrice: number; totalCost: number }>;
+    logos: Array<{ name: string; unitPrice: number; totalCost: number }>;
+    accessories: Array<{ name: string; unitPrice: number; totalCost: number }>;
+    delivery: Array<{ name: string; unitPrice: number; totalCost: number }>;
+  };
 }
 
 /**
- * Creates a hash of order data to detect if recalculation is needed
+ * Creates a hash of order data to detect changes
  */
-function createOrderDataHash(order: OrderData): string {
-  const hashData = {
+export function generateOrderHash(order: OrderData): string {
+  const dataToHash = {
     selectedColors: order.selectedColors,
     selectedOptions: order.selectedOptions,
     multiSelectOptions: order.multiSelectOptions,
     logoSetupSelections: order.logoSetupSelections
   };
   
-  return crypto
-    .createHash('sha256')
-    .update(JSON.stringify(hashData))
-    .digest('hex')
-    .substring(0, 16); // Use first 16 chars for performance
+  return crypto.createHash('md5').update(JSON.stringify(dataToHash)).digest('hex');
 }
 
 /**
- * Fast order total calculation using existing logic
+ * Gets cached order total if available and not stale
+ * Returns null if no cache or stale
  */
-async function calculateOrderTotal(order: OrderData): Promise<CostBreakdown> {
-  try {
-    // Import the cost calculation logic and pricing
-    const { loadCustomizationPricing } = await import('@/lib/pricing-server');
-    const { getBaseProductPricing } = await import('@/lib/pricing');
-    
-    // Get base product pricing using the order's actual pricing tier
-    const orderPriceTier = order.selectedOptions?.priceTier || 'Tier 2';
-    const baseProductPricing = getBaseProductPricing(orderPriceTier);
-
-    // Load customization pricing
-    const pricingData = await loadCustomizationPricing();
-
-    // Calculate total units from selectedColors structure
-    const totalUnits = order.selectedColors ? 
-      Object.values(order.selectedColors).reduce((sum: number, colorData: any) => 
-        sum + Object.values((colorData as any).sizes).reduce((colorSum: number, qty: any) => colorSum + (qty as number), 0), 0
-      ) : 0;
-
-    if (totalUnits === 0) {
-      return {
-        baseProductCost: 0,
-        logoCosts: 0,
-        accessoryCosts: 0,
-        deliveryCosts: 0,
-        totalCost: 0,
-        totalUnits: 0
-      };
-    }
-
-    let baseProductCost = 0;
-    let logoCosts = 0;
-    let accessoryCosts = 0;
-    let deliveryCosts = 0;
-    
-    // Calculate base product cost
-    if (order.selectedColors) {
-      Object.entries(order.selectedColors).forEach(([colorName, colorData]: [string, any]) => {
-        const colorTotalQuantity = Object.values((colorData as any).sizes).reduce((sum: number, qty: any) => sum + (qty as number), 0);
-        let unitPrice = baseProductPricing.price48;
-        if (totalUnits >= 10000) unitPrice = baseProductPricing.price10000;
-        else if (totalUnits >= 2880) unitPrice = baseProductPricing.price2880;
-        else if (totalUnits >= 1152) unitPrice = baseProductPricing.price1152;
-        else if (totalUnits >= 576) unitPrice = baseProductPricing.price576;
-        else if (totalUnits >= 144) unitPrice = baseProductPricing.price144;
-        
-        baseProductCost += colorTotalQuantity * unitPrice;
-      });
-    }
-
-    // Calculate logo setup costs
-    const selectedLogoValues = order.multiSelectOptions?.['logo-setup'] || [];
-    selectedLogoValues.forEach((logoValue: string) => {
-      const logoConfig = order.logoSetupSelections?.[logoValue];
-      if (logoConfig) {
-        const pricingItem = pricingData.find((item: any) => item.name === logoValue);
-        if (pricingItem) {
-          let unitPrice = pricingItem.price48;
-          if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
-          else if (totalUnits >= 2880) unitPrice = pricingItem.price2880;
-          else if (totalUnits >= 1152) unitPrice = pricingItem.price1152;
-          else if (totalUnits >= 576) unitPrice = pricingItem.price576;
-          else if (totalUnits >= 144) unitPrice = pricingItem.price144;
-          
-          logoCosts += totalUnits * unitPrice;
-        }
-      }
-    });
-
-    // Calculate accessories costs from multiSelectOptions
-    const accessoriesOptions = ['accessories', 'closures'];
-    accessoriesOptions.forEach(optionType => {
-      const selectedValues = order.multiSelectOptions?.[optionType] || [];
-      selectedValues.forEach((value: string) => {
-        const pricingItem = pricingData.find((item: any) => item.name === value);
-        if (pricingItem) {
-          let unitPrice = pricingItem.price48;
-          if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
-          else if (totalUnits >= 2880) unitPrice = pricingItem.price2880;
-          else if (totalUnits >= 1152) unitPrice = pricingItem.price1152;
-          else if (totalUnits >= 576) unitPrice = pricingItem.price576;
-          else if (totalUnits >= 144) unitPrice = pricingItem.price144;
-          
-          accessoryCosts += totalUnits * unitPrice;
-        }
-      });
-    });
-
-    // Calculate delivery costs from multiSelectOptions
-    const deliveryOptions = ['delivery'];
-    deliveryOptions.forEach(optionType => {
-      const selectedValues = order.multiSelectOptions?.[optionType] || [];
-      selectedValues.forEach((value: string) => {
-        const pricingItem = pricingData.find((item: any) => item.name === value);
-        if (pricingItem) {
-          let unitPrice = pricingItem.price48;
-          if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
-          else if (totalUnits >= 2880) unitPrice = pricingItem.price2880;
-          else if (totalUnits >= 1152) unitPrice = pricingItem.price1152;
-          else if (totalUnits >= 576) unitPrice = pricingItem.price576;
-          else if (totalUnits >= 144) unitPrice = pricingItem.price144;
-          
-          deliveryCosts += totalUnits * unitPrice;
-        }
-      });
-    });
-
-    // Calculate costs from selectedOptions (fabric-setup, delivery-type, etc.)
-    if (order.selectedOptions) {
-      // Handle fabric setup options
-      const fabricSetup = order.selectedOptions['fabric-setup'];
-      if (fabricSetup && fabricSetup !== 'None') {
-        const pricingItem = pricingData.find((item: any) => item.name === fabricSetup);
-        if (pricingItem) {
-          let unitPrice = pricingItem.price48;
-          if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
-          else if (totalUnits >= 2880) unitPrice = pricingItem.price2880;
-          else if (totalUnits >= 1152) unitPrice = pricingItem.price1152;
-          else if (totalUnits >= 576) unitPrice = pricingItem.price576;
-          else if (totalUnits >= 144) unitPrice = pricingItem.price144;
-          
-          accessoryCosts += totalUnits * unitPrice;
-        }
-      }
-
-      // Handle delivery type options
-      const deliveryType = order.selectedOptions['delivery-type'];
-      if (deliveryType && deliveryType !== 'None') {
-        const deliveryMapping = {
-          'Regular': 'Regular Delivery',
-          'Priority': 'Priority Delivery',
-          'Express': 'Express Delivery'
-        };
-        const deliveryName = deliveryMapping[deliveryType as keyof typeof deliveryMapping] || deliveryType;
-        const pricingItem = pricingData.find((item: any) => item.name === deliveryName);
-        if (pricingItem) {
-          let unitPrice = pricingItem.price48;
-          if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
-          else if (totalUnits >= 2880) unitPrice = pricingItem.price2880;
-          else if (totalUnits >= 1152) unitPrice = pricingItem.price1152;
-          else if (totalUnits >= 576) unitPrice = pricingItem.price576;
-          else if (totalUnits >= 144) unitPrice = pricingItem.price144;
-          
-          deliveryCosts += totalUnits * unitPrice;
-        }
-      }
-
-      // Handle other selectedOptions that might have pricing
-      const additionalOptions = ['closure-type', 'structure', 'profile', 'bill-shape'];
-      additionalOptions.forEach(optionKey => {
-        const optionValue = order.selectedOptions[optionKey];
-        if (optionValue && optionValue !== 'None') {
-          const pricingItem = pricingData.find((item: any) => item.name === optionValue);
-          if (pricingItem) {
-            let unitPrice = pricingItem.price48;
-            if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
-            else if (totalUnits >= 2880) unitPrice = pricingItem.price2880;
-            else if (totalUnits >= 1152) unitPrice = pricingItem.price1152;
-            else if (totalUnits >= 576) unitPrice = pricingItem.price576;
-            else if (totalUnits >= 144) unitPrice = pricingItem.price144;
-            
-            accessoryCosts += totalUnits * unitPrice;
-          }
-        }
-      });
-    }
-
-    const totalCost = baseProductCost + logoCosts + accessoryCosts + deliveryCosts;
-
-    return {
-      baseProductCost,
-      logoCosts,
-      accessoryCosts,
-      deliveryCosts,
-      totalCost,
-      totalUnits
-    };
-  } catch (error) {
-    console.error('Error calculating order total:', error);
-    return {
-      baseProductCost: 0,
-      logoCosts: 0,
-      accessoryCosts: 0,
-      deliveryCosts: 0,
-      totalCost: 0,
-      totalUnits: 0
-    };
-  }
+export async function getCachedOrderTotal(orderId: string): Promise<number | null> {
+  // TODO: Implement with Supabase
+  console.log('Cached order total retrieval temporarily disabled - TODO: implement with Supabase');
+  return null;
 }
 
 /**
- * Checks if an order needs recalculation based on data hash
+ * Checks if order data has changed since last calculation
  */
-function needsRecalculation(order: OrderData): boolean {
-  if (!order.calculatedTotal || !order.totalCalculationHash) {
-    return true;
-  }
+export function hasOrderDataChanged(order: OrderData): boolean {
+  if (!order.totalCalculationHash) return true;
   
-  const currentHash = createOrderDataHash(order);
+  const currentHash = generateOrderHash(order);
   return currentHash !== order.totalCalculationHash;
 }
 
 /**
  * Pre-calculates and caches order total in database
+ * TODO: Convert to Supabase implementation
  */
 export async function precalculateOrderTotal(orderId: string): Promise<CostBreakdown | null> {
   try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        selectedColors: true,
-        selectedOptions: true,
-        multiSelectOptions: true,
-        logoSetupSelections: true,
-        calculatedTotal: true,
-        totalUnits: true,
-        lastCalculatedAt: true,
-        totalCalculationHash: true
-      }
-    });
-
-    if (!order) {
-      console.warn(`Order ${orderId} not found for precalculation`);
-      return null;
-    }
-
-    // Check if recalculation is needed
-    if (!needsRecalculation(order)) {
-      console.log(`Order ${orderId} calculation is up-to-date`);
-      return {
-        baseProductCost: 0, // We don't store breakdown, just total
-        logoCosts: 0,
-        accessoryCosts: 0,
-        deliveryCosts: 0,
-        totalCost: Number(order.calculatedTotal) || 0,
-        totalUnits: order.totalUnits || 0
-      };
-    }
-
-    console.log(`Calculating total for order ${orderId}...`);
-    const breakdown = await calculateOrderTotal(order);
-    const currentHash = createOrderDataHash(order);
-
-    // Update the order with calculated values
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        calculatedTotal: breakdown.totalCost,
-        totalUnits: breakdown.totalUnits,
-        lastCalculatedAt: new Date(),
-        totalCalculationHash: currentHash
-      }
-    });
-
-    console.log(`✅ Order ${orderId} total calculated: $${breakdown.totalCost.toFixed(2)} (${breakdown.totalUnits} units)`);
-    return breakdown;
+    // TODO: Order total calculation temporarily disabled - need to convert to Supabase
+    console.log('⚠️ Order total calculation temporarily disabled - TODO: implement with Supabase');
+    return null;
   } catch (error) {
     console.error(`Error precalculating order ${orderId}:`, error);
     return null;
@@ -313,113 +85,90 @@ export async function precalculateOrderTotal(orderId: string): Promise<CostBreak
 
 /**
  * Batch pre-calculate order totals for multiple orders
+ * TODO: Convert to Supabase implementation
  */
 export async function batchPrecalculateOrderTotals(orderIds: string[]): Promise<void> {
-  console.log(`Starting batch calculation for ${orderIds.length} orders...`);
-  
-  const promises = orderIds.map(orderId => precalculateOrderTotal(orderId));
-  const results = await Promise.allSettled(promises);
-  
-  const successful = results.filter(r => r.status === 'fulfilled').length;
-  const failed = results.filter(r => r.status === 'rejected').length;
-  
-  console.log(`Batch calculation complete: ${successful} successful, ${failed} failed`);
-  
-  if (failed > 0) {
-    const errors = results
-      .filter(r => r.status === 'rejected')
-      .map(r => (r as any).reason);
-    console.error('Batch calculation errors:', errors);
-  }
+  console.log(`Batch calculation temporarily disabled for ${orderIds.length} orders - TODO: implement with Supabase`);
 }
 
 /**
  * Background job to recalculate all order totals
+ * TODO: Convert to Supabase implementation
  */
 export async function recalculateAllOrderTotals(): Promise<void> {
-  try {
-    console.log('🔄 Starting background recalculation of all order totals...');
-    
-    // Get all order IDs that need calculation (in batches to avoid memory issues)
-    const batchSize = 100;
-    let offset = 0;
-    let processedCount = 0;
-    
-    while (true) {
-      const orders = await prisma.order.findMany({
-        select: { id: true },
-        orderBy: { createdAt: 'desc' },
-        take: batchSize,
-        skip: offset
-      });
-      
-      if (orders.length === 0) break;
-      
-      const orderIds = orders.map(o => o.id);
-      await batchPrecalculateOrderTotals(orderIds);
-      
-      processedCount += orders.length;
-      offset += batchSize;
-      
-      console.log(`✅ Processed ${processedCount} orders so far...`);
-      
-      // Small delay to prevent overwhelming the database
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    console.log(`🎉 Background recalculation complete! Processed ${processedCount} orders total.`);
-  } catch (error) {
-    console.error('❌ Background recalculation failed:', error);
-  }
+  console.log('Background recalculation temporarily disabled - TODO: implement with Supabase');
 }
 
 /**
- * Get cached order total (fast lookup)
+ * Force recalculate specific order total (bypasses cache)
+ * TODO: Convert to Supabase implementation
  */
-export async function getCachedOrderTotal(orderId: string): Promise<number> {
+export async function forceRecalculateOrderTotal(orderId: string): Promise<CostBreakdown | null> {
+  console.log(`Force recalculation temporarily disabled for order ${orderId} - TODO: implement with Supabase`);
+  return null;
+}
+
+/**
+ * Get order total with fallback logic
+ * 1. Try cached total if recent
+ * 2. Calculate on-the-fly if needed
+ * 3. Return 0 as fallback
+ */
+export async function getOrderTotal(orderId: string): Promise<number> {
   try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { 
-        calculatedTotal: true,
-        totalCalculationHash: true,
-        selectedColors: true,
-        selectedOptions: true,
-        multiSelectOptions: true,
-        logoSetupSelections: true
-      }
-    });
-
-    if (!order) return 0;
-
-    // If we have a cached total and it's still valid, return it
-    if (order.calculatedTotal && !needsRecalculation(order)) {
-      return Number(order.calculatedTotal);
+    // Try cached total first
+    const cachedTotal = await getCachedOrderTotal(orderId);
+    if (cachedTotal !== null) {
+      return cachedTotal;
     }
-
-    // Otherwise, trigger recalculation
-    const breakdown = await precalculateOrderTotal(orderId);
-    return breakdown?.totalCost || 0;
+    
+    // TODO: Implement on-the-fly calculation with Supabase
+    console.log(`Order total calculation temporarily disabled for ${orderId} - returning 0`);
+    return 0;
   } catch (error) {
-    console.error(`Error getting cached total for order ${orderId}:`, error);
+    console.error(`Error getting order total for ${orderId}:`, error);
     return 0;
   }
 }
 
 /**
- * Invalidate order calculation cache (call when order is updated)
+ * Performance monitoring for order total calculations
  */
-export async function invalidateOrderCalculation(orderId: string): Promise<void> {
-  try {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        totalCalculationHash: null,
-        lastCalculatedAt: null
-      }
+export class OrderTotalPerformanceMonitor {
+  private static instance: OrderTotalPerformanceMonitor;
+  private metrics: Map<string, { count: number; totalTime: number; avgTime: number }> = new Map();
+
+  static getInstance(): OrderTotalPerformanceMonitor {
+    if (!OrderTotalPerformanceMonitor.instance) {
+      OrderTotalPerformanceMonitor.instance = new OrderTotalPerformanceMonitor();
+    }
+    return OrderTotalPerformanceMonitor.instance;
+  }
+
+  startTimer(): number {
+    return Date.now();
+  }
+
+  endTimer(operation: string, startTime: number): void {
+    const duration = Date.now() - startTime;
+    const existing = this.metrics.get(operation) || { count: 0, totalTime: 0, avgTime: 0 };
+    
+    existing.count++;
+    existing.totalTime += duration;
+    existing.avgTime = existing.totalTime / existing.count;
+    
+    this.metrics.set(operation, existing);
+  }
+
+  getMetrics(): Record<string, { count: number; totalTime: number; avgTime: number }> {
+    const result: Record<string, any> = {};
+    this.metrics.forEach((value, key) => {
+      result[key] = value;
     });
-    console.log(`Order ${orderId} calculation cache invalidated`);
-  } catch (error) {
-    console.error(`Error invalidating cache for order ${orderId}:`, error);
+    return result;
+  }
+
+  reset(): void {
+    this.metrics.clear();
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
  try {
@@ -11,61 +11,35 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50');
   const offset = parseInt(searchParams.get('offset') || '0');
 
-  // Build where clause
-  const where: any = {};
-  
+  // Query parameters will be applied directly to Supabase query below
+
+  // Build Supabase query - simplified without problematic relationships
+  let query = supabaseAdmin
+   .from('QuoteOrder')
+   .select('*')
+   .order('lastActivityAt', { ascending: false })
+   .range(offset, offset + limit - 1);
+
+  // Apply filters
   if (status && status !== 'ALL') {
-   where.status = status;
+   query = query.eq('status', status);
   }
-  
   if (priority && priority !== 'ALL') {
-   where.priority = priority;
+   query = query.eq('priority', priority);
   }
-  
   if (complexity && complexity !== 'ALL') {
-   where.complexity = complexity;
+   query = query.eq('complexity', complexity);
   }
 
-  // Fetch quote orders
-  const quoteOrders = await prisma.quoteOrder.findMany({
-   where,
-   orderBy: { lastActivityAt: 'desc' },
-   take: limit,
-   skip: offset,
-   include: {
-    User: {
-     select: {
-      id: true,
-      email: true,
-      name: true
-     }
-    },
-    Order: {
-     select: {
-      id: true,
-      status: true,
-      customerTotal: true
-     }
-    },
-    QuoteOrderFile: {
-     select: {
-      id: true,
-      originalName: true,
-      fileName: true,
-      fileType: true,
-      fileSize: true,
-      filePath: true,
-      category: true,
-      isLogo: true,
-      description: true,
-      uploadedAt: true
-     }
-    }
-   }
-  });
+  const { data: quoteOrders, error: fetchError } = await query;
+
+  if (fetchError) {
+   console.error('Supabase fetch error:', fetchError);
+   throw new Error(`Database error: ${fetchError.message}`);
+  }
 
   // Transform data for frontend - using actual schema fields
-  const transformedQuoteOrders = quoteOrders.map(quoteOrder => ({
+  const transformedQuoteOrders = (quoteOrders || []).map(quoteOrder => ({
    id: quoteOrder.id,
    sessionId: quoteOrder.sessionId,
    title: quoteOrder.title || 'Untitled Quote',
@@ -92,34 +66,15 @@ export async function GET(request: NextRequest) {
    internalNotes: quoteOrder.internalNotes || '',
    tags: quoteOrder.tags || [],
    followUpRequired: quoteOrder.followUpRequired,
-   followUpDate: quoteOrder.followUpDate?.toISOString() || '',
-   assignedTo: quoteOrder.User ? {
-    id: quoteOrder.User.id,
-    email: quoteOrder.User.email || '',
-    name: quoteOrder.User.name || 'Unknown'
-   } : null,
-   convertedOrder: quoteOrder.Order ? {
-    id: quoteOrder.Order.id,
-    status: quoteOrder.Order.status,
-    customerTotal: Number(quoteOrder.Order.customerTotal || 0)
-   } : null,
-   files: (quoteOrder.QuoteOrderFile || []).map(file => ({
-    id: file.id,
-    originalName: file.originalName,
-    fileName: file.fileName,
-    fileType: file.fileType,
-    fileSize: file.fileSize,
-    filePath: file.filePath,
-    category: file.category,
-    isLogo: file.isLogo,
-    description: file.description,
-    uploadedAt: file.uploadedAt.toISOString()
-   })),
-   createdAt: quoteOrder.createdAt.toISOString(),
-   updatedAt: quoteOrder.updatedAt.toISOString(),
-   lastActivityAt: quoteOrder.lastActivityAt.toISOString(),
-   completedAt: quoteOrder.completedAt?.toISOString() || '',
-   conversionDate: quoteOrder.conversionDate?.toISOString() || '',
+   followUpDate: quoteOrder.followUpDate || '',
+   assignedTo: null, // TODO: Add relationship query
+   convertedOrder: null, // TODO: Add relationship query  
+   files: [], // TODO: Add relationship query
+   createdAt: quoteOrder.createdAt,
+   updatedAt: quoteOrder.updatedAt,
+   lastActivityAt: quoteOrder.lastActivityAt,
+   completedAt: quoteOrder.completedAt || '',
+   conversionDate: quoteOrder.conversionDate || '',
    conversionValue: Number(quoteOrder.conversionValue || 0)
   }));
 
@@ -153,14 +108,21 @@ export async function PATCH(request: NextRequest) {
   const updates = await request.json();
 
   // Update quote order
-  const updatedQuoteOrder = await prisma.quoteOrder.update({
-   where: { id: quoteId },
-   data: {
+  const { data: updatedQuoteOrder, error: updateError } = await supabaseAdmin
+   .from('QuoteOrder')
+   .update({
     ...updates,
-    lastActivityAt: new Date(),
-    updatedAt: new Date()
-   }
-  });
+    lastActivityAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+   })
+   .eq('id', quoteId)
+   .select()
+   .single();
+
+  if (updateError || !updatedQuoteOrder) {
+   console.error('Supabase update error:', updateError);
+   throw new Error(`Database error: ${updateError?.message}`);
+  }
 
   return NextResponse.json({
    success: true,
@@ -179,14 +141,17 @@ export async function PATCH(request: NextRequest) {
 // Export a CSV of all quote orders
 export async function POST(request: NextRequest) {
  try {
-  const quoteOrders = await prisma.quoteOrder.findMany({
-   orderBy: { createdAt: 'desc' },
-   include: {
-    User: { select: { email: true, name: true } }
-   }
-  });
+  const { data: quoteOrders, error: fetchError } = await supabaseAdmin
+   .from('QuoteOrder')
+   .select('*')
+   .order('createdAt', { ascending: false });
 
-  const csvData = quoteOrders.map(q => ({
+  if (fetchError) {
+   console.error('Supabase fetch error:', fetchError);
+   throw new Error(`Database error: ${fetchError.message}`);
+  }
+
+  const csvData = (quoteOrders || []).map(q => ({
    'Quote ID': q.id,
    'Session ID': q.sessionId,
    'Title': q.title || '',
@@ -197,8 +162,8 @@ export async function POST(request: NextRequest) {
    'Customer Name': q.customerName || '',
    'Product Type': q.productType || '',
    'AI Summary': q.aiSummary || '',
-   'Created At': q.createdAt.toISOString(),
-   'Last Activity': q.lastActivityAt?.toISOString() || q.updatedAt.toISOString()
+   'Created At': q.createdAt,
+   'Last Activity': q.lastActivityAt || q.updatedAt
   }));
 
   return NextResponse.json({

@@ -150,17 +150,17 @@ function QuickActionCard({
   return (
     <Link
       href={href}
-      className="group relative flex w-full items-center gap-4 rounded-2xl border border-stone-600 bg-stone-700 p-4  transition-transform duration-200 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+      className="group relative flex w-full items-center gap-4 glass-morphism rounded-2xl p-4 transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black animate-slide-up"
     >
       <div className={`absolute inset-0 rounded-2xl opacity-0 blur-2xl transition-opacity duration-300 ${glowClass} group-hover:opacity-30`} />
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-stone-600 bg-black/40">
-        <Icon className="h-6 w-6" />
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl glass-morphism">
+        <Icon className="h-6 w-6 text-white" />
       </div>
       <div className="relative">
-        <p className="text-base/6 font-semibold text-white">{title}</p>
-        {subtitle && <p className="text-sm text-slate-300/80">{subtitle}</p>}
+        <p className="text-base/6 font-semibold text-white font-bricolage">{title}</p>
+        {subtitle && <p className="text-sm text-slate-300/80 font-sans">{subtitle}</p>}
       </div>
-      <ChevronRight className="ml-auto h-5 w-5 opacity-60 group-hover:translate-x-0.5 group-hover:opacity-100" />
+      <ChevronRight className="ml-auto h-5 w-5 opacity-60 group-hover:translate-x-0.5 group-hover:opacity-100 transition-all duration-200" />
     </Link>
   );
 }
@@ -560,6 +560,15 @@ export default function NewMemberDashboard() {
 
   return (
     <DashboardShell>
+      {/* Using site-wide background image from globals.css */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-black/10" />
+      </div>
+
+      <div className="fixed inset-0 -z-5 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.035),_transparent_60%)]" />
+      </div>
+
       <div className="flex min-h-screen">
         {/* Sidebar */}
         <div className="mt-6">
@@ -572,9 +581,9 @@ export default function NewMemberDashboard() {
         {/* Main Content */}
         <DashboardContent>
           {/* Header */}
-          <header className="sticky top-0 z-20  mt-2">
+          <header className="sticky top-0 z-20 mt-2">
             <div className="px-6 md:px-10 pt-2">
-              <GlassCard className="p-0">
+              <div className="glass-morphism rounded-2xl md:rounded-[40px] p-0 animate-glass-slide-in">
                 {/* Top Row - Search and Actions */}
                 <div className="flex items-center gap-3 p-3 border-b border-stone-600">
                   <div className="flex-1">
@@ -588,26 +597,26 @@ export default function NewMemberDashboard() {
 
                   <div className="flex items-center gap-2">
                     {/* Live Sync Badge */}
-                    <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-lime-400/10 border border-lime-400/20 text-lime-400 text-xs font-medium">
+                    <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-lg text-lime-400 text-xs font-medium">
                       Live Sync
                       <span className="ml-2 h-1.5 w-1.5 rounded-full bg-lime-400 animate-pulse" />
                     </div>
 
                     {/* Notification bell */}
-                    <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5">
-                      <Bell className="h-5 w-5" />
+                    <button className="relative grid h-12 w-12 place-items-center rounded-2xl bg-black/60 border border-white/10 backdrop-blur-lg transition-all hover:-translate-y-0.5 hover:scale-105">
+                      <Bell className="h-5 w-5 text-white" />
                     </button>
 
                                          {/* Settings Icon */}
                      <Link href="/dashboard/member/settings">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5 hover:bg-stone-600" title="Settings">
-                         <Settings className="h-5 w-5" />
+                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105" title="Settings">
+                         <Settings className="h-5 w-5 text-white" />
                        </button>
                      </Link>
 
                      {/* Profile Icon - Clickable */}
                      <Link href="/dashboard/member/profile">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5 hover:bg-stone-600" title="Profile">
+                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105" title="Profile">
                          {user.avatarUrl ? (
                            <img 
                              src={user.avatarUrl} 
@@ -615,7 +624,7 @@ export default function NewMemberDashboard() {
                              className="h-8 w-8 rounded-full object-cover"
                            />
                          ) : (
-                           <User className="h-5 w-5" />
+                           <User className="h-5 w-5 text-white" />
                          )}
                        </button>
                      </Link>
@@ -623,10 +632,10 @@ export default function NewMemberDashboard() {
                      {/* Refresh Session Button */}
                      <button 
                        onClick={refreshSession}
-                       className="relative grid h-12 w-12 place-items-center rounded-2xl border border-stone-600 bg-stone-700  transition hover:-translate-y-0.5 hover:bg-stone-600"
+                       className="relative grid h-12 w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105"
                        title="Refresh Session"
                      >
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                        </svg>
                      </button>
@@ -672,7 +681,7 @@ export default function NewMemberDashboard() {
                   </div>
                   <p className="mt-2 text-slate-300/80">Here's what's happening with your account today.</p>
                 </div>
-              </GlassCard>
+              </div>
             </div>
           </header>
 
@@ -788,7 +797,7 @@ export default function NewMemberDashboard() {
                     <button
                       key={f}
                       onClick={() => setCurrentFilter(f)}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${currentFilter === f ? 'border-lime-400/40 bg-lime-400/20 text-white' : 'border-stone-600 bg-stone-700 text-slate-200/90 hover:border-white/20'}`}
+                      className={`rounded-full px-3 py-1.5 text-sm transition-all font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${currentFilter === f ? 'glass-badge text-lime-200 font-medium' : 'glass-morphism text-slate-200/90 hover:scale-105'}`}
                     >
                       {f === 'all' ? 'All' : 
                        f === 'saved' ? 'Saved' :
@@ -803,10 +812,10 @@ export default function NewMemberDashboard() {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={fetchUserData}
-                    className="grid h-10 w-10 place-items-center rounded-xl border border-stone-600 bg-stone-700 transition hover:border-white/20"
+                    className="grid h-10 w-10 place-items-center rounded-xl glass-morphism transition-all hover:scale-105"
                     title="Refresh Data"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </button>
@@ -831,7 +840,7 @@ export default function NewMemberDashboard() {
                             <StatusBadge status={quote.status} />
                           </div>
                           <div className="hidden md:block w-40 text-right text-sm text-slate-300/80">
-                            {new Date(quote.createdAt).toLocaleDateString()}
+                            {new Date(quote.createdAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                           </div>
                           <div className="w-28 text-right text-sm text-white">—</div>
                         </div>
@@ -846,7 +855,9 @@ export default function NewMemberDashboard() {
                       <p className="text-sm text-slate-300/80">Start by requesting a custom quote.</p>
                       <div className="mt-4">
                         <Link href="/dashboard/member/quote-request">
-                          <Button variant="primary">Request Quote</Button>
+                          <button className="inline-flex items-center justify-center gap-2 font-medium px-6 py-3 rounded-full glass-morphism transition-all hover:scale-105 hover:shadow-lg text-white min-h-[48px] text-sm font-sans">
+                            Request Quote
+                          </button>
                         </Link>
                       </div>
                     </GlassCard>
@@ -859,7 +870,7 @@ export default function NewMemberDashboard() {
                         <div className="flex items-center gap-4 p-4">
                           <button
                             onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-stone-600 bg-black/40 transition hover:scale-105"
+                            className="grid h-8 w-8 place-items-center rounded-lg glass-morphism transition-all hover:scale-110"
                           >
                             {expandedOrder === order.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </button>
@@ -882,7 +893,7 @@ export default function NewMemberDashboard() {
                           </div>
                           
                           <div className="hidden md:block w-40 text-right text-sm text-slate-300/80">
-                            {new Date(order.createdAt).toLocaleDateString()}
+                            {new Date(order.createdAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                           </div>
                           
                           <div className="w-28 text-right text-sm text-white">
@@ -1397,7 +1408,9 @@ export default function NewMemberDashboard() {
                                  <Link
                                    href={`/customize/${order.productName.toLowerCase().replace(/\s+/g, '-')}?orderId=${order.id}`}
                                  >
-                                   <Button variant="primary">Edit</Button>
+                                   <button className="inline-flex items-center justify-center gap-2 font-medium px-6 py-3 rounded-full bg-gradient-to-r from-orange-600 to-red-600 text-white transition-all hover:scale-105 hover:shadow-lg min-h-[48px] text-sm font-sans shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]">
+                                     Edit
+                                   </button>
                                  </Link>
                                )}
                               
@@ -1405,7 +1418,9 @@ export default function NewMemberDashboard() {
                               {order.orderSource === 'PRODUCT_CUSTOMIZATION' && 
                                !['CONFIRMED', 'SHIPPED', 'DELIVERED'].includes(order.status) && (
                                 <Link href={`/dashboard/member/checkout?orderId=${order.id}`}>
-                                  <Button variant="secondary">Checkout</Button>
+                                  <button className="inline-flex items-center justify-center gap-2 font-medium px-6 py-3 rounded-full glass-morphism transition-all hover:scale-105 hover:shadow-lg text-white min-h-[48px] text-sm font-sans">
+                                    Checkout
+                                  </button>
                                 </Link>
                               )}
                               
@@ -1423,7 +1438,9 @@ export default function NewMemberDashboard() {
                               )}
                               
                               <Link href={`/messages?start=support&category=order&orderId=${order.id}`}>
-                                <Button variant="secondary">Contact Support</Button>
+                                <button className="inline-flex items-center justify-center gap-2 font-medium px-6 py-3 rounded-full glass-morphism transition-all hover:scale-105 hover:shadow-lg text-white min-h-[48px] text-sm font-sans">
+                                  Contact Support
+                                </button>
                               </Link>
                             </div>
                           </div>
@@ -1444,7 +1461,9 @@ export default function NewMemberDashboard() {
                       <p className="text-sm text-slate-300/80">Try adjusting filters or keywords.</p>
                       <div className="mt-4">
                         <Link href="/store">
-                          <Button variant="primary">Start Shopping</Button>
+                          <button className="inline-flex items-center justify-center gap-2 font-medium px-6 py-3 rounded-full bg-gradient-to-r from-orange-600 to-red-600 text-white transition-all hover:scale-105 hover:shadow-lg min-h-[48px] text-sm font-sans shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]">
+                            Start Shopping
+                          </button>
                         </Link>
                       </div>
                     </GlassCard>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 
 // Fallback pricing tiers in case database is unavailable
 const FALLBACK_PRICING_TIERS = {

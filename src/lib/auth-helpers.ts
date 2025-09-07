@@ -4,9 +4,49 @@ import { supabaseAdmin } from './supabase';
 
 export async function getCurrentUser(request: NextRequest) {
   try {
-    // Use the new SSR client to handle cookies properly
-    const { supabase } = createRouteHandlerClient(request);
+    // Use the same working pattern as /api/auth/session
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    
+    // Try the correct Supabase cookie name first
+    let accessToken = cookieStore.get('sb-nowxzkdkaegjwfhhqoez-auth-token')?.value;
+    
+    // Fallback to the shorter name if not found
+    if (!accessToken) {
+      accessToken = cookieStore.get('sb-access-token')?.value;
+    }
 
+    if (!accessToken) {
+      console.log('No access token found in cookies');
+      return null;
+    }
+
+    // Parse the access token from the JSON if it's stored as JSON
+    let token = accessToken;
+    try {
+      const parsedToken = JSON.parse(accessToken);
+      if (parsedToken.access_token) {
+        token = parsedToken.access_token;
+      }
+    } catch (e) {
+      // If it's not JSON, use as is
+    }
+
+    // Create a Supabase client with the access token (same as working session API)
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      }
+    );
+
+    // Get user from Supabase
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {

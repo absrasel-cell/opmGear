@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 

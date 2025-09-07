@@ -1,47 +1,22 @@
-// Updated pricing tiers to match CSV file values (src/app/csv/Blank Cap Pricings.csv)
-// These values now match the CSV exactly for consistency across all systems
-export const BASE_PRODUCT_PRICING_TIERS = {
-  'Tier 1': { 
-    price48: 3.6,    // CSV: 3.6 (was 3.60)
-    price144: 3,     // CSV: 3 (was 3.00) 
-    price576: 2.9,   // CSV: 2.9 (was 2.90)
-    price1152: 2.84, // CSV: 2.84 (was 2.84)
-    price2880: 2.76, // CSV: 2.76 (was 2.76)
-    price10000: 2.7, // CSV: 2.7 (was 2.70)
-  },
-  'Tier 2': { 
-    price48: 4.4,    // CSV: 4.4 (was 4.40)
-    price144: 3.2,   // CSV: 3.2 (was 3.20) 
-    price576: 3,     // CSV: 3 (was 3.00)
-    price1152: 2.9,  // CSV: 2.9 (was 2.90)
-    price2880: 2.8,  // CSV: 2.8 (was 2.80)
-    price10000: 2.7, // CSV: 2.7 (was 2.70)
-  },
-  'Tier 3': { 
-    price48: 4.8,    // CSV: 4.8 (was 4.80)
-    price144: 3.4,   // CSV: 3.4 (was 3.40)
-    price576: 3.2,   // CSV: 3.2 (was 3.20)
-    price1152: 2.94, // CSV: 2.94 (was 2.94)
-    price2880: 2.88, // CSV: 2.88 (was 2.88)
-    price10000: 2.82, // CSV: 2.82 (was 2.82)
-  }
-};
+// CLIENT-SAFE PRICING UTILITIES AND INTERFACES
+// This file contains only interfaces and utility functions that work on both client and server
 
-// Default tier for fallbacks
-export const DEFAULT_PRICING_TIER = BASE_PRODUCT_PRICING_TIERS['Tier 1']; // Default to Tier 1 (most affordable)
+// Re-export server-side functions for server-only usage
+export type { BaseProductPricing, CustomizationPricing } from './pricing-server';
 
-// Get pricing for a specific tier or default to Tier 1
-export function getBaseProductPricing(tierName?: string) {
-  if (tierName && tierName in BASE_PRODUCT_PRICING_TIERS) {
-    return BASE_PRODUCT_PRICING_TIERS[tierName as keyof typeof BASE_PRODUCT_PRICING_TIERS];
-  }
-  return BASE_PRODUCT_PRICING_TIERS['Tier 1']; // Default to Tier 1 (most affordable)
+// Client-safe pricing interface
+export interface ClientPricing {
+  price48: number;
+  price144: number;
+  price576: number;
+  price1152: number;
+  price2880: number;
+  price10000: number;
 }
 
-// Calculate unit price based on quantity using tier pricing
-export function calculateUnitPrice(quantity: number, tierName?: string): number {
-  const pricing = getBaseProductPricing(tierName);
-  
+// Helper function to get price for quantity from CSV pricing data (client-safe)
+export function getPriceForQuantityFromCSV(pricing: any, quantity: number): number {
+  if (quantity >= 20000 && pricing.price20000) return pricing.price20000;
   if (quantity >= 10000) return pricing.price10000;
   if (quantity >= 2880) return pricing.price2880;
   if (quantity >= 1152) return pricing.price1152;
@@ -50,68 +25,14 @@ export function calculateUnitPrice(quantity: number, tierName?: string): number 
   return pricing.price48;
 }
 
-// Delivery pricing from Customization Pricings.csv
-export const DELIVERY_PRICING = {
-  'Regular Delivery': { 
-    price48: 3,
-    price144: 2.3,
-    price576: 1.9,
-    price1152: 1.85,
-    price2880: 1.8,
-    price10000: 1.7,
-    price20000: 1.7
-  },
-  'Priority Delivery': { 
-    price48: 3.2,
-    price144: 2.5,
-    price576: 2.1,
-    price1152: 2.05,
-    price2880: 2.1,
-    price10000: 2,
-    price20000: 2
-  },
-  'Air Freight': { 
-    price48: 0, // Not available
-    price144: 0, // Not available
-    price576: 0, // Not available
-    price1152: 0, // Not available
-    price2880: 1.2,
-    price10000: 1,
-    price20000: 1
-  },
-  'Sea Freight': { 
-    price48: 0, // Not available
-    price144: 0, // Not available
-    price576: 0, // Not available
-    price1152: 0, // Not available
-    price2880: 0.4,
-    price10000: 0.35,
-    price20000: 0.3
-  }
-};
-
-// Calculate delivery unit price based on quantity and method
-export function calculateDeliveryUnitPrice(quantity: number, deliveryMethod: string = 'regular'): number {
-  // Map delivery method names to CSV names
-  const methodMap: Record<string, string> = {
-    'regular': 'Regular Delivery',
-    'priority': 'Priority Delivery',
-    'air-freight': 'Air Freight', 
-    'sea-freight': 'Sea Freight'
-  };
-  
-  const csvMethodName = methodMap[deliveryMethod] || 'Regular Delivery';
-  const pricing = DELIVERY_PRICING[csvMethodName as keyof typeof DELIVERY_PRICING];
-  
-  if (!pricing) return DELIVERY_PRICING['Regular Delivery'].price1152; // fallback
-  
-  if (quantity >= 20000) return pricing.price20000;
-  if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
-  return pricing.price48;
+// Client-safe unit price calculation (requires pricing data as parameter)
+export function calculateUnitPrice(quantity: number, pricingData: ClientPricing): number {
+  if (quantity >= 10000) return pricingData.price10000;
+  if (quantity >= 2880) return pricingData.price2880;
+  if (quantity >= 1152) return pricingData.price1152;
+  if (quantity >= 576) return pricingData.price576;
+  if (quantity >= 144) return pricingData.price144;
+  return pricingData.price48;
 }
 
 // Export the interface for use in other files
@@ -127,6 +48,60 @@ export interface CustomizationPricing {
   price20000: number;
 }
 
+// Client-safe hardcoded pricing fallbacks (updated to match CSV data)
+// These are used when server-side CSV loading is not available
+const FALLBACK_PRICING_TIERS: Record<string, ClientPricing> = {
+  'Tier 1': {
+    price48: 3.6,
+    price144: 3.0,
+    price576: 2.9,
+    price1152: 2.84,
+    price2880: 2.76,
+    price10000: 2.7,
+  },
+  'Tier 2': {
+    price48: 4.4,
+    price144: 3.2,
+    price576: 3.0,
+    price1152: 2.9,
+    price2880: 2.8,
+    price10000: 2.7,
+  },
+  'Tier 3': {
+    price48: 4.8,
+    price144: 3.4,
+    price576: 3.2,
+    price1152: 2.94,
+    price2880: 2.88,
+    price10000: 2.82,
+  },
+};
+
+// Client-safe version of getBaseProductPricing (returns hardcoded fallbacks)
+export function getBaseProductPricing(tierName?: string): ClientPricing {
+  const tier = tierName || 'Tier 1';
+  return FALLBACK_PRICING_TIERS[tier] || FALLBACK_PRICING_TIERS['Tier 1'];
+}
+
+// Client-safe delivery pricing calculation
+export function calculateDeliveryUnitPrice(quantity: number, deliveryMethod: string = 'regular'): number {
+  // Hardcoded delivery pricing based on common rates
+  const deliveryRates = {
+    regular: 0.75,
+    express: 1.50,
+    overnight: 3.00,
+  };
+  
+  const baseRate = deliveryRates[deliveryMethod as keyof typeof deliveryRates] || deliveryRates.regular;
+  
+  // Volume discounts for delivery
+  if (quantity >= 2880) return baseRate * 0.6;
+  if (quantity >= 1152) return baseRate * 0.7;
+  if (quantity >= 576) return baseRate * 0.8;
+  if (quantity >= 144) return baseRate * 0.9;
+  return baseRate;
+}
+
 // Shared cost breakdown interface for consistency across pages
 export interface CostBreakdown {
   baseProductCost: number;
@@ -135,6 +110,7 @@ export interface CostBreakdown {
     cost: number;
     unitPrice: number;
     details: string;
+    baseUnitPrice?: number;
   }>;
   accessoriesCosts: Array<{
     name: string;
@@ -180,26 +156,30 @@ export function calculateGrandTotal(costBreakdowns: Record<string, CostBreakdown
 }
 
 /**
- * Calculate base product total from cart items - fallback when no breakdowns available
+ * Calculate base product total from cart items using CSV pricing - fallback when no breakdowns available
  */
-export function calculateBaseTotal(items: any[]): number {
-  return items.reduce((total, item) => {
-    const unitPrice = calculateUnitPrice(item.pricing.volume, item.priceTier || 'Tier 1');
-    return total + (unitPrice * item.pricing.volume);
-  }, 0);
+export async function calculateBaseTotal(items: any[]): Promise<number> {
+  let total = 0;
+  
+  for (const item of items) {
+    const unitPrice = await calculateUnitPrice(item.pricing.volume, item.priceTier || 'Tier 1');
+    total += unitPrice * item.pricing.volume;
+  }
+  
+  return total;
 }
 
 /**
- * Get the correct total to display - uses breakdowns if available, otherwise base pricing
+ * Get the correct total to display - uses breakdowns if available, otherwise CSV-based pricing
  */
-export function getDisplayTotal(items: any[], costBreakdowns: Record<string, CostBreakdown>): number {
+export async function getDisplayTotal(items: any[], costBreakdowns: Record<string, CostBreakdown>): Promise<number> {
   const hasAllBreakdowns = items.length > 0 && items.every(item => costBreakdowns[item.id]);
   
   if (hasAllBreakdowns) {
     return calculateGrandTotal(costBreakdowns);
   }
   
-  return calculateBaseTotal(items);
+  return await calculateBaseTotal(items);
 }
 
 /**

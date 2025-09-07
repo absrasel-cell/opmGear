@@ -149,7 +149,7 @@ export function StatCard({
     <Component
       onClick={onClick}
       className={`
-        group relative flex w-full flex-col gap-3 rounded-2xl border border-stone-600 bg-stone-700 p-5  transition-all duration-200 hover:-translate-y-0.5 
+        group relative flex w-full flex-col gap-3 glass-morphism rounded-2xl p-5 transition-all duration-200 hover:-translate-y-0.5 
         ${active ? 'ring-2 ring-lime-400/60' : ''}
         ${onClick ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black' : ''}
       `}
@@ -247,10 +247,10 @@ export function SearchInput({
       )}
       <input
         type="text"
-        className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2.5 rounded-xl glass-morphism-subtle text-white placeholder:text-slate-400 text-sm
+        className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2.5 rounded-xl bg-black/60 border border-white/10 backdrop-blur-lg text-white placeholder:text-slate-400 text-sm
           outline-none transition-all duration-200
-          focus:glass-morphism focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400/50
-          hover:glass-morphism-subtle hover:border-stone-500/50
+          focus:ring-2 focus:ring-lime-400/50
+          hover:scale-[1.01]
           ${className}`}
         {...props}
       />

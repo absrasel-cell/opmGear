@@ -13,6 +13,7 @@ export function QueryProvider({ children }: QueryProviderProps) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
+      {/* DevTools temporarily disabled
       {process.env.NODE_ENV === 'development' && (
         <ReactQueryDevtools 
           initialIsOpen={false} 
@@ -20,6 +21,7 @@ export function QueryProvider({ children }: QueryProviderProps) {
           buttonPosition="bottom-right"
         />
       )}
+      */}
     </QueryClientProvider>
   );
 }

@@ -1,8 +1,8 @@
-﻿Name,type,price48,price144,price576,price1152,price2880,price10000,price20000,Comment
-Snapback,Free,0,0,0,0,0,0,0,
-Velcro,Free,0,0,0,0,0,0,0,
-Ringbelt,Premium Closure,0.5,0.35,0.25,0.2,0.18,0.15,0.15,
-Buckle,Premium Closure,0.5,0.35,0.3,0.25,0.2,0.15,0.15,
-Fitted,Premium Closure,0.5,0.4,0.3,0.25,0.2,0.15,0.15,
-Flexfit,Premium Closure,0.5,0.4,0.3,0.25,0.2,0.15,0.15,
-Stretched,Premium Closure,0.5,0.4,0.3,0.25,0.2,0.15,0.15,
+Name,type,price48,price144,price576,price1152,price2880,price10000,price20000,Comment,margin %
+Snapback,Free,0,0,0,0,0,0,0,,60
+Velcro,Free,0,0,0,0,0,0,0,,60
+Ringbelt,Premium Closure,1.25,0.88,0.63,0.5,0.45,0.38,0.38,,60
+Buckle,Premium Closure,1.25,0.88,0.75,0.63,0.5,0.38,0.38,,60
+Fitted,Premium Closure,1.25,1,0.75,0.63,0.5,0.38,0.38,,60
+Flexfit,Premium Closure,1.25,1,0.75,0.63,0.5,0.38,0.38,,60
+Stretched,Premium Closure,1.25,1,0.75,0.63,0.5,0.38,0.38,,60

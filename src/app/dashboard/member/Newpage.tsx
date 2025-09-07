@@ -266,7 +266,7 @@ function OrderRow({ item, expanded, onToggle }: { item: OrderItem; expanded: boo
         <div className="hidden md:block">
           <StatusBadge status={item.status} />
         </div>
-        <div className="hidden md:block w-40 text-right text-sm text-slate-300/80">{new Date(item.date).toLocaleDateString()}</div>
+        <div className="hidden md:block w-40 text-right text-sm text-slate-300/80">{new Date(item.date).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
         <div className="w-28 text-right text-sm text-white">${item.total.toFixed(2)}</div>
       </div>
       {expanded && (
@@ -455,7 +455,7 @@ export default function MemberDashboardPage() {
                   {user.role === 'Admin' ? '👑 Admin' : '👤 Member'}
                   <span className="ml-2 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-slate-200/90">Level: {user.level}</span>
                 </p>
-                <p className="text-xs text-slate-300/80">Active since {new Date(user.activeSince).toLocaleDateString()}</p>
+                <p className="text-xs text-slate-300/80">Active since {new Date(user.activeSince).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>
               </div>
             </GlassCard>
           </div>

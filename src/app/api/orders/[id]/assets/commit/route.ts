@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
-import prisma from '@/lib/prisma';
+// Removed Prisma - migrated to Supabase
 import { supabaseAdmin } from '@/lib/supabase';
 import { CommitUploadReqSchema } from '@/lib/validation/orderAssets';
 

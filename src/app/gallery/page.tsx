@@ -353,39 +353,19 @@ export default function GalleryPage() {
 
   if (isLoading) {
     return (
-      <>
-        <div className="fixed inset-0 -z-10 pointer-events-none">
-          <div className="absolute inset-0 bg-black/10" />
-        </div>
-        <div className="fixed inset-0 -z-5 pointer-events-none">
-          <div className="absolute -top-24 -left-24 h-[480px] w-[480px] rounded-full bg-lime-400/15 blur-[120px]" />
-          <div className="absolute top-1/3 -right-24 h-[520px] w-[520px] rounded-full bg-purple-500/15 blur-[120px]" />
-          <div className="absolute bottom-0 left-1/3 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-[120px]" />
-        </div>
-        <main className="min-h-screen flex items-center justify-center">
-          <div className="glass-morphism rounded-2xl p-8">
-            <div className="animate-pulse">
-              <div className="h-8 bg-gray-300 rounded w-48 mb-4"></div>
-              <div className="h-4 bg-gray-300 rounded w-32"></div>
-            </div>
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="glass-morphism rounded-2xl p-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-300 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-300 rounded w-32"></div>
           </div>
-        </main>
-      </>
+        </div>
+      </main>
     );
   }
 
   return (
     <>
-      {/* Background layers */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-black/10" />
-      </div>
-      <div className="fixed inset-0 -z-5 pointer-events-none">
-        <div className="absolute -top-24 -left-24 h-[480px] w-[480px] rounded-full bg-lime-400/15 blur-[120px]" />
-        <div className="absolute top-1/3 -right-24 h-[520px] w-[520px] rounded-full bg-purple-500/15 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/3 h-[420px] w-[420px] rounded-full bg-orange-500/15 blur-[120px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.035),_transparent_60%)]" />
-      </div>
 
       <style jsx>{`
         body { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; }

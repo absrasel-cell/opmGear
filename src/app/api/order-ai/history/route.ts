@@ -6,7 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { ConversationService } from '@/lib/conversation';
-import { ConversationContext } from '@prisma/client';
+
+// Define types locally (previously from Prisma)
+type ConversationContext = 'ORDER_REQUEST' | 'QUOTE_REQUEST' | 'SUPPORT' | 'GENERAL';
 
 /**
  * GET - Load conversation history for current user

@@ -598,14 +598,14 @@ export default function CheckoutPage() {
  if (cart.items.length === 0) {
   return (
    <div className="relative min-h-screen overflow-x-hidden text-slate-200">
-    {/* Background: dark gradient + accent glows */}
-    <div className="pointer-events-none absolute inset-0 -z-10">
-     <div className="absolute inset-0 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
-     <div className="absolute inset-x-0 top-0 h-[40vh] bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" />
-     <div className="absolute -top-10 -left-20 h-80 w-80 rounded-full bg-lime-400/10 blur-3xl" />
-     <div className="absolute top-40 -right-24 h-96 w-96 rounded-full bg-orange-400/10 blur-3xl" />
-     <div className="absolute bottom-0 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
-    </div>
+    {/* Background: clean dark background */}
+    <div className="pointer-events-none fixed inset-0 -z-20 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
+    
+    <style jsx>{`
+      html {
+        background: linear-gradient(180deg, #000, rgba(5,7,14,1) 40%, #000) !important;
+      }
+    `}</style>
 
     <main className="mx-auto max-w-[1800px] px-6 md:px-10 pt-16 md:pt-24 lg:pt-28 pb-24">
      <div className="mx-auto max-w-xl text-center">
@@ -646,19 +646,41 @@ export default function CheckoutPage() {
 
  return (
   <div className="relative min-h-screen overflow-x-hidden text-slate-200">
-   {/* Background: dark gradient + accent glows */}
-   <div className="pointer-events-none absolute inset-0 -z-10">
-    <div className="absolute inset-0 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
-    <div className="absolute inset-x-0 top-0 h-[40vh] bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" />
-    <div className="absolute -top-10 -left-20 h-80 w-80 rounded-full bg-lime-400/10 blur-3xl" />
-    <div className="absolute top-40 -right-24 h-96 w-96 rounded-full bg-orange-400/10 blur-3xl" />
-    <div className="absolute bottom-0 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
-   </div>
+   {/* Background: clean dark override for checkout page */}
+   <div className="pointer-events-none fixed inset-0 -z-20 bg-[linear-gradient(180deg,#000,rgba(5,7,14,1)_40%,#000)]" />
+   
+   <style jsx>{`
+     html {
+       background: linear-gradient(180deg, #000, rgba(5,7,14,1) 40%, #000) !important;
+     }
+     .checkout-glass-section {
+       background: rgba(0, 0, 0, 0.4) !important;
+       border: 1px solid rgba(255, 255, 255, 0.1) !important;
+       backdrop-filter: blur(24px) !important;
+       transition: all 0.3s ease !important;
+     }
+     .checkout-glass-section:hover {
+       background: rgba(0, 0, 0, 0.6) !important;
+       border: 1px solid rgba(255, 255, 255, 0.15) !important;
+       backdrop-filter: blur(28px) !important;
+     }
+     .checkout-glass-item {
+       background: rgba(0, 0, 0, 0.3) !important;
+       border: 1px solid rgba(255, 255, 255, 0.08) !important;
+       backdrop-filter: blur(16px) !important;
+       transition: all 0.3s ease !important;
+     }
+     .checkout-glass-item:hover {
+       background: rgba(0, 0, 0, 0.5) !important;
+       border: 1px solid rgba(255, 255, 255, 0.12) !important;
+       backdrop-filter: blur(20px) !important;
+     }
+   `}</style>
 
    <main className="mx-auto max-w-[1800px] px-6 md:px-10 pt-16 md:pt-24 lg:pt-28 pb-10 md:pb-14">
     {/* Sticky page heading */}
     <div className="sticky top-16 z-10 mb-8 md:mb-10">
-     <GlassCard className="px-5 py-4">
+     <GlassCard className="px-5 py-4 checkout-glass-section">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
        <div>
         <Link href="/cart" className="text-lime-400 hover:text-lime-300 font-medium transition-colors duration-200 flex items-center gap-2">
@@ -676,7 +698,7 @@ export default function CheckoutPage() {
 
     {/* Progress Steps */}
     <div className="mb-8">
-     <GlassCard className="px-6 py-4">
+     <GlassCard className="px-6 py-4 checkout-glass-section">
       <div className="flex items-center justify-center">
        {[1, 2, 3].map((step) => (
         <div key={step} className="flex items-center">
@@ -708,7 +730,7 @@ export default function CheckoutPage() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
      {/* Checkout Form */}
      <div className="lg:col-span-2">
-      <GlassCard className="p-4 md:p-6 lg:p-8">
+      <GlassCard className="p-4 md:p-6 lg:p-8 checkout-glass-section">
        <form onSubmit={handleSubmit}>
         {/* Step 1: Shipping Information */}
         {currentStep === 1 && (
@@ -741,7 +763,7 @@ export default function CheckoutPage() {
            </div>
           )}
           
-          <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10">
+          <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10 checkout-glass-item">
            <div key="shipping-form-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div key="firstName">
              <label htmlFor="firstName" className="block text-sm font-medium text-slate-200 mb-2">
@@ -1006,7 +1028,7 @@ export default function CheckoutPage() {
            </div>
           </div>
           
-          <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10">
+          <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10 checkout-glass-item">
            <div className="space-y-6">
             <div>
              <label htmlFor="cardNumber" className="block text-sm font-medium text-slate-200 mb-2">
@@ -1138,9 +1160,9 @@ export default function CheckoutPage() {
            
            <div className="space-y-6">
             {/* Shipping Information */}
-            <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10">
+            <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10 checkout-glass-item">
              <SectionTitle icon="📦" accent="text-cyan-200">Shipping Information</SectionTitle>
-             <div className="rounded-lg glass-card-sm p-4">
+             <div className="rounded-lg glass-card-sm p-4 checkout-glass-item">
               <p className="text-sm font-medium text-white">
                {reviewFormData.firstName} {reviewFormData.lastName}
               </p>
@@ -1163,7 +1185,7 @@ export default function CheckoutPage() {
             </div>
 
             {/* Order Items */}
-           <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10">
+           <div className="rounded-xl glass-card-lg p-4 md:p-6 ring-1 ring-white/10 checkout-glass-item">
             <SectionTitle icon="🛍️" accent="text-lime-300">Order Items</SectionTitle>
             <div className="space-y-4">
              {cart.items.map((item) => {
@@ -1171,7 +1193,7 @@ export default function CheckoutPage() {
               const itemTotal = breakdown?.totalCost || item.pricing.totalPrice;
               
               return (
-               <div key={item.id} className="rounded-lg glass-card-sm p-4">
+               <div key={item.id} className="rounded-lg glass-card-sm p-4 checkout-glass-item">
                 <div className="flex justify-between items-start mb-3">
                  <div className="flex-1">
                   <h4 className="font-medium text-white">{item.productName}</h4>
@@ -1236,10 +1258,10 @@ export default function CheckoutPage() {
      {/* Order Summary */}
      <div className="lg:col-span-1">
       <div className="sticky top-24">
-       <GlassCard className="p-5 md:p-6">
+       <GlassCard className="p-5 md:p-6 checkout-glass-section">
         <h2 className="mb-5 text-lg md:text-xl font-bold text-white">Order Summary</h2>
         <div className="space-y-5">
-         <div className="rounded-lg glass-card-sm p-4">
+         <div className="rounded-lg glass-card-sm p-4 checkout-glass-item">
           <div className="flex items-center gap-3 mb-4">
            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-600 text-sm font-bold text-white">{cart.items.length}</div>
            <div>

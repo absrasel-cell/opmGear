@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(_request: NextRequest) {
  try {
@@ -52,45 +52,43 @@ export async function GET(_request: NextRequest) {
   // Get additional user data from our database
   let userData = null;
   try {
-   userData = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-     id: true,
-     email: true,
-     name: true,
-     accessRole: true,
-     customerRole: true,
-     adminLevel: true,
-     phone: true,
-     company: true,
-     avatarUrl: true,
-    },
-   });
+   const { data: existingUser, error: fetchError } = await supabaseAdmin
+    .from('User')
+    .select('id, email, name, accessRole, customerRole, adminLevel, phone, company, avatarUrl')
+    .eq('id', user.id)
+    .single();
+
+   if (fetchError && fetchError.code !== 'PGRST116') {
+    throw fetchError;
+   }
+
+   userData = existingUser;
 
    // If user doesn't exist in database, create them
    if (!userData) {
     console.log('Creating user in database during session check:', user.id);
     try {
-     userData = await prisma.user.create({
-      data: {
+     // Check if this is the master admin email
+     const isMasterAdmin = user.email === 'absrasel@gmail.com';
+     
+     const { data: newUser, error: createError } = await supabaseAdmin
+      .from('User')
+      .insert({
        id: user.id,
        email: user.email!,
        name: user.user_metadata?.name || null,
-       accessRole: 'CUSTOMER',
+       accessRole: isMasterAdmin ? 'MASTER_ADMIN' : 'CUSTOMER',
        customerRole: 'RETAIL',
-      },
-      select: {
-       id: true,
-       email: true,
-       name: true,
-       accessRole: true,
-       customerRole: true,
-       adminLevel: true,
-       phone: true,
-       company: true,
-       avatarUrl: true,
-      },
-     });
+       adminLevel: isMasterAdmin ? 'MASTER' : null,
+      })
+      .select('id, email, name, accessRole, customerRole, adminLevel, phone, company, avatarUrl')
+      .single();
+
+     if (createError) {
+      throw createError;
+     }
+
+     userData = newUser;
      console.log('User created successfully in database during session check');
     } catch (createError) {
      console.error('Failed to create user in database during session check:', createError);

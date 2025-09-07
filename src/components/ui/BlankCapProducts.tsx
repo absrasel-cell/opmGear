@@ -155,7 +155,7 @@ const BlankCapProducts: React.FC = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(8)].map((_, index) => (
-            <div key={index} className="relative overflow-hidden rounded-3xl min-h-[420px] flex flex-col glass-morphism animate-pulse">
+            <div key={index} className="relative overflow-hidden rounded-3xl min-h-[420px] flex flex-col glass-morphism-darker animate-pulse">
               <div className="p-8 flex flex-col h-full justify-between">
                 <div className="mb-6">
                   <div className="w-full aspect-square glass-morphism-subtle rounded-xl mb-4"></div>
@@ -230,7 +230,7 @@ const BlankCapProducts: React.FC = () => {
             return (
               <article 
                 key={product._id} 
-                className={`relative overflow-hidden rounded-xl xs:rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 min-h-[320px] xs:min-h-[360px] sm:min-h-[420px] flex flex-col glass-morphism-dark glass-hover-dark ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] flex-shrink-0 w-72 xs:w-80`}
+                className={`relative overflow-hidden rounded-xl xs:rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 min-h-[320px] xs:min-h-[360px] sm:min-h-[420px] flex flex-col glass-morphism-darker glass-hover-darker ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)] flex-shrink-0 w-72 xs:w-80`}
               >
                 <div className="relative z-10 p-4 xs:p-5 sm:p-6 flex flex-col h-full justify-between">
                   <div className="mb-4 xs:mb-5 sm:mb-6">
@@ -300,7 +300,7 @@ const BlankCapProducts: React.FC = () => {
           return (
             <article 
               key={product._id} 
-              className={`relative overflow-hidden rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 min-h-[380px] sm:min-h-[420px] flex flex-col glass-morphism-dark glass-hover-dark ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]`}
+              className={`relative overflow-hidden rounded-2xl sm:rounded-3xl hover:scale-105 transition-all duration-300 min-h-[380px] sm:min-h-[420px] flex flex-col glass-morphism-darker glass-hover-darker ${borderColor} shadow-[0_2.8px_2.2px_rgba(0,_0,_0,_0.034),_0_6.7px_5.3px_rgba(0,_0,_0,_0.048),_0_12.5px_10px_rgba(0,_0,_0,_0.06),_0_22.3px_17.9px_rgba(0,_0,_0,_0.072),_0_41.8px_33.4px_rgba(0,_0,_0,_0.086),_0_100px_80px_rgba(0,_0,_0,_0.12)]`}
             >
               <div className="relative z-10 p-4 sm:p-6 lg:p-8 flex flex-col h-full justify-between">
                 <div className="mb-6">

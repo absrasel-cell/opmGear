@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { cookies } from 'next/headers';
-import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
  try {
@@ -89,19 +88,26 @@ export async function POST(request: NextRequest) {
    // Get complete user data from our database
    let userData = null;
    try {
-    userData = await prisma.user.findUnique({
-     where: { id: data.user.id },
-     select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      adminLevel: true,
-      phone: true,
-      company: true,
-      avatarUrl: true,
-     },
-    });
+    const { data: existingUser, error: fetchError } = await supabaseAdmin
+     .from('User')
+     .select('id, email, name, accessRole, customerRole, adminLevel, phone, company, avatarUrl')
+     .eq('id', data.user.id)
+     .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+     console.error('Error fetching user:', fetchError);
+    } else if (existingUser) {
+     userData = {
+      id: existingUser.id,
+      email: existingUser.email,
+      name: existingUser.name,
+      role: existingUser.accessRole, // Map accessRole to role for compatibility
+      adminLevel: existingUser.adminLevel,
+      phone: existingUser.phone,
+      company: existingUser.company,
+      avatarUrl: existingUser.avatarUrl,
+     };
+    }
 
     console.log('User data found:', !!userData);
 
@@ -109,25 +115,33 @@ export async function POST(request: NextRequest) {
     if (!userData) {
      console.log('Creating user in database:', data.user.id);
      try {
-      userData = await prisma.user.create({
-       data: {
+      const { data: newUser, error: createError } = await supabaseAdmin
+       .from('User')
+       .insert({
         id: data.user.id,
         email: data.user.email!,
         name: data.user.user_metadata?.name || null,
-        role: 'CUSTOMER',
-       },
-       select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        adminLevel: true,
-        phone: true,
-        company: true,
-        avatarUrl: true,
-       },
-      });
-      console.log('User created successfully in database');
+        accessRole: 'CUSTOMER',
+        customerRole: 'RETAIL',
+       })
+       .select('id, email, name, accessRole, customerRole, adminLevel, phone, company, avatarUrl')
+       .single();
+
+      if (createError) {
+       console.error('Failed to create user in database:', createError);
+      } else if (newUser) {
+       userData = {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.accessRole,
+        adminLevel: newUser.adminLevel,
+        phone: newUser.phone,
+        company: newUser.company,
+        avatarUrl: newUser.avatarUrl,
+       };
+       console.log('User created successfully in database');
+      }
      } catch (createError) {
       console.error('Failed to create user in database:', createError);
       // Continue with fallback user data

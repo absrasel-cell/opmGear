@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import prisma from '@/lib/prisma';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth-helpers';
 
 // Initialize OpenAI client lazily to handle missing env vars during build
@@ -66,21 +66,28 @@ export async function POST(request: NextRequest) {
     // Fetch conversation messages if conversationId provided and messages empty
     let conversationMessages = messages;
     if (conversationId && conversationMessages.length === 0) {
-      const conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        include: {
-          ConversationMessage: {
-            orderBy: { createdAt: 'asc' },
-            take: 10 // Get first 10 messages for context
-          }
-        }
-      });
+      const { data: conversation, error: conversationError } = await supabaseAdmin
+        .from('Conversation')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
 
-      if (conversation) {
-        conversationMessages = conversation.ConversationMessage.map(msg => ({
-          role: msg.role.toLowerCase(),
-          content: msg.content
-        }));
+      if (conversationError) {
+        console.error('Failed to fetch conversation:', conversationError);
+      } else if (conversation) {
+        const { data: messages, error: messagesError } = await supabaseAdmin
+          .from('ConversationMessage')
+          .select('*')
+          .eq('conversationId', conversationId)
+          .order('createdAt', { ascending: true })
+          .limit(10);
+
+        if (!messagesError && messages) {
+          conversationMessages = messages.map(msg => ({
+            role: msg.role.toLowerCase(),
+            content: msg.content
+          }));
+        }
       }
     }
 
@@ -203,13 +210,17 @@ Generate ONLY the title:`;
     // Update conversation with generated title if conversationId provided
     if (conversationId) {
       try {
-        await prisma.conversation.update({
-          where: { id: conversationId },
-          data: { 
+        const { error } = await supabaseAdmin
+          .from('Conversation')
+          .update({ 
             title: cleanTitle,
-            updatedAt: new Date()
-          }
-        });
+            updatedAt: new Date().toISOString()
+          })
+          .eq('id', conversationId);
+
+        if (error) {
+          console.error('Failed to update conversation title:', error);
+        }
       } catch (dbError) {
         console.error('Failed to update conversation title:', dbError);
         // Continue without failing the request
@@ -260,24 +271,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch conversation with messages
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        ConversationMessage: {
-          orderBy: { createdAt: 'asc' },
-          take: 10
-        }
-      }
-    });
+    const { data: conversation, error: conversationError } = await supabaseAdmin
+      .from('Conversation')
+      .select('*')
+      .eq('id', conversationId)
+      .single();
 
-    if (!conversation || conversation.userId !== user.id) {
+    if (conversationError || !conversation || conversation.userId !== user.id) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    const messages = conversation.ConversationMessage.map(msg => ({
+    const { data: conversationMessages, error: messagesError } = await supabaseAdmin
+      .from('ConversationMessage')
+      .select('*')
+      .eq('conversationId', conversationId)
+      .order('createdAt', { ascending: true })
+      .limit(10);
+
+    const messages = conversationMessages?.map(msg => ({
       role: msg.role.toLowerCase(),
       content: msg.content
-    }));
+    })) || [];
 
     // Extract order builder data from conversation metadata if available
     const orderBuilder = conversation.metadata ? 
