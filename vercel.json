@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm ci && npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "functions": {
@@ -12,8 +12,6 @@
   },
   "build": {
     "env": {
-      "DATABASE_URL": "postgresql://placeholder:placeholder@localhost:5432/placeholder",
-      "DIRECT_URL": "postgresql://placeholder:placeholder@localhost:5432/placeholder",
       "OPENAI_API_KEY": "placeholder-build-key",
       "SKIP_TYPE_CHECK": "true"
     }
