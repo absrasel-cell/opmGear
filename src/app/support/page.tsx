@@ -1892,6 +1892,29 @@ export default function SupportPage() {
       const fabric = extractFabric(message);
       console.log('🧵 [FABRIC-FIX] Extracted fabric from AI message:', fabric);
       
+      // Extract cap size from message, default to "7 1/4"
+      const extractSize = (msg: string): string => {
+        const sizePatterns = [
+          /\bsize:\s*([67](?:\s*\d+\/\d+)?)\b/i,
+          /\bcap\s+size:\s*([67](?:\s*\d+\/\d+)?)\b/i,
+          /\b([67]\s*\d+\/\d+)\s*(?:hat|cap|size|fitted)/i,
+          /\b(small|medium|large)\s*(?:hat|cap|size)/i
+        ];
+        
+        for (const pattern of sizePatterns) {
+          const match = msg.match(pattern);
+          if (match) {
+            const size = match[1].trim();
+            // Convert common variations to standard format
+            if (size.toLowerCase() === 'medium') return '7 1/4';
+            if (size.toLowerCase() === 'small') return '7';
+            if (size.toLowerCase() === 'large') return '7 1/2';
+            return size;
+          }
+        }
+        return '7 1/4'; // Default size for most adults
+      };
+
       return {
         capDetails: {
           productName: productName,
@@ -1901,7 +1924,8 @@ export default function SupportPage() {
           closure: extractClosure(message),
           fabric: fabric, // Now properly extracted from AI response
           billShape: extractBillShape(message),
-          sizes: [] // Will be populated if mentioned in message
+          size: extractSize(message), // Single size field with default
+          sizes: [] // Keep for backward compatibility
         },
         customization: {
           logos: logoTypes,

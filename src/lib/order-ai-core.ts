@@ -28,6 +28,7 @@ export interface OrderRequirements {
   logoSize?: string;
   logoApplication?: string; // Add application method
   color?: string;
+  capSize?: string; // Add cap size field
   profile?: string;
   billStyle?: string;
   panelCount?: number;
@@ -441,6 +442,37 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   logoSize = detectSizeFromText(message, logoPosition);
   const logoApplication = getDefaultApplicationMethod(logoType);
   
+  // Detect cap size from message, default to "7 1/4" if not specified
+  const detectCapSize = (text: string): string => {
+    const sizePatterns = [
+      // Hat size patterns
+      /\b([67](?:\s+\d+\/\d+|\.\d+)?)\b.*(?:hat|cap|size)/i,
+      /(?:hat|cap|size).*?\b([67](?:\s+\d+\/\d+|\.\d+)?)\b/i,
+      /\bsize\s*([67](?:\s+\d+\/\d+|\.\d+)?)\b/i,
+      /\b([67]\s*\d+\/\d+)\s*(?:hat|cap|size|fitted)/i,
+      // CM patterns
+      /(\d{2})\s*cm/i,
+      /(\d{2}\s*-\s*\d{2})\s*cm/i,
+      // Direct size mentions
+      /\b(small|medium|large)\s*(?:hat|cap|size)/i
+    ];
+    
+    for (const pattern of sizePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const size = match[1].trim();
+        // Convert common variations to standard format
+        if (size.toLowerCase() === 'medium' || size === '57' || size === '58') return '7 1/4';
+        if (size.toLowerCase() === 'small') return '7';
+        if (size.toLowerCase() === 'large') return '7 1/2';
+        return size;
+      }
+    }
+    return '7 1/4'; // Default size for most adults
+  };
+  
+  const capSize = detectCapSize(message);
+  
   return {
     quantity,
     logoType,
@@ -448,6 +480,7 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     logoSize,
     logoApplication, // Add application method
     color,
+    capSize, // Add cap size
     profile,
     billStyle,
     panelCount,
@@ -537,6 +570,7 @@ export async function optimizeQuantityForBudgetPrecise(budget: number, logoType:
       logoPosition: 'Front',
       logoSize: 'Medium',
       logoApplication: getDefaultApplicationMethod(logoType),
+      capSize: '7 1/4', // Default cap size
       fabricType: BUSINESS_RULES.DEFAULTS.fabricType,
       closureType: BUSINESS_RULES.DEFAULTS.closure,
       deliveryMethod: BUSINESS_RULES.DEFAULTS.deliveryMethod,

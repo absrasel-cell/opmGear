@@ -1548,6 +1548,13 @@ ${productData ? `
 - Volume tiers: 48, 144, 576, 1152, 2880+ caps`}
 
 CUSTOMIZATION COSTS (ACCURATE CSV PRICING - ADD TO BASE PRICE):
+
+CAP SIZE DEFAULTS (CRITICAL - FOLLOW EXACTLY):
+- When customer doesn't specify cap size: ALWAYS default to "7 1/4" (Medium size)
+- Show cap size in all quote responses: "Cap Size: 7 1/4" in specifications
+- This is the most common adult size and fits most customers comfortably
+- Only use different sizes when customer explicitly specifies a size
+
 LOGO SIZE DEFAULTS (CRITICAL - FOLLOW EXACTLY):
 - Front Position: ALWAYS Large Size (Large Size Embroidery = $0.80/cap at 144+ qty)
 - Left/Right/Back Position: ALWAYS Small Size (Small Size Embroidery = $0.45/cap at 144+ qty)
