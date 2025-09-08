@@ -1683,21 +1683,69 @@ export default function SupportPage() {
       const extractFabric = (text: string): string => {
         // Look for premium fabric mentions in various formats
         const fabricPatterns = [
+          // Pattern 1: Direct fabric specification (e.g., "Fabric: Acrylic")
           /(?:Fabric|Material):\s*([^,\n]+)/i,
-          /(?:made from|constructed from|featuring)\s+([^,\n]*(?:Acrylic|Air Mesh|Suede Cotton|Camo|Leather|Polyester|Cotton)[^,\n]*)/i,
+          // Pattern 2: Premium Fabric section with specific fabric (e.g., "Premium Fabric (Acrylic):")
+          /🧵\s*Premium Fabric\s*\(([^)]+)\)/i,
+          /Premium Fabric\s*\(([^)]+)\)/i,
+          // Pattern 3: CapCraft AI specific format "🧵 Premium Fabric (Acrylic):"
+          /🧵[^:]*Premium Fabric[^:]*\(([^)]+)\)[^:]*:/i,
+          // Pattern 4: Acrylic Premium Fabric line
+          /Acrylic Premium Fabric/i,
+          // Pattern 5: Multi-fabric combinations (e.g., "Duck Camo (Front) and Black Air Mesh (Back)")
+          /(Duck Camo.*?Air Mesh|Trucker Mesh.*?Air Mesh|Air Mesh.*?Trucker Mesh)/i,
+          // Pattern 6: User change requests for fabric (e.g., "change the back fabric to Air Mesh")
+          /(?:change|changing).*?fabric.*?to\s+([^,\n.!?]+)/i,
+          // Pattern 7: Complex fabric combinations (e.g., "Acrylic/Air Mesh")
           /(Acrylic\/Air Mesh|Air Mesh\/Acrylic|Acrylic Air Mesh|Air Mesh Acrylic)/i,
+          // Pattern 8: Other premium fabrics
           /(Suede Cotton|Cotton Suede)/i,
           /(Genuine Leather|Real Leather|Leather)/i,
-          /([A-Za-z\s]*(?:Acrylic|Air Mesh|Suede|Camo|Leather|Polyester|Cotton)[A-Za-z\s]*)/i
+          // Pattern 9: General fabric detection with context
+          /(?:made from|constructed from|featuring)\s+([^,\n]*(?:Acrylic|Air Mesh|Suede Cotton|Camo|Leather|Polyester|Cotton)[^,\n]*)/i,
+          // Pattern 10: Standalone fabric mentions
+          /\b(Acrylic|Air Mesh|Trucker Mesh|Suede|Leather|Polyester|Cotton)\b/i
         ];
         
-        for (const pattern of fabricPatterns) {
+        console.log('🧵 [FABRIC-EXTRACTION] Analyzing text for fabric patterns:', text.substring(0, 200));
+        
+        for (let i = 0; i < fabricPatterns.length; i++) {
+          const pattern = fabricPatterns[i];
           const match = text.match(pattern);
           if (match) {
-            return match[1].trim();
+            let fabricValue = match[1] || match[0];
+            fabricValue = fabricValue.trim();
+            
+            // Clean up extracted fabric value and separate from colors
+            if (fabricValue.toLowerCase().includes('duck camo') && fabricValue.toLowerCase().includes('air mesh')) {
+              // Handle multi-fabric cases like "Duck Camo (Front) and Black Air Mesh (Back)"
+              fabricValue = 'Duck Camo/Air Mesh';
+            } else if (fabricValue.toLowerCase().includes('duck camo') && fabricValue.toLowerCase().includes('trucker mesh')) {
+              fabricValue = 'Duck Camo/Trucker Mesh';
+            } else if (fabricValue.toLowerCase().includes('acrylic')) {
+              if (fabricValue.toLowerCase().includes('air mesh')) {
+                fabricValue = 'Acrylic/Air Mesh';
+              } else {
+                fabricValue = 'Acrylic';
+              }
+            } else if (fabricValue.toLowerCase().includes('air mesh')) {
+              fabricValue = 'Air Mesh';
+            } else if (fabricValue.toLowerCase().includes('trucker mesh')) {
+              fabricValue = 'Trucker Mesh';
+            } else if (fabricValue.toLowerCase().includes('suede')) {
+              fabricValue = 'Suede Cotton';
+            } else if (fabricValue.toLowerCase().includes('leather')) {
+              fabricValue = 'Genuine Leather';
+            } else if (fabricValue === 'Acrylic Premium Fabric') {
+              fabricValue = 'Acrylic';
+            }
+            
+            console.log(`✅ [FABRIC-EXTRACTION] Found fabric using pattern ${i + 1}: "${fabricValue}"`);
+            return fabricValue;
           }
         }
         
+        console.log('⚠️ [FABRIC-EXTRACTION] No fabric pattern matched, using fallback');
         return 'Standard Cotton'; // Default fallback
       };
       
@@ -1716,30 +1764,115 @@ export default function SupportPage() {
       };
       
       const extractClosure = (text: string): string => {
-        if (/snapback/i.test(text)) return 'Snapback';
-        if (/fitted/i.test(text)) return 'Fitted';
-        if (/adjustable/i.test(text)) return 'Adjustable';
-        if (/velcro/i.test(text)) return 'Velcro';
+        // Look for closure patterns in various formats
+        const closurePatterns = [
+          /(?:Closure|Fit):\s*([^,\n]+)/i,
+          /Premium Closure\s*\(([^)]+)\)/i,
+          /\b(Fitted|Snapback|Adjustable|Velcro)\b/i
+        ];
+        
+        console.log('🔒 [CLOSURE-EXTRACTION] Analyzing text for closure patterns:', text.substring(0, 200));
+        
+        for (let i = 0; i < closurePatterns.length; i++) {
+          const pattern = closurePatterns[i];
+          const match = text.match(pattern);
+          if (match) {
+            let closureValue = match[1] || match[0];
+            closureValue = closureValue.trim();
+            
+            // Normalize closure values
+            if (closureValue.toLowerCase().includes('fitted')) {
+              closureValue = 'Fitted';
+            } else if (closureValue.toLowerCase().includes('snapback')) {
+              closureValue = 'Snapback';
+            } else if (closureValue.toLowerCase().includes('adjustable')) {
+              closureValue = 'Adjustable';
+            } else if (closureValue.toLowerCase().includes('velcro')) {
+              closureValue = 'Velcro';
+            }
+            
+            console.log(`✅ [CLOSURE-EXTRACTION] Found closure using pattern ${i + 1}: "${closureValue}"`);
+            return closureValue;
+          }
+        }
+        
+        console.log('⚠️ [CLOSURE-EXTRACTION] No closure pattern matched, using fallback');
         return 'Snapback'; // Default
       };
       
       const extractColors = (text: string): string[] => {
-        const colorMatches = text.match(/(?:color|colours?):\s*([^,\n]+)/i);
-        if (colorMatches) {
-          return colorMatches[1].split(/[,&]/).map(c => c.trim()).filter(c => c.length > 0);
+        // Look for color patterns in various formats
+        const colorPatterns = [
+          /(?:color|colours?):\s*([^,\n]+)/i,
+          /Colors?:\s*([^,\n]+)/i,
+        ];
+        
+        console.log('🎨 [COLOR-EXTRACTION] Analyzing text for color patterns:', text.substring(0, 200));
+        
+        // First try to find explicit color specifications
+        for (const pattern of colorPatterns) {
+          const match = text.match(pattern);
+          if (match) {
+            const colors = match[1].split(/[,&]/).map(c => c.trim()).filter(c => c.length > 0);
+            // Clean fabric materials from color list
+            const cleanColors = colors.filter(color => 
+              !color.toLowerCase().includes('camo') && 
+              !color.toLowerCase().includes('mesh') &&
+              !color.toLowerCase().includes('fabric')
+            );
+            if (cleanColors.length > 0) {
+              console.log(`✅ [COLOR-EXTRACTION] Found explicit colors: ${cleanColors.join(', ')}`);
+              return cleanColors;
+            }
+          }
         }
-        // Look for common color words
+        
+        // Look for common color words (excluding fabric patterns)
         const commonColors = ['Black', 'White', 'Navy', 'Red', 'Blue', 'Gray', 'Grey', 'Green', 'Brown'];
-        const foundColors = commonColors.filter(color => 
-          new RegExp(`\\b${color}\\b`, 'i').test(text)
-        );
+        const foundColors = commonColors.filter(color => {
+          const regex = new RegExp(`\\b${color}\\b`, 'i');
+          return regex.test(text) && !new RegExp(`${color}\\s+(?:camo|mesh|fabric)`, 'i').test(text);
+        });
+        
+        console.log(`✅ [COLOR-EXTRACTION] Found common colors: ${foundColors.join(', ')}`);
         return foundColors.length > 0 ? foundColors : ['Black']; // Default to black
       };
       
       // Extract bill shape
       const extractBillShape = (text: string): string => {
-        if (/flat\s*bill/i.test(text)) return 'Flat';
-        if (/curved\s*bill/i.test(text)) return 'Curved';
+        // Look for shape patterns in various formats
+        const shapePatterns = [
+          /(?:Shape|Bill):\s*([^,\n]+)/i,
+          /(?:change|changing)\s*shape\s*to\s*([^,\n]+)/i,
+          /\b(Flat|Curved|Slight\s*Curved)\s*(?:Caps?|Bill)?/i,
+          /flat\s*bill/i,
+          /curved\s*bill/i
+        ];
+        
+        console.log('📐 [SHAPE-EXTRACTION] Analyzing text for shape patterns:', text.substring(0, 200));
+        
+        for (let i = 0; i < shapePatterns.length; i++) {
+          const pattern = shapePatterns[i];
+          const match = text.match(pattern);
+          if (match) {
+            let shapeValue = match[1] || match[0];
+            shapeValue = shapeValue.trim();
+            
+            // Normalize shape values
+            if (shapeValue.toLowerCase().includes('flat')) {
+              shapeValue = 'Flat';
+            } else if (shapeValue.toLowerCase().includes('slight') && shapeValue.toLowerCase().includes('curved')) {
+              shapeValue = 'Slight Curved';
+            } else if (shapeValue.toLowerCase().includes('curved')) {
+              shapeValue = 'Curved';
+            }
+            
+            console.log(`✅ [SHAPE-EXTRACTION] Found shape using pattern ${i + 1}: "${shapeValue}"`);
+            return shapeValue;
+          }
+        }
+        
+        console.log('⚠️ [SHAPE-EXTRACTION] No shape pattern matched, using fallback');
         return 'Curved'; // Default
       };
       
@@ -4583,8 +4716,12 @@ Please provide a detailed quote with cost breakdown.`;
                                 {currentQuoteData.capDetails.size && (
                                   <div className="text-white/70">Size: <span className="text-white">{currentQuoteData.capDetails.size}</span></div>
                                 )}
-                                {currentQuoteData.capDetails.color && (
-                                  <div className="text-white/70">Color: <span className="text-white">{currentQuoteData.capDetails.color}</span></div>
+                                {(currentQuoteData.capDetails.color || currentQuoteData.capDetails.colors) && (
+                                  <div className="text-white/70">Color: <span className="text-white">
+                                    {Array.isArray(currentQuoteData.capDetails.colors) 
+                                      ? currentQuoteData.capDetails.colors.join(', ')
+                                      : currentQuoteData.capDetails.color}
+                                  </span></div>
                                 )}
                                 {currentQuoteData.capDetails.profile && (
                                   <div className="text-white/70">Profile: <span className="text-white">{currentQuoteData.capDetails.profile}</span></div>

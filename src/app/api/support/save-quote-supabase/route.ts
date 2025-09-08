@@ -92,6 +92,10 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    // Debug logging to track fabric data preservation
+    console.log('🧵 [FABRIC-SAVE-DEBUG] Incoming quote data fabric:', capDetails?.fabric);
+    console.log('🔒 [CLOSURE-SAVE-DEBUG] Incoming quote data closure:', capDetails?.closure);
+    
     // Prepare quote order data for Supabase
     const quoteOrderData = {
       id: quoteId,

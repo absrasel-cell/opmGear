@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV } from '@/lib/pricing-server';
+import { loadFabricPricingData } from '@/lib/costing-knowledge-base';
 
 interface CustomizationPricing {
  Name: string;
@@ -665,22 +666,26 @@ export async function POST(request: NextRequest) {
    // If no pricing found, no cost is added (as per requirement)
   }
 
-  // Calculate premium fabric costs
+  // Calculate premium fabric costs using BOTH Fabric.csv and Customization Pricings.csv
   const premiumFabricCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
+  
+  // Load fabric pricing data to determine if fabrics are free or premium
+  const fabricPricingData = await loadFabricPricingData();
   
   // Get fabric setup from selectedOptions (for cart) or direct body properties (for product page)
   const fabricSetup = selectedOptions?.['fabric-setup'] || body.fabricSetup;
   const customFabricSetup = selectedOptions?.['custom-fabric'] || body.customFabricSetup; // Fix: use 'custom-fabric' not 'custom-fabric-setup'
   const productType = body.productType;
   
-  console.log('🔧 API Debug - Premium Fabric processing:', {
+  console.log('🧵 [FABRIC-PRICING] Premium Fabric processing:', {
    fabricSetup,
    customFabricSetup,
    effectiveFabricSetup: fabricSetup === 'Other' ? customFabricSetup : fabricSetup,
    hasFabricSetup: !!(fabricSetup || customFabricSetup),
    fabricSetupFromOptions: selectedOptions?.['fabric-setup'],
    customFabricFromOptions: selectedOptions?.['custom-fabric'], // Fix: use correct field name
-   allSelectedOptions: selectedOptions
+   allSelectedOptions: selectedOptions,
+   fabricDataLoaded: fabricPricingData.length
   });
   
   
@@ -689,52 +694,111 @@ export async function POST(request: NextRequest) {
    const effectiveFabricSetup = fabricSetup === 'Other' ? customFabricSetup : fabricSetup;
    
    if (effectiveFabricSetup) {
-    // Handle dual fabric setups (e.g., "Polyester/Laser Cut")
+    // Handle dual fabric setups (e.g., "Duck Camo/Trucker Mesh" or "Polyester/Laser Cut")
     const fabricNames = effectiveFabricSetup.split('/').map(f => f.trim());
     
     // Check each fabric component for premium pricing
     for (const fabricName of fabricNames) {
-     console.log('🔧 API Debug - Searching for premium fabric:', {
+     console.log('🧵 [FABRIC-PRICING] Analyzing fabric:', {
       fabricName,
-      lowercaseName: fabricName.toLowerCase(),
-      availablePremiumFabrics: pricingData.filter(p => p.type === 'Premium Fabric').map(p => p.Name)
+      lowercaseName: fabricName.toLowerCase()
      });
      
-     const premiumFabricPricing = pricingData.find(p => 
-      p.type === 'Premium Fabric' && 
-      p.Name.toLowerCase() === fabricName.toLowerCase()
+     // STEP 1: Check Fabric.csv for fabric type (Free vs Premium Fabric)
+     const fabricInfo = fabricPricingData.find(f => 
+      f.Name.toLowerCase() === fabricName.toLowerCase()
      );
      
-     if (premiumFabricPricing) {
-      const unitPrice = getPriceForQuantityFromCSV(premiumFabricPricing, totalUnits);
-      const cost = unitPrice * totalUnits;
-      
-      console.log('🔧 API Debug - Found premium fabric pricing:', {
-       name: premiumFabricPricing.Name,
-       unitPrice,
-       cost,
-       totalUnits
+     if (fabricInfo) {
+      console.log('🧵 [FABRIC-PRICING] Found fabric info:', {
+       name: fabricInfo.Name,
+       costType: fabricInfo.costType,
+       price144: fabricInfo.price144
       });
       
-      // Check if this premium fabric is already added (avoid duplicates)
-      const existingFabric = premiumFabricCosts.find(f => f.name === premiumFabricPricing.Name);
-      if (!existingFabric) {
-       premiumFabricCosts.push({
-        name: premiumFabricPricing.Name,
+      // If fabric is marked as "Free" in Fabric.csv, skip premium charges
+      if (fabricInfo.costType === 'Free') {
+       console.log('🧵 [FABRIC-PRICING] Fabric is FREE, no premium charge:', fabricInfo.Name);
+       continue;
+      }
+      
+      // If fabric is marked as "Premium Fabric", use Fabric.csv pricing
+      if (fabricInfo.costType === 'Premium Fabric') {
+       const unitPrice = getPriceForQuantityFromCSV(fabricInfo, totalUnits);
+       const cost = unitPrice * totalUnits;
+       
+       console.log('🧵 [FABRIC-PRICING] Premium fabric pricing from Fabric.csv:', {
+        name: fabricInfo.Name,
+        costType: fabricInfo.costType,
+        unitPrice,
         cost,
-        unitPrice
+        totalUnits
        });
-       totalCost += cost;
-       console.log('🔧 API Debug - Added premium fabric cost:', {
-        name: premiumFabricPricing.Name,
-        cost,
-        newTotalCost: totalCost
-       });
-      } else {
-       console.log('🔧 API Debug - Duplicate premium fabric, skipping:', premiumFabricPricing.Name);
+       
+       // Check if this premium fabric is already added (avoid duplicates)
+       const existingFabric = premiumFabricCosts.find(f => f.name === fabricInfo.Name);
+       if (!existingFabric) {
+        premiumFabricCosts.push({
+         name: fabricInfo.Name,
+         cost,
+         unitPrice
+        });
+        totalCost += cost;
+        console.log('🧵 [FABRIC-PRICING] Added premium fabric cost:', {
+         name: fabricInfo.Name,
+         cost,
+         newTotalCost: totalCost
+        });
+       } else {
+        console.log('🧵 [FABRIC-PRICING] Duplicate premium fabric, skipping:', fabricInfo.Name);
+       }
       }
      } else {
-      console.log('🔧 API Debug - No premium fabric pricing found for:', fabricName);
+      // STEP 2: Fallback to Customization Pricings.csv for backward compatibility
+      console.log('🧵 [FABRIC-PRICING] Fabric not found in Fabric.csv, checking Customization Pricings.csv:', fabricName);
+      
+      const premiumFabricPricing = pricingData.find(p => 
+       p.type === 'Premium Fabric' && 
+       p.Name.toLowerCase() === fabricName.toLowerCase()
+      );
+      
+      if (premiumFabricPricing) {
+       const unitPrice = getPriceForQuantityFromCSV(premiumFabricPricing, totalUnits);
+       const cost = unitPrice * totalUnits;
+       
+       console.log('🧵 [FABRIC-PRICING] Found premium fabric in Customization Pricings.csv:', {
+        name: premiumFabricPricing.Name,
+        unitPrice,
+        cost,
+        totalUnits
+       });
+       
+       // Check if this premium fabric is already added (avoid duplicates)
+       const existingFabric = premiumFabricCosts.find(f => f.name === premiumFabricPricing.Name);
+       if (!existingFabric) {
+        premiumFabricCosts.push({
+         name: premiumFabricPricing.Name,
+         cost,
+         unitPrice
+        });
+        totalCost += cost;
+        console.log('🧵 [FABRIC-PRICING] Added premium fabric cost from Customization Pricings.csv:', {
+         name: premiumFabricPricing.Name,
+         cost,
+         newTotalCost: totalCost
+        });
+       } else {
+        console.log('🧵 [FABRIC-PRICING] Duplicate premium fabric, skipping:', premiumFabricPricing.Name);
+       }
+      } else {
+       console.log('🧵 [FABRIC-PRICING] No premium fabric pricing found in either CSV for:', fabricName);
+       console.log('🧵 [FABRIC-PRICING] Available premium fabrics in Customization Pricings.csv:', 
+        pricingData.filter(p => p.type === 'Premium Fabric').map(p => p.Name)
+       );
+       console.log('🧵 [FABRIC-PRICING] Available fabrics in Fabric.csv:', 
+        fabricPricingData.map(f => ({ name: f.Name, type: f.costType }))
+       );
+      }
      }
     }
    }

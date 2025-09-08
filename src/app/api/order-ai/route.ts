@@ -402,13 +402,18 @@ PRICING TIERS FROM CSV (VOLUME DISCOUNTS):
   } catch (fetchError) {
    console.warn('⚠️ [UNIFIED-AI] Product data fetch failed, using fallback:', fetchError.message);
    csvProductContext = `
-PRICING TIERS (FALLBACK - VOLUME DISCOUNTS):
-• Tier 1 Volume Pricing:
- - 144-575 caps: $3.00/cap
- - 576-1151 caps: $2.90/cap 
- - 1152+ caps: $2.84/cap (BEST VALUE)
-• Tier 2: $3.20/cap at 144+ (Mid-range - Good balance) 
-• Tier 3: $3.40/cap at 144+ (Premium - Highest quality)`;
+PRICING STRUCTURE:
+• Base cap costs vary by quantity (volume discounts available)
+• Fabric upgrades: Some fabrics are FREE (Chino Twill, Trucker Mesh), others add premium charges
+• Premium fabrics (Air Mesh, Acrylic) add $0.50-$2.50 per cap depending on quantity
+• Logo setup costs depend on type (3D Embroidery, patches, etc.)
+• Delivery costs are separate from cap costs
+• CRITICAL: Never estimate costs manually - always use ORDER ANALYSIS calculations
+
+FABRIC PRICING (IMPORTANT):
+• FREE Fabrics (no additional cost): Chino Twill, Trucker Mesh, Micro Mesh
+• PREMIUM Fabrics (additional cost): Air Mesh (+$0.88@144qty), Acrylic (+$2.50@144qty), Suede Cotton, Genuine Leather
+• Dual fabric caps: Base cap + any premium fabric upgrades for specific panels`;
   }
 
   // Build proper OpenAI conversation messages array for conversation continuity
@@ -838,6 +843,13 @@ COST PRESENTATION RULES:
 - If volume discounts apply, mention savings amount and percentage
 - Present costs in this order: Base Product → Logo Setup (detailed) → Premium Fabric (detailed) → Delivery (detailed) → Mold Charges (if any) → Total
 - Present all costs exactly as calculated by the unified system with full transparency
+
+CRITICAL FABRIC COST RULES:
+- FREE fabrics (Chino Twill, Trucker Mesh): Show NO separate fabric line item, fabric cost included in base product
+- PREMIUM fabrics (Air Mesh, Acrylic): Show separate "Premium Fabric" line item with exact upgrade cost
+- Dual fabric caps: Base product cost + any premium fabric upgrades for specific panels
+- NEVER show fabric types as separate cap line items (e.g., avoid "Duck Camo caps: $X" + "Trucker Mesh caps: $Y")
+- ALWAYS show as: "Base caps + Premium fabric upgrades" structure
 
 EXAMPLE CONVERSATION STYLE:
 "Ah, 576 pieces with rubber patches - that's a solid order size! You'll definitely get some good pricing at that quantity. Let me see what we can do for you..."
