@@ -805,24 +805,24 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
    orderResponse = JSON.parse(content);
   } catch (parseError) {
    console.error('Failed to parse OpenAI response:', content);
-   // Fallback response with basic quote structure
+   // Fallback response with dynamic parsing
+   const extractedQuantity = message.match(/\d+/)?.[0] || 'specified';
+   const hasQuantity = extractedQuantity !== 'specified';
+   
    orderResponse = {
-    message: `I understand you're looking for a quote on ${message}. Let me provide you with a detailed estimate.
+    message: `I understand you're looking for a quote. Let me help you with that request.
 
-Based on your request, here's what I can calculate:
+Based on your message: "${message}"
 
-**Custom Cap Order**
-• Quantity: 576 pieces
-• Style: 7-Panel, Laser Cut/Perforated
-• Customization: Rubber Patch (Front) + 3D Embroidery (Back)
+I'm having a brief technical issue with my quote calculation system, but I can still help you! ${hasQuantity ? `I see you mentioned ${extractedQuantity} pieces.` : ''}
 
-**Estimated Pricing:**
-• Base Cap Cost: ~$8.50 - $12.00 per piece
-• Rubber Patch Setup: ~$3.50 - $5.00 per piece + $150 mold charge
-• 3D Embroidery: ~$2.50 - $4.00 per piece
-• Total Estimated Range: $8,640 - $12,096 (plus delivery)
+Let me create a detailed quote for you. Could you please confirm:
+• The exact quantity you need
+• Your preferred cap style and colors  
+• What type of customization you're looking for (embroidery, patches, etc.)
+• Any specific requirements or deadlines
 
-This is a preliminary estimate. For an exact quote with your specific requirements, I'd be happy to create a detailed breakdown. Would you like me to proceed with a more detailed quote?`,
+I'll get back to you with accurate pricing based on your actual specifications, not generic estimates.`,
     quoteData: null,
     actions: ["create_detailed_quote", "modify_specs"]
    };
