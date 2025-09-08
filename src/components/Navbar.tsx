@@ -9,6 +9,7 @@ import CartIcon from "@/components/cart/CartIcon";
 // Navigation menu items
 const NAV_ITEMS = [
   { href: "/about-us", label: "About" },
+  { href: "/cap-101", label: "Cap 101" },
   { href: "/gallery", label: "Gallery" },
   { href: "/store", label: "Store" },
   { href: "/contact", label: "Contact" },

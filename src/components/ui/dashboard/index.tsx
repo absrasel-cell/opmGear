@@ -297,7 +297,7 @@ export function TableBody({ children }: { children: React.ReactNode }) {
 
 export function TableRow({ children, className = '' }: TableProps) {
   return (
-    <tr className={`hover:bg-stone-700 ${className}`}>
+    <tr className={className || 'hover:bg-stone-700'}>
       {children}
     </tr>
   );

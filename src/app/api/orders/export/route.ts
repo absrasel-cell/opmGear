@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed Prisma - migrated to Supabase
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase';
 
 async function getCurrentUser(_request: NextRequest) {
  try {
@@ -43,10 +43,15 @@ export async function GET(request: NextRequest) {
 
   // Check if user is admin
   console.log('Export API: Checking user role in database');
-  const dbUser = await prisma.user.findUnique({
-   where: { email: currentUser.email! },
-   select: { accessRole: true }
-  });
+  const { data: dbUser, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('accessRole')
+    .eq('email', currentUser.email!)
+    .single();
+
+  if (userError) {
+    console.error('Export API: Error fetching user:', userError);
+  }
   console.log('Export API: User access role:', dbUser?.accessRole || 'User not found in database');
 
   if (!dbUser?.accessRole || !['STAFF', 'SUPER_ADMIN', 'MASTER_ADMIN'].includes(dbUser.accessRole)) {
@@ -56,22 +61,25 @@ export async function GET(request: NextRequest) {
 
   // Fetch all orders with related data
   console.log('Export API: Fetching orders from database');
-  const orders = await prisma.order.findMany({
-   include: {
-    user: {
-     select: {
-      email: true,
-      name: true,
-      phone: true,
-      company: true
-     }
-    }
-   },
-   orderBy: {
-    createdAt: 'desc'
-   }
-  });
-  console.log('Export API: Found', orders.length, 'orders');
+  const { data: orders, error: ordersError } = await supabaseAdmin
+    .from('orders')
+    .select(`
+      *,
+      user:users!orders_userId_fkey(
+        email,
+        name,
+        phone,
+        company
+      )
+    `)
+    .order('createdAt', { ascending: false });
+
+  if (ordersError) {
+    console.error('Export API: Error fetching orders:', ordersError);
+    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
+  }
+
+  console.log('Export API: Found', orders?.length || 0, 'orders');
 
   // Convert orders to CSV format
   const csvHeaders = [
@@ -89,7 +97,7 @@ export async function GET(request: NextRequest) {
    'Notes'
   ];
 
-  const csvRows = orders.map(order => [
+  const csvRows = (orders || []).map(order => [
    order.id,
    order.user?.email || 'N/A',
    order.user?.name || 'N/A',

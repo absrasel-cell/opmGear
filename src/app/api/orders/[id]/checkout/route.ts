@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed Prisma - migrated to Supabase
 import { sendEmail } from '@/lib/resend';
 import { emailTemplates } from '@/lib/email/templates';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(
  request: NextRequest,
@@ -27,9 +27,19 @@ export async function POST(
   }
 
   // Find the existing order
-  const existingOrder = await prisma.order.findUnique({
-   where: { id: orderId }
-  });
+  const { data: existingOrder, error: findError } = await supabaseAdmin
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+
+  if (findError) {
+    console.error('Supabase error finding order:', findError);
+    return NextResponse.json(
+      { error: 'Failed to find order' },
+      { status: 500 }
+    );
+  }
 
   if (!existingOrder) {
    return NextResponse.json(
@@ -77,10 +87,23 @@ export async function POST(
    };
   }
 
-  const updatedOrder = await prisma.order.update({
-   where: { id: orderId },
-   data: updateData
-  });
+  const { data: updatedOrder, error: updateError } = await supabaseAdmin
+    .from('orders')
+    .update({
+      ...updateData,
+      updatedAt: new Date().toISOString()
+    })
+    .eq('id', orderId)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.error('Supabase error updating order:', updateError);
+    return NextResponse.json(
+      { error: 'Failed to update order' },
+      { status: 500 }
+    );
+  }
 
   // Calculate order totals if needed (this could be done in a separate service)
   // For now, we'll assume the order total is already calculated
@@ -139,9 +162,19 @@ export async function GET(
   }
 
   // Find the order
-  const order = await prisma.order.findUnique({
-   where: { id: orderId }
-  });
+  const { data: order, error: orderError } = await supabaseAdmin
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+
+  if (orderError) {
+    console.error('Supabase error fetching order:', orderError);
+    return NextResponse.json(
+      { error: 'Failed to fetch order' },
+      { status: 500 }
+    );
+  }
 
   if (!order) {
    return NextResponse.json(

@@ -1398,13 +1398,35 @@ export default function SupportPage() {
         detectedIntent,
         messageLength: data.message?.length || 0,
         quoteDataKeys: data.quoteData ? Object.keys(data.quoteData) : null,
+        fabricInQuoteData: data.quoteData?.capDetails?.fabric,
         messageContent: data.message?.substring(0, 200) + '...'
       });
       
-      // Fallback: Try to extract quote data from AI message if no structured data
-      if (!extractedQuoteData && data.message && detectedIntent === 'ORDER_CREATION') {
+      // PRIORITY 1: Use structured quoteData from AI if available (HIGHEST PRIORITY)
+      if (extractedQuoteData) {
+        console.log('🎯 [FABRIC-FIX] Using structured quoteData from AI:', {
+          fabric: extractedQuoteData.capDetails?.fabric,
+          productName: extractedQuoteData.capDetails?.productName
+        });
+      } 
+      // PRIORITY 2: Fallback to message parsing ONLY if no structured data
+      else if (data.message && detectedIntent === 'ORDER_CREATION') {
+        console.log('🔄 [FABRIC-FIX] No structured data, falling back to message parsing');
         extractedQuoteData = parseQuoteFromMessage(data.message);
-        console.log('Extracted quote data from message:', extractedQuoteData);
+        console.log('🔄 [FABRIC-FIX] Extracted quote data from message:', {
+          fabric: extractedQuoteData?.capDetails?.fabric,
+          productName: extractedQuoteData?.capDetails?.productName
+        });
+      }
+      
+      // CRITICAL FIX: If structured data exists but lacks fabric, enhance it with message parsing
+      if (extractedQuoteData && !extractedQuoteData.capDetails?.fabric && data.message) {
+        console.log('⚠️ [FABRIC-FIX] Structured data missing fabric, extracting from message');
+        const messageQuoteData = parseQuoteFromMessage(data.message);
+        if (messageQuoteData?.capDetails?.fabric) {
+          extractedQuoteData.capDetails.fabric = messageQuoteData.capDetails.fabric;
+          console.log('✅ [FABRIC-FIX] Enhanced structured data with fabric:', messageQuoteData.capDetails.fabric);
+        }
       }
       
       if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
@@ -1652,12 +1674,76 @@ export default function SupportPage() {
       const customizationCost = customizationMatch ? parseFloat(customizationMatch[1].replace(/,/g, '')) : 0;
       const deliveryCost = deliveryMatch ? parseFloat(deliveryMatch[1].replace(/,/g, '')) : 0;
       
-      // Extract product details
+      // Extract product details with enhanced fabric detection
       const productRegex = /(?:Product:|Cap).*?(\w+.*?(?:Cap|112|Era))/i;
       const productMatch = message.match(productRegex);
       const productName = productMatch ? productMatch[1].trim() : 'Custom Cap';
       
-      // Extract logo information
+      // Enhanced fabric extraction to preserve AI-generated fabric specifications
+      const extractFabric = (text: string): string => {
+        // Look for premium fabric mentions in various formats
+        const fabricPatterns = [
+          /(?:Fabric|Material):\s*([^,\n]+)/i,
+          /(?:made from|constructed from|featuring)\s+([^,\n]*(?:Acrylic|Air Mesh|Suede Cotton|Camo|Leather|Polyester|Cotton)[^,\n]*)/i,
+          /(Acrylic\/Air Mesh|Air Mesh\/Acrylic|Acrylic Air Mesh|Air Mesh Acrylic)/i,
+          /(Suede Cotton|Cotton Suede)/i,
+          /(Genuine Leather|Real Leather|Leather)/i,
+          /([A-Za-z\s]*(?:Acrylic|Air Mesh|Suede|Camo|Leather|Polyester|Cotton)[A-Za-z\s]*)/i
+        ];
+        
+        for (const pattern of fabricPatterns) {
+          const match = text.match(pattern);
+          if (match) {
+            return match[1].trim();
+          }
+        }
+        
+        return 'Standard Cotton'; // Default fallback
+      };
+      
+      // Extract other cap specifications from AI message
+      const extractProfile = (text: string): string => {
+        if (/(?:high|tall)\s*profile/i.test(text)) return 'High';
+        if (/(?:mid|medium)\s*profile/i.test(text)) return 'Mid';
+        if (/low\s*profile/i.test(text)) return 'Low';
+        return 'High'; // Default
+      };
+      
+      const extractStructure = (text: string): string => {
+        if (/unstructured/i.test(text)) return 'Unstructured';
+        if (/structured/i.test(text)) return 'Structured';
+        return 'Structured'; // Default
+      };
+      
+      const extractClosure = (text: string): string => {
+        if (/snapback/i.test(text)) return 'Snapback';
+        if (/fitted/i.test(text)) return 'Fitted';
+        if (/adjustable/i.test(text)) return 'Adjustable';
+        if (/velcro/i.test(text)) return 'Velcro';
+        return 'Snapback'; // Default
+      };
+      
+      const extractColors = (text: string): string[] => {
+        const colorMatches = text.match(/(?:color|colours?):\s*([^,\n]+)/i);
+        if (colorMatches) {
+          return colorMatches[1].split(/[,&]/).map(c => c.trim()).filter(c => c.length > 0);
+        }
+        // Look for common color words
+        const commonColors = ['Black', 'White', 'Navy', 'Red', 'Blue', 'Gray', 'Grey', 'Green', 'Brown'];
+        const foundColors = commonColors.filter(color => 
+          new RegExp(`\\b${color}\\b`, 'i').test(text)
+        );
+        return foundColors.length > 0 ? foundColors : ['Black']; // Default to black
+      };
+      
+      // Extract bill shape
+      const extractBillShape = (text: string): string => {
+        if (/flat\s*bill/i.test(text)) return 'Flat';
+        if (/curved\s*bill/i.test(text)) return 'Curved';
+        return 'Curved'; // Default
+      };
+      
+      // Extract logo information with enhanced detection
       const logoTypes = [];
       if (message.includes('3D Embroidery')) {
         logoTypes.push({location: 'Front', type: 'Large 3D Embroidery', size: 'Large'});
@@ -1670,13 +1756,19 @@ export default function SupportPage() {
         logoTypes.push({location: 'Left', type: 'Small Flat Embroidery', size: 'Small'});
       }
       
+      const fabric = extractFabric(message);
+      console.log('🧵 [FABRIC-FIX] Extracted fabric from AI message:', fabric);
+      
       return {
         capDetails: {
           productName: productName,
-          profile: 'High',
-          structure: 'Structured',
-          colors: ['Black'],
-          closure: 'Snapback'
+          profile: extractProfile(message),
+          structure: extractStructure(message),
+          colors: extractColors(message),
+          closure: extractClosure(message),
+          fabric: fabric, // Now properly extracted from AI response
+          billShape: extractBillShape(message),
+          sizes: [] // Will be populated if mentioned in message
         },
         customization: {
           logos: logoTypes,

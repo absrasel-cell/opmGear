@@ -23,18 +23,10 @@ export async function GET(request: NextRequest) {
    return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
   }
 
-  // Get user's invoices
+  // Get user's invoices (without foreign key relationships for now)
   const { data: invoices, error: invoicesError } = await supabaseAdmin
-   .from('invoices')
-   .select(`
-    *,
-    invoice_items!inner (*),
-    orders!inner (
-     id,
-     productName,
-     createdAt
-    )
-   `)
+   .from('Invoice')
+   .select('*')
    .eq('customerId', user.id)
    .order('createdAt', { ascending: false });
 
@@ -43,8 +35,32 @@ export async function GET(request: NextRequest) {
    return NextResponse.json({ error: 'Failed to fetch invoices' }, { status: 500 });
   }
 
+  // Manually fetch related data for each invoice
+  const enrichedInvoices = await Promise.all(
+   (invoices || []).map(async (invoice) => {
+    // Fetch invoice items
+    const { data: items } = await supabaseAdmin
+     .from('InvoiceItem')
+     .select('*')
+     .eq('invoiceId', invoice.id);
+
+    // Fetch order data
+    const { data: order } = await supabaseAdmin
+     .from('Order')
+     .select('id, productName, createdAt')
+     .eq('id', invoice.orderId)
+     .single();
+
+    return {
+     ...invoice,
+     items: items || [],
+     order: order || null
+    };
+   })
+  );
+
   return NextResponse.json({
-   invoices: invoices || []
+   invoices: enrichedInvoices || []
   });
  } catch (error: any) {
   console.error('Error fetching user invoices:', error);
@@ -84,7 +100,7 @@ export async function POST(request: NextRequest) {
   // Get the order and verify ownership
   console.log('🧾 Looking up order:', orderId);
   const { data: order, error: orderError } = await supabaseAdmin
-   .from('orders')
+   .from('Order')
    .select('*')
    .eq('id', orderId)
    .single();
@@ -122,7 +138,7 @@ export async function POST(request: NextRequest) {
   // Check if invoice already exists for this order
   console.log('🧾 Checking for existing invoice');
   const { data: existingInvoice, error: existingInvoiceError } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .select('*')
    .eq('orderId', orderId)
    .single();
@@ -137,23 +153,24 @@ export async function POST(request: NextRequest) {
 
   if (existingInvoice) {
    console.log('🧾 Returning existing invoice:', existingInvoice.id);
-   // Return existing invoice with related data
-   const { data: invoiceWithDetails, error: detailsError } = await supabaseAdmin
-    .from('invoices')
-    .select(`
-     *,
-     invoice_items (*),
-     orders (*)
-    `)
-    .eq('id', existingInvoice.id)
+   
+   // Manually fetch related data
+   const { data: items } = await supabaseAdmin
+    .from('InvoiceItem')
+    .select('*')
+    .eq('invoiceId', existingInvoice.id);
+
+   const { data: order } = await supabaseAdmin
+    .from('Order')
+    .select('*')
+    .eq('id', existingInvoice.orderId)
     .single();
 
-   if (detailsError) {
-    console.error('🧾 Error fetching invoice details:', detailsError);
-    return NextResponse.json({ error: 'Error fetching invoice details' }, { status: 500 });
-   }
-
-   invoice = invoiceWithDetails;
+   invoice = {
+    ...existingInvoice,
+    items: items || [],
+    order: order || null
+   };
   } else {
    console.log('🧾 Creating new invoice');
    
@@ -171,20 +188,27 @@ export async function POST(request: NextRequest) {
 
    console.log('🧾 Creating invoice in database...');
    
+   // Generate unique invoice ID
+   const invoiceId = `invoice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+   console.log('🧾 Generated invoice ID:', invoiceId);
+   
    // Create the invoice
    const { data: newInvoice, error: invoiceError } = await supabaseAdmin
-    .from('invoices')
+    .from('Invoice')
     .insert({
+     id: invoiceId,
      number: invoiceNumber,
      orderId,
      customerId: order.userId,
      subtotal: calculation.subtotal,
-     discount: calculation.discount,
-     shipping: calculation.shipping,
-     tax: calculation.tax,
+     discount: calculation.discount || 0,
+     shipping: calculation.shipping || 0,
+     tax: calculation.tax || 0,
      total: calculation.total,
      notes: notes || `Invoice for Order #${order.id}`,
      status: 'ISSUED', // User-created invoices are automatically issued
+     createdAt: new Date().toISOString(),
+     updatedAt: new Date().toISOString()
     })
     .select()
     .single();
@@ -194,10 +218,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Error creating invoice' }, { status: 500 });
    }
 
-   // Create invoice items
+   // Create invoice items with explicit IDs
    const { error: itemsError } = await supabaseAdmin
-    .from('invoice_items')
-    .insert(calculation.items.map(item => ({
+    .from('InvoiceItem')
+    .insert(calculation.items.map((item, index) => ({
+     id: `item_${Date.now()}_${index + 1}`,
      invoiceId: newInvoice.id,
      name: item.name,
      description: item.description,
@@ -211,23 +236,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Error creating invoice items' }, { status: 500 });
    }
 
-   // Get the complete invoice with items and order
-   const { data: completeInvoice, error: completeError } = await supabaseAdmin
-    .from('invoices')
-    .select(`
-     *,
-     invoice_items (*),
-     orders (*)
-    `)
-    .eq('id', newInvoice.id)
+   // Get the complete invoice with items and order manually
+   const { data: items } = await supabaseAdmin
+    .from('InvoiceItem')
+    .select('*')
+    .eq('invoiceId', newInvoice.id);
+
+   const { data: orderData } = await supabaseAdmin
+    .from('Order')
+    .select('*')
+    .eq('id', newInvoice.orderId)
     .single();
 
-   if (completeError) {
-    console.error('🧾 Error fetching complete invoice:', completeError);
-    return NextResponse.json({ error: 'Error fetching complete invoice' }, { status: 500 });
-   }
-
-   invoice = completeInvoice;
+   invoice = {
+    ...newInvoice,
+    items: items || [],
+    order: orderData || null
+   };
 
    console.log('🧾 User invoice created successfully:', invoice.id);
   }

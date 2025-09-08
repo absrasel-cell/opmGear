@@ -406,7 +406,8 @@ export const QuotePdf: React.FC<QuotePdfProps> = ({ quote }) => {
                 src={getLogoDataUri()}
               />
             )}
-            <Text style={styles.companyTagline}>Custom Baseball Caps & Accessories</Text>
+            <Text style={styles.companyName}>US CUSTOM CAPS</Text>
+            <Text style={styles.companyTagline}>Owner: Joseph Benise | Phone: +1 (678) 858-7893</Text>
           </View>
           <View style={styles.quoteInfo}>
             <Text style={styles.quoteTitle}>QUOTE REQUEST</Text>
@@ -426,8 +427,10 @@ export const QuotePdf: React.FC<QuotePdfProps> = ({ quote }) => {
           <View style={styles.customerColumn}>
             <Text style={styles.sectionTitle}>From:</Text>
             <Text style={styles.addressText}>US Custom Caps</Text>
-            <Text style={styles.addressText}>Custom Baseball Caps</Text>
-            <Text style={styles.addressText}>support@uscustomcaps.com</Text>
+            <Text style={styles.addressText}>Joseph Benise</Text>
+            <Text style={styles.addressText}>+1 (678) 858-7893</Text>
+            <Text style={styles.addressText}>957 Hwy 85 Connector</Text>
+            <Text style={styles.addressText}>Brooks, GA 30205, United States</Text>
           </View>
           <View style={styles.customerColumn}>
             <Text style={styles.sectionTitle}>Customer:</Text>
@@ -695,13 +698,13 @@ export const QuotePdf: React.FC<QuotePdfProps> = ({ quote }) => {
             • 50% deposit required to begin production
           </Text>
           <Text style={styles.notesText}>
-            • Questions? Contact our team at support@uscustomcaps.com
+            • Questions? Contact us at +1 (678) 858-7893 or via email
           </Text>
         </View>
 
         {/* Footer */}
         <Text style={styles.footer}>
-          US Custom Caps - Professional Custom Cap Manufacturing | support@uscustomcaps.com | Quote #{quote.id.slice(-8)}
+          US Custom Caps | 957 Hwy 85 Connector, Brooks, GA 30205 | +1 (678) 858-7893 | Quote #{quote.id.slice(-8)}
         </Text>
       </Page>
     </Document>

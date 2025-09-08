@@ -1,5 +1,32 @@
 import { z } from 'zod';
-import { Order, Invoice } from '@prisma/client';
+
+// Define types for Supabase tables
+interface Order {
+  id: string;
+  userId?: string | null;
+  productName?: string;
+  selectedOptions?: any;
+  selectedColors?: any;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Invoice {
+  id: string;
+  number: string;
+  orderId: string;
+  customerId?: string | null;
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  tax: number;
+  total: number;
+  notes?: string | null;
+  dueDate?: string | null;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 // Schema for validating invoice creation
 export const createInvoiceSchema = z.object({

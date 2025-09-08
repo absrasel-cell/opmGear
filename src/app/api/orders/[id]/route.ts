@@ -33,11 +33,12 @@ async function processLogoFile(logoFile: any, orderId: string, userId?: string) 
    return null;
   }
 
-  // Create OrderAsset record
-  const orderAsset = await prisma.orderAsset.create({
-   data: {
+  // Create OrderAsset record using Supabase
+  const { data: orderAsset, error: assetError } = await supabaseAdmin
+   .from('OrderAsset')
+   .insert({
     orderId: orderId,
-    userId: userId || '', // Use provided userId or empty string for guests
+    userId: userId || null, // Use provided userId or null for guests
     kind: 'LOGO', // Assume logo files are LOGO type
     position: logoFile.position || 'Front',
     bucket: 'order-assets',
@@ -46,8 +47,14 @@ async function processLogoFile(logoFile: any, orderId: string, userId?: string) 
     sizeBytes: logoFile.size,
     width: logoFile.width,
     height: logoFile.height,
-   }
-  });
+   })
+   .select()
+   .single();
+
+  if (assetError) {
+   console.error('Failed to create OrderAsset record:', assetError);
+   return null;
+  }
 
   console.log('✅ Processed logo file:', fileName, 'for order:', orderId);
   return {
@@ -55,7 +62,7 @@ async function processLogoFile(logoFile: any, orderId: string, userId?: string) 
    name: logoFile.name,
    size: logoFile.size,
    type: logoFile.type,
-   assetId: orderAsset.id
+   assetId: orderAsset?.id
   };
  } catch (error) {
   console.error('Failed to process logo file:', logoFile.name, error);
@@ -220,16 +227,24 @@ export async function GET(
   // Fetch order with graceful database failure handling
   let order = null;
   try {
-   order = await prisma.order.findUnique({
-    where: { id },
-   });
-
-   if (!order) {
-    return NextResponse.json(
-     { error: 'Order not found' },
-     { status: 404 }
-    );
+   const { data, error } = await supabaseAdmin
+    .from('Order')
+    .select('*')
+    .eq('id', id)
+    .single();
+   
+   if (error) {
+    console.error('Supabase fetch error:', error);
+    if (error.code === 'PGRST116') {
+     return NextResponse.json(
+      { error: 'Order not found' },
+      { status: 404 }
+     );
+    }
+    throw error;
    }
+   
+   order = data;
 
    // Calculate order total for consistency with checkout success page
    const orderTotal = await calculateOrderTotal(order);
@@ -240,8 +255,8 @@ export async function GET(
     productName: order.productName,
     status: order.status,
     orderSource: order.orderSource,
-    createdAt: order.createdAt.toISOString(),
-    updatedAt: order.updatedAt.toISOString(),
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
     customerInfo: order.customerInfo as any,
     orderTotal: orderTotal, // Include calculated total
     userId: order.userId,
@@ -335,16 +350,36 @@ export async function PATCH(
   let originalOrder = null;
   
   if (statusChanged) {
-   originalOrder = await prisma.order.findUnique({ where: { id } });
+   const { data } = await supabaseAdmin
+    .from('Order')
+    .select('*')
+    .eq('id', id)
+    .single();
+   originalOrder = data;
   }
 
   // Update order with graceful database failure handling
   let updatedOrder = null;
   try {
-   updatedOrder = await prisma.order.update({
-    where: { id },
-    data: dataToUpdate,
-   });
+   const { data, error } = await supabaseAdmin
+    .from('Order')
+    .update(dataToUpdate)
+    .eq('id', id)
+    .select()
+    .single();
+   
+   if (error) {
+    console.error('Supabase update error:', error);
+    if (error.code === 'PGRST116') {
+     return NextResponse.json(
+      { error: 'Order not found' },
+      { status: 404 }
+     );
+    }
+    throw error;
+   }
+   
+   updatedOrder = data;
 
    // Send status update email if status changed and customer email exists
    if (statusChanged && originalOrder && updatedOrder.customerInfo && (updatedOrder.customerInfo as any).email) {
@@ -376,13 +411,6 @@ export async function PATCH(
   } catch (dbError: any) {
    console.error('Database error when updating order:', dbError);
    
-   if (dbError.code === 'P2025') {
-    return NextResponse.json(
-     { error: 'Order not found' },
-     { status: 404 }
-    );
-   }
-
    return NextResponse.json(
     { error: 'Order temporarily unavailable due to database maintenance' },
     { status: 503 }
@@ -391,13 +419,6 @@ export async function PATCH(
  } catch (error: any) {
   console.error('Error updating order:', error);
   
-  if (error.code === 'P2025') {
-   return NextResponse.json(
-    { error: 'Order not found' },
-    { status: 404 }
-   );
-  }
-
   return NextResponse.json(
    { error: 'Failed to update order' },
    { status: 500 }
@@ -414,9 +435,21 @@ export async function DELETE(
 
   // Delete order with graceful database failure handling
   try {
-   await prisma.order.delete({
-    where: { id },
-   });
+   const { error } = await supabaseAdmin
+    .from('Order')
+    .delete()
+    .eq('id', id);
+   
+   if (error) {
+    console.error('Supabase delete error:', error);
+    if (error.code === 'PGRST116') {
+     return NextResponse.json(
+      { error: 'Order not found' },
+      { status: 404 }
+     );
+    }
+    throw error;
+   }
 
    return NextResponse.json({
     message: 'Order deleted successfully',
@@ -425,13 +458,6 @@ export async function DELETE(
   } catch (dbError: any) {
    console.error('Database error when deleting order:', dbError);
    
-   if (dbError.code === 'P2025') {
-    return NextResponse.json(
-     { error: 'Order not found' },
-     { status: 404 }
-    );
-   }
-
    return NextResponse.json(
     { error: 'Order temporarily unavailable due to database maintenance' },
     { status: 503 }
@@ -440,13 +466,6 @@ export async function DELETE(
  } catch (error: any) {
   console.error('Error deleting order:', error);
   
-  if (error.code === 'P2025') {
-   return NextResponse.json(
-    { error: 'Order not found' },
-    { status: 404 }
-   );
-  }
-
   return NextResponse.json(
    { error: 'Failed to delete order' },
    { status: 500 }

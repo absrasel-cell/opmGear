@@ -288,7 +288,8 @@ export async function POST(request: NextRequest) {
    hasSelectedOptions: !!body.selectedOptions,
    hasBaseProductPricing: !!body.baseProductPricing,
    priceTier: body.priceTier, // ✅ Use proper interface field
-   effectivePriceTier: body.priceTier || 'Tier 1', // ✅ Show what tier will be used
+   selectedOptionsPriceTier: body.selectedOptions?.priceTier,
+   effectivePriceTier: body.priceTier || body.selectedOptions?.priceTier || 'Tier 1', // ✅ Show what tier will be used
    logoSetupOptions: body.multiSelectOptions?.['logo-setup'] || [],
    logoSetupKeys: body.logoSetupSelections ? Object.keys(body.logoSetupSelections) : []
   });
@@ -385,7 +386,7 @@ export async function POST(request: NextRequest) {
   let baseProductCost = 0;
   
   // Use the price tier from the request body for consistent pricing calculations
-  const effectivePriceTier = priceTier || 'Tier 1';
+  const effectivePriceTier = priceTier || selectedOptions?.priceTier || 'Tier 1';
   
   // CSV-DRIVEN PRICING - Use CSV data for all pricing calculations
   const getUnitPrice = async (quantity: number): Promise<number> => {

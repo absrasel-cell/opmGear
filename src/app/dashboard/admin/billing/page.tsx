@@ -493,7 +493,7 @@ export default function BillingDashboard() {
     credentials: 'include',
     body: JSON.stringify({
      orderId: order.id,
-     simple: true,
+     simple: false,
      discountPercent: customDiscountPercent || 0,
      discountFlat: customDiscountFlat || 0
     })
@@ -539,7 +539,7 @@ export default function BillingDashboard() {
     credentials: 'include',
     body: JSON.stringify({
      orderId: order.id,
-     simple: true,
+     simple: false,
      discountPercent: additionalDiscountPercent || 0,
      discountFlat: additionalDiscountFlat || 0
     })
@@ -723,7 +723,7 @@ export default function BillingDashboard() {
            <select 
             value={invoiceFilters.status}
             onChange={(e) => setInvoiceFilters(prev => ({ ...prev, status: e.target.value }))}
-            className="appearance-none w-[180px] rounded-lg bg-stone-700 border border-stone-600 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
+            className="appearance-none w-[180px] rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
            >
             <option value="">All statuses</option>
             <option value="DRAFT">Draft</option>
@@ -743,7 +743,7 @@ export default function BillingDashboard() {
              type="date" 
              value={invoiceFilters.dateFrom}
              onChange={(e) => setInvoiceFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
-             className="w-[170px] rounded-lg bg-stone-700 border border-stone-600 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
+             className="w-[170px] rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
             />
            </div>
            <span className="text-slate-400">to</span>
@@ -753,18 +753,18 @@ export default function BillingDashboard() {
              type="date" 
              value={invoiceFilters.dateTo}
              onChange={(e) => setInvoiceFilters(prev => ({ ...prev, dateTo: e.target.value }))}
-             className="w-[170px] rounded-lg bg-stone-700 border border-stone-600 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
+             className="w-[170px] rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5"
             />
            </div>
           </div>
          </div>
 
          <div className="flex items-center gap-4">
-          <div className="text-slate-300 text-sm bg-stone-700 border border-stone-600 rounded-lg px-3 py-1">
+          <div className="text-slate-300 text-sm bg-black/40 backdrop-blur-sm border border-stone-700/50 rounded-lg px-3 py-1">
            Total: {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
           </div>
           {invoices.length > 0 && (
-           <div className="text-slate-300 text-sm bg-stone-700 border border-stone-600 rounded-lg px-3 py-1">
+           <div className="text-slate-300 text-sm bg-black/40 backdrop-blur-sm border border-stone-700/50 rounded-lg px-3 py-1">
             Revenue: {formatPrice(invoices.reduce((sum, inv) => sum + inv.total, 0))}
            </div>
           )}
@@ -780,9 +780,9 @@ export default function BillingDashboard() {
         )}
 
         {/* Invoices Table */}
-        <div className="rounded-xl bg-stone-700 border border-stone-600 overflow-hidden">
+        <div className="rounded-xl bg-black/20 backdrop-blur-sm border border-stone-700/40 overflow-hidden">
          {/* Table Header */}
-         <div className="bg-white/2.5 border-b border-stone-600">
+         <div className="bg-black/20 border-b border-stone-700/50">
           <div className="grid grid-cols-12 gap-6 text-[13px] font-medium text-slate-300 px-4 sm:px-6 py-4">
            <div className="col-span-2 flex items-center gap-1">
             <span>Invoice</span>
@@ -817,7 +817,7 @@ export default function BillingDashboard() {
              <div className="col-span-2">
               <div className="font-medium text-slate-200">{invoice.number}</div>
               <div className="text-xs text-slate-400 mt-0.5">
-               {invoice._count.items} item{invoice._count.items !== 1 ? 's' : ''}
+               Invoice #{invoice.id}
               </div>
              </div>
              
@@ -873,7 +873,7 @@ export default function BillingDashboard() {
               {/* View PDF */}
               <button 
                onClick={() => downloadInvoicePDF(invoice.id, invoice.number)}
-               className="rounded-full p-2 bg-stone-700 border border-stone-600 hover:bg-stone-600 hover:border-stone-500 transition"
+               className="rounded-full p-2 bg-black/40 backdrop-blur-sm border border-stone-700/50 hover:bg-black/60 hover:border-stone-600/60 transition"
                title="Download PDF"
               >
                <Download className="h-4 w-4" />
@@ -883,7 +883,7 @@ export default function BillingDashboard() {
               {invoice.status !== 'VOID' && (
                <button 
                 onClick={() => sendInvoice(invoice.id)}
-                className="rounded-full p-2 bg-stone-700 border border-stone-600 hover:bg-stone-600 hover:border-stone-500 transition"
+                className="rounded-full p-2 bg-black/40 backdrop-blur-sm border border-stone-700/50 hover:bg-black/60 hover:border-stone-600/60 transition"
                 title="Send Invoice Email"
                >
                 <Send className="h-4 w-4" />
@@ -895,7 +895,7 @@ export default function BillingDashboard() {
                <select 
                 value={invoice.status}
                 onChange={(e) => updateInvoiceStatus(invoice.id, e.target.value)}
-                className="appearance-none rounded-full bg-stone-700 border border-stone-600 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-3 py-1.5 pr-8 text-xs"
+                className="appearance-none rounded-full bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-3 py-1.5 pr-8 text-xs"
                >
                 <option value="DRAFT">Draft</option>
                 <option value="ISSUED">Issued</option>
@@ -909,7 +909,7 @@ export default function BillingDashboard() {
               {/* Delete (All invoices - for cleanup) */}
               <button 
                onClick={() => deleteInvoice(invoice.id)}
-               className="rounded-full p-2 bg-stone-700 border border-stone-600 hover:bg-red-400/20 hover:border-red-400/40 transition"
+               className="rounded-full p-2 bg-black/40 backdrop-blur-sm border border-stone-700/50 hover:bg-red-400/20 hover:border-red-400/40 transition"
                title="Delete Invoice"
               >
                <Trash2 className="h-4 w-4 text-red-300/80" />
@@ -1029,7 +1029,7 @@ export default function BillingDashboard() {
             <select 
              value={orderFilters.customer}
              onChange={(e) => setOrderFilters(prev => ({ ...prev, customer: e.target.value }))}
-             className="appearance-none w-[240px] rounded-lg bg-stone-700 border border-stone-600 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
+             className="appearance-none w-[240px] rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
             >
              <option value="">All customers</option>
              {Array.from(new Set(realOrders.map(order => order.customer))).map(customer => (
@@ -1043,7 +1043,7 @@ export default function BillingDashboard() {
             <select 
              value={orderFilters.status}
              onChange={(e) => setOrderFilters(prev => ({ ...prev, status: e.target.value }))}
-             className="appearance-none w-[180px] rounded-lg bg-stone-700 border border-stone-600 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
+             className="appearance-none w-[180px] rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 px-10 py-2.5 pr-12"
             >
              <option value="">All statuses</option>
              <option value="no-invoice">Without invoices</option>
@@ -1056,7 +1056,7 @@ export default function BillingDashboard() {
             size="sm"
             onClick={loadOrders}
             disabled={isLoadingOrders}
-            className="bg-stone-700 border border-stone-600"
+            className="bg-black/40 backdrop-blur-sm border border-stone-700/50"
            >
             <RotateCcw className={`h-4 w-4 mr-2 ${isLoadingOrders ? 'animate-spin' : ''}`} />
             Refresh
@@ -1067,7 +1067,7 @@ export default function BillingDashboard() {
           <div className="grid grid-cols-12 gap-6">
            {/* Orders Table */}
            <div className="col-span-12 lg:col-span-8">
-            <div className="rounded-xl bg-stone-700 border border-stone-600 overflow-hidden">
+            <div className="rounded-xl bg-black/20 backdrop-blur-sm border border-stone-700/40 overflow-hidden">
              <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-600">
               <div className="flex items-center gap-2">
                <span className="text-[15px] text-slate-300">Orders ({filteredOrders.length})</span>
@@ -1076,7 +1076,7 @@ export default function BillingDashboard() {
              </div>
              
              {/* Table Header */}
-             <div className="grid grid-cols-12 gap-6 text-[13px] text-slate-400 px-4 sm:px-6 py-2.5 bg-white/2.5">
+             <div className="grid grid-cols-12 gap-6 text-[13px] text-slate-400 px-4 sm:px-6 py-2.5 bg-black/20">
               <div className="col-span-3 sm:col-span-2">Order</div>
               <div className="hidden sm:block col-span-3 sm:col-span-2">Customer</div>
               <div className="col-span-2 sm:col-span-1 text-center">Items</div>
@@ -1189,7 +1189,7 @@ export default function BillingDashboard() {
                     <Button
                      size="sm"
                      onClick={() => downloadInvoicePDF(order.invoices[0].id, order.invoices[0].number)}
-                     className="bg-stone-700 border border-stone-600 hover:bg-stone-600 text-slate-300 text-xs px-2.5 py-1.5"
+                     className="bg-black/40 backdrop-blur-sm border border-stone-700/50 hover:bg-black/60 text-slate-300 text-xs px-2.5 py-1.5"
                      title="Download PDF"
                     >
                      <Download className="h-3 w-3" />
@@ -1206,7 +1206,7 @@ export default function BillingDashboard() {
 
            {/* Order Statistics */}
            <div className="col-span-12 lg:col-span-4">
-            <div className="rounded-xl bg-stone-700 border border-stone-600 p-5">
+            <div className="rounded-xl bg-black/20 backdrop-blur-sm border border-stone-700/40 p-5">
              <div className="flex items-center justify-between mb-4">
               <h3 className="text-white tracking-tight text-[20px] font-semibold">Order Statistics</h3>
               <Calculator className="h-5 w-5 text-slate-400" />
@@ -1240,7 +1240,7 @@ export default function BillingDashboard() {
               </div>
              </div>
              
-             <div className="mt-5 p-3 bg-stone-700 border border-stone-600 rounded-lg">
+             <div className="mt-5 p-3 bg-black/30 backdrop-blur-sm border border-stone-700/50 rounded-lg">
               <p className="text-xs text-slate-400 mb-1">💡 Usage Tip</p>
               <p className="text-xs text-slate-300">
                Use the action buttons in the orders table to create invoices for new orders or modify existing ones with additional discounts.
@@ -1255,7 +1255,7 @@ export default function BillingDashboard() {
         {currentTab === 'discounts' && (
          <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 md:col-span-6">
-           <div className="rounded-xl bg-stone-700 border border-stone-600 p-5">
+           <div className="rounded-xl bg-black/20 backdrop-blur-sm border border-stone-700/40 p-5">
             <div className="flex items-center justify-between mb-3">
              <h3 className="text-white tracking-tight text-[22px] font-semibold">Global Discount Rules</h3>
              <Percent className="h-5 w-5 text-orange-300/80" />
@@ -1270,7 +1270,7 @@ export default function BillingDashboard() {
                 step="0.5"
                 value={globalDiscountPercent}
                 onChange={(e) => setGlobalDiscountPercent(Number(e.target.value) || 0)}
-                className="w-full rounded-lg bg-stone-700 border border-stone-600 pl-4 pr-10 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+                className="w-full rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 pl-4 pr-10 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
                />
                <span className="absolute right-4 top-2.5 text-slate-400 pointer-events-none">%</span>
               </div>
@@ -1284,7 +1284,7 @@ export default function BillingDashboard() {
                 step="1"
                 value={globalDiscountFlat}
                 onChange={(e) => setGlobalDiscountFlat(Number(e.target.value) || 0)}
-                className="w-full rounded-lg bg-stone-700 border border-stone-600 pl-10 pr-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+                className="w-full rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 pl-10 pr-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
                />
                <span className="absolute left-4 top-2.5 text-slate-400 pointer-events-none">$</span>
               </div>
@@ -1300,7 +1300,7 @@ export default function BillingDashboard() {
               </Button>
               <Button 
                variant="ghost" 
-               className="bg-white/7.5 border border-stone-600"
+               className="bg-black/30 backdrop-blur-sm border border-stone-700/50"
                onClick={() => {
                 setGlobalDiscountPercent(0);
                 setGlobalDiscountFlat(0);
@@ -1315,7 +1315,7 @@ export default function BillingDashboard() {
            </div>
           </div>
           <div className="col-span-12 md:col-span-6">
-           <div className="rounded-xl bg-stone-700 border border-stone-600 p-5 h-full">
+           <div className="rounded-xl bg-black/20 backdrop-blur-sm border border-stone-700/40 p-5 h-full">
             <div className="flex items-center justify-between mb-3">
              <h3 className="text-white tracking-tight text-[22px] font-semibold">Quick Test</h3>
              <Beaker className="h-5 w-5 text-cyan-300/80" />
@@ -1330,7 +1330,7 @@ export default function BillingDashboard() {
                 step="1"
                 value={testFactoryAmount}
                 onChange={(e) => setTestFactoryAmount(Number(e.target.value) || 0)}
-                className="w-full rounded-lg bg-stone-700 border border-stone-600 pl-10 pr-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+                className="w-full rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 pl-10 pr-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
                />
                <span className="absolute left-4 top-2.5 text-slate-400 pointer-events-none">$</span>
               </div>
@@ -1371,7 +1371,7 @@ export default function BillingDashboard() {
            {/* Template Cards */}
            {['Standard Net 30', 'Wholesale Express', 'Reseller Net 15'].map((template, index) => (
             <div key={template} className="col-span-12 md:col-span-4">
-             <div className="rounded-xl bg-stone-700 border border-stone-600 p-5 hover:bg-white/7 transition">
+             <div className="rounded-xl bg-black/20 backdrop-blur-sm border border-stone-700/40 p-5 hover:bg-black/30 transition">
               <div className="flex items-center justify-between mb-3">
                <div className="flex items-center gap-2">
                 <LayoutTemplate className="h-5 w-5 text-purple-300/80" />
@@ -1379,7 +1379,7 @@ export default function BillingDashboard() {
                </div>
                <span className="text-[12px] text-slate-400">{index === 0 ? 'Updated 2d' : index === 1 ? 'Updated 6d' : 'Updated 12d'}</span>
               </div>
-              <div className="rounded-lg bg-stone-700 border border-stone-600 p-4 text-[13px] text-slate-300/90">
+              <div className="rounded-lg bg-black/30 backdrop-blur-sm border border-stone-700/50 p-4 text-[13px] text-slate-300/90">
                • Payment: {index === 0 ? 'Net 30' : index === 1 ? 'Due on receipt' : 'Net 15'}
                <br />• Tax: 0%
                <br />• Discount: {index === 0 ? '5%' : index === 1 ? '0%' : '2.5%'}
@@ -1388,7 +1388,7 @@ export default function BillingDashboard() {
                <Button 
                 variant="ghost" 
                 size="sm"
-                className="bg-white/7.5 border border-stone-600"
+                className="bg-black/30 backdrop-blur-sm border border-stone-700/50"
                 onClick={() => {
                  setSelectedTemplate(template);
                  setTemplateModalOpen(true);
@@ -1427,7 +1427,7 @@ export default function BillingDashboard() {
    {templateModalOpen && (
     <div className="fixed inset-0 z-50">
      <div className="absolute inset-0 bg-black" onClick={() => setTemplateModalOpen(false)} />
-     <div className="relative mx-auto max-w-2xl mt-20 rounded-2xl bg-stone-700 border border-stone-600 p-6 sm:p-8 text-slate-200 shadow-2xl">
+     <div className="relative mx-auto max-w-2xl mt-20 rounded-2xl bg-black/40 backdrop-blur-md border border-stone-700/50 p-6 sm:p-8 text-slate-200 shadow-2xl">
       <div className="flex items-center justify-between mb-4">
        <div className="flex items-center gap-2">
         <LayoutTemplate className="h-5 w-5 text-purple-300" />
@@ -1435,12 +1435,12 @@ export default function BillingDashboard() {
        </div>
        <button 
         onClick={() => setTemplateModalOpen(false)}
-        className="rounded-full p-2 bg-stone-700 border border-stone-600 hover:bg-stone-600 hover:border-stone-500 transition focus:outline-none focus:ring-2 focus:ring-stone-500"
+        className="rounded-full p-2 bg-black/40 backdrop-blur-sm border border-stone-700/50 hover:bg-black/60 hover:border-stone-600/60 transition focus:outline-none focus:ring-2 focus:ring-stone-500"
        >
         <X className="h-4 w-4" />
        </button>
       </div>
-      <div className="rounded-xl bg-stone-700 border border-stone-600 p-5 text-[15px]">
+      <div className="rounded-xl bg-black/30 backdrop-blur-sm border border-stone-700/50 p-5 text-[15px]">
        <p className="text-slate-300">Preview of invoice structure with sample line items and terms.</p>
        <div className="mt-3 grid grid-cols-12 gap-2">
         <div className="col-span-8 text-slate-300">Item</div>
@@ -1472,7 +1472,7 @@ export default function BillingDashboard() {
        </Button>
        <Button 
         variant="ghost" 
-        className="bg-white/7.5 border border-stone-600"
+        className="bg-black/30 backdrop-blur-sm border border-stone-700/50"
         onClick={() => setTemplateModalOpen(false)}
        >
         <XCircle className="h-5 w-5 mr-2" />
@@ -1487,7 +1487,7 @@ export default function BillingDashboard() {
    {/* Invoice Creation/Modification Modal */}
    {invoiceModalOpen && selectedOrderForInvoice && (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-     <div className="bg-slate-900 border border-stone-600 rounded-xl max-w-md w-full p-6">
+     <div className="bg-black/60 backdrop-blur-md border border-stone-700/50 rounded-xl max-w-md w-full p-6">
       <div className="flex items-center justify-between mb-6">
        <h3 className="text-white text-lg font-semibold">
         {selectedOrderForInvoice.hasInvoice ? 'Modify Invoice' : 'Create Invoice'}
@@ -1534,7 +1534,7 @@ export default function BillingDashboard() {
           max="100"
           value={discountPercent}
           onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)}
-          className="w-full rounded-lg bg-stone-700 border border-stone-600 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+          className="w-full rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
           placeholder="0"
          />
         </div>
@@ -1549,12 +1549,12 @@ export default function BillingDashboard() {
           step="0.01"
           value={discountFlat}
           onChange={(e) => setDiscountFlat(Number(e.target.value) || 0)}
-          className="w-full rounded-lg bg-stone-700 border border-stone-600 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+          className="w-full rounded-lg bg-black/40 backdrop-blur-sm border border-stone-700/50 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
           placeholder="0.00"
          />
         </div>
 
-        <div className="bg-stone-700 border border-stone-600 rounded-lg p-3">
+        <div className="bg-black/30 backdrop-blur-sm border border-stone-700/50 rounded-lg p-3">
          <h4 className="text-slate-300 text-sm font-medium mb-2">Preview</h4>
          <div className="space-y-1 text-xs">
           <div className="flex justify-between text-slate-400">
@@ -1593,7 +1593,7 @@ export default function BillingDashboard() {
          setDiscountPercent(0);
          setDiscountFlat(0);
         }}
-        className="flex-1 bg-stone-700 border border-stone-600"
+        className="flex-1 bg-black/40 backdrop-blur-sm border border-stone-700/50"
         disabled={isCreatingInvoice}
        >
         Cancel

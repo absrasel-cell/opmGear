@@ -67,7 +67,7 @@ export async function GET(
   
   // Verify the invoice exists and get customer ID
   const { data: invoice, error: invoiceError } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .select('id, customerId, number')
    .eq('id', id)
    .single();
@@ -119,11 +119,12 @@ export async function GET(
    },
   });
  } catch (error: any) {
+  const { id: invoiceId } = await params;
   console.error('Error generating invoice PDF:', {
    message: error.message,
    stack: error.stack,
    name: error.name,
-   invoiceId: id,
+   invoiceId: invoiceId,
    type: typeof error,
    cause: error.cause
   });
@@ -138,14 +139,15 @@ export async function GET(
    return NextResponse.json({ 
     error: 'PDF generation failed due to component error',
     details: error.message,
-    invoiceId: id
+    invoiceId: invoiceId
    }, { status: 500 });
   }
 
+  const { id: invoiceIdFallback } = await params;
   return NextResponse.json({ 
    error: 'Failed to generate PDF',
    details: error.message,
-   invoiceId: id
+   invoiceId: invoiceIdFallback
   }, { status: 500 });
  }
 }

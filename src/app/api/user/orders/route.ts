@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed Prisma - migrated to Supabase
 import { requireAuth } from '@/lib/auth-helpers';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
  try {
@@ -16,11 +16,27 @@ export async function GET(request: NextRequest) {
   // Fetch orders with graceful database failure handling
   let orders = [];
   try {
-   orders = await prisma.order.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: limit ? parseInt(limit) : undefined,
-   });
+   let query = supabaseAdmin
+     .from('orders')
+     .select('*')
+     .eq('userId', user.id)
+     .order('createdAt', { ascending: false });
+
+   if (status) {
+     query = query.eq('status', status);
+   }
+
+   if (limit) {
+     query = query.limit(parseInt(limit));
+   }
+
+   const { data: ordersData, error } = await query;
+
+   if (error) {
+     throw error;
+   }
+
+   orders = ordersData || [];
 
    return NextResponse.json({
     orders,

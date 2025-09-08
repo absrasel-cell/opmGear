@@ -1,12 +1,24 @@
-import { Order } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 import { calcInvoiceFromOrder } from './calc';
+
+// Define Order interface for Supabase
+interface Order {
+  id: string;
+  userId?: string | null;
+  productName?: string;
+  selectedOptions?: any;
+  selectedColors?: any;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 interface OrderWithDetails extends Order {
   user?: {
     customerRole?: 'RETAIL' | 'WHOLESALE' | 'SUPPLIER';
   };
 }
+
+// Use regular number instead of Prisma Decimal
+type Decimal = number;
 
 interface SimpleInvoiceItem {
   name: string;
@@ -65,19 +77,19 @@ export async function calcSimpleInvoiceFromOrder(order: OrderWithDetails): Promi
   // Create simplified description with cost breakdown
   const breakdownParts = [];
   
-  if (detailedCalculation.breakdown.blankCapCost.gt(0)) {
+  if (detailedCalculation.breakdown.blankCapCost > 0) {
     breakdownParts.push(`Caps: ${formatCurrency(detailedCalculation.breakdown.blankCapCost)}`);
   }
   
-  if (detailedCalculation.breakdown.logoSetupCost.gt(0)) {
+  if (detailedCalculation.breakdown.logoSetupCost > 0) {
     breakdownParts.push(`Logos: ${formatCurrency(detailedCalculation.breakdown.logoSetupCost)}`);
   }
   
-  if (detailedCalculation.breakdown.accessoriesCost.gt(0)) {
+  if (detailedCalculation.breakdown.accessoriesCost > 0) {
     breakdownParts.push(`Options: ${formatCurrency(detailedCalculation.breakdown.accessoriesCost)}`);
   }
   
-  if (detailedCalculation.breakdown.deliveryCost.gt(0)) {
+  if (detailedCalculation.breakdown.deliveryCost > 0) {
     breakdownParts.push(`Delivery: ${formatCurrency(detailedCalculation.breakdown.deliveryCost)}`);
   }
 

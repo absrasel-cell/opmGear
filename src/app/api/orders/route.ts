@@ -79,22 +79,27 @@ async function uploadTempFiles(tempFiles: Array<{id: string, name: string, size:
     .from('order-assets')
     .getPublicUrl(filePath);
 
-   // TODO: Create OrderAsset record in Supabase
-   // Also create a record in OrderAsset table
+   // Create OrderAsset record in Supabase
    try {
-    // await prisma.orderAsset.create({
-    //  data: {
-    //   orderId: orderId,
-    //   userId: userId || '', // Use provided userId or empty string for guests
-    //   kind: tempFile.kind as 'LOGO' | 'ACCESSORY' | 'OTHER',
-    //   position: tempFile.position,
-    //   bucket: 'order-assets',
-    //   path: filePath,
-    //   mimeType: tempFile.type,
-    //   sizeBytes: tempFile.size,
-    //  }
-    // });
-    console.log('OrderAsset creation temporarily disabled - TODO: implement with Supabase');
+    const { error: assetError } = await supabaseAdmin
+     .from('OrderAsset')
+     .insert({
+      orderId: orderId,
+      userId: userId || null,
+      kind: (tempFile.kind as 'LOGO' | 'ACCESSORY' | 'OTHER') || 'LOGO',
+      position: tempFile.position || 'Front',
+      bucket: 'order-assets',
+      path: filePath,
+      mimeType: tempFile.type,
+      sizeBytes: tempFile.size,
+     });
+    
+    if (assetError) {
+     console.error('Failed to create OrderAsset record:', assetError);
+     // Continue anyway, the file is uploaded
+    } else {
+     console.log('✅ Created OrderAsset record for:', tempFile.name);
+    }
    } catch (dbError) {
     console.error('Failed to create OrderAsset record:', dbError);
     // Continue anyway, the file is uploaded
@@ -146,20 +151,19 @@ async function getCurrentUser(request: NextRequest) {
 // Add function to calculate order total
 async function calculateOrderTotal(order: any): Promise<number> {
  try {
-  // Temporarily disabled - TODO: implement with Supabase
-  console.log('Order total calculation temporarily disabled');
-  return 0;
+  // Use the existing pricing system to calculate order totals
+  console.log('Calculating order total using existing pricing system');
   
-  // TODO: Restore when Prisma dependency is resolved
-  // const { loadCustomizationPricing } = await import('@/lib/pricing-server');
-  // const { getBaseProductPricing } = await import('@/lib/pricing');
-  // 
-  // // Get base product pricing using the order's actual pricing tier
-  // const orderPriceTier = order.selectedOptions?.priceTier || 'Tier 2';
-  // const baseProductPricing = getBaseProductPricing(orderPriceTier);
+  // Load pricing system modules
+  const { loadCustomizationPricing } = await import('@/lib/pricing-server');
+  const { getBaseProductPricing } = await import('@/lib/pricing');
+  
+  // Get base product pricing using the order's actual pricing tier
+  const orderPriceTier = order.selectedOptions?.priceTier || 'Tier 2';
+  const baseProductPricing = getBaseProductPricing(orderPriceTier);
 
-  // // Load customization pricing
-  // const pricingData = await loadCustomizationPricing();
+  // Load customization pricing
+  const pricingData = await loadCustomizationPricing();
 
   // Calculate total units from selectedColors structure
   const totalUnits = order.selectedColors ? 
@@ -298,13 +302,13 @@ export async function POST(request: NextRequest) {
  try {
   const rawOrderData: OrderSubmission = await request.json();
   
-  // TODO: Restore when Prisma dependency is resolved
-  // const { 
-  //  OrderRecordingSystem, 
-  //  convertCheckoutToStandardOrder
-  // } = await import('@/lib/order-recording-system');
+  // Import order recording system
+  const { 
+   OrderRecordingSystem, 
+   convertCheckoutToStandardOrder
+  } = await import('@/lib/order-recording-system');
   
-  console.log('=== STREAMLINED ORDER API ===');
+  console.log('=== STREAMLINED ORDER API (SUPABASE) ===');
   console.log('📄 Raw order data keys:', Object.keys(rawOrderData));
   console.log('📁 tempLogoFiles:', rawOrderData.tempLogoFiles ? `${rawOrderData.tempLogoFiles.length} files` : 'none');
   console.log('📁 uploadedLogoFiles:', rawOrderData.uploadedLogoFiles ? `${rawOrderData.uploadedLogoFiles.length} files` : 'none');
@@ -318,47 +322,30 @@ export async function POST(request: NextRequest) {
            'unknown';
   const userAgent = request.headers.get('user-agent') || 'unknown';
   
-  // Temporarily disabled - TODO: implement with Supabase
-  console.log('Order recording system temporarily disabled - TODO: implement with Supabase');
+  // Convert checkout data to standard order format
+  const standardOrderData = convertCheckoutToStandardOrder({
+   ...rawOrderData,
+   userId: user?.id || rawOrderData.userId,
+   userEmail: user?.email || rawOrderData.userEmail || rawOrderData.customerInfo.email,
+   orderType: user ? 'AUTHENTICATED' : 'GUEST',
+   orderSource: rawOrderData.orderSource || 'PRODUCT_CUSTOMIZATION',
+   status: rawOrderData.status || 'PENDING',
+   ipAddress,
+   userAgent,
+   paymentProcessed: true,
+   processedAt: new Date().toISOString()
+  });
   
-  // Generate a temporary order ID
-  const tempOrderId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
-  // Create a basic order structure for response
-  const result = {
-   success: true,
-   orderId: tempOrderId,
-   order: {
-    id: tempOrderId,
-    productName: rawOrderData.productName,
-    status: 'PENDING',
-    customerInfo: rawOrderData.customerInfo,
-    selectedColors: rawOrderData.selectedColors,
-    selectedOptions: rawOrderData.selectedOptions,
-    multiSelectOptions: rawOrderData.multiSelectOptions,
-    logoSetupSelections: rawOrderData.logoSetupSelections,
-    additionalInstructions: rawOrderData.additionalInstructions,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-   },
-   temporaryId: true,
-   warnings: ['Order saved temporarily - database unavailable']
+  // Record order using the Order Recording System
+  const recordingOptions = {
+   autoCalculateCosts: false, // Costs already calculated in checkout
+   createInvoice: false, // Can be created later if needed
+   notifyCustomer: false, // Will be handled after successful recording
+   assignToShipment: false, // Will be handled in admin dashboard
   };
   
-  // TODO: Restore when dependencies are resolved
-  // const standardOrderData = convertCheckoutToStandardOrder({
-  //  ...rawOrderData,
-  //  userId: user?.id || rawOrderData.userId,
-  //  userEmail: user?.email || rawOrderData.userEmail || rawOrderData.customerInfo.email,
-  //  orderType: user ? 'AUTHENTICATED' : 'GUEST',
-  //  orderSource: rawOrderData.orderSource || 'PRODUCT_CUSTOMIZATION',
-  //  status: rawOrderData.status || 'PENDING',
-  //  ipAddress,
-  //  userAgent,
-  //  paymentProcessed: true,
-  //  processedAt: new Date().toISOString()
-  // });
-  // const result = await OrderRecordingSystem.recordOrder(standardOrderData, recordingOptions);
+  const result = await OrderRecordingSystem.recordOrder(standardOrderData, recordingOptions);
+  
   
   if (!result.success) {
    console.error('❌ Order recording failed:', result.errors);
@@ -380,8 +367,15 @@ export async function POST(request: NextRequest) {
    console.log('⚠️ Temporary order ID issued due to database issues:', result.orderId);
   }
   
-  // N8N webhook temporarily disabled
-  console.log('N8N webhook temporarily disabled - TODO: restore when database is available');
+  // Send N8N webhook for successful orders (optional)
+  if (result.success && !result.temporaryId) {
+   try {
+    // N8N webhook can be implemented here if needed
+    console.log('📡 N8N webhook could be sent for order:', result.orderId);
+   } catch (webhookError) {
+    console.warn('N8N webhook failed (non-critical):', webhookError);
+   }
+  }
 
   // Send order confirmation email if successful and not temporary
   if (result.success && !result.temporaryId && rawOrderData.customerInfo.email) {
@@ -446,16 +440,18 @@ export async function GET(request: NextRequest) {
   // Build query filters
   const where: any = {};
   
-  // User filters
-  if (userId && email) {
-   where.OR = [
-    { userId: userId },
-    { userEmail: email }
-   ];
-  } else if (userId) {
-   where.userId = userId;
-  } else if (email) {
-   where.userEmail = email;
+  // User filters - ONLY apply if not requesting all orders
+  if (!all) {
+    if (userId && email) {
+     where.OR = [
+      { userId: userId },
+      { userEmail: email }
+     ];
+    } else if (userId) {
+     where.userId = userId;
+    } else if (email) {
+     where.userEmail = email;
+    }
   }
 
   // Status filter
@@ -502,21 +498,89 @@ export async function GET(request: NextRequest) {
    skip = (page - 1) * pageSize;
   }
 
-  // TODO: Fetch orders from Supabase database
+  // Fetch orders from Supabase database
   let orders = [];
   let totalCount = 0;
   
   try {
-   console.log('Orders API temporarily disabled - TODO: implement with Supabase');
-   // Return empty results for now
-   orders = [];
-   totalCount = 0;
-
-   // Order calculator temporarily disabled
-   console.log('Order calculator temporarily disabled - TODO: implement with Supabase');
+   console.log(`📊 Fetching orders - all=${all}, userId=${userId}, email=${email}, filters:`, where);
    
-   // Return empty transformed orders since we have no orders to transform
-   const transformedOrders: any[] = [];
+   // Build Supabase query
+   let query = supabaseAdmin.from('Order').select('*', { count: 'exact' });
+   
+   // Apply user filters only if not requesting all orders
+   if (!all) {
+     if (where.OR) {
+      // Handle OR conditions for user filters
+      if (where.OR.some((condition: any) => condition.userId)) {
+       const userIdCondition = where.OR.find((condition: any) => condition.userId);
+       if (userIdCondition) query = query.eq('userId', userIdCondition.userId);
+      }
+      if (where.OR.some((condition: any) => condition.userEmail)) {
+       const emailCondition = where.OR.find((condition: any) => condition.userEmail);
+       if (emailCondition) query = query.eq('userEmail', emailCondition.userEmail);
+      }
+     } else {
+      if (where.userId) query = query.eq('userId', where.userId);
+      if (where.userEmail) query = query.eq('userEmail', where.userEmail);
+     }
+   }
+   
+   // Status filters
+   if (where.status) query = query.eq('status', where.status);
+   if (where.shipmentId?.not === null) query = query.not('shipmentId', 'is', null);
+   if (where.shipmentId === null) query = query.is('shipmentId', null);
+   
+   // Search filters - Supabase text search
+   if (search) {
+    query = query.or(`id.ilike.%${search}%,productName.ilike.%${search}%,userEmail.ilike.%${search}%`);
+   }
+   
+   // Apply pagination
+   if (take) query = query.limit(take);
+   if (skip > 0) query = query.range(skip, skip + (take || 25) - 1);
+   
+   // Order by creation date (newest first)
+   query = query.order('createdAt', { ascending: false });
+   
+   const { data: fetchedOrders, error, count } = await query;
+   
+   if (error) {
+    console.error('Supabase query error:', error);
+    throw error;
+   }
+   
+   orders = fetchedOrders || [];
+   totalCount = count || 0;
+   
+   console.log(`✅ Fetched ${orders.length} orders from Supabase (total: ${totalCount})`);
+   
+   // Calculate totals for orders (optional - can be expensive)
+   const transformedOrders = await Promise.all(
+    orders.map(async (order) => {
+     try {
+      // Calculate total if not already stored
+      let calculatedTotal = order.calculatedTotal || 0;
+      if (!calculatedTotal && order.selectedColors) {
+       calculatedTotal = await calculateOrderTotal(order);
+      }
+      
+      return {
+       ...order,
+       calculatedTotal,
+       // Ensure dates are properly formatted
+       createdAt: order.createdAt,
+       updatedAt: order.updatedAt,
+      };
+     } catch (calcError) {
+      console.warn(`Failed to calculate total for order ${order.id}:`, calcError);
+      return {
+       ...order,
+       calculatedTotal: order.calculatedTotal || 0,
+      };
+     }
+    })
+   );
 
    const response: any = {
     orders: transformedOrders,
@@ -552,8 +616,9 @@ export async function GET(request: NextRequest) {
      hasNext: false,
      hasPrev: false
     },
-    note: 'Orders temporarily unavailable due to database maintenance.',
-   }, { status: 200 });
+    error: 'Failed to fetch orders from database',
+    details: dbError instanceof Error ? dbError.message : 'Unknown database error',
+   }, { status: 500 });
   }
 
  } catch (error) {

@@ -1,6 +1,5 @@
-import { renderToBuffer } from '@react-pdf/renderer';
-import { InvoicePdf } from './InvoicePdf';
-// Removed Prisma - migrated to Supabase
+// Importing jsPDF-based invoice generation (React PDF replacement)
+import { generateJsPdfInvoiceBuffer } from './jspdf-invoice';
 
 // PDF cache to avoid regenerating the same PDFs
 const pdfCache = new Map<string, { buffer: Buffer; timestamp: number }>();
@@ -16,61 +15,18 @@ const cleanCache = () => {
   }
 };
 
-// Optimize database query for PDF generation
-const getInvoiceForPdf = async (invoiceId: string) => {
-  return await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: {
-      items: {
-        orderBy: { id: 'asc' } // Consistent ordering by ID instead of createdAt
-      },
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          company: true,
-          address: true
-        }
-      },
-      order: {
-        select: {
-          id: true,
-          productName: true,
-          createdAt: true,
-          customerInfo: true
-        }
-      }
-    }
-  });
-};
-
 export async function renderInvoicePdfBuffer(invoiceId: string): Promise<Buffer> {
   try {
-    console.log('PDF Generation: Starting for invoice ID:', invoiceId);
+    console.log('📄 PDF Generation: Starting jsPDF generation for invoice ID:', invoiceId);
     
-    // Create cache key based on invoice ID and last update
-    const invoice = await getInvoiceForPdf(invoiceId);
-    console.log('PDF Generation: Invoice retrieved:', {
-      found: !!invoice,
-      id: invoice?.id,
-      hasCustomer: !!invoice?.customer,
-      hasOrder: !!invoice?.order,
-      itemsCount: invoice?.items?.length || 0
-    });
-    
-    if (!invoice) {
-      throw new Error(`Invoice not found: ${invoiceId}`);
-    }
-    
-    const cacheKey = `${invoiceId}-${invoice.updatedAt.getTime()}`;
-    console.log('PDF Generation: Cache key:', cacheKey);
+    // Simple cache key based on invoice ID (jsPDF is fast enough for real-time generation)
+    const cacheKey = `jspdf-${invoiceId}`;
     
     // Check cache first
     if (pdfCache.has(cacheKey)) {
       const cached = pdfCache.get(cacheKey)!;
       if (Date.now() - cached.timestamp < CACHE_TTL) {
-        console.log('PDF Generation: Using cached version');
+        console.log('📄 PDF Generation: Using cached jsPDF version');
         return cached.buffer;
       }
       pdfCache.delete(cacheKey);
@@ -81,35 +37,12 @@ export async function renderInvoicePdfBuffer(invoiceId: string): Promise<Buffer>
       cleanCache();
     }
 
-    console.log('PDF Generation: Rendering PDF with React PDF...');
+    console.log('📄 PDF Generation: Generating new PDF with jsPDF...');
     
-    // Validate invoice data before rendering
-    if (!invoice.items || invoice.items.length === 0) {
-      console.warn('PDF Generation: Invoice has no items:', invoiceId);
-    }
-    if (!invoice.customer) {
-      console.warn('PDF Generation: Invoice has no customer:', invoiceId);
-    }
-    if (!invoice.order) {
-      console.warn('PDF Generation: Invoice has no order:', invoiceId);
-    }
+    // Use the new jsPDF-based generation (no React dependencies)
+    const buffer = await generateJsPdfInvoiceBuffer(invoiceId);
     
-    // Pre-load CSV pricing data before PDF rendering
-    try {
-      const path = require('path');
-      const fs = require('fs');
-      const csvPath = path.join(process.cwd(), 'src/app/csv/Blank Cap Pricings.csv');
-      const csvContent = await fs.promises.readFile(csvPath, 'utf-8');
-      console.log('PDF Generation: CSV pricing data loaded successfully');
-    } catch (csvError) {
-      console.warn('PDF Generation: CSV pricing load failed, using fallback:', csvError);
-    }
-    
-    // Render the React component to PDF buffer asynchronously
-    console.log('PDF Generation: About to call renderToBuffer...');
-    const buffer = await renderToBuffer(InvoicePdf({ doc: invoice }));
-    
-    console.log('PDF Generation: PDF rendered successfully, buffer size:', buffer.length);
+    console.log('📄 PDF Generation: jsPDF PDF generated successfully, buffer size:', buffer.length);
     
     // Validate buffer is not empty
     if (buffer.length === 0) {
@@ -124,7 +57,7 @@ export async function renderInvoicePdfBuffer(invoiceId: string): Promise<Buffer>
     
     return buffer;
   } catch (error: any) {
-    console.error('PDF Generation Error:', {
+    console.error('📄 PDF Generation Error:', {
       invoiceId,
       message: error.message,
       stack: error.stack,

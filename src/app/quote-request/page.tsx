@@ -109,19 +109,43 @@ function QuoteRequestPageContent() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/quote-requests', {
+      // Convert the detailed quote form to form-submissions format
+      const formSubmissionData = {
+        formType: 'CUSTOM_ORDER',
+        name: formData.customerInfo.name,
+        email: formData.customerInfo.email,
+        phone: formData.customerInfo.phone,
+        company: formData.customerInfo.company,
+        subject: `Custom Order Quote - ${productName || 'Custom Product'}`,
+        message: `Product: ${productName || 'Custom Product'}
+Quantity: ${formData.requirements.quantity}
+Colors: ${formData.requirements.colors}
+Sizes: ${formData.requirements.sizes}
+Customization: ${formData.requirements.customization}
+Timeline: ${formData.requirements.timeline}
+Additional Notes: ${formData.requirements.additionalNotes}`,
+        metadata: {
+          source: 'quote_request_page',
+          productSlug: productSlug,
+          productName: productName,
+          requirements: formData.requirements,
+          timestamp: new Date().toISOString()
+        }
+      };
+
+      const response = await fetch('/api/form-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formSubmissionData),
       });
 
-             const result = await response.json();
+      const result = await response.json();
 
-       if (response.ok && result.message) {
-         setSubmitSuccess(true);
-       } else {
-         alert('Failed to submit quote request: ' + (result.error || result.message || 'Unknown error'));
-       }
+      if (response.ok && result.message) {
+        setSubmitSuccess(true);
+      } else {
+        alert('Failed to submit quote request: ' + (result.error || result.message || 'Unknown error'));
+      }
     } catch (error) {
       console.error('Error submitting quote request:', error);
       alert('Failed to submit quote request. Please try again.');

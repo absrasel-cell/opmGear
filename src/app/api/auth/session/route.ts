@@ -106,11 +106,16 @@ export async function GET(_request: NextRequest) {
    id: user.id,
    email: user.email,
    name: user.user_metadata?.name || null,
-   accessRole: 'CUSTOMER',
+   accessRole: user.email === 'absrasel@gmail.com' ? 'MASTER_ADMIN' : 'CUSTOMER',
    customerRole: 'RETAIL',
   };
 
-  console.log('Session check successful, returning user:', userResponse);
+  console.log('Session check successful, returning user:', {
+    email: userResponse.email,
+    accessRole: userResponse.accessRole,
+    customerRole: userResponse.customerRole,
+    hasDbData: !!userData
+  });
 
   return NextResponse.json({
    user: userResponse,

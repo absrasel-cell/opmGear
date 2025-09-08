@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth-helpers';
-// Removed Prisma - migrated to Supabase
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
  try {
@@ -32,31 +32,40 @@ export async function GET(request: NextRequest) {
    where.category = category;
   }
 
-  const messages = await prisma.message.findMany({
-   where,
-   orderBy: { createdAt: 'desc' },
-   include: {
-    fromUser: {
-     select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-     },
-    },
-    toUser: {
-     select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-     },
-    },
-    replyTo: true,
-   },
-  });
+  // Convert Prisma where clause to Supabase filter
+  let query = supabaseAdmin.from('messages').select(`
+    *,
+    fromUser:users!messages_fromUserId_fkey(
+      id, name, email, role
+    ),
+    toUser:users!messages_toUserId_fkey(
+      id, name, email, role
+    ),
+    replyTo:messages!messages_replyToId_fkey(*)
+  `);
 
-  return NextResponse.json({ messages });
+  // Apply filters based on where clause
+  if (isAdminView) {
+    query = query.eq('isAdminMessage', false);
+  } else if (userId) {
+    query = query.or(`fromUserId.eq.${userId},toUserId.eq.${userId}`);
+  }
+
+  if (category) {
+    query = query.eq('category', category);
+  }
+
+  const { data: messages, error } = await query.order('createdAt', { ascending: false });
+
+  if (error) {
+    console.error('Supabase error fetching admin messages:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch messages' },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ messages: messages || [] });
  } catch (error) {
   console.error('Error fetching admin messages:', error);
   return NextResponse.json(
@@ -85,10 +94,15 @@ export async function POST(request: NextRequest) {
   }
 
   // Get the target user
-  const targetUser = await prisma.user.findUnique({
-   where: { id: userId },
-   select: { id: true, email: true, name: true }
-  });
+  const { data: targetUser, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('id, email, name')
+    .eq('id', userId)
+    .single();
+
+  if (userError) {
+    console.error('Supabase error fetching user:', userError);
+  }
 
   if (!targetUser) {
    return NextResponse.json(
@@ -98,24 +112,36 @@ export async function POST(request: NextRequest) {
   }
 
   // Create admin message
-  const adminMessage = await prisma.message.create({
-   data: {
-    content: message,
-    category: category || 'GENERAL',
-    priority: priority || 'NORMAL',
-    fromUserId: user.id,
-    fromEmail: user.email,
-    fromName: user.name,
-    toUserId: targetUser.id,
-    toEmail: targetUser.email,
-    toName: targetUser.name,
-    isAdminMessage: true,
-   },
-   include: {
-    fromUser: true,
-    toUser: true,
-   },
-  });
+  const { data: adminMessage, error: createError } = await supabaseAdmin
+    .from('messages')
+    .insert({
+      content: message,
+      category: category || 'GENERAL',
+      priority: priority || 'NORMAL',
+      fromUserId: user.id,
+      fromEmail: user.email,
+      fromName: user.name,
+      toUserId: targetUser.id,
+      toEmail: targetUser.email,
+      toName: targetUser.name,
+      isAdminMessage: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+    .select(`
+      *,
+      fromUser:users!messages_fromUserId_fkey(*),
+      toUser:users!messages_toUserId_fkey(*)
+    `)
+    .single();
+
+  if (createError) {
+    console.error('Supabase error creating admin message:', createError);
+    return NextResponse.json(
+      { error: 'Failed to create message' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
    message: 'Admin message sent successfully',
@@ -147,12 +173,23 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Update message
-  const result = await prisma.message.update({
-   where: { id: messageId },
-   data: {
-    isRead: isRead ?? true,
-   },
-  });
+  const { data: result, error: updateError } = await supabaseAdmin
+    .from('messages')
+    .update({
+      isRead: isRead ?? true,
+      updatedAt: new Date().toISOString()
+    })
+    .eq('id', messageId)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.error('Supabase error updating message:', updateError);
+    return NextResponse.json(
+      { error: 'Failed to update message' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
    message: 'Message updated successfully',

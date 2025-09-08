@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   // Get the order with customer info
   console.log('🔍 Querying database for order:', orderId);
   const { data: order, error: orderError } = await supabaseAdmin
-   .from('orders')
+   .from('Order')
    .select('*')
    .eq('id', orderId)
    .single();
@@ -51,9 +51,16 @@ export async function POST(request: NextRequest) {
   console.log('👤 Order found with customer:', order!.id, order!.userId);
 
   // Check if invoice already exists for this order
-  const existingInvoice = await prisma.invoice.findFirst({
-   where: { orderId }
-  });
+  const { data: existingInvoice, error: existingInvoiceError } = await supabaseAdmin
+   .from('Invoice')
+   .select('*')
+   .eq('orderId', orderId)
+   .single();
+   
+  if (existingInvoiceError && existingInvoiceError.code !== 'PGRST116') {
+    console.error('Error checking existing invoice:', existingInvoiceError);
+    throw new Error('Database error checking existing invoice');
+  }
 
   let invoice;
 
@@ -74,8 +81,8 @@ export async function POST(request: NextRequest) {
     
     calculation = {
      ...calculation,
-     discount: new (require('@prisma/client/runtime/library').Decimal)(totalDiscount),
-     total: new (require('@prisma/client/runtime/library').Decimal)(newTotal)
+     discount: totalDiscount,
+     total: newTotal
     };
    }
    
@@ -83,37 +90,71 @@ export async function POST(request: NextRequest) {
    validateInvoiceData(calculation);
    
    // Delete existing items
-   await prisma.invoiceItem.deleteMany({
-    where: { invoiceId: existingInvoice.id }
-   });
+   const { error: deleteItemsError } = await supabaseAdmin
+    .from('InvoiceItem')
+    .delete()
+    .eq('invoiceId', existingInvoice.id);
+    
+   if (deleteItemsError) {
+    console.error('Error deleting existing invoice items:', deleteItemsError);
+    throw new Error('Failed to delete existing invoice items');
+   }
 
    // Update invoice
-   invoice = await prisma.invoice.update({
-    where: { id: existingInvoice.id },
-    data: {
-     subtotal: calculation.subtotal,
-     discount: calculation.discount,
-     shipping: calculation.shipping,
-     tax: calculation.tax,
-     total: calculation.total,
+   const { data: updatedInvoice, error: updateError } = await supabaseAdmin
+    .from('Invoice')
+    .update({
+     subtotal: Number(calculation.subtotal),
+     tax: Number(calculation.tax || 0),
+     discount: Number(calculation.discount || 0),
+     total: Number(calculation.total),
      notes: notes || existingInvoice.notes,
-     dueDate: dueDate ? new Date(dueDate) : existingInvoice.dueDate,
-     items: {
-      create: calculation.items.map(item => ({
-       name: item.name,
-       description: item.description,
-       quantity: item.quantity,
-       unitPrice: item.unitPrice,
-       total: item.total
-      }))
-     }
-    },
-    include: {
-     items: true,
-     customer: true,
-     order: true
-    }
-   });
+     dueDate: dueDate || existingInvoice.dueDate,
+     updatedAt: new Date().toISOString()
+    })
+    .eq('id', existingInvoice.id)
+    .select('*')
+    .single();
+    
+   if (updateError) {
+    console.error('Error updating invoice:', updateError);
+    throw new Error('Failed to update invoice');
+   }
+   
+   // Create new invoice items
+   const invoiceItems = calculation.items.map((item, index) => ({
+    id: `item_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 6)}`,
+    invoiceId: existingInvoice.id,
+    name: item.name,
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: Number(item.unitPrice),
+    total: Number(item.total)
+   }));
+   
+   const { data: createdItems, error: itemsError } = await supabaseAdmin
+    .from('InvoiceItem')
+    .insert(invoiceItems)
+    .select('*');
+    
+   if (itemsError) {
+    console.error('Error creating invoice items:', itemsError);
+    throw new Error('Failed to create invoice items');
+   }
+   
+   // Fetch customer and order info
+   const { data: customer } = await supabaseAdmin
+    .from('User')
+    .select('id, name, email')
+    .eq('id', order.userId)
+    .single();
+   
+   invoice = {
+    ...updatedInvoice,
+    items: createdItems || [],
+    customer: customer || null,
+    order: order
+   };
   } else if (existingInvoice) {
    return NextResponse.json({ error: 'Invoice already exists and is not in DRAFT status' }, { status: 400 });
   } else {
@@ -138,42 +179,76 @@ export async function POST(request: NextRequest) {
     
     calculation = {
      ...calculation,
-     discount: new (require('@prisma/client/runtime/library').Decimal)(totalDiscount),
-     total: new (require('@prisma/client/runtime/library').Decimal)(newTotal)
+     discount: totalDiscount,
+     total: newTotal
     };
    }
    
    // Validate calculation results
    validateInvoiceData(calculation);
 
-   invoice = await prisma.invoice.create({
-    data: {
+   // Create new invoice
+   // Generate unique invoice ID
+   const invoiceId = `invoice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+   
+   const { data: newInvoice, error: createError } = await supabaseAdmin
+    .from('Invoice')
+    .insert({
+     id: invoiceId,
      number: invoiceNumber,
      orderId,
-     customerId: order.userId,
-     subtotal: calculation.subtotal,
-     discount: calculation.discount,
-     shipping: calculation.shipping,
-     tax: calculation.tax,
-     total: calculation.total,
+     customerId: order.userId || order.userEmail || 'guest-user', // Handle null userId
+     subtotal: Number(calculation.subtotal),
+     tax: Number(calculation.tax || 0),
+     discount: Number(calculation.discount || 0),
+     total: Number(calculation.total),
      notes,
-     dueDate: dueDate ? new Date(dueDate) : null,
-     items: {
-      create: calculation.items.map(item => ({
-       name: item.name,
-       description: item.description,
-       quantity: item.quantity,
-       unitPrice: item.unitPrice,
-       total: item.total
-      }))
-     }
-    },
-    include: {
-     items: true,
-     customer: true,
-     order: true
-    }
-   });
+     dueDate: dueDate || null,
+     createdAt: new Date().toISOString(),
+     updatedAt: new Date().toISOString()
+    })
+    .select('*')
+    .single();
+    
+   if (createError) {
+    console.error('Error creating invoice:', createError);
+    throw new Error('Failed to create invoice');
+   }
+   
+   // Create invoice items
+   const invoiceItems = calculation.items.map((item, index) => ({
+    id: `item_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 6)}`,
+    invoiceId: newInvoice.id,
+    name: item.name,
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: Number(item.unitPrice),
+    total: Number(item.total)
+   }));
+   
+   const { data: createdItems, error: itemsError } = await supabaseAdmin
+    .from('InvoiceItem')
+    .insert(invoiceItems)
+    .select('*');
+    
+   if (itemsError) {
+    console.error('Error creating invoice items:', itemsError);
+    throw new Error('Failed to create invoice items');
+   }
+   
+   // Fetch customer and order info
+   const { data: customer } = await supabaseAdmin
+    .from('User')
+    .select('id, name, email')
+    .eq('id', order.userId)
+    .single();
+   
+   invoice = {
+    ...newInvoice,
+    items: createdItems || [],
+    customer: customer || null,
+    order: order
+   };
   }
 
   return NextResponse.json(invoice, { status: 201 });
@@ -230,34 +305,79 @@ export async function GET(request: NextRequest) {
    where.status = status;
   }
 
-  const [invoices, total] = await Promise.all([
-   prisma.invoice.findMany({
-    where,
-    include: {
-     customer: {
-      select: { id: true, name: true, email: true }
-     },
-     order: {
-      select: { id: true, productName: true }
-     },
-     _count: {
-      select: { items: true }
-     }
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: offset,
-    take: limit
-   }),
-   prisma.invoice.count({ where })
+  let query = supabaseAdmin
+   .from('Invoice')
+   .select('*');
+
+  if (status) {
+   query = query.eq('status', status);
+  }
+
+  const [{ data: invoices, error: invoicesError }, { count: total, error: countError }] = await Promise.all([
+   query
+    .order('createdAt', { ascending: false })
+    .range(offset, offset + limit - 1),
+   status ? 
+    supabaseAdmin
+     .from('Invoice')
+     .select('*', { count: 'exact', head: true })
+     .eq('status', status) :
+    supabaseAdmin
+     .from('Invoice')
+     .select('*', { count: 'exact', head: true })
   ]);
 
+  if (invoicesError) {
+   console.error('Error fetching invoices:', invoicesError);
+   throw new Error('Failed to fetch invoices');
+  }
+
+  if (countError) {
+   console.error('Error counting invoices:', countError);
+   throw new Error('Failed to count invoices');
+  }
+
+  // Enrich invoices with customer and order data
+  const enrichedInvoices = await Promise.all(
+    (invoices || []).map(async (invoice) => {
+      // Fetch customer data
+      const { data: customer } = await supabaseAdmin
+        .from('User')
+        .select('id, name, email')
+        .eq('id', invoice.customerId)
+        .single();
+
+      // Fetch order data
+      const { data: order } = await supabaseAdmin
+        .from('Order')
+        .select('id, productName')
+        .eq('id', invoice.orderId)
+        .single();
+
+      // Fetch invoice items count
+      const { count: itemsCount } = await supabaseAdmin
+        .from('InvoiceItem')
+        .select('*', { count: 'exact', head: true })
+        .eq('invoiceId', invoice.id);
+
+      return {
+        ...invoice,
+        customer: customer || { id: '', name: 'Unknown Customer', email: '' },
+        order: order || { id: invoice.orderId, productName: 'Unknown Product' },
+        _count: {
+          items: itemsCount || 0
+        }
+      };
+    })
+  );
+
   return NextResponse.json({
-   invoices,
+   invoices: enrichedInvoices,
    pagination: {
     page,
     limit,
-    total,
-    pages: Math.ceil(total / limit)
+    total: total || 0,
+    pages: Math.ceil((total || 0) / limit)
    }
   });
  } catch (error: any) {

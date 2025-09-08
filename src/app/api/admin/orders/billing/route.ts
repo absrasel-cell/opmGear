@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth-helpers';
-// Removed Prisma - migrated to Supabase
+import { supabaseAdmin } from '@/lib/supabase';
+import { calcInvoiceFromOrder } from '@/lib/invoices/calc';
 
 export async function GET(request: NextRequest) {
  try {
@@ -14,107 +15,152 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20');
   const offset = (page - 1) * limit;
 
-  // Build where clause for filtering
-  const where: any = {};
-  
+  // Build query for Supabase - using simple select without joins due to missing foreign keys
+  let query = supabaseAdmin
+   .from('Order')
+   .select('*');
+
   // Filter by status - only show orders that could be billed
+  const billableStatuses = ['CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
   if (status && status !== 'all') {
-   where.status = status;
+   query = query.eq('status', status);
   } else {
    // Default: show orders that are ready for billing
-   where.status = {
-    in: ['CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED']
-   };
+   query = query.in('status', billableStatuses);
   }
 
-  // Filter by customer if specified
+  // Filter by customer if specified - we'll do this in post-processing since Supabase doesn't support complex OR queries easily
+  
+  const { data: orders, error: ordersError } = await query
+   .order('createdAt', { ascending: false })
+   .range(offset, offset + limit - 1);
+
+  if (ordersError) {
+   console.error('Error fetching orders for billing:', ordersError);
+   throw new Error('Failed to fetch orders');
+  }
+
+  // Count total orders for pagination
+  let countQuery = supabaseAdmin
+   .from('Order')
+   .select('*', { count: 'exact', head: true });
+  
+  if (status && status !== 'all') {
+   countQuery = countQuery.eq('status', status);
+  } else {
+   countQuery = countQuery.in('status', billableStatuses);
+  }
+
+  const { count: total, error: countError } = await countQuery;
+
+  if (countError) {
+   console.error('Error counting orders:', countError);
+   throw new Error('Failed to count orders');
+  }
+
+  // Filter by customer in post-processing if specified
+  let filteredOrders = orders || [];
   if (customer && customer !== 'all') {
-   where.OR = [
-    { user: { name: { contains: customer, mode: 'insensitive' } } },
-    { user: { company: { contains: customer, mode: 'insensitive' } } },
-    { customerInfo: { path: ['name'], string_contains: customer } }
-   ];
+   const customerLower = customer.toLowerCase();
+   filteredOrders = filteredOrders.filter(order => {
+    const custInfoName = order.customerInfo?.name?.toLowerCase() || '';
+    const userEmail = order.userEmail?.toLowerCase() || '';
+    
+    return custInfoName.includes(customerLower) || 
+           userEmail.includes(customerLower);
+   });
   }
 
-  // Get orders with customer info and existing invoices
-  const [orders, total] = await Promise.all([
-   prisma.order.findMany({
-    where,
-    include: {
-     user: {
-      select: {
-       id: true,
-       name: true,
-       email: true,
-       company: true,
-       customerRole: true
-      }
-     },
-     invoices: {
-      select: {
-       id: true,
-       number: true,
-       status: true,
-       total: true,
-       createdAt: true
-      }
-     }
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: offset,
-    take: limit
-   }),
-   prisma.order.count({ where })
-  ]);
+  // Check for existing invoices for all orders in batch
+  const orderIds = filteredOrders.map(order => order.id);
+  const { data: existingInvoices, error: invoiceError } = await supabaseAdmin
+    .from('Invoice')
+    .select('orderId, id, number, status, total')
+    .in('orderId', orderIds);
 
-  // Transform orders for billing display
-  const transformedOrders = orders.map(order => {
-   // Extract customer info from either user or customerInfo JSON
+  if (invoiceError) {
+    console.warn('Error fetching invoices for orders:', invoiceError);
+  }
+
+  // Create a map for quick invoice lookup
+  const invoicesByOrderId = new Map();
+  (existingInvoices || []).forEach(invoice => {
+    if (!invoicesByOrderId.has(invoice.orderId)) {
+      invoicesByOrderId.set(invoice.orderId, []);
+    }
+    invoicesByOrderId.get(invoice.orderId).push(invoice);
+  });
+
+  // Transform orders for billing display with accurate pricing calculation
+  const transformedOrders = await Promise.all(filteredOrders.map(async order => {
+   // Extract customer info from customerInfo JSON (since we don't have joins)
    let customerName = 'Guest Customer';
    let customerEmail = '';
    let customerCompany = '';
    
-   if (order.user) {
-    customerName = order.user.name || 'Unnamed Customer';
-    customerEmail = order.user.email;
-    customerCompany = order.user.company || '';
-   } else if (order.customerInfo) {
+   if (order.customerInfo) {
     const custInfo = order.customerInfo as any;
     customerName = custInfo.name || 'Guest Customer';
     customerEmail = custInfo.email || '';
     customerCompany = custInfo.company || '';
+   } else if (order.userEmail) {
+    customerEmail = order.userEmail;
+    customerName = customerEmail;
    }
 
-   // Calculate estimated factory cost from order data
-   let estimatedFactoryCost = 0;
+   // Calculate accurate factory cost using the same system as invoices
+   let accurateFactoryCost = 0;
    
-   // Basic cost calculation from selectedColors (quantities)
-   if (order.selectedColors && typeof order.selectedColors === 'object') {
-    const colors = order.selectedColors as Record<string, { sizes: Record<string, number> }>;
-    let totalQuantity = 0;
-    
-    Object.values(colors).forEach(color => {
-     if (color.sizes) {
-      Object.values(color.sizes).forEach(qty => {
-       totalQuantity += qty || 0;
-      });
+   try {
+    // Create order object compatible with invoice calculation
+    const orderForCalc = {
+     id: order.id,
+     productName: order.productName || 'Custom Cap',
+     calculatedTotal: 0, // Will be calculated
+     totalUnits: calculateTotalItems(order.selectedColors),
+     selectedOptions: order.selectedOptions,
+     selectedColors: order.selectedColors,
+     logoSetupSelections: order.logoSetupSelections,
+     multiSelectOptions: order.multiSelectOptions,
+     customerInfo: order.customerInfo,
+     additionalInstructions: order.additionalInstructions,
+     user: {
+      customerRole: 'RETAIL' // Default, can be overridden if available
      }
-    });
-    
-    // Estimate factory cost at $3.50 per unit base + options
-    estimatedFactoryCost = totalQuantity * 3.50;
-    
-    // Add estimated costs for options
-    if (order.selectedOptions) {
-     const options = order.selectedOptions as Record<string, any>;
-     if (options.closure && options.closure !== 'standard') estimatedFactoryCost += totalQuantity * 0.25;
-     if (options.visor && options.visor !== 'standard') estimatedFactoryCost += totalQuantity * 0.15;
+    };
+
+    // 🔍 DEBUG: Log the exact data structure for problematic order
+    if (order.id === '9e62191c-9335-4512-a76d-522c95a6ff8e') {
+      console.log('🔍 BILLING DEBUG - Order 95a6ff8e selectedOptions type:', typeof order.selectedOptions);
+      console.log('🔍 BILLING DEBUG - Order 95a6ff8e selectedOptions fabric-setup:', order.selectedOptions?.['fabric-setup']);
+      console.log('🔍 BILLING DEBUG - Order 95a6ff8e selectedOptions custom-fabric:', order.selectedOptions?.['custom-fabric']);
+      console.log('🔍 BILLING DEBUG - Order 95a6ff8e selectedOptions delivery-type:', order.selectedOptions?.['delivery-type']);
     }
+
+    // Use the same accurate pricing calculation as invoices
+    const invoiceCalculation = await calcInvoiceFromOrder(orderForCalc);
+    accurateFactoryCost = invoiceCalculation.total;
     
-    // Add logo costs if present
-    if (order.logoSetupSelections || order.uploadedLogoFiles) {
-     estimatedFactoryCost += totalQuantity * 0.75; // Logo setup cost
+    console.log(`💰 Order ${order.id}: Calculated accurate cost $${accurateFactoryCost.toFixed(2)}`);
+   } catch (error) {
+    console.warn(`⚠️  Failed to calculate accurate cost for order ${order.id}, using fallback:`, error);
+    
+    // Fallback: Basic calculation only if accurate calculation fails
+    if (order.selectedColors && typeof order.selectedColors === 'object') {
+     const totalQuantity = calculateTotalItems(order.selectedColors);
+     accurateFactoryCost = totalQuantity * 3.50; // Fallback base price
     }
+   }
+
+   // Get invoices for this order
+   const orderInvoices = invoicesByOrderId.get(order.id) || [];
+   
+   // Use invoice total if available (to show discounted amount), otherwise use calculated cost
+   let displayCost = accurateFactoryCost;
+   if (orderInvoices.length > 0) {
+     // Use the latest invoice total (most recent discount applied)
+     const latestInvoice = orderInvoices[orderInvoices.length - 1];
+     displayCost = latestInvoice.total || accurateFactoryCost;
    }
 
    return {
@@ -122,24 +168,24 @@ export async function GET(request: NextRequest) {
     customer: customerCompany ? `${customerName} (${customerCompany})` : customerName,
     customerEmail,
     items: calculateTotalItems(order.selectedColors),
-    factory: estimatedFactoryCost,
-    due: order.updatedAt.toISOString(),
+    factory: displayCost,
+    due: order.updatedAt || order.createdAt,
     status: order.status,
     productName: order.productName,
-    hasInvoice: order.invoices.length > 0,
-    invoices: order.invoices,
+    hasInvoice: orderInvoices.length > 0,
+    invoices: orderInvoices,
     orderType: order.orderType,
-    createdAt: order.createdAt.toISOString()
+    createdAt: order.createdAt
    };
-  });
+  }));
 
   return NextResponse.json({
    orders: transformedOrders,
    pagination: {
     page,
     limit,
-    total,
-    pages: Math.ceil(total / limit)
+    total: total || 0,
+    pages: Math.ceil((total || 0) / limit)
    }
   });
 

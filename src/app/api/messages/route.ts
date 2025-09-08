@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed Prisma - migrated to Supabase
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { sendEmail } from '@/lib/resend';
 import { emailTemplates } from '@/lib/email/templates';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
  try {
@@ -67,18 +67,46 @@ export async function GET(request: NextRequest) {
      ors.push({ fromUserId: fallbackId }, { toUserId: fallbackId });
     }
 
-    const messages = await prisma.message.findMany({
-     where: { OR: ors },
-     orderBy: { createdAt: 'asc' }, // Show oldest first for chat flow
-     include: {
-      fromUser: { select: { id: true, name: true, email: true, role: true } },
-      toUser: { select: { id: true, name: true, email: true, role: true } },
-      replyTo: true,
-     },
-    });
+    // Build Supabase query with OR conditions
+    const orConditions = ors.map(condition => {
+      if (condition.AND) {
+        const andCond = condition.AND;
+        if (andCond.length === 2) {
+          return `and(fromUserId.eq.${andCond[0].fromUserId},toUserId.eq.${andCond[1].toUserId})`;
+        }
+      } else if (condition.fromUserId) {
+        return `fromUserId.eq.${condition.fromUserId}`;
+      } else if (condition.toUserId) {
+        return `toUserId.eq.${condition.toUserId}`;
+      }
+      return null;
+    }).filter(Boolean);
+
+    const { data: messages, error: messagesError } = await supabaseAdmin
+      .from('messages')
+      .select(`
+        *,
+        fromUser:users!messages_fromUserId_fkey(
+          id, name, email, role
+        ),
+        toUser:users!messages_toUserId_fkey(
+          id, name, email, role
+        ),
+        replyTo:messages!messages_replyToId_fkey(*)
+      `)
+      .or(orConditions.join(','))
+      .order('createdAt', { ascending: true });
+
+    if (messagesError) {
+      console.error('Supabase error fetching messages:', messagesError);
+      return NextResponse.json(
+        { error: 'Failed to fetch messages' },
+        { status: 500 }
+      );
+    }
 
     // Transform messages to match frontend expectations
-    const transformedMessages = messages.map(message => ({
+    const transformedMessages = (messages || []).map(message => ({
      id: message.id,
      conversationId: conversationId,
      senderId: message.fromUserId,
@@ -103,32 +131,47 @@ export async function GET(request: NextRequest) {
      } : undefined
     }));
     
-    return NextResponse.json({ messages: transformedMessages });
+    return NextResponse.json({ messages: transformedMessages || [] });
    }
    // Fallback: treat conversationId as a message id, derive participants from it
    try {
-    const seed = await prisma.message.findUnique({
-     where: { id: conversationId },
-     select: { fromUserId: true, toUserId: true }
-    });
+    const { data: seed, error: seedError } = await supabaseAdmin
+      .from('messages')
+      .select('fromUserId, toUserId')
+      .eq('id', conversationId)
+      .single();
+
+    if (seedError) {
+      console.error('Supabase error fetching seed message:', seedError);
+    }
+
     if (seed?.fromUserId && seed?.toUserId) {
      const a = seed.fromUserId;
      const b = seed.toUserId;
-     const messages = await prisma.message.findMany({
-      where: {
-       OR: [
-        { AND: [{ fromUserId: a }, { toUserId: b }] },
-        { AND: [{ fromUserId: b }, { toUserId: a }] }
-       ]
-      },
-      orderBy: { createdAt: 'asc' },
-      include: {
-       fromUser: { select: { id: true, name: true, email: true, role: true } },
-       toUser: { select: { id: true, name: true, email: true, role: true } },
-       replyTo: true,
-      },
-     });
-     const transformedMessages = messages.map(message => ({
+     const { data: messages, error: conversationError } = await supabaseAdmin
+       .from('messages')
+       .select(`
+         *,
+         fromUser:users!messages_fromUserId_fkey(
+           id, name, email, role
+         ),
+         toUser:users!messages_toUserId_fkey(
+           id, name, email, role
+         ),
+         replyTo:messages!messages_replyToId_fkey(*)
+       `)
+       .or(`and(fromUserId.eq.${a},toUserId.eq.${b}),and(fromUserId.eq.${b},toUserId.eq.${a})`)
+       .order('createdAt', { ascending: true });
+
+     if (conversationError) {
+       console.error('Supabase error fetching conversation:', conversationError);
+       return NextResponse.json(
+         { error: 'Failed to fetch conversation' },
+         { status: 500 }
+       );
+     }
+
+     const transformedMessages = (messages || []).map(message => ({
       id: message.id,
       conversationId: [a, b].sort().join('|'),
       senderId: message.fromUserId,
@@ -152,39 +195,57 @@ export async function GET(request: NextRequest) {
        senderName: message.replyTo.fromName || 'Unknown'
       } : undefined
      }));
-     return NextResponse.json({ messages: transformedMessages });
+     return NextResponse.json({ messages: transformedMessages || [] });
     }
    } catch (e) {
     // ignore and fall through to conversations
    }
   } else {
    // Return conversations (grouped messages)
-   const messages = await prisma.message.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-     fromUser: {
-      select: {
-       id: true,
-       name: true,
-       email: true,
-       role: true,
-      },
-     },
-     toUser: {
-      select: {
-       id: true,
-       name: true,
-       email: true,
-       role: true,
-      },
-     },
-     replyTo: true,
-    },
-   });
+   // Build Supabase query with where conditions
+   let query = supabaseAdmin.from('messages').select(`
+     *,
+     fromUser:users!messages_fromUserId_fkey(
+       id, name, email, role
+     ),
+     toUser:users!messages_toUserId_fkey(
+       id, name, email, role
+     ),
+     replyTo:messages!messages_replyToId_fkey(*)
+   `);
+
+   // Apply where conditions
+   if (where.isAdminMessage !== undefined) {
+     query = query.eq('isAdminMessage', where.isAdminMessage);
+   }
+   if (where.OR) {
+     const orConditions = where.OR.map((condition: any) => {
+       if (condition.fromUserId) return `fromUserId.eq.${condition.fromUserId}`;
+       if (condition.toUserId) return `toUserId.eq.${condition.toUserId}`;
+       if (condition.fromEmail) return `fromEmail.eq.${condition.fromEmail}`;
+       if (condition.toEmail) return `toEmail.eq.${condition.toEmail}`;
+       return null;
+     }).filter(Boolean);
+     if (orConditions.length > 0) {
+       query = query.or(orConditions.join(','));
+     }
+   }
+   if (where.category) {
+     query = query.eq('category', where.category);
+   }
+
+   const { data: messages, error: messagesError } = await query.order('createdAt', { ascending: false });
+
+   if (messagesError) {
+     console.error('Supabase error fetching messages:', messagesError);
+     return NextResponse.json(
+       { error: 'Failed to fetch messages' },
+       { status: 500 }
+     );
+   }
 
        // Group messages into conversations by participants
-    const conversations = messages.reduce((acc: any[], message) => {
+    const conversations = (messages || []).reduce((acc: any[], message) => {
      // Create a unique conversation ID based on participants
      const participants = [message.fromUserId, message.toUserId].sort();
      const conversationId = participants.join('|');
@@ -298,10 +359,16 @@ export async function POST(request: NextRequest) {
   if (recipientId) {
    messageData.toUserId = recipientId;
    // Get recipient details from database
-   const recipient = await prisma.user.findUnique({
-    where: { id: recipientId },
-    select: { id: true, email: true, name: true }
-   });
+   const { data: recipient, error: recipientError } = await supabaseAdmin
+     .from('users')
+     .select('id, email, name')
+     .eq('id', recipientId)
+     .single();
+
+   if (recipientError) {
+     console.error('Supabase error fetching recipient:', recipientError);
+   }
+
    if (recipient) {
     messageData.toEmail = recipient.email;
     messageData.toName = recipient.name;
@@ -315,14 +382,28 @@ export async function POST(request: NextRequest) {
   }
 
   // Create the message
-  const message = await prisma.message.create({
-   data: messageData,
-   include: {
-    fromUser: true,
-    toUser: true,
-    replyTo: true,
-   },
-  });
+  const { data: message, error: createError } = await supabaseAdmin
+    .from('messages')
+    .insert({
+      ...messageData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+    .select(`
+      *,
+      fromUser:users!messages_fromUserId_fkey(*),
+      toUser:users!messages_toUserId_fkey(*),
+      replyTo:messages!messages_replyToId_fkey(*)
+    `)
+    .single();
+
+  if (createError) {
+    console.error('Supabase error creating message:', createError);
+    return NextResponse.json(
+      { error: 'Failed to create message' },
+      { status: 500 }
+    );
+  }
 
   // Send email notification if recipient email is available
   console.log('📧 Email check - toEmail:', messageData.toEmail, 'fromEmail:', messageData.fromEmail);
@@ -384,18 +465,26 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Update messages
-  const result = await prisma.message.updateMany({
-   where: {
-    id: { in: messageIds },
-   },
-   data: {
-    isRead: isRead ?? true,
-   },
-  });
+  const { data: result, error: updateError } = await supabaseAdmin
+    .from('messages')
+    .update({
+      isRead: isRead ?? true,
+      updatedAt: new Date().toISOString()
+    })
+    .in('id', messageIds)
+    .select();
+
+  if (updateError) {
+    console.error('Supabase error updating messages:', updateError);
+    return NextResponse.json(
+      { error: 'Failed to update messages' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
    message: 'Messages updated successfully',
-   count: result.count,
+   count: result?.length || 0,
   });
  } catch (error) {
   console.error('Error updating messages:', error);

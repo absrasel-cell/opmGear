@@ -1,9 +1,9 @@
 // Streamlined Order Recording System for OPM Gear Platform
 // Standardizes order data structures and processing across all dashboards
 
-// TODO: Remove Prisma import - convert to Supabase
-// // Removed Prisma - migrated to Supabase
+// Converted from Prisma to Supabase operations
 import { v4 as uuidv4 } from 'uuid';
+import { supabaseAdmin } from '@/lib/supabase';
 
 // =====================================================
 // STANDARDIZED ORDER DATA TYPES
@@ -134,18 +134,7 @@ export class OrderRecordingSystem {
     options: OrderRecordingOptions = {}
   ): Promise<OrderRecordingResult> {
     try {
-      // TODO: Order recording temporarily disabled - need to convert to Supabase
-      console.log('⚠️ Order recording temporarily disabled - TODO: implement with Supabase');
-      
-      return {
-        success: false,
-        orderId: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        temporaryId: true,
-        errors: ['Order recording temporarily unavailable due to database maintenance'],
-        warnings: ['Orders will be processed when database is available']
-      };
-      
-      console.log('📝 Starting order recording process...');
+      console.log('📝 Starting order recording process (Supabase)...');
       console.log('📄 Order source:', orderData.orderSource);
       console.log('👤 Order type:', orderData.orderType);
       console.log('🎯 Options:', options);
@@ -324,7 +313,7 @@ export class OrderRecordingSystem {
   }
   
   /**
-   * Check for duplicate orders
+   * Check for duplicate orders using Supabase
    */
   static async checkForDuplicates(
     orderData: StandardOrderData,
@@ -336,16 +325,22 @@ export class OrderRecordingSystem {
   }> {
     try {
       // Check by idempotency key and recent orders from same email
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       
-      const existingOrder = await prisma.order.findFirst({
-        where: {
-          userEmail: orderData.customerInfo.email,
-          productName: orderData.productName,
-          createdAt: { gte: fiveMinutesAgo }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
+      const { data: existingOrder, error } = await supabaseAdmin
+        .from('Order')
+        .select('*')
+        .eq('userEmail', orderData.customerInfo.email)
+        .eq('productName', orderData.productName)
+        .gte('createdAt', fiveMinutesAgo)
+        .order('createdAt', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.warn('Duplicate check query failed:', error);
+        return { isDuplicate: false };
+      }
       
       if (existingOrder) {
         console.log('🔄 Duplicate order detected:', existingOrder.id);
@@ -526,10 +521,11 @@ export class OrderRecordingSystem {
           
           // 🔧 CRITICAL FIX: Create OrderAsset database record so dashboards can find it
           try {
-            await prisma.orderAsset.create({
-              data: {
+            const { error: assetError } = await supabaseAdmin
+              .from('OrderAsset')
+              .insert({
                 orderId: orderId,
-                userId: userId || '', // Use provided userId or empty string for guests
+                userId: userId || null,
                 kind: (file.kind as 'LOGO' | 'ACCESSORY' | 'OTHER') || 'LOGO',
                 position: file.position || 'Front',
                 bucket: 'order-assets',
@@ -538,9 +534,14 @@ export class OrderRecordingSystem {
                 sizeBytes: file.size,
                 width: file.width || null,
                 height: file.height || null,
-              }
-            });
-            console.log(`✅ [ORDER RECORDING] Created OrderAsset record for ${file.name}`);
+              });
+            
+            if (assetError) {
+              console.error('❌ [ORDER RECORDING] Failed to create OrderAsset record:', assetError);
+              // Continue anyway, the file is uploaded
+            } else {
+              console.log(`✅ [ORDER RECORDING] Created OrderAsset record for ${file.name}`);
+            }
           } catch (dbError) {
             console.error('❌ [ORDER RECORDING] Failed to create OrderAsset record:', dbError);
             // Continue anyway, the file is uploaded
@@ -577,7 +578,7 @@ export class OrderRecordingSystem {
   }
   
   /**
-   * Create order record in database with fallback handling
+   * Create order record in Supabase with fallback handling
    */
   static async createOrderRecord(orderData: StandardOrderData): Promise<{
     success: boolean;
@@ -602,8 +603,9 @@ export class OrderRecordingSystem {
       
       const calculatedTotal = orderData.costBreakdown ? orderData.costBreakdown.totalCost : 0;
 
-      const order = await prisma.order.create({
-        data: {
+      const { data: order, error } = await supabaseAdmin
+        .from('Order')
+        .insert({
           productName: orderData.productName,
           selectedColors: orderData.selectedColors,
           logoSetupSelections: orderData.logoSetupSelections,
@@ -612,26 +614,35 @@ export class OrderRecordingSystem {
           customerInfo: orderData.customerInfo,
           uploadedLogoFiles: orderData.uploadedLogoFiles || [],
           additionalInstructions: orderData.additionalInstructions || null,
-          userId: orderData.userId,
+          userId: orderData.userId || null,
           userEmail: orderData.userEmail,
           orderType: orderData.orderType,
           orderSource: orderData.orderSource,
           status: orderData.status,
-          shipmentId: orderData.shipmentId,
+          shipmentId: orderData.shipmentId || null,
           ipAddress: orderData.ipAddress || 'unknown',
           userAgent: orderData.userAgent || 'unknown',
           totalUnits: totalUnits,
           calculatedTotal: calculatedTotal,
-        },
-      });
+          paymentProcessed: orderData.paymentProcessed || false,
+          processedAt: orderData.processedAt || null,
+        })
+        .select()
+        .single();
       
-      console.log('✅ Order created in database:', order.id);
+      if (error) {
+        console.error('Supabase error when creating order:', error);
+        throw error;
+      }
+      
+      console.log('✅ Order created in Supabase:', order.id);
       console.log('💰 Saved totals - Units:', totalUnits, 'Total Cost:', calculatedTotal);
       
       return {
         success: true,
         orderId: order.id,
-        order
+        order,
+        errors: []
       };
       
     } catch (dbError) {

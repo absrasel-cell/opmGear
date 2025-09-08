@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { Resend } from 'resend';
+import { randomUUID } from 'crypto';
 
 // Lazy initialize Resend to avoid build-time errors
 function getResendClient() {
@@ -42,10 +43,15 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get('user-agent') || '';
     const referrer = req.headers.get('referer') || '';
 
+    // Generate explicit UUID for the submission
+    const submissionId = randomUUID();
+    const currentTimestamp = new Date().toISOString();
+
     // Create form submission
     const { data: submission, error } = await supabaseAdmin
       .from('FormSubmission')
       .insert({
+        id: submissionId,
         formType,
         name,
         email,
@@ -57,7 +63,9 @@ export async function POST(req: NextRequest) {
         ipAddress,
         userAgent,
         referrer,
-        priority: subject === 'urgent' ? 'URGENT' : 'NORMAL'
+        priority: subject === 'urgent' ? 'URGENT' : 'NORMAL',
+        createdAt: currentTimestamp,
+        updatedAt: currentTimestamp
       })
       .select()
       .single();
@@ -70,29 +78,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log('✅ Form submission created successfully, now sending emails...');
+
     // Send confirmation email to user
-    await sendUserConfirmationEmail({
-      name,
-      email,
-      subject: subject || 'Contact Form Submission',
-      submissionId: submission.id
-    });
+    console.log('📧 Attempting to send user confirmation email...');
+    try {
+      await sendUserConfirmationEmail({
+        name,
+        email,
+        subject: subject || 'Contact Form Submission',
+        submissionId
+      });
+      console.log('✅ User confirmation email process completed');
+    } catch (emailError) {
+      console.error('❌ User confirmation email failed:', emailError);
+    }
 
     // Send notification email to admin
-    await sendAdminNotificationEmail({
-      name,
-      email,
-      subject: subject || 'New Contact Form Submission',
-      message,
-      formType,
-      submissionId: submission.id,
-      phone,
-      company
-    });
+    console.log('📨 Attempting to send admin notification email...');
+    try {
+      await sendAdminNotificationEmail({
+        name,
+        email,
+        subject: subject || 'New Contact Form Submission',
+        message,
+        formType,
+        submissionId,
+        phone,
+        company
+      });
+      console.log('✅ Admin notification email process completed');
+    } catch (emailError) {
+      console.error('❌ Admin notification email failed:', emailError);
+    }
+
+    console.log('🎯 Email processing completed, returning success response...');
 
     return NextResponse.json({
       success: true,
-      submissionId: submission.id,
+      submissionId,
       message: 'Form submitted successfully'
     }, { status: 201 });
 
@@ -173,13 +197,15 @@ async function sendUserConfirmationEmail({
   submissionId: string;
 }) {
   try {
+    console.log('🔧 Getting Resend client...');
     const resend = getResendClient();
     if (!resend) {
-      console.warn('Skipping user confirmation email - Resend not configured');
+      console.warn('❌ Skipping user confirmation email - Resend not configured');
       return;
     }
 
-    await resend.emails.send({
+    console.log(`📧 Sending user confirmation email to: ${email}`);
+    const emailResult = await resend.emails.send({
       from: 'US Custom Cap <noreply@uscustomcap.com>',
       to: [email],
       subject: `Thank you for contacting US Custom Cap - ${subject}`,
@@ -238,8 +264,10 @@ async function sendUserConfirmationEmail({
         The US Custom Cap Team
       `
     });
+
+    console.log('✅ User confirmation email sent successfully!', emailResult);
   } catch (error) {
-    console.error('Error sending user confirmation email:', error);
+    console.error('❌ Error sending user confirmation email:', error);
   }
 }
 
@@ -264,13 +292,15 @@ async function sendAdminNotificationEmail({
   company?: string;
 }) {
   try {
+    console.log('🔧 Getting Resend client for admin email...');
     const resend = getResendClient();
     if (!resend) {
-      console.warn('Skipping admin notification email - Resend not configured');
+      console.warn('❌ Skipping admin notification email - Resend not configured');
       return;
     }
 
-    await resend.emails.send({
+    console.log('📨 Sending admin notification email...');
+    const adminEmailResult = await resend.emails.send({
       from: 'US Custom Cap Forms <forms@uscustomcap.com>',
       to: ['admin@uscustomcap.com'], // TODO: Make this configurable
       subject: `New ${formType} Form Submission - ${subject}`,
@@ -324,7 +354,9 @@ async function sendAdminNotificationEmail({
         View in dashboard: ${process.env.NEXT_PUBLIC_APP_URL}/dashboard/admin/form-submissions
       `
     });
+
+    console.log('✅ Admin notification email sent successfully!', adminEmailResult);
   } catch (error) {
-    console.error('Error sending admin notification email:', error);
+    console.error('❌ Error sending admin notification email:', error);
   }
 }

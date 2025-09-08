@@ -5,23 +5,26 @@ export async function POST(request: NextRequest) {
  try {
   
   // Update absrasel@gmail.com to ADMIN role
-  const updatedUser = await prisma.user.update({
-   where: { email: 'absrasel@gmail.com' },
-   data: { 
-    role: 'ADMIN',
-    adminLevel: 'MASTER'
-   },
-   select: {
-    id: true,
-    email: true,
-    name: true,
-    role: true,
-    adminLevel: true,
-    createdAt: true,
-   }
-  });
-  
-  await prisma.$disconnect();
+  const { data: updatedUser, error: updateError } = await supabaseAdmin
+    .from('User')
+    .update({
+      role: 'ADMIN',
+      adminLevel: 'MASTER'
+    })
+    .eq('email', 'absrasel@gmail.com')
+    .select('id, email, name, role, adminLevel, createdAt')
+    .single();
+
+  if (updateError) {
+    console.error('Update error:', updateError);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: updateError.message,
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
    success: true,

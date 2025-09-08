@@ -14,11 +14,11 @@ export async function POST(
   const { user, profile } = await requireAdmin(request);
 
   const { data: invoice, error } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .select(`
     *,
-    customers:customer_id(*),
-    orders:order_id(*)
+    customer:User!Invoice_customerId_fkey(*),
+    order:Order!Invoice_orderId_fkey(*)
    `)
    .eq('id', id)
    .single();
@@ -50,7 +50,7 @@ export async function POST(
   // Update invoice status if it's still DRAFT
   if (invoice.status === 'DRAFT') {
    const { error: updateError } = await supabaseAdmin
-    .from('invoices')
+    .from('Invoice')
     .update({ status: 'ISSUED' })
     .eq('id', id);
 

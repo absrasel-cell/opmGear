@@ -42,6 +42,15 @@ export async function POST(request: NextRequest) {
 
     // Extract key information from quote data
     const { capDetails, customization, delivery, pricing } = quoteData;
+    
+    // DEBUG: Log fabric information to track data corruption
+    console.log('🧵 [FABRIC-DEBUG] Quote data fabric information:', {
+      fabricInCapDetails: capDetails?.fabric,
+      profileInCapDetails: capDetails?.profile,
+      structureInCapDetails: capDetails?.structure,
+      closureInCapDetails: capDetails?.closure,
+      billShapeInCapDetails: capDetails?.billShape
+    });
 
     // Process uploaded files for storage
     const processedFiles = uploadedFiles.map((fileUrl: string, index: number) => {

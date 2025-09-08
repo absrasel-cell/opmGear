@@ -5,14 +5,14 @@
 
 import { supabaseAdmin } from './supabase';
 
-// Define the enums locally since we're moving away from Prisma
-enum MessageRole {
+// Define and export the enums locally since we're moving away from Prisma
+export enum MessageRole {
   USER = 'USER',
   ASSISTANT = 'ASSISTANT',
   SYSTEM = 'SYSTEM'
 }
 
-enum ConversationContext {
+export enum ConversationContext {
   SUPPORT = 'SUPPORT',
   SALES = 'SALES',
   ORDER = 'ORDER',

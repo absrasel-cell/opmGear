@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-// Removed Prisma - migrated to Supabase
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
  try {
@@ -59,16 +58,23 @@ export async function POST(request: NextRequest) {
   if (data.user) {
    // Create user profile in our database
    try {
-    await prisma.user.create({
-     data: {
-      id: data.user.id,
-      email: data.user.email!,
-      name,
-      phone: phone || null,
-      company: company || null,
-      role: 'CUSTOMER', // Will be updated by intake API if needed
-     },
-    });
+    const { error: dbError } = await supabaseAdmin
+      .from('users')
+      .insert({
+        id: data.user.id,
+        email: data.user.email!,
+        name,
+        phone: phone || null,
+        company: company || null,
+        role: 'CUSTOMER', // Will be updated by intake API if needed
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+    if (dbError) {
+      console.error('Supabase error creating user profile:', dbError);
+      // Continue anyway - user is created in Supabase Auth
+    }
    } catch (dbError) {
     console.error('Database error creating user profile:', dbError);
     // Continue anyway - user is created in Supabase

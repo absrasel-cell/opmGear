@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed Prisma - migrated to Supabase
+import { supabaseAdmin } from '@/lib/supabase';
 
 // Fallback pricing tiers in case database is unavailable
 const FALLBACK_PRICING_TIERS = {
@@ -39,13 +39,19 @@ export async function GET(request: NextRequest) {
   let pricingTiers: Record<string, any> = {};
   
   try {
-   const tiers = await prisma.pricingTier.findMany({
-    where: { isActive: true },
-    orderBy: { name: 'asc' }
-   });
+   const { data: tiers, error: tiersError } = await supabaseAdmin
+     .from('pricing_tiers')
+     .select('*')
+     .eq('isActive', true)
+     .order('name', { ascending: true });
+   
+   if (tiersError) {
+     console.error('Supabase error fetching pricing tiers:', tiersError);
+     throw tiersError;
+   }
    
    // Convert to the expected format
-   tiers.forEach((dbTier: any) => {
+   tiers?.forEach((dbTier: any) => {
     pricingTiers[dbTier.name] = {
      price48: Number(dbTier.price48),
      price144: Number(dbTier.price144),
@@ -69,12 +75,19 @@ export async function GET(request: NextRequest) {
   let marginSettings = null;
   if (withMargins) {
    try {
-    marginSettings = await prisma.simplifiedMarginSetting.findFirst({
-     where: { 
-      category: 'BLANK_CAPS',
-      isActive: true 
-     }
-    });
+    const { data: margins, error: marginsError } = await supabaseAdmin
+      .from('simplified_margin_settings')
+      .select('*')
+      .eq('category', 'BLANK_CAPS')
+      .eq('isActive', true)
+      .single();
+
+    if (marginsError && marginsError.code !== 'PGRST116') {
+      console.error('Supabase error fetching margin settings:', marginsError);
+      throw marginsError;
+    }
+
+    marginSettings = margins;
    } catch (marginError) {
     console.error('Error loading margin settings:', marginError);
    }

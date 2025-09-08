@@ -151,6 +151,7 @@ function SuccessPageContent() {
  const [loading, setLoading] = useState(true);
  const [creatingInvoice, setCreatingInvoice] = useState<string | null>(null);
  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+ const [autoProcessingComplete, setAutoProcessingComplete] = useState(false);
 
  const orderIds = orders ? orders.split(',') : (orderId ? [orderId] : []);
  const isMultipleOrders = orderIds.length > 1;
@@ -224,6 +225,11 @@ function SuccessPageContent() {
         orderIds.includes(invoice.orderId)
        ) || [];
        setInvoices(orderInvoices);
+       
+       // Auto-create invoices for orders that don't have them
+       setTimeout(() => {
+        autoCreateInvoicesOnly(validOrders, orderInvoices);
+       }, 1000);
       }
      } catch (error) {
       console.log('Could not fetch invoices:', error);
@@ -238,6 +244,174 @@ function SuccessPageContent() {
 
   fetchOrderDetails();
  }, [orderId, orders, isAuthenticated]);
+
+ // Auto-create invoices only (no auto-download)
+ const autoCreateInvoicesOnly = async (orders: OrderData[], existingInvoices: InvoiceData[]) => {
+  if (autoProcessingComplete || !isAuthenticated || orders.length === 0) {
+   return;
+  }
+
+  console.log('🤖 Auto-creating invoices for', orders.length, 'orders');
+  
+  try {
+   const updatedInvoices = [...existingInvoices];
+   
+   // Create invoices for orders that don't have them
+   for (const order of orders) {
+    const hasInvoice = existingInvoices.some(inv => inv.orderId === order.id);
+    
+    if (!hasInvoice) {
+     console.log(`🤖 Creating invoice for order ${order.id}`);
+     const invoice = await createInvoiceForOrder(order.id);
+     if (invoice) {
+      updatedInvoices.push(invoice);
+     }
+    } else {
+     console.log(`🤖 Invoice already exists for order ${order.id}`);
+    }
+   }
+   
+   setInvoices(updatedInvoices);
+   setAutoProcessingComplete(true);
+  } catch (error) {
+   console.error('🤖 Error in auto-creating invoices:', error);
+   setAutoProcessingComplete(true);
+  }
+ };
+
+ // Helper function to create invoice without UI updates (for auto-processing)
+ const createInvoiceForOrder = async (orderId: string): Promise<InvoiceData | null> => {
+  try {
+   // Try user endpoint first (for user-created invoices)
+   let response = await fetch('/api/user/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId }),
+    credentials: 'include',
+   });
+
+   if (response.ok) {
+    const result = await response.json();
+    console.log(`🤖 User invoice created for order ${orderId}:`, result.invoice);
+    return {
+     id: result.invoice.id,
+     number: result.invoice.number,
+     status: result.invoice.status,
+     total: result.invoice.total,
+     orderId: orderId
+    };
+   } else {
+    console.log(`🤖 User invoice creation failed, trying admin endpoint...`);
+    // Fallback to admin endpoint if user endpoint fails
+    response = await fetch('/api/invoices', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ 
+      orderId, 
+      simple: false // Use detailed invoice format with separate line items
+     }),
+     credentials: 'include',
+    });
+
+    if (response.ok) {
+     const result = await response.json();
+     console.log(`🤖 Admin invoice created for order ${orderId}:`, result);
+     return {
+      id: result.id,
+      number: result.number,
+      status: result.status || 'ISSUED',
+      total: result.total,
+      orderId: orderId
+     };
+    } else {
+     const errorText = await response.text();
+     console.error(`🤖 Both endpoints failed for order ${orderId}:`, errorText);
+    }
+   }
+  } catch (error) {
+   console.error(`🤖 Error creating invoice for order ${orderId}:`, error);
+  }
+  return null;
+ };
+
+ // Silent PDF download function (no loading state updates)
+ const downloadPdfSilently = async (invoiceId: string, invoiceNumber: string): Promise<void> => {
+  try {
+   console.log(`🤖 Downloading PDF for invoice ${invoiceNumber} (ID: ${invoiceId})`);
+   
+   const response = await fetch(`/api/invoices/${invoiceId}/pdf`, {
+    credentials: 'include',
+    headers: {
+     'Accept': 'application/pdf'
+    }
+   });
+   
+   if (response.ok) {
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/pdf')) {
+     console.error(`🤖 Invalid content type for invoice ${invoiceNumber}: ${contentType}`);
+     return;
+    }
+    
+    const blob = await response.blob();
+    if (blob.size === 0) {
+     console.error(`🤖 Empty PDF for invoice ${invoiceNumber}`);
+     return;
+    }
+    
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `invoice-${invoiceNumber}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    console.log(`🤖 PDF download completed for ${invoiceNumber}`);
+   } else {
+    const errorText = await response.text();
+    console.error(`🤖 PDF download failed for ${invoiceNumber}:`, errorText);
+   }
+  } catch (error) {
+   console.error(`🤖 Error downloading PDF for ${invoiceNumber}:`, error);
+   throw error;
+  }
+ };
+
+ // Create invoice and automatically download PDF
+ const createInvoiceAndDownload = async (orderId: string) => {
+  console.log(`🤖 Creating invoice and downloading PDF for order ${orderId}`);
+  
+  if (!isAuthenticated || creatingInvoice) {
+   return;
+  }
+  
+  setCreatingInvoice(orderId);
+  
+  try {
+   // First, create or get the invoice
+   const invoice = await createInvoiceForOrder(orderId);
+   if (invoice) {
+    // Update the invoices state
+    setInvoices(prev => {
+     const exists = prev.some(inv => inv.id === invoice.id);
+     return exists ? prev : [...prev, invoice];
+    });
+    
+    // Auto-download the PDF
+    await downloadPdfSilently(invoice.id, invoice.number);
+   } else {
+    alert('Unable to create invoice. Please try again.');
+   }
+  } catch (error) {
+   console.error('Error creating invoice and downloading PDF:', error);
+   alert('Error processing invoice. Please try again.');
+  } finally {
+   setCreatingInvoice(null);
+  }
+ };
 
  const createInvoice = async (orderId: string) => {
   console.log(`🧾 Starting invoice creation for order ${orderId}`);
@@ -444,25 +618,25 @@ function SuccessPageContent() {
        background: linear-gradient(180deg, #000, rgba(5,7,14,1) 40%, #000) !important;
      }
      .receipt-glass-section {
-       background: rgba(0, 0, 0, 0.4) !important;
-       border: 1px solid rgba(255, 255, 255, 0.1) !important;
+       background: rgba(0, 0, 0, 0.7) !important;
+       border: 1px solid rgba(75, 85, 99, 0.4) !important;
        backdrop-filter: blur(24px) !important;
        transition: all 0.3s ease !important;
      }
      .receipt-glass-section:hover {
-       background: rgba(0, 0, 0, 0.6) !important;
-       border: 1px solid rgba(255, 255, 255, 0.15) !important;
+       background: rgba(0, 0, 0, 0.8) !important;
+       border: 1px solid rgba(75, 85, 99, 0.6) !important;
        backdrop-filter: blur(28px) !important;
      }
      .receipt-glass-item {
-       background: rgba(0, 0, 0, 0.3) !important;
-       border: 1px solid rgba(255, 255, 255, 0.08) !important;
+       background: rgba(0, 0, 0, 0.6) !important;
+       border: 1px solid rgba(75, 85, 99, 0.3) !important;
        backdrop-filter: blur(16px) !important;
        transition: all 0.3s ease !important;
      }
      .receipt-glass-item:hover {
-       background: rgba(0, 0, 0, 0.5) !important;
-       border: 1px solid rgba(255, 255, 255, 0.12) !important;
+       background: rgba(0, 0, 0, 0.75) !important;
+       border: 1px solid rgba(75, 85, 99, 0.5) !important;
        backdrop-filter: blur(20px) !important;
      }
    `}</style>
@@ -505,12 +679,13 @@ function SuccessPageContent() {
         </div>
        </div>
       )}
+
      </div>
 
      {/* Order Details */}
      {orderDetails.map((order, index) => (
       <div key={order.id} className="mb-8">
-       <GlassCard className="p-6 md:p-8 receipt-glass-section">
+       <div className="rounded-2xl border border-gray-800/60 bg-gradient-to-br from-gray-900/90 via-black/80 to-gray-900/90 backdrop-blur-2xl ring-1 ring-gray-700/40 shadow-2xl p-6 md:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
          <div>
           <h2 className="text-2xl font-bold text-white mb-2">
@@ -555,9 +730,9 @@ function SuccessPageContent() {
            } else if (isAuthenticated) {
             return (
              <button
-              onClick={() => createInvoice(order.id)}
+              onClick={() => createInvoiceAndDownload(order.id)}
               disabled={creatingInvoice === order.id}
-              className="inline-flex items-center gap-2 rounded-full border border-stone-600 bg-stone-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-600 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full border border-gray-700/60 bg-gray-800/80 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700/90 disabled:opacity-50 backdrop-blur-sm"
              >
               {creatingInvoice === order.id ? (
                <>
@@ -569,8 +744,8 @@ function SuccessPageContent() {
                </>
               ) : (
                <>
-                <PrinterIcon className="h-4 w-4" />
-                Create Invoice
+                <DocumentArrowDownIcon className="h-4 w-4" />
+                Download Invoice
                </>
               )}
              </button>
@@ -671,13 +846,13 @@ function SuccessPageContent() {
 
         {/* Detailed Cost Breakdown */}
         {costBreakdowns[order.id] && (
-         <div className="mt-8 pt-8 border-t border-stone-600">
+         <div className="mt-8 pt-8 border-t border-gray-700/60">
           <h3 className="text-lg font-semibold text-lime-300 mb-6">Cost Breakdown</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
            {/* Left Column - Items */}
            <div className="space-y-4">
             {/* Base Product Cost */}
-            <div className="flex justify-between items-center py-2 border-b border-stone-600">
+            <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
              <div>
               <span className="text-white font-medium">Base Product</span>
               <div className="text-xs text-slate-400">
@@ -760,7 +935,7 @@ function SuccessPageContent() {
            </div>
 
            {/* Right Column - Summary */}
-           <div className="bg-stone-700 rounded-xl p-6 border border-stone-600 receipt-glass-item">
+           <div className="bg-gradient-to-br from-gray-900/95 via-black/85 to-gray-900/95 rounded-xl p-6 border border-gray-700/50 backdrop-blur-xl ring-1 ring-gray-600/30">
             <h4 className="text-white font-semibold mb-4">Order Summary</h4>
             <div className="space-y-3">
              <div className="flex justify-between">
@@ -775,7 +950,7 @@ function SuccessPageContent() {
               </div>
              )}
              
-             <div className="flex justify-between font-semibold text-lg pt-3 border-t border-stone-500">
+             <div className="flex justify-between font-semibold text-lg pt-3 border-t border-gray-600/60">
               <span className="text-white">Total</span>
               <span className="text-lime-400">{formatPrice(costBreakdowns[order.id].totalCost)}</span>
              </div>
@@ -788,7 +963,7 @@ function SuccessPageContent() {
           </div>
          </div>
         )}
-       </GlassCard>
+       </div>
       </div>
      ))}
 
@@ -801,7 +976,7 @@ function SuccessPageContent() {
         {orderDetails.map((order, index) => {
          const breakdown = costBreakdowns[order.id];
          return breakdown ? (
-          <div key={order.id} className="flex justify-between items-center py-2 border-b border-stone-600">
+          <div key={order.id} className="flex justify-between items-center py-2 border-b border-gray-700/50">
            <span className="text-slate-300">Order {index + 1} (#{order.id})</span>
            <span className="text-white font-medium">{formatPrice(breakdown.totalCost)}</span>
           </div>
@@ -809,7 +984,7 @@ function SuccessPageContent() {
         })}
         
         {/* Grand Total using calculateGrandTotal like checkout */}
-        <div className="flex justify-between items-center pt-4 border-t border-stone-500">
+        <div className="flex justify-between items-center pt-4 border-t border-gray-600/60">
          <div>
           <span className="text-xl font-bold text-white">Grand Total</span>
           <div className="text-sm text-slate-300">

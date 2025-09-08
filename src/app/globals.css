@@ -43,6 +43,9 @@
 .font-quicksand { font-family: 'Quicksand', sans-serif !important; }
 .font-nunito { font-family: 'Nunito', sans-serif !important; }
 
+/* Aspect ratio helpers */
+.aspect-square { aspect-ratio: 1 / 1; }
+
 /* Reference HTML Animations */
 .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; opacity: 0; }
 .animate-slide-up { animation: slideUp 0.8s ease-out forwards; opacity: 0; transform: translateY(20px); }

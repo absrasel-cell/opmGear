@@ -132,6 +132,18 @@ interface CostBreakdown {
   cost: number;
   unitPrice: number;
  }>;
+ servicesCosts: Array<{
+  name: string;
+  cost: number;
+  unitPrice: number;
+ }>;
+ moldChargeCosts?: Array<{
+  name: string;
+  cost: number;
+  unitPrice: number;
+  waived: boolean;
+  waiverReason?: string;
+ }>;
  totalCost: number;
  totalUnits: number;
 }
@@ -1100,7 +1112,7 @@ export default function AdminOrdersPage() {
      <section className="px-6 md:px-10 mt-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'all' ? 'ring-2 ring-blue-400 bg-blue-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('all')}
@@ -1115,7 +1127,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'pending' ? 'ring-2 ring-amber-400 bg-amber-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('pending')}
@@ -1130,7 +1142,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'processing' ? 'ring-2 ring-blue-400 bg-blue-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('processing')}
@@ -1145,7 +1157,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'shipped' ? 'ring-2 ring-purple-400 bg-purple-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('shipped')}
@@ -1160,7 +1172,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'delivered' ? 'ring-2 ring-green-400 bg-green-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('delivered')}
@@ -1175,7 +1187,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'cancelled' ? 'ring-2 ring-red-400 bg-red-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('cancelled')}
@@ -1210,7 +1222,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'assigned' ? 'ring-2 ring-lime-400 bg-lime-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('assigned')}
@@ -1225,7 +1237,7 @@ export default function AdminOrdersPage() {
        </GlassCard>
        
        <GlassCard 
-        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-stone-600 ${
+        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-black/30 hover:backdrop-blur-sm ${
          statusFilter === 'unassigned' ? 'ring-2 ring-orange-400 bg-orange-500/20' : ''
         }`}
         onClick={() => handleStatusBlockClick('unassigned')}
@@ -1285,7 +1297,7 @@ export default function AdminOrdersPage() {
            <Button 
             variant="primary" 
             onClick={handleBulkAssign}
-            className="bg-lime-600 hover:bg-lime-700 border-lime-500"
+            className="bg-lime-600/80 hover:bg-lime-600 backdrop-blur-sm border-lime-500/70"
            >
             <Ship className="w-4 h-4 mr-2" />
             Bulk Assign ({selectedOrders.size})
@@ -1293,7 +1305,7 @@ export default function AdminOrdersPage() {
            <Button 
             variant="secondary" 
             onClick={handleBulkUnassign}
-            className="bg-orange-600 hover:bg-orange-700 border-orange-500"
+            className="bg-orange-600/80 hover:bg-orange-600 backdrop-blur-sm border-orange-500/70"
            >
             <Ship className="w-4 h-4 mr-2" />
             Bulk Unassign
@@ -1301,7 +1313,7 @@ export default function AdminOrdersPage() {
            <Button 
             variant="secondary" 
             onClick={handleBulkDelete}
-            className="bg-red-600 hover:bg-red-700 border-red-500"
+            className="bg-red-600/80 hover:bg-red-600 backdrop-blur-sm border-red-500/70"
            >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete ({selectedOrders.size})
@@ -1311,7 +1323,7 @@ export default function AdminOrdersPage() {
          <Button 
           variant="primary" 
           onClick={() => handleOpenShipmentDetails()}
-          className="bg-orange-600 hover:bg-orange-700 border-orange-500"
+          className="bg-orange-600/80 hover:bg-orange-600 backdrop-blur-sm border-orange-500/70"
          >
           <Ship className="w-4 h-4 mr-2" />
           Shipment Builder
@@ -1385,7 +1397,7 @@ export default function AdminOrdersPage() {
          <TableBody>
           {filteredOrders.map((order) => (
            <React.Fragment key={order.id}>
-            <TableRow className="hover:bg-stone-700">
+            <TableRow className="hover:bg-blue-900/30 hover:backdrop-blur-sm transition-all duration-200">
              <TableCell>
               <input
                type="checkbox"
@@ -1481,7 +1493,7 @@ export default function AdminOrdersPage() {
                      handleEditOrder(order);
                      setOpenDropdown(null);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-stone-600 flex items-center gap-2 transition-colors"
+                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-black/40 hover:backdrop-blur-sm flex items-center gap-2 transition-colors"
                    >
                     <Edit className="w-4 h-4" />
                     Edit Order
@@ -1489,7 +1501,7 @@ export default function AdminOrdersPage() {
 
                    <button
                     onClick={() => handleCreateInvoice(order)}
-                    className="w-full px-4 py-2 text-left text-sm text-cyan-400 hover:bg-cyan-500/10 flex items-center gap-2 transition-colors"
+                    className="w-full px-4 py-2 text-left text-sm text-cyan-400 hover:bg-black/30 hover:backdrop-blur-sm flex items-center gap-2 transition-colors"
                    >
                     <Receipt className="w-4 h-4" />
                     Create Invoice
@@ -1501,7 +1513,7 @@ export default function AdminOrdersPage() {
                       handleUnassignFromShipment(order);
                       setOpenDropdown(null);
                      }}
-                     className="w-full px-4 py-2 text-left text-sm text-orange-400 hover:bg-orange-500/10 flex items-center gap-2 transition-colors"
+                     className="w-full px-4 py-2 text-left text-sm text-orange-400 hover:bg-black/30 hover:backdrop-blur-sm flex items-center gap-2 transition-colors"
                     >
                      <Ship className="w-4 h-4" />
                      Unassign from {order.shipment.buildNumber}
@@ -1512,7 +1524,7 @@ export default function AdminOrdersPage() {
                       handleQuickAssign(order);
                       setOpenDropdown(null);
                      }}
-                     className="w-full px-4 py-2 text-left text-sm text-lime-400 hover:bg-lime-500/10 flex items-center gap-2 transition-colors"
+                     className="w-full px-4 py-2 text-left text-sm text-lime-400 hover:bg-black/30 hover:backdrop-blur-sm flex items-center gap-2 transition-colors"
                     >
                      <Ship className="w-4 h-4" />
                      Assign to Shipment
@@ -1524,7 +1536,7 @@ export default function AdminOrdersPage() {
                      handleDeleteOrder(order.id);
                      setOpenDropdown(null);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                    className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-black/30 hover:backdrop-blur-sm flex items-center gap-2 transition-colors"
                    >
                     <Trash2 className="w-4 h-4" />
                     Delete Order
@@ -1541,7 +1553,7 @@ export default function AdminOrdersPage() {
             {expandedOrder === order.id && (
              <tr>
               <td colSpan={10} className="p-0">
-               <div className="bg-stone-700 border-t border-stone-600 p-6">
+               <div className="bg-black/40 backdrop-blur-sm border-t border-stone-700/50 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                  <div>
                   <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
@@ -1733,7 +1745,7 @@ export default function AdminOrdersPage() {
                     const isCustom = colorData.isCustom;
                     
                     return (
-                    <div key={colorName} className="border border-stone-600 rounded-lg p-3 bg-stone-700">
+                    <div key={colorName} className="border border-stone-700/50 rounded-lg p-3 bg-black/30 backdrop-blur-sm">
                      <div className="font-medium text-white mb-2 flex items-center gap-2">
                       <span>{displayName}</span>
                       {isCustom && (
@@ -1764,7 +1776,7 @@ export default function AdminOrdersPage() {
                     );
                    })}
                   </div>
-                  <div className="mt-4 p-3 bg-stone-700 border border-stone-600 rounded-lg">
+                  <div className="mt-4 p-3 bg-black/30 backdrop-blur-sm border border-stone-700/50 rounded-lg">
                    <div className="flex justify-between items-center">
                     <span className="text-slate-400">Total Units:</span>
                     <span className="font-medium text-white text-lg">
@@ -1789,7 +1801,7 @@ export default function AdminOrdersPage() {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                    {order.multiSelectOptions['logo-setup'].map((logoValue: string) => (
-                    <div key={logoValue} className="border border-stone-600 rounded-lg p-3 bg-stone-700">
+                    <div key={logoValue} className="border border-stone-700/50 rounded-lg p-3 bg-black/30 backdrop-blur-sm">
                      <div className="font-medium text-white mb-2">{logoValue}</div>
                      {order.logoSetupSelections?.[logoValue] && (
                       <div className="space-y-1 text-sm text-slate-300">
@@ -1833,7 +1845,7 @@ export default function AdminOrdersPage() {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                    {order.multiSelectOptions?.accessories?.length > 0 && (
-                    <div className="border border-stone-600 rounded-lg p-3 bg-stone-700">
+                    <div className="border border-stone-700/50 rounded-lg p-3 bg-black/30 backdrop-blur-sm">
                      <div className="font-medium text-white mb-2">Accessories</div>
                      <div className="space-y-1">
                       {order.multiSelectOptions.accessories.map((item: string) => (
@@ -1843,7 +1855,7 @@ export default function AdminOrdersPage() {
                     </div>
                    )}
                    {order.multiSelectOptions?.closures?.length > 0 && (
-                    <div className="border border-stone-600 rounded-lg p-3 bg-stone-700">
+                    <div className="border border-stone-700/50 rounded-lg p-3 bg-black/30 backdrop-blur-sm">
                      <div className="font-medium text-white mb-2">Closures</div>
                      <div className="space-y-1">
                       {order.multiSelectOptions.closures.map((item: string) => (
@@ -1853,7 +1865,7 @@ export default function AdminOrdersPage() {
                     </div>
                    )}
                    {order.multiSelectOptions?.delivery?.length > 0 && (
-                    <div className="border border-stone-600 rounded-lg p-3 bg-stone-700">
+                    <div className="border border-stone-700/50 rounded-lg p-3 bg-black/30 backdrop-blur-sm">
                      <div className="font-medium text-white mb-2">Delivery Options</div>
                      <div className="space-y-1">
                       {order.multiSelectOptions.delivery.map((item: string) => (
@@ -1907,7 +1919,7 @@ export default function AdminOrdersPage() {
                    </svg>
                    Detailed Pricing Breakdown
                   </h4>
-                  <div className="bg-stone-700 border border-stone-600 rounded-lg p-4">
+                  <div className="bg-black/30 backdrop-blur-sm border border-stone-700/50 rounded-lg p-4">
                    {(() => {
                     const costBreakdown = orderCostBreakdowns[order.id];
                     return (
@@ -2119,6 +2131,37 @@ export default function AdminOrdersPage() {
                        </div>
                       ))}
 
+                      {/* Mold Charge Costs */}
+                      {costBreakdown?.moldChargeCosts && costBreakdown.moldChargeCosts.length > 0 && (
+                       <div>
+                        <div className="text-xs font-medium text-slate-300 mb-2">Mold Charges:</div>
+                        {costBreakdown.moldChargeCosts.map((moldCharge, index) => (
+                         <div key={index} className="flex justify-between items-center py-1 text-sm">
+                          <div className="text-slate-300">
+                           <div className="flex items-center gap-2">
+                            <span>{moldCharge.name}</span>
+                            {moldCharge.waived && (
+                             <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">
+                              WAIVED
+                             </span>
+                            )}
+                           </div>
+                           <div className="text-xs text-slate-400">
+                            {moldCharge.waived ? (
+                             moldCharge.waiverReason || 'Waiver applied'
+                            ) : (
+                             `${formatPrice(moldCharge.unitPrice)} per unit`
+                            )}
+                           </div>
+                          </div>
+                          <div className={`font-medium ${moldCharge.waived ? 'text-green-400 line-through' : 'text-red-400'}`}>
+                           {formatPrice(moldCharge.cost)}
+                          </div>
+                         </div>
+                        ))}
+                       </div>
+                      )}
+
                       {/* Total */}
                       <div className="flex justify-between items-center pt-3 border-t border-stone-600 text-base font-semibold">
                        <div className="text-white">Total Order Value</div>
@@ -2147,7 +2190,7 @@ export default function AdminOrdersPage() {
                    </svg>
                    Additional Instructions
                   </h4>
-                  <div className="bg-stone-700 border border-stone-600 rounded-lg p-4">
+                  <div className="bg-black/30 backdrop-blur-sm border border-stone-700/50 rounded-lg p-4">
                    <div className="text-sm text-slate-300 whitespace-pre-wrap">
                     {order.additionalInstructions}
                    </div>
@@ -2549,7 +2592,7 @@ export default function AdminOrdersPage() {
           {availableProducts.map((product) => (
            <div
             key={product._id}
-            className="bg-stone-700 border border-stone-600 rounded-lg p-4 hover:bg-stone-600 transition-colors cursor-pointer"
+            className="bg-black/20 backdrop-blur-sm border border-stone-700/50 rounded-lg p-4 hover:bg-black/40 hover:backdrop-blur-md transition-colors cursor-pointer"
             onClick={() => handleProductSelection(product.slug.current)}
            >
             <div className="flex items-start gap-3">
@@ -2686,7 +2729,7 @@ export default function AdminOrdersPage() {
         <Button
          variant="primary"
          onClick={confirmDeleteOrder}
-         className="flex-1 bg-red-600 hover:bg-red-700 border-red-500 text-white"
+         className="flex-1 bg-red-600/80 hover:bg-red-600 backdrop-blur-sm border-red-500/70 text-white"
         >
          <Trash2 className="w-4 h-4 mr-2" />
          Delete Order
@@ -2753,7 +2796,7 @@ export default function AdminOrdersPage() {
             setQuickAssignModal(false);
             handleOpenShipmentDetails();
            }}
-           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 border border-orange-500 text-white transition-colors"
+           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/80 hover:bg-orange-600 backdrop-blur-sm border border-orange-500/70 text-white transition-colors"
           >
            <Ship className="w-4 h-4" />
            Create New Shipment
@@ -2764,7 +2807,7 @@ export default function AdminOrdersPage() {
           {availableShipments.map((shipment) => (
            <div
             key={shipment.id}
-            className="bg-stone-700 border border-stone-600 rounded-lg p-4 hover:bg-stone-600 transition-colors cursor-pointer"
+            className="bg-black/20 backdrop-blur-sm border border-stone-700/50 rounded-lg p-4 hover:bg-black/40 hover:backdrop-blur-md transition-colors cursor-pointer"
             onClick={() => handleAssignToShipment(shipment.id)}
            >
             <div className="flex items-center justify-between mb-3">
@@ -2877,7 +2920,7 @@ export default function AdminOrdersPage() {
             setBulkAssignModal(false);
             handleOpenShipmentDetails();
            }}
-           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 border border-orange-500 text-white transition-colors"
+           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600/80 hover:bg-orange-600 backdrop-blur-sm border border-orange-500/70 text-white transition-colors"
           >
            <Ship className="w-4 h-4" />
            Create New Shipment
@@ -2888,7 +2931,7 @@ export default function AdminOrdersPage() {
           {availableShipments.map((shipment) => (
            <div
             key={shipment.id}
-            className="bg-stone-700 border border-stone-600 rounded-lg p-4 hover:bg-stone-600 transition-colors cursor-pointer"
+            className="bg-black/20 backdrop-blur-sm border border-stone-700/50 rounded-lg p-4 hover:bg-black/40 hover:backdrop-blur-md transition-colors cursor-pointer"
             onClick={() => handleBulkAssignToShipment(shipment.id)}
            >
             <div className="flex items-center justify-between mb-3">

@@ -1,13 +1,23 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Image from 'next/image';
 
 // Move GlassCard outside component to prevent re-creation on renders
 const GlassCard: React.FC<React.PropsWithChildren<{ className?: string }>> = ({ className = '', children }) => (
-  <div className={`rounded-2xl border border-stone-600/50 bg-stone-900/60 backdrop-blur-2xl ring-1 ring-stone-700/50 ${className}`}>
+  <div className={`rounded-2xl border border-white/10 glass-card ${className}`}>
     {children}
   </div>
 );
+
+const COMPANY = {
+  name: 'US Custom Caps',
+  owner: 'Joseph Benise',
+  email: 'support@uscustomcaps.com',
+  phone: '+16788587893',
+  address: '957 Hwy 85 Connector, Brooks, GA 30205, United States',
+  mapsUrl: 'https://www.google.com/maps/search/?api=1&query=957+Hwy+85+Connector%2C+Brooks%2C+GA+30205',
+};
 
 export default function ContactPage() {
  const [formData, setFormData] = useState({
@@ -97,31 +107,62 @@ export default function ContactPage() {
 
  return (
   <div className="relative min-h-screen overflow-x-hidden text-slate-200">
-   {/* Background: leveraging site-wide background with accent glows */}
-   <div className="pointer-events-none absolute inset-0 -z-10">
-    <div className="absolute inset-0 bg-black/10" />
-    <div className="absolute inset-x-0 top-0 h-[40vh] bg-[radial-gradient(60%_30%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" />
-    <div className="absolute -top-10 -left-20 h-80 w-80 rounded-full bg-lime-400/10 blur-3xl" />
-    <div className="absolute top-40 -right-24 h-96 w-96 rounded-full bg-orange-400/10 blur-3xl" />
-    <div className="absolute bottom-0 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
-   </div>
 
-   <main className="mx-auto max-w-[1800px] px-6 md:px-10">
-    {/* Hero Section */}
-    <section className="relative pt-16 md:pt-24 lg:pt-28 mb-12">
-     <div className="mx-auto max-w-6xl text-center">
-      <GlassCard className="p-8 md:p-12">
-       <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6">
-        Contact Us
-       </h1>
-       <p className="text-lg md:text-xl lg:text-2xl text-slate-300 max-w-4xl mx-auto leading-relaxed">
-        Get in touch with our team. We're here to help you create the perfect custom cap.
-       </p>
-      </GlassCard>
-     </div>
+   <main className="mx-auto max-w-[1850px] px-6 md:px-10 pt-8 md:pt-12 pb-20 md:pb-28">
+    {/* Hero Section (store photo) */}
+    <section className="relative h-[48vh] min-h-[360px] mb-12 rounded-3xl overflow-hidden">
+      <Image src="/uploads/Contact/store outfront.png" alt="Store outfront" fill priority className="object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-black/80" />
+      <div className="relative h-full mx-auto max-w-[1850px] flex items-end px-4 sm:px-6 pb-8">
+        <div className="max-w-3xl animate-fade-in">
+          <span className="inline-block mb-2 px-3 py-1 rounded-full glass-badge text-xs uppercase tracking-widest">We’re here to help</span>
+          <h1 className="text-4xl md:text-6xl font-extrabold">Contact Us</h1>
+          <p className="mt-2 text-slate-200 max-w-2xl">Quotes, design assistance, sampling, shipping—reach out any time.</p>
+        </div>
+      </div>
     </section>
 
-    <div className="mx-auto max-w-6xl">
+    {/* Quick info cards */}
+    <div className="mx-auto max-w-[1850px] grid gap-6 md:grid-cols-3 mb-10">
+      <GlassCard className="p-5 md:p-6">
+        <div className="text-sm text-slate-300">Email</div>
+        <a href={`mailto:${COMPANY.email}`} className="mt-1 block text-lg font-semibold hover:text-lime-300 transition-colors">{COMPANY.email}</a>
+      </GlassCard>
+      <GlassCard className="p-5 md:p-6">
+        <div className="text-sm text-slate-300">Phone</div>
+        <a href={`tel:${COMPANY.phone}`} className="mt-1 block text-lg font-semibold hover:text-lime-300 transition-colors">{COMPANY.phone}</a>
+      </GlassCard>
+      <GlassCard className="p-5 md:p-6">
+        <div className="text-sm text-slate-300">Address</div>
+        <a href={COMPANY.mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block text-lg font-semibold hover:text-lime-300 transition-colors">{COMPANY.address}</a>
+      </GlassCard>
+    </div>
+
+    {/* Store photos + Company info */}
+    <div className="mx-auto max-w-[1850px] grid gap-6 md:grid-cols-3 mb-12">
+      <GlassCard className="md:col-span-2 overflow-hidden">
+        <div className="relative w-full aspect-square md:aspect-[16/9]">
+          <Image src="/uploads/Contact/Inside Store.jpg" alt="Inside store" fill className="object-cover" />
+        </div>
+      </GlassCard>
+      <GlassCard className="p-6 md:p-8">
+        <h2 className="text-2xl font-bold text-white">Company Info</h2>
+        <div className="mt-4 space-y-3 text-slate-300">
+          <div><span className="text-xs uppercase tracking-wide text-slate-400">Company</span><div className="font-semibold">{COMPANY.name}</div></div>
+          <div><span className="text-xs uppercase tracking-wide text-slate-400">Owner</span><div className="font-semibold">{COMPANY.owner}</div></div>
+          <div><span className="text-xs uppercase tracking-wide text-slate-400">Email</span><div><a href={`mailto:${COMPANY.email}`} className="font-semibold hover:text-lime-300">{COMPANY.email}</a></div></div>
+          <div><span className="text-xs uppercase tracking-wide text-slate-400">Phone</span><div><a href={`tel:${COMPANY.phone}`} className="font-semibold hover:text-lime-300">{COMPANY.phone}</a></div></div>
+          <div><span className="text-xs uppercase tracking-wide text-slate-400">Address</span><div><a href={COMPANY.mapsUrl} target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-lime-300">{COMPANY.address}</a></div></div>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <a href={`mailto:${COMPANY.email}`} className="glass-button px-4 py-2 rounded-full">Email Us</a>
+          <a href={`tel:${COMPANY.phone}`} className="glass-button px-4 py-2 rounded-full">Call Now</a>
+          <a href={COMPANY.mapsUrl} target="_blank" rel="noopener noreferrer" className="glass-button px-4 py-2 rounded-full">Open in Maps</a>
+        </div>
+      </GlassCard>
+    </div>
+
+    <div className="mx-auto max-w-[1850px]">
      <div className="grid lg:grid-cols-2 gap-8">
              {/* Left Column - Contact Form */}
       <div className="space-y-6">

@@ -1,3 +1,5 @@
+# for analysis purpose, always use Agent "Opus Aurelius", and for appliance and executions, use "fullstack-cap-engineer". Let them maintain a common todo list file "F:\Custom Cap - github\Claude Instruction\todo list.txt".
+
 # CLAUDE.md - Project Context for US Custom Cap
 read current main Task from ""F:\Custom Cap - github\Claude Instruction\currentTask.txt""
 read current errors and follow up conversation of AI or other requests from ""F:\Custom Cap - github\Claude Instruction\errorReport.txt""
@@ -5,7 +7,7 @@ read screenshot (only if I tell you to) at "F:\Custom Cap - github\Claude Instru
 General understanding of the overall business "F:\Custom Cap - github\Claude Instruction\custom cap 101.txt"
 
 ## We are no longer using PRISMA. We are only using SUPABASE now.
-
+## Use supabase MCP for any Database related tasks.
 # 🎯 CRITICAL REFERENCE FILES
 
 ## Support Page Complete Memory

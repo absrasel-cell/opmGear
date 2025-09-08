@@ -28,15 +28,16 @@ async function getCurrentUser(request: NextRequest) {
   if (!user) return null;
   
   // Get user data from database to check access role
-  const userData = await prisma.user.findUnique({
-   where: { id: user.id },
-   select: {
-    id: true,
-    email: true,
-    accessRole: true,
-    adminLevel: true,
-   },
-  });
+  const { data: userData, error: userError } = await supabase
+    .from('User')
+    .select('id, email, accessRole, adminLevel')
+    .eq('id', user.id)
+    .single();
+
+  if (userError) {
+    console.error('User data fetch error:', userError);
+    return null;
+  }
   
   return userData;
  } catch (error) {
@@ -54,10 +55,19 @@ function hasAdminAccess(user: any): boolean {
 // GET - Fetch all pricing tiers
 export async function GET(request: NextRequest) {
  try {
-  const pricingTiers = await prisma.pricingTier.findMany({
-   where: { isActive: true },
-   orderBy: { name: 'asc' }
-  });
+  const { data: pricingTiers, error: fetchError } = await supabase
+    .from('PricingTier')
+    .select('*')
+    .eq('isActive', true)
+    .order('name', { ascending: true });
+
+  if (fetchError) {
+    console.error('Error fetching pricing tiers:', fetchError);
+    return NextResponse.json(
+      { error: 'Failed to fetch pricing tiers' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json(pricingTiers);
  } catch (error) {
@@ -82,25 +92,43 @@ export async function POST(request: NextRequest) {
 
   // If setting as default, remove default from all others
   if (isDefault) {
-   await prisma.pricingTier.updateMany({
-    where: { isDefault: true },
-    data: { isDefault: false }
-   });
+    const { error: updateError } = await supabase
+      .from('PricingTier')
+      .update({ isDefault: false })
+      .eq('isDefault', true);
+
+    if (updateError) {
+      console.error('Error updating default tiers:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update default tiers' },
+        { status: 500 }
+      );
+    }
   }
 
-  const pricingTier = await prisma.pricingTier.create({
-   data: {
-    name,
-    price48: parseFloat(price48),
-    price144: parseFloat(price144),
-    price576: parseFloat(price576),
-    price1152: parseFloat(price1152),
-    price2880: parseFloat(price2880),
-    price10000: parseFloat(price10000),
-    isDefault: isDefault || false,
-    isActive: true
-   }
-  });
+  const { data: pricingTier, error: createError } = await supabase
+    .from('PricingTier')
+    .insert({
+      name,
+      price48: parseFloat(price48),
+      price144: parseFloat(price144),
+      price576: parseFloat(price576),
+      price1152: parseFloat(price1152),
+      price2880: parseFloat(price2880),
+      price10000: parseFloat(price10000),
+      isDefault: isDefault || false,
+      isActive: true
+    })
+    .select()
+    .single();
+
+  if (createError) {
+    console.error('Error creating pricing tier:', createError);
+    return NextResponse.json(
+      { error: 'Failed to create pricing tier' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json(pricingTier, { status: 201 });
  } catch (error) {
@@ -125,25 +153,44 @@ export async function PUT(request: NextRequest) {
 
   // If setting as default, remove default from all others
   if (isDefault) {
-   await prisma.pricingTier.updateMany({
-    where: { isDefault: true, id: { not: id } },
-    data: { isDefault: false }
-   });
+    const { error: updateError } = await supabase
+      .from('PricingTier')
+      .update({ isDefault: false })
+      .eq('isDefault', true)
+      .neq('id', id);
+
+    if (updateError) {
+      console.error('Error updating default tiers:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update default tiers' },
+        { status: 500 }
+      );
+    }
   }
 
-  const pricingTier = await prisma.pricingTier.update({
-   where: { id },
-   data: {
-    name,
-    price48: parseFloat(price48),
-    price144: parseFloat(price144),
-    price576: parseFloat(price576),
-    price1152: parseFloat(price1152),
-    price2880: parseFloat(price2880),
-    price10000: parseFloat(price10000),
-    isDefault: isDefault || false
-   }
-  });
+  const { data: pricingTier, error: updateTierError } = await supabase
+    .from('PricingTier')
+    .update({
+      name,
+      price48: parseFloat(price48),
+      price144: parseFloat(price144),
+      price576: parseFloat(price576),
+      price1152: parseFloat(price1152),
+      price2880: parseFloat(price2880),
+      price10000: parseFloat(price10000),
+      isDefault: isDefault || false
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (updateTierError) {
+    console.error('Error updating pricing tier:', updateTierError);
+    return NextResponse.json(
+      { error: 'Failed to update pricing tier' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json(pricingTier);
  } catch (error) {
@@ -171,7 +218,19 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Check if this is the default tier
-  const tier = await prisma.pricingTier.findUnique({ where: { id } });
+  const { data: tier, error: tierError } = await supabase
+    .from('PricingTier')
+    .select('isDefault')
+    .eq('id', id)
+    .single();
+
+  if (tierError) {
+    console.error('Error fetching tier:', tierError);
+    return NextResponse.json(
+      { error: 'Failed to fetch tier' },
+      { status: 500 }
+    );
+  }
   if (tier?.isDefault) {
    return NextResponse.json(
     { error: 'Cannot delete default pricing tier' },
@@ -179,10 +238,18 @@ export async function DELETE(request: NextRequest) {
    );
   }
 
-  await prisma.pricingTier.update({
-   where: { id },
-   data: { isActive: false }
-  });
+  const { error: deleteError } = await supabase
+    .from('PricingTier')
+    .update({ isActive: false })
+    .eq('id', id);
+
+  if (deleteError) {
+    console.error('Error deleting pricing tier:', deleteError);
+    return NextResponse.json(
+      { error: 'Failed to delete pricing tier' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ success: true });
  } catch (error) {

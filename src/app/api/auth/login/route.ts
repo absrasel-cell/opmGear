@@ -101,7 +101,8 @@ export async function POST(request: NextRequest) {
       id: existingUser.id,
       email: existingUser.email,
       name: existingUser.name,
-      role: existingUser.accessRole, // Map accessRole to role for compatibility
+      accessRole: existingUser.accessRole,
+      customerRole: existingUser.customerRole,
       adminLevel: existingUser.adminLevel,
       phone: existingUser.phone,
       company: existingUser.company,
@@ -134,7 +135,8 @@ export async function POST(request: NextRequest) {
         id: newUser.id,
         email: newUser.email,
         name: newUser.name,
-        role: newUser.accessRole,
+        accessRole: newUser.accessRole,
+        customerRole: newUser.customerRole,
         adminLevel: newUser.adminLevel,
         phone: newUser.phone,
         company: newUser.company,
@@ -158,7 +160,8 @@ export async function POST(request: NextRequest) {
     id: data.user.id,
     email: data.user.email,
     name: data.user.user_metadata?.name || null,
-    role: 'CUSTOMER',
+    accessRole: data.user.email === 'absrasel@gmail.com' ? 'MASTER_ADMIN' : 'CUSTOMER',
+    customerRole: 'RETAIL',
    };
 
    console.log('Login successful, returning user:', userResponse);

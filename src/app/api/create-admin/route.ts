@@ -20,11 +20,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-   where: { email }
-  });
+  const { data: existingUser, error: findError } = await supabase
+    .from('User')
+    .select('id')
+    .eq('email', email)
+    .single();
 
-  if (existingUser) {
+  if (existingUser && !findError) {
    return NextResponse.json(
     { error: 'User with this email already exists' },
     { status: 400 }
@@ -51,15 +53,25 @@ export async function POST(request: NextRequest) {
   }
 
   // Create user in our database
-  const newUser = await prisma.user.create({
-   data: {
-    id: authData.user.id,
-    email,
-    name,
-    role: 'ADMIN',
-    adminLevel: 'ADMIN',
-   }
-  });
+  const { data: newUser, error: createError } = await supabase
+    .from('User')
+    .insert({
+      id: authData.user.id,
+      email,
+      name,
+      role: 'ADMIN',
+      adminLevel: 'ADMIN',
+    })
+    .select()
+    .single();
+
+  if (createError) {
+    console.error('Database insert error:', createError);
+    return NextResponse.json(
+      { error: 'Failed to create user in database' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
    message: 'Admin user created successfully',
@@ -87,18 +99,19 @@ export async function GET(request: NextRequest) {
    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const admins = await prisma.user.findMany({
-   where: { role: 'ADMIN' },
-   select: {
-    id: true,
-    email: true,
-    name: true,
-    role: true,
-    adminLevel: true,
-    createdAt: true,
-   },
-   orderBy: { createdAt: 'desc' }
-  });
+  const { data: admins, error: fetchError } = await supabase
+    .from('User')
+    .select('id, email, name, role, adminLevel, createdAt')
+    .eq('role', 'ADMIN')
+    .order('createdAt', { ascending: false });
+
+  if (fetchError) {
+    console.error('Fetch admins error:', fetchError);
+    return NextResponse.json(
+      { error: 'Failed to fetch admins' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ admins });
  } catch (error) {

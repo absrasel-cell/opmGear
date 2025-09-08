@@ -36,12 +36,12 @@ export async function GET(
   const { id } = await params;
   
   const { data: invoice, error } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .select(`
     *,
-    invoice_items(*),
-    customers:customer_id(id, name, email),
-    orders:order_id(id, product_name, status)
+    items:InvoiceItem!InvoiceItem_invoiceId_fkey(*),
+    customer:User!Invoice_customerId_fkey(id, name, email),
+    order:Order!Invoice_orderId_fkey(id, productName, status)
    `)
    .eq('id', id)
    .single();
@@ -56,7 +56,7 @@ export async function GET(
   }
 
   // Check permissions - admin or invoice owner
-  if (!(await canAccessInvoice(request, invoice.customer_id))) {
+  if (!(await canAccessInvoice(request, invoice.customerId))) {
    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
@@ -81,7 +81,7 @@ export async function PATCH(
   const { status, notes, dueDate } = updateInvoiceSchema.parse(body);
 
   const { data: invoice, error: fetchError } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .select('*')
    .eq('id', id)
    .single();
@@ -98,14 +98,14 @@ export async function PATCH(
   if (dueDate !== undefined) supabaseUpdateData.due_date = dueDate ? new Date(dueDate).toISOString() : null;
 
   const { data: updatedInvoice, error: updateError } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .update(supabaseUpdateData)
    .eq('id', id)
    .select(`
     *,
-    invoice_items(*),
-    customers:customer_id(id, name, email),
-    orders:order_id(id, product_name, status)
+    items:InvoiceItem!InvoiceItem_invoiceId_fkey(*),
+    customer:User!Invoice_customerId_fkey(id, name, email),
+    order:Order!Invoice_orderId_fkey(id, productName, status)
    `)
    .single();
 
@@ -145,7 +145,7 @@ export async function DELETE(
   const { user, profile } = await requireAdmin(request);
 
   const { data: invoice, error: fetchError } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .select('*')
    .eq('id', id)
    .single();
@@ -160,9 +160,9 @@ export async function DELETE(
 
   // Delete invoice items first (cascade should handle this, but being explicit)
   const { error: deleteItemsError } = await supabaseAdmin
-   .from('invoice_items')
+   .from('InvoiceItem')
    .delete()
-   .eq('invoice_id', id);
+   .eq('invoiceId', id);
 
   if (deleteItemsError) {
    console.error('Error deleting invoice items:', deleteItemsError);
@@ -170,7 +170,7 @@ export async function DELETE(
 
   // Delete the invoice
   const { error: deleteError } = await supabaseAdmin
-   .from('invoices')
+   .from('Invoice')
    .delete()
    .eq('id', id);
 

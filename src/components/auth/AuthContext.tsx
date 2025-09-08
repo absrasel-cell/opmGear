@@ -46,14 +46,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       console.log('AuthContext: Checking session...');
-      const response = await fetch('/api/auth/session');
+      const response = await fetch('/api/auth/session', {
+        cache: 'no-store', // Ensure fresh data
+        credentials: 'include' // Include cookies
+      });
       console.log('AuthContext: Session response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
         console.log('AuthContext: Session response:', data);
         if (data.user) {
-          console.log('AuthContext: Setting user from session:', data.user);
+          console.log('AuthContext: Setting user from session:', {
+            email: data.user.email,
+            accessRole: data.user.accessRole,
+            customerRole: data.user.customerRole
+          });
           setUser(data.user);
         } else {
           console.log('AuthContext: No user in session response');

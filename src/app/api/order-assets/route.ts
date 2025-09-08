@@ -6,7 +6,7 @@ import { OrderAssetDTO } from '@/lib/validation/orderAssets';
 
 export async function GET(request: NextRequest) {
  try {
-  console.log('🔍 [API] order-assets: Starting request...');
+  console.log('🔍 [API] order-assets: Starting request (v2 - fixed)...');
   
   const user = await getCurrentUser(request);
   if (!user) {
@@ -27,10 +27,16 @@ export async function GET(request: NextRequest) {
   console.log('🔍 [API] order-assets: Looking for order:', orderId);
 
   // Verify order exists and user has access
-  const order = await prisma.order.findUnique({
-   where: { id: orderId },
-   select: { id: true, userId: true, userEmail: true, status: true }
-  });
+  const { data: order, error: orderError } = await supabaseAdmin
+   .from('Order')
+   .select('id, userId, userEmail, status')
+   .eq('id', orderId)
+   .single();
+   
+  if (orderError) {
+   console.error('❌ [API] order-assets: Error fetching order:', orderError);
+   return NextResponse.json({ error: 'Database error' }, { status: 500 });
+  }
 
   if (!order) {
    console.log('❌ [API] order-assets: Order not found:', orderId);
@@ -70,19 +76,25 @@ export async function GET(request: NextRequest) {
    return NextResponse.json({ error: 'Access denied - You can only view your own orders' }, { status: 403 });
   }
 
-  // Get assets from database
-  const assets = await prisma.orderAsset.findMany({
-   where: { orderId },
-   orderBy: { uploadedAt: 'asc' }
-  });
+  // Get assets from database using Supabase
+  const { data: assets, error: assetsError } = await supabaseAdmin
+   .from('OrderAsset')
+   .select('*')
+   .eq('orderId', orderId)
+   .order('updatedAt', { ascending: true });
 
-  console.log(`📦 [API] order-assets: Found ${assets.length} assets for order ${orderId}`);
+  if (assetsError) {
+   console.error('❌ [API] order-assets: Error fetching assets:', assetsError);
+   return NextResponse.json({ error: 'Database error fetching assets' }, { status: 500 });
+  }
+
+  console.log(`📦 [API] order-assets: Found ${assets?.length || 0} assets for order ${orderId}`);
 
   // Generate signed URLs for viewing/downloading
   const assetsWithSignedUrls: OrderAssetDTO[] = [];
   let signedUrlErrors = 0;
   
-  for (const asset of assets) {
+  for (const asset of assets || []) {
    console.log(`🔗 [API] order-assets: Generating signed URL for asset ${asset.id} at path: ${asset.path}`);
    
    const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
@@ -108,7 +120,7 @@ export async function GET(request: NextRequest) {
     sizeBytes: asset.sizeBytes,
     width: asset.width,
     height: asset.height,
-    uploadedAt: asset.uploadedAt,
+    uploadedAt: asset.updatedAt, // Using updatedAt since uploadedAt doesn't exist
     signedUrl: signedUrlData?.signedUrl
    });
   }

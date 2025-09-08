@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { createRouteHandlerClient } from './supabase-ssr';
+import { createRouteHandlerClient, createServerComponentClient } from './supabase-ssr';
 import { supabaseAdmin } from './supabase';
 
 export async function getCurrentUser(request: NextRequest) {

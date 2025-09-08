@@ -1,0 +1,247 @@
+## 🎯 Product Structure & Default Options
+
+### Factory vs Resale Products:
+- **Factory Products**: Custom manufactured caps with full customization
+- **Resale Products**: Pre-made caps with limited customization, references factory products for color options
+
+### Default Product Options (Budget-Friendly):
+If user doesn't specify, use these defaults:
+
+**Cap Construction:**
+- **Panel Count**: "6-Panel" 
+- **Profile**: "High" 
+- **Structure**: "Structured" 
+- **Closure**: "Snapback" 
+- **Bill Shape**: "Slight Curved" (free option)
+- **Stitching**: "Matching" (same as fabric color, free)
+
+**Fabric Options:**
+- **Solid Fabric**: "Chino Twill" (16×12 construction - default weight)
+- **Split Fabric**: "Chino Twill/Trucker Mesh" 
+- **Fabric Constructions Available**: 
+  - 16×12 (default, balanced weight)
+  - 20×20 (thin, lighter weight)
+  - 10×10 (thick, heavy weight)
+
+**Default Logo Setup (Budget-Optimized):**
+- Front - 3D Embroidery - Large - Direct
+- Right - Embroidery - Small - Direct  
+- Left - Embroidery - Small - Direct
+- Back - Embroidery - Small - Direct
+- Upper Bill - Embroidery - Medium - Direct
+- Under Bill - Sublimated Print - Large - Direct
+
+**For Premium Orders (No Budget Limit):**
+When users request "best quality" or "premium" with no budget constraints, recommend:
+- Tier 3 caps (highest quality: $4.8 for 48 units, $3.4 for 144+ units)
+- Large Rubber Patches for premium feel
+- Large Leather Patches for elegant touch
+- 3D Embroidery for distinctive look
+- Hangtags, Stickers, Polybags for professional finish
+- Premium fabric upgrades (Suede Cotton, Genuine Leather)
+
+**Accessories & Others**: Optional, but suggest based on order type and budget
+
+## 🚚 Delivery & Shipping Options
+
+### Delivery Methods:
+**Express Shipping (All Quantities):**
+- **Regular Delivery**: $3.00 (48 units), $2.30 (144+ units) - 6-10 days via UPS - **DEFAULT**
+- **Priority Delivery**: $3.20 (48 units), $2.50 (144+ units) - 4-6 days via FedEx
+
+**Freight Shipping (3168+ units ONLY):**
+- **Air Freight**: $1.20 (2880+ units), $1.00 (10000+ units) - 10-20 days
+- **Sea Freight**: $0.40 (2880+ units), $0.35 (10000+ units) - 45-60 days
+
+### Cost-Saving Recommendations:
+- For large orders (3168+): Use Air Freight to save significant shipping costs
+- For budget-conscious customers: Regular Delivery is already cost-optimized
+- For urgent orders: Priority Delivery available for all quantities
+
+## 💰 Pricing System & Tiers
+
+### Base Product Pricing (3 Tiers):
+**Tier 1** (Most Affordable - Budget Option):
+- 48 units: $3.6/cap | 144+ units: $3.0/cap | 576+ units: $2.9/cap
+- 1152+ units: $2.84/cap | 2880+ units: $2.76/cap | 10000+ units: $2.7/cap
+
+**Tier 2** (Mid-Range):
+- 48 units: $4.4/cap | 144+ units: $3.2/cap | 576+ units: $3.0/cap
+- 1152+ units: $2.9/cap | 2880+ units: $2.8/cap | 10000+ units: $2.7/cap
+
+**Tier 3** (Premium Quality - Best Materials):
+- 48 units: $4.8/cap | 144+ units: $3.4/cap | 576+ units: $3.2/cap
+- 1152+ units: $2.94/cap | 2880+ units: $2.88/cap | 10000+ units: $2.82/cap
+
+### Customization Pricing (Per Cap):
+**Logo Setup Options:**
+- **3D Embroidery**: $0.20 (48), $0.15 (144+), $0.12 (576+), $0.10 (1152+)
+- **Small Embroidery**: $0.70 (48), $0.45 (144+), $0.35 (576+), $0.30 (1152+)
+- **Medium Embroidery**: $0.90 (48), $0.65 (144+), $0.55 (576+), $0.52 (1152+)
+- **Large Embroidery**: $1.20 (48), $0.80 (144+), $0.70 (576+), $0.65 (1152+)
+
+**Premium Patches:**
+- **Small Rubber Patch**: $1.00 (48), $0.70 (144+), $0.65 (576+), $0.60 (1152+)
+- **Medium Rubber Patch**: $1.25 (48), $0.90 (144+), $0.85 (576+), $0.80 (1152+)
+- **Large Rubber Patch**: $1.50 (48), $1.20 (144+), $1.00 (576+), $0.90 (1152+)
+- **Small Leather Patch**: $1.00 (48), $0.60 (144+), $0.50 (576+), $0.45 (1152+)
+- **Medium Leather Patch**: $1.20 (48), $0.75 (144+), $0.70 (576+), $0.65 (1152+)
+- **Large Leather Patch**: $1.35 (48), $0.90 (144+), $0.85 (576+), $0.80 (1152+)
+
+**Accessories:**
+- **Hang Tag**: $0.50 (48), $0.35 (144+), $0.30 (576+), $0.25 (1152+)
+- **Stickers**: $0.30 (48), $0.25 (144+), $0.20 (576+), $0.18 (1152+)
+- **Inside Label**: $0.30 (48), $0.25 (144+), $0.20 (576+), $0.15 (1152+)
+
+**Premium Fabric Upgrades:**
+- **Suede Cotton**: $1.20 (48), $1.00 (144+), $0.80 (576+), $0.70 (1152+)
+- **Genuine Leather**: $2.00 (48), $1.80 (144+), $1.70 (576+), $1.65 (1152+)
+- **Acrylic**: $1.20 (48), $1.00 (144+), $0.80 (576+), $0.70 (1152+)
+
+**Services:**
+- **Graphics Design**: $50 flat fee
+- **Physical Sampling**: $150 flat fee
+
+**Mold Charges (One-time fees for Patches):**
+- **Small Mold**: $40 | **Medium Mold**: $60 | **Large Mold**: $80
+
+### Fabric Information Reference:
+**When asked about fabrics, provide these details:**
+- **Default Fabric**: Chino Twill (durable, comfortable cotton-poly blend)
+- **Fabric Weight Options**: 16×12 (standard), 20×20 (lightweight), 10×10 (heavy)
+- **Premium Fabrics**: Suede Cotton, Genuine Leather, Acrylic available
+- **Custom Fabric Dyeing**: Available for orders 2880+ units at textile mills
+- **Split Options**: Chino Twill/Trucker Mesh combination available
+
+🎨 Customization Categories
+
+Cap Style Setup
+
+Extra Cost: Premium Fabric, Premium Closure
+
+Free:
+
+Bill Shape → Flat, Slight Curved, Curved
+
+Profile → High, Mid, Low
+
+Logo Setup
+
+Types: 3D Embroidery, Flat Embroidery, Leather Patch, Rubber Patch, Direct Print, Printed Patch, Sublimated Patch, Woven Patch.
+
+Mold Charge: Rubber Patch, Leather Patch.
+
+Positions: Front, Left, Right, Back, Under Bill, Upper Bill.
+
+Sub-positions: Left, Center (default), Right.
+
+Delivery Options
+
+Express: Priority (4–6 days, FedEx), Regular (6–10 days, UPS).
+
+Freight (3168+ units): Air (10–20 days), Sea (45–60 days).
+
+Accessories
+
+Hang Tag, Sticker, B-Tape Print, Brand Label, Custom Packaging.
+
+Services
+
+Graphics: $50
+
+Sampling: $150
+
+Color Options
+
+Solid: Full cap single color.
+
+Split: Two-color layout (front/bill vs sides/back).
+
+Tri-Color: Three defined parts.
+
+Stitching
+
+Matching (default, same as fabric color).
+
+Contrast (e.g., White stitch on Black).
+
+## ⏱️ Lead Time & Production Schedule
+
+### Production Timeline:
+**Standard Production**: 7 working days (manufacturing + quality control)
+**Total Lead Time**:
+- **Regular Delivery**: 15 working days total (7 production + 8 shipping)
+- **Priority Delivery**: 11 working days total (7 production + 4 express shipping)
+- **Air Freight**: 17-27 working days (7 production + 10-20 shipping)
+- **Sea Freight**: 52-67 working days (7 production + 45-60 shipping)
+
+### Date Selection Logic:
+- **Minimum Notice**: 7 working days from order date
+- **Custom Date Picker**: Maps to closest available delivery method
+- **Rush Orders**: Contact for expedited production (additional fees may apply)
+
+## 📦 Packaging & Shipping Specs
+
+### Box Dimensions & Weight Calculation:
+**Standard Formula**: Height × Width × Length ÷ 5000 = Dimensional Weight
+**Example**: 70cm × 44cm × 38cm ÷ 5000 = 23.408kg ≈ 25kg (+1kg safety margin)
+
+### Packaging Options:
+- **Standard Boxing**: Included in shipping cost
+- **Polybags**: $0.30 (48), $0.25 (144+), $0.20 (576+) - individual cap protection
+- **Custom Packaging**: Available for premium orders (contact for pricing)
+
+### International Shipping:
+- **Air Freight**: Suitable for international orders 3168+ units
+- **Sea Freight**: Most economical for large international orders 3168+ units
+- **Documentation**: Customs forms and commercial invoices included
+
+## ⚠️ AI Support Instructions & Order Handling
+
+### Always Collect Customer Information:
+**Required Details**: Full Name, Complete Address, Phone Number, Email Address
+**Order Confirmation**: Bill Shape, Profile, Closure Type, Structure, Fabric Type
+**Additional Services**: Ask about Graphics Design ($50) and Physical Sampling ($150)
+
+### Logo Recommendation Logic:
+**Simple Logos (≤6 colors)**: Use Embroidery (most cost-effective)
+**Complex Multi-Color Logos**: Recommend Sublimation, Screen Print, or Woven Patch
+**Premium/Corporate Logos**: Suggest Rubber or Leather Patches for professional appearance
+**3D Effect**: Add 3D Embroidery for raised, dimensional look (+$0.15-0.20 per cap)
+
+### Order Type Recommendations:
+**Budget Orders**: Default to Tier 1 caps with standard embroidery
+**Corporate/Professional**: Suggest Tier 2-3 with leather patches, hangtags
+**Premium/No Budget Limit**: Recommend Tier 3, premium fabrics, multiple patches, accessories
+
+### Fabric Response Guidelines:
+**When asked about fabric**: Always reference specific fabric types (Chino Twill, Suede Cotton, etc.)
+**Never say**: "Fabric details not specified" or "Information not available"
+**Always mention**: Default Chino Twill, construction options (16×12, 20×20, 10×10), premium upgrades
+**Large Orders (2880+)**: Mention custom fabric dyeing possibilities
+
+### Cost Optimization Suggestions:
+- **Small Orders (48-144)**: Focus on standard options to keep per-unit costs reasonable
+- **Medium Orders (576-1152)**: Highlight volume discounts, suggest premium options
+- **Large Orders (2880+)**: Recommend freight shipping, custom fabric dyeing, bulk accessories
+
+🎨 Fabric Colors
+Solid Colors
+
+White, Black, Red, Cardinal, Maroon, Amber Gold, Khaki, Light Khaki, Stone, Light Grey, Dark Grey, Charcoal Grey, Navy, Light Blue, Royal, Carolina Blue, Purple, Pink, Green, Kelly Green, Dark Green, Gold, Orange, Burnt Orange, Brown, Olive, Neon Green, Neon Orange, Neon Yellow, Neon Pink, Neon Blue, Realtree, MossyOak, Kryptek Brown (Regular), Kryptek Brown (Skull Face), Kryptek Black/Grey, Prym 1, Bottomland Camo, Duck Camo (White BG + Khaki + Dark Green + Chocolate), Army Camo (Generic Green/Black), Digital Camo Grey.
+
+Split Colors
+
+Black/Charcoal, Black/Gold, Black/White, Black/Yellow, Brown/Stone, Burnt Orange/Black, Cardinal/Black, Cardinal/White, Charcoal/Black, Charcoal/Carolina Blue, Charcoal/Kelly, Charcoal/Light Grey, Charcoal/Navy, Charcoal/Neon Blue, Charcoal/Neon Green, Charcoal/Neon Orange, Charcoal/Neon Pink, Charcoal/Neon Yellow, Charcoal/Orange, Charcoal/Red, Charcoal/Royal, Charcoal/White, Columbia Blue/White, Cyan/White, Dark Green/White, Dark Green/Yellow, Light Grey/Black, Heather Grey/Black, Heather Grey/Dark Green, Heather Grey/Navy, Heather Grey/Royal, Heather Grey/White, Hot Pink/Black, Hot Pink/White, Kelly Green/White, Kelly/White, Khaki/Brown, Khaki/Navy, Khaki/White, Light Grey/Light Blue, Olive/Black, Maroon/White, Navy/Charcoal, Navy/Stone, Navy/Khaki, Navy/Orange, Navy/White, Olive/Khaki, Orange/Black, Orange/White, Purple/White, Red/Black, Red/White, Royal/Black, Royal/White.
+
+Tri-Colors
+
+Amber Gold/Heather Grey/Stone, Amber Gold/Stone/Navy, Black/Light Grey/Charcoal, Black/Orange/White, Black/Red/White, Black/White/Light Grey, Heather Grey/Navy/White, Heather Grey/Red/White, Heather Grey/Royal/White, Maroon/Heather Grey/Charcoal, Navy/Carolina Blue/White, Navy/Heather Grey/Red, Navy/Red/White, Olive/Heather Grey/Stone, Olive/White/Black, Red/Black/White, Red/Navy/White, Red/Royal/White, Light Grey/Black/White, Gold/White/Carolina Blue.
+
+🧵 Large Orders & Fabric Dyeing
+
+Orders 2880+ → Custom dyed fabrics at textile mills.
+
+Process: Lab Dip swatches → Approval → Production.
+
+Example: Chino Twill constructions 16×12 (default), 20×20 (thin), 10×10 (thick).

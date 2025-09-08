@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed Prisma - migrated to Supabase
 import { requireAuth } from '@/lib/auth-helpers';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
  try {
@@ -9,34 +9,26 @@ export async function GET(request: NextRequest) {
   // Fetch messages with graceful database failure handling
   let messages = [];
   try {
-   messages = await prisma.message.findMany({
-    where: {
-     OR: [
-      { fromUserId: user.id },
-      { toUserId: user.id },
-     ],
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-     fromUser: {
-      select: {
-       id: true,
-       name: true,
-       email: true,
-       role: true,
-      },
-     },
-     toUser: {
-      select: {
-       id: true,
-       name: true,
-       email: true,
-       role: true,
-      },
-     },
-     replyTo: true,
-    },
-   });
+   const { data: messagesData, error } = await supabaseAdmin
+     .from('messages')
+     .select(`
+       *,
+       fromUser:users!messages_fromUserId_fkey(
+         id, name, email, role
+       ),
+       toUser:users!messages_toUserId_fkey(
+         id, name, email, role
+       ),
+       replyTo:messages!messages_replyToId_fkey(*)
+     `)
+     .or(`fromUserId.eq.${user.id},toUserId.eq.${user.id}`)
+     .order('createdAt', { ascending: false });
+
+   if (error) {
+     throw error;
+   }
+
+   messages = messagesData || [];
 
    return NextResponse.json({ messages });
 
