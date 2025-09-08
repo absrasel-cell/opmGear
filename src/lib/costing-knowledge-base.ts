@@ -174,10 +174,12 @@ export const AI_DETECTION_RULES = {
     'suede cotton': ['suede cotton', 'suede'],
     'genuine leather': ['genuine leather', 'leather'],
     'air mesh': ['air mesh', 'mesh'],
-    'camo': ['camo', 'camouflage'],
+    'duck camo': ['duck camo'], // FIXED: Separate duck camo for specific detection
+    'camo': ['army camo', 'digital camo', 'bottomland camo', 'camo', 'camouflage'], // Generic camo
     'laser cut': ['laser cut', 'laser'],
     'chino twill': ['chino twill', 'twill'],
-    'trucker mesh': ['trucker', 'split', 'mesh back']
+    'trucker mesh': ['trucker mesh', 'trucker', 'split', 'mesh back'],
+    'black trucker mesh': ['black trucker mesh'] // FIXED: Add specific pattern
   } as const,
   
   // Logo type detection patterns - FIXED: More specific patterns to avoid conflicts
@@ -208,12 +210,12 @@ export const AI_DETECTION_RULES = {
     'Large': ['large']
   } as const,
   
-  // Accessory detection patterns
+  // Accessory detection patterns - ENHANCED for better matching
   ACCESSORY_PATTERNS: {
     'Sticker': ['sticker', 'stickers'],
-    'Hang Tag': ['hang tag', 'hangtag', 'tag', 'tags'],
-    'Inside Label': ['inside label', 'label', 'labels', 'inside labels'],
-    'B-Tape Print': ['b-tape', 'b tape', 'btape', 'b-tape print'],
+    'Hang Tag': ['hang tag', 'hangtag'],  // FIXED: Remove generic 'tag' to avoid conflicts
+    'Inside Label': ['inside label', 'inside labels', 'branded label', 'branded labels', 'label', 'labels'], // ENHANCED: More patterns
+    'B-Tape Print': ['b-tape print', 'b-tape', 'b tape', 'btape'], // ENHANCED: More specific patterns
     'Metal Eyelet': ['metal eyelet', 'eyelet', 'eyelets'],
     'Rope Cost': ['rope', 'rope cost', 'rope attachment']
   } as const
@@ -222,6 +224,7 @@ export const AI_DETECTION_RULES = {
 // Cached pricing data
 let cachedPricingData: any[] | null = null;
 let cachedBaseProductPricing: any | null = null;
+let cachedFabricPricing: any[] | null = null;
 
 // Helper function to parse CSV lines with quoted values
 function parseCSVLine(line: string): string[] {
@@ -321,6 +324,50 @@ async function loadBaseProductPricing(): Promise<any> {
   }
 }
 
+// Load fabric pricing data from Fabric.csv
+async function loadFabricPricingData(): Promise<any[]> {
+  if (cachedFabricPricing) {
+    return cachedFabricPricing;
+  }
+  
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/ai/Options/Fabric.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const dataLines = lines.slice(1); // Skip header
+    
+    cachedFabricPricing = dataLines.map(line => {
+      const values = parseCSVLine(line);
+      
+      return {
+        Name: (values[0] || '').replace(/"/g, '').trim(),
+        costType: (values[1] || '').trim(),
+        colorNote: (values[2] || '').trim(),
+        price48: parseFloat(values[3]) || 0,
+        price144: parseFloat(values[4]) || 0,
+        price576: parseFloat(values[5]) || 0,
+        price1152: parseFloat(values[6]) || 0,
+        price2880: parseFloat(values[7]) || 0,
+        price10000: parseFloat(values[8]) || 0,
+        price20000: parseFloat(values[9]) || 0,
+        marginPercent: parseFloat(values[10]) || 0,
+      };
+    }).filter(item => item.Name && item.Name.length > 0);
+    
+    console.log('🧵 [FABRIC-PRICING] Loaded fabric pricing data:', {
+      totalFabrics: cachedFabricPricing.length,
+      premiumFabrics: cachedFabricPricing.filter(f => f.costType === 'Premium Fabric').length,
+      freeFabrics: cachedFabricPricing.filter(f => f.costType === 'Free').length
+    });
+    
+    return cachedFabricPricing;
+  } catch (error) {
+    console.error('Error loading fabric pricing from CSV:', error);
+    return [];
+  }
+}
+
 // Core utility functions
 export function getQuantityTier(quantity: number): string {
   for (const tier of QUANTITY_TIERS) {
@@ -400,10 +447,60 @@ export function shouldWaiveMoldCharge(context: CostingContext, logoType: string)
 export function detectFabricFromText(text: string): string | null {
   const lowerText = text.toLowerCase();
   
+  // ENHANCED: Check for dual fabric patterns first - multiple patterns for better detection
+  let dualFabricMatch = null;
+  
+  // Pattern 1: "Camo front and Laser Cut back fabric" or "Camo front and Laser Cut back"
+  dualFabricMatch = lowerText.match(/([\w\s]+?)\s+front\s+and\s+([\w\s]+?)\s+back(?:\s+fabric)?/i);
+  
+  if (!dualFabricMatch) {
+    // Pattern 2: "front Camo, back Laser Cut" or "front Camo back Laser Cut"
+    dualFabricMatch = lowerText.match(/front\s+([\w\s]+?)(?:\s*[,.]?\s*|\s+)back\s+([\w\s]+?)(?:\s*fabric)?(?:\s*[.,]|$)/i);
+  }
+  
+  if (!dualFabricMatch) {
+    // Pattern 3: "Camo/Laser Cut" (slash separated)
+    dualFabricMatch = lowerText.match(/([\w\s]+?)\/([\w\s]+?)(?:\s+fabric)?(?:\s*[.,]|$)/i);
+  }
+  if (dualFabricMatch) {
+    const frontFabric = dualFabricMatch[1].trim();
+    const backFabric = dualFabricMatch[2].trim();
+    
+    console.log('🧵 [FABRIC-DETECTION] Dual fabric detected:', { frontFabric, backFabric });
+    
+    // Normalize fabric names
+    let normalizedFront = frontFabric;
+    let normalizedBack = backFabric;
+    
+    // Check if front fabric matches known patterns
+    for (const [fabric, patterns] of Object.entries(AI_DETECTION_RULES.FABRIC_PATTERNS)) {
+      if (patterns.some(pattern => frontFabric.includes(pattern))) {
+        normalizedFront = fabric === 'duck camo' ? 'Duck Camo' : 
+                         fabric.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        break;
+      }
+    }
+    
+    // Check if back fabric matches known patterns
+    for (const [fabric, patterns] of Object.entries(AI_DETECTION_RULES.FABRIC_PATTERNS)) {
+      if (patterns.some(pattern => backFabric.includes(pattern))) {
+        normalizedBack = fabric === 'black trucker mesh' ? 'Black Trucker Mesh' :
+                        fabric === 'trucker mesh' ? 'Trucker Mesh' :
+                        fabric.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        break;
+      }
+    }
+    
+    return `${normalizedFront}/${normalizedBack}`;
+  }
+  
+  // Standard single fabric detection
   for (const [fabric, patterns] of Object.entries(AI_DETECTION_RULES.FABRIC_PATTERNS)) {
     if (patterns.some(pattern => lowerText.includes(pattern))) {
       return fabric === 'chino twill' ? 'Chino Twill' : 
              fabric === 'trucker mesh' ? 'Chino Twill/Trucker Mesh' :
+             fabric === 'duck camo' ? 'Duck Camo' :
+             fabric === 'black trucker mesh' ? 'Black Trucker Mesh' :
              fabric.split(' ').map(word => 
                word.charAt(0).toUpperCase() + word.slice(1)
              ).join(' ');
@@ -806,5 +903,6 @@ export function validateDeliveryMethod(deliveryMethod: string, quantity: number)
 // Export the main calculation functions that will be used by the unified service
 export {
   loadPricingData,
-  loadBaseProductPricing
+  loadBaseProductPricing,
+  loadFabricPricingData
 };

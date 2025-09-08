@@ -485,9 +485,16 @@ DETAILED COST BREAKDOWN:
 - Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.logoSetupTotal || 0) / context.lastQuote.quantity).toFixed(2)} per cap)`;
 
     // Add premium fabric cost if exists
-    if (costBreakdown.premiumFabricTotal > 0) {
+    if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
      orderAnalysis += `
-- Premium Fabric (Acrylic): $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / context.lastQuote.quantity).toFixed(2)} per cap)`;
+- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)}`;
+     costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
+      orderAnalysis += `
+ • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
+     });
+    } else if (costBreakdown.premiumFabricTotal > 0) {
+     orderAnalysis += `
+- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / context.lastQuote.quantity).toFixed(2)} per cap)`;
     }
     
     // Add accessories if exists
@@ -534,7 +541,14 @@ COMPLETE COST BREAKDOWN:
 - Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.logoSetupTotal || 0) / requirements.quantity).toFixed(2)} per cap)`;
 
       // Add premium fabric cost if exists
-      if (costBreakdown.premiumFabricTotal > 0) {
+      if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
+       orderAnalysis += `
+- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)}`;
+       costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
+        orderAnalysis += `
+ • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
+       });
+      } else if (costBreakdown.premiumFabricTotal > 0) {
        orderAnalysis += `
 - Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / requirements.quantity).toFixed(2)} per cap)`;
       }
@@ -1397,8 +1411,13 @@ DETAILED COST BREAKDOWN:
    if (costBreakdown.accessoriesTotal > 0) {
     orderAnalysis += `\n- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)} ($${(costBreakdown.accessoriesTotal / optimization.optimizedQuantity).toFixed(2)} per cap)`;
    }
-   if (costBreakdown.premiumFabricTotal > 0) {
-    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / optimization.optimizedQuantity).toFixed(2)} per cap) - INCLUDES ACRYLIC FABRIC UPGRADE`;
+   if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
+    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)}`;
+    costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
+     orderAnalysis += `\n • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
+    });
+   } else if (costBreakdown.premiumFabricTotal > 0) {
+    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / optimization.optimizedQuantity).toFixed(2)} per cap)`;
    }
    if (costBreakdown.servicesTotal > 0) {
     orderAnalysis += `\n- Services: $${costBreakdown.servicesTotal?.toFixed(2)} ($${(costBreakdown.servicesTotal / optimization.optimizedQuantity).toFixed(2)} per cap)`;
@@ -1437,8 +1456,13 @@ DETAILED COST BREAKDOWN:
    if (costBreakdown.accessoriesTotal > 0) {
     orderAnalysis += `\n- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)} ($${(costBreakdown.accessoriesTotal / requirements.quantity).toFixed(2)} per cap)`;
    }
-   if (costBreakdown.premiumFabricTotal > 0) {
-    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / requirements.quantity).toFixed(2)} per cap) - INCLUDES ACRYLIC FABRIC UPGRADE`;
+   if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
+    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)}`;
+    costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
+     orderAnalysis += `\n • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
+    });
+   } else if (costBreakdown.premiumFabricTotal > 0) {
+    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / requirements.quantity).toFixed(2)} per cap)`;
    }
    if (costBreakdown.servicesTotal > 0) {
     orderAnalysis += `\n- Services: $${costBreakdown.servicesTotal?.toFixed(2)} ($${(costBreakdown.servicesTotal / requirements.quantity).toFixed(2)} per cap)`;
@@ -1488,7 +1512,7 @@ Extract the EXACT total cost, quantity, and component costs from the previous co
 
 Example format:
 - **Base Product Cost**: $7,948.80 ($2.76 per cap) - 2880 premium caps
-- **Premium Fabric**: $2,880.00 ($1.00 per cap) - Acrylic upgrade 
+- **Premium Fabric**: $2,880.00 ($1.00 per cap) - Premium fabric upgrade 
 - **Logo Setup**: $6,480.00 ($2.25 per cap) - Rubber Patch on Front
 - **Accessories**: $1,728.00 ($0.60 per cap) - Stickers & hang tags
 - **Delivery**: $5,184.00 ($1.80 per cap) - Regular delivery
@@ -1589,7 +1613,7 @@ FORMAT:
 TRANSPARENCY FORMAT EXAMPLE (when customer requests breakdown):
 **Detailed Cost Breakdown:**
 - **Base Product**: $15,552.00 ($5.40 per cap) - 2880 premium caps
-- **Premium Fabric**: $2,880.00 ($1.00 per cap) - Acrylic upgrade
+- **Premium Fabric**: $2,880.00 ($1.00 per cap) - Premium fabric upgrade
 - **Logo Setup**: $2,592.00 ($0.90 per cap) - Medium Rubber Patch, Front position
 - **Accessories**: $1,728.00 ($0.60 per cap) - Stickers & hang tags
 - **Delivery**: $5,328.00 ($1.85 per cap) - Regular delivery (1152+ tier)
