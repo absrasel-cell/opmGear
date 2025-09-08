@@ -19,11 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
-import { ConversationService } from '@/lib/conversation';
-
-// Define types locally (previously from Prisma)
-type ConversationContext = 'ORDER_REQUEST' | 'QUOTE_REQUEST' | 'SUPPORT' | 'GENERAL';
-type MessageRole = 'USER' | 'ASSISTANT';
+import { ConversationService, ConversationContext, MessageRole } from '@/lib/conversation';
 import { 
  parseOrderRequirements,
  optimizeQuantityForBudget,
@@ -47,10 +43,13 @@ let openai: OpenAI | null = null;
 function getOpenAIClient() {
   if (!openai) {
     const apiKey = process.env.OPENAI_API_KEY;
+    console.log('🔑 [DEBUG] OpenAI API Key exists:', !!apiKey, apiKey ? `${apiKey.substring(0, 10)}...` : 'undefined');
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY environment variable is not configured');
     }
+    console.log('🤖 [DEBUG] Initializing OpenAI client...');
     openai = new OpenAI({ apiKey });
+    console.log('✅ [DEBUG] OpenAI client initialized:', !!openai);
   }
   return openai;
 }
@@ -69,116 +68,6 @@ interface LocalConversationContext {
  budgetAmount?: number;
  originalQuantity?: number;
  requirements?: OrderRequirements;
-}
-
-// Helper function to extract previous quote specifications from conversation history
-function extractPreviousQuoteSpecs(conversationHistory: any[]): {
- quantity: number;
- specs: string;
- productName?: string;
- requirements: OrderRequirements;
- originalTotal?: number;
-} | null {
- console.log('🔍 [EXTRACT-SPECS] Analyzing conversation history for previous quote specs');
- 
- // Look for the most recent assistant message with detailed quote information
- for (let i = conversationHistory.length - 1; i >= 0; i--) {
-  const msg = conversationHistory[i];
-  if (msg.role === 'assistant' && msg.content.includes('📊') && msg.content.includes('Total:')) {
-   console.log('📋 [EXTRACT-SPECS] Found detailed quote in assistant message');
-   
-   // Extract quantity
-   const quantityMatch = msg.content.match(/(\d+)\s*pieces?\s*×|Quantity:\s*(\d+)/i);
-   const quantity = quantityMatch ? parseInt(quantityMatch[1] || quantityMatch[2]) : 0;
-   
-   // Extract product details
-   const productMatch = msg.content.match(/(?:Product|Style):\s*([^\n]+)/i) || 
-                       msg.content.match(/Semi Pro.*Richardson 112|Richardson 112/i);
-   const productName = productMatch ? (productMatch[1] || 'Semi Pro - Richardson 112') : 'Custom Cap';
-   
-   // Extract colors (looking for Duck Camo, etc.)
-   const colorMatch = msg.content.match(/Colors?:\s*([^\n,]+(?:,\s*[^\n,]+)?)/i) ||
-                     msg.content.match(/(Duck Camo\/Black|Duck Camo|Black)/i);
-   const color = colorMatch ? colorMatch[1] : undefined;
-   
-   // Extract logo information
-   const logoMatch = msg.content.match(/(?:Front|Logo):\s*([^,\n]+)/i) ||
-                    msg.content.match(/(3D.*Embroidery|Flat.*Embroidery|Embroidery)/i);
-   const logoType = logoMatch ? (logoMatch[1].includes('3D') ? '3D Embroidery' : 'Flat Embroidery') : '3D Embroidery';
-   
-   // Extract fabric type
-   const fabricMatch = msg.content.match(/Fabric:\s*([^\n]+)/i) ||
-                      msg.content.match(/(Chino Twill\/Laser Cut|Duck Camo|Laser Cut)/i);
-   const fabricType = fabricMatch ? fabricMatch[1] : 'Chino Twill';
-   
-   // Extract closure type
-   const closureMatch = msg.content.match(/Closure:\s*([^\n]+)/i);
-   const closureType = closureMatch ? closureMatch[1] : 'Snapback';
-   
-   // Extract total cost
-   const totalMatch = msg.content.match(/Total[^$]*\$?([\d,]+\.?\d*)/i);
-   const originalTotal = totalMatch ? parseFloat(totalMatch[1].replace(/,/g, '')) : undefined;
-   
-   // Extract embroidery details for multiple positions
-   const multiLogoSetup: any = {};
-   const positions = ['Front', 'Left Side', 'Right Side', 'Back'];
-   positions.forEach(position => {
-    const positionRegex = new RegExp(`${position}[^:]*:\\s*([^\\n]+)`, 'i');
-    const match = msg.content.match(positionRegex);
-    if (match) {
-     const details = match[1];
-     const sizeMatch = details.match(/Size:\s*([\d.]+)(?:"|\s*x\s*Auto)/i);
-     const styleMatch = details.match(/Style:\s*([^,\n]+)/i);
-     
-     multiLogoSetup[position.toLowerCase().replace(' ', '')] = {
-      type: 'Embroidery',
-      size: sizeMatch ? sizeMatch[1] + '"' : '2"',
-      application: styleMatch?.includes('3D') ? '3D Embroidery' : 'Flat Embroidery'
-     };
-    }
-   });
-   
-   if (quantity > 0) {
-    console.log(`✅ [EXTRACT-SPECS] Successfully extracted: ${quantity} pieces, ${productName}, ${color || 'N/A'} color`);
-    
-    const requirements: OrderRequirements = {
-     quantity,
-     logoType,
-     color,
-     fabricType,
-     closureType,
-     panelCount: 6, // Richardson 112 is typically 6-panel
-     profile: 'High',
-     billStyle: 'Slight Curved',
-     structure: 'Structured with Mono Lining',
-     multiLogoSetup: Object.keys(multiLogoSetup).length > 0 ? multiLogoSetup : undefined,
-     accessories: extractAccessoriesFromMessage(msg.content)
-    };
-    
-    return {
-     quantity,
-     specs: `${productName}, ${color || 'Solid Color'}, ${fabricType}, ${closureType}, ${logoType}`,
-     productName,
-     requirements,
-     originalTotal
-    };
-   }
-  }
- }
- 
- console.log('⚠️ [EXTRACT-SPECS] No previous quote specifications found in conversation');
- return null;
-}
-
-// Helper function to extract accessories from message content
-function extractAccessoriesFromMessage(content: string): string[] {
- const accessories: string[] = [];
- if (content.includes('Main Label') || content.includes('Inside Label')) accessories.push('Inside Label');
- if (content.includes('Size Label')) accessories.push('Size Label'); 
- if (content.includes('Brand Label')) accessories.push('Brand Label');
- if (content.includes('Hang Tag')) accessories.push('Hang Tag');
- if (content.includes('B-Tape Print')) accessories.push('B-Tape Print');
- return accessories;
 }
 
 export async function POST(request: NextRequest) {
@@ -240,7 +129,7 @@ export async function POST(request: NextRequest) {
     conversation = await ConversationService.getOrCreateConversation({
      userId: user?.id,
      sessionId: `order-ai-${Date.now()}`,
-     context: ConversationContext.ORDER_INQUIRY,
+     context: ConversationContext.SUPPORT,
      metadata: { source: 'order-ai', userAgent: request.headers.get('user-agent') }
     });
    }
@@ -250,7 +139,7 @@ export async function POST(request: NextRequest) {
    conversation = await ConversationService.getOrCreateConversation({
     userId: user?.id,
     sessionId: sessionId || `order-ai-${Date.now()}`,
-    context: ConversationContext.ORDER_INQUIRY,
+    context: ConversationContext.SUPPORT,
     metadata: { source: 'order-ai', userAgent: request.headers.get('user-agent') }
    });
   }
@@ -333,10 +222,9 @@ Thank you for choosing US Custom Cap! Your order is now in our production queue.
    
   } catch (aiError) {
    console.warn('⚠️ [ORDER-AI] AI timeout, providing simple human-like fallback:', aiError.message);
-   const extractedQuantity = extractQuantityFromMessage(message);
-   response = `Hey! I'm having a brief technical issue with my quote system - let me get back to you in just a moment with your quote${extractedQuantity ? ` for those ${extractedQuantity} caps` : ' for your custom cap order'}. 
+   response = `Hey! I'm having a bit of trouble with my systems right now - let me get back to you in just a moment with your quote for those ${extractQuantityFromMessage(message) || '576'} caps with rubber patches. 
 
-I can see your specific requirements and I'll have accurate pricing for you shortly. Thanks for your patience!`;
+In the meantime, I can tell you that for that quantity you're definitely in great pricing territory. Hang tight!`;
   }
   
   const processingTime = Date.now() - startTime;
@@ -406,9 +294,8 @@ function detectProductTier(message: string, productData?: any): 'Tier 1' | 'Tier
  
  // If we have product data, search through it for matches
  if (productData?.productsByTier) {
-  // Check Richardson 112 or Semi Pro style caps - should be Tier 2 based on CSV
-  if (lowerMessage.includes('richardson 112') || lowerMessage.includes('richardson112') || 
-      lowerMessage.includes('semi pro')) {
+  // Check Richardson 112 style caps - should be Tier 2 based on CSV
+  if (lowerMessage.includes('richardson 112') || lowerMessage.includes('richardson112')) {
    // Verify in CSV data that Richardson 112 is Tier 2
    for (const [tier, products] of Object.entries(productData.productsByTier)) {
     if (Array.isArray(products)) {
@@ -452,9 +339,8 @@ function detectProductTier(message: string, productData?: any): 'Tier 1' | 'Tier
  }
  
  // Fallback logic when no product data available
- if (lowerMessage.includes('richardson 112') || lowerMessage.includes('richardson112') || 
-     lowerMessage.includes('semi pro')) {
-  return 'Tier 2'; // Richardson 112 and Semi Pro styles are Tier 2
+ if (lowerMessage.includes('richardson 112') || lowerMessage.includes('richardson112')) {
+  return 'Tier 2';
  }
  if (lowerMessage.includes('7-panel') || lowerMessage.includes('7 panel')) {
   return 'Tier 3';
@@ -525,80 +411,19 @@ PRICING TIERS (FALLBACK - VOLUME DISCOUNTS):
 • Tier 3: $3.40/cap at 144+ (Premium - Highest quality)`;
   }
 
-  // Build comprehensive conversation context for AI memory
-  let conversationContext = '';
+  // Build proper OpenAI conversation messages array for conversation continuity
+  let conversationMessages = [];
   if (conversationHistory && conversationHistory.length > 0) {
-   conversationContext = '\n\nFULL CONVERSATION HISTORY:\n';
-   conversationHistory.forEach((msg, index) => {
-    const role = msg.role === 'user' ? 'CUSTOMER' : 'ASSISTANT';
-    conversationContext += `${role}: ${msg.content}\n`;
-   });
-   conversationContext += '\nCURRENT CUSTOMER MESSAGE:\n';
-  }
-
-  // 🔍 QUANTITY UPDATE DETECTION: Check for "update the quote for X" pattern
-  const quantityUpdateMatch = message.toLowerCase().match(/update\s+(?:the\s+)?quote\s+for\s+(\d+)/i);
-  if (quantityUpdateMatch && conversationHistory && conversationHistory.length > 0) {
-   const newQuantity = parseInt(quantityUpdateMatch[1]);
-   console.log(`🔄 [ORDER-AI] Detected quantity update request: ${newQuantity} pieces`);
-   
-   // Extract the previous quote specifications from conversation history
-   const previousQuoteData = extractPreviousQuoteSpecs(conversationHistory);
-   if (previousQuoteData) {
-    console.log(`📋 [ORDER-AI] Found previous quote data:`, {
-     originalQuantity: previousQuoteData.quantity,
-     newQuantity: newQuantity,
-     specs: previousQuoteData.specs
-    });
-    
-    // Create updated requirements with new quantity but same specifications
-    const updatedRequirements: OrderRequirements = {
-     ...previousQuoteData.requirements,
-     quantity: newQuantity
-    };
-    
-    try {
-     const result = await calculatePreciseOrderEstimateWithMessage(updatedRequirements, 
-      `${newQuantity} pieces ${previousQuoteData.specs}`);
-     const costBreakdown = result.costBreakdown;
-     const orderEstimate = result.orderEstimate;
-     
-     localConversationContext.lastQuote = {
-      quantity: newQuantity,
-      logoType: updatedRequirements.logoType || '3D Embroidery',
-      color: updatedRequirements.color,
-      costBreakdown,
-      orderEstimate,
-      requirements: updatedRequirements,
-      totalCost: costBreakdown.totalCost
-     };
-     
-     orderAnalysis = `
-UPDATED QUOTE FOR ${newQuantity} PIECES:
-- Original Quantity: ${previousQuoteData.quantity} pieces
-- New Quantity: ${newQuantity} pieces
-- Product: ${previousQuoteData.productName || 'Custom Cap'}
-- Specifications: ${previousQuoteData.specs}
-
-COST BREAKDOWN FOR ${newQuantity} PIECES:
-- Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.baseProductTotal || 0) / newQuantity).toFixed(2)} per cap)
-- Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.logoSetupTotal || 0) / newQuantity).toFixed(2)} per cap)
-- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.premiumFabricTotal || 0) / newQuantity).toFixed(2)} per cap)
-- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.accessoriesTotal || 0) / newQuantity).toFixed(2)} per cap)
-- Delivery: $${costBreakdown.deliveryTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.deliveryTotal || 0) / newQuantity).toFixed(2)} per cap)
-- TOTAL COST: $${costBreakdown.totalCost.toFixed(2)} (was $${previousQuoteData.originalTotal?.toFixed(2) || '0.00'})
-- Cost Per Cap: $${(costBreakdown.totalCost / newQuantity).toFixed(2)}`;
-     
-     console.log(`✅ [ORDER-AI] Successfully calculated updated quote for ${newQuantity} pieces`);
-    } catch (error) {
-     console.error('❌ [ORDER-AI] Failed to calculate updated quote:', error);
-     orderAnalysis = `QUANTITY UPDATE REQUEST: Customer wants ${newQuantity} pieces instead of ${previousQuoteData.quantity} pieces. Recalculating costs now...`;
-    }
-   }
+   // Convert conversation history to proper OpenAI message format
+   conversationMessages = conversationHistory.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'assistant',
+    content: msg.content
+   }));
+   console.log(`🔄 [ORDER-AI] Using ${conversationMessages.length} previous messages for context`);
   }
 
   // Try to extract and calculate order details from current message and context
-  if (!orderAnalysis) orderAnalysis = '';
+  let orderAnalysis = '';
   let orderQuote = null;
   
   // Skip cost calculation for confirmation messages - use conversation context instead
@@ -991,20 +816,21 @@ HOW TO RESPOND:
 COST PRESENTATION RULES:
 - ALWAYS use the exact totalCost from ORDER ANALYSIS (e.g., $11,997.72)
 - NEVER calculate costs manually or use generic per-cap rates
-- Show ONE comprehensive breakdown with ALL cost components and per-cap costs
+- MANDATORY: Show COMPLETE detailed breakdown including ALL cost components with individual line items and per-cap costs
 - When premium fabric is included (e.g., Laser Cut, Acrylic), mention specific fabric type and per-cap cost
 - When logo setup costs exist, show SPECIFIC logo types and per-cap costs (e.g., "Large Leather Patch + Run: $331.20 ($1.15 each)")
 - When mold charges exist, show specific mold types and costs
+- ALWAYS show per-cap breakdown for Base Product, Logo Setup, Premium Fabric, and Delivery
+- If volume discounts apply, mention savings amount and percentage
 - Present costs in this order: Base Product → Logo Setup (detailed) → Premium Fabric (detailed) → Delivery (detailed) → Mold Charges (if any) → Total
 - Present all costs exactly as calculated by the unified system with full transparency
-- CRITICAL: After showing the breakdown and total, END with confirmation question - do NOT repeat the breakdown in any other format
 
 EXAMPLE CONVERSATION STYLE:
-"That's a great quantity for getting solid pricing! Let me analyze your specific requirements and get you an accurate quote..."
+"Ah, 576 pieces with rubber patches - that's a solid order size! You'll definitely get some good pricing at that quantity. Let me see what we can do for you..."
 
-"Based on your specifications, I've calculated your total cost with all customization included. Want me to walk through the detailed breakdown?"
+"For your setup, you're looking at about **$3,400 total** - that breaks down to around $5.90 per cap, which is pretty good value for rubber patches. Want me to walk through the details?"
 
-${conversationContext}`;
+`;
 
   let userPrompt = message;
   if (uploadedFiles && uploadedFiles.length > 0) {
@@ -1014,14 +840,18 @@ ${conversationContext}`;
   let completion;
   
   try {
+   // Build complete messages array with conversation history
+   const messages = [
+    { role: 'system', content: systemPrompt },
+    ...conversationMessages,
+    { role: 'user', content: userPrompt }
+   ];
+
    // Try GPT-4o first with 10 second timeout (more aggressive)
    console.log('🎯 [UNIFIED-AI] Trying GPT-4o with 10s timeout...');
-   const completionPromise = openai.chat.completions.create({
+   const completionPromise = getOpenAIClient().chat.completions.create({
     model: 'gpt-4o',
-    messages: [
-     { role: 'system', content: systemPrompt },
-     { role: 'user', content: userPrompt }
-    ],
+    messages: messages,
     max_tokens: 800,
     temperature: 0.5,
    });
@@ -1038,12 +868,9 @@ ${conversationContext}`;
    
    // Fallback to GPT-3.5-turbo with shorter timeout
    try {
-    const gpt35Promise = openai.chat.completions.create({
+    const gpt35Promise = getOpenAIClient().chat.completions.create({
      model: 'gpt-3.5-turbo',
-     messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-     ],
+     messages: messages,
      max_tokens: 800,
      temperature: 0.5,
     });
@@ -1625,26 +1452,25 @@ DETAILED COST BREAKDOWN:
 `;
   }
   
-  // 🧠 BUILD CONVERSATION CONTEXT: Include previous messages for AI memory
-  let conversationContext = '';
+  // 🧠 BUILD PROPER CONVERSATION MESSAGES: Include previous messages for AI memory
+  let conversationMessages = [];
   if (conversationHistory && conversationHistory.length > 0) {
-   conversationContext = '\n\nPREVIOUS CONVERSATION:\n';
-   conversationHistory.forEach((msg, index) => {
-    const role = msg.role === 'user' ? 'CUSTOMER' : 'ASSISTANT';
-    conversationContext += `${role}: ${msg.content}\n`;
-   });
-   conversationContext += '\nCURRENT MESSAGE:\n';
+   // Convert conversation history to proper OpenAI message format
+   conversationMessages = conversationHistory.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'assistant',
+    content: msg.content
+   }));
+   console.log(`🔄 [ORDER-PROGRESSION] Using ${conversationMessages.length} previous messages for context`);
   }
 
   // Create AI system prompt for order conversion with enhanced CSV data integration
   const systemPrompt = `You are a specialized US Custom Cap order assistant with access to real-time CSV product data. Your goal is to provide detailed quotes FIRST, then get order confirmation.
 
 CRITICAL WORKFLOW RULE: 
-- Show ONE detailed pricing breakdown with all components
+- ALWAYS show detailed pricing breakdown first
 - NEVER create orders without explicit customer confirmation
-- After showing breakdown, ask "Would you like to proceed?" or "Shall I create this order?"
+- ALWAYS ask "Would you like to proceed?" or "Shall I create this order?"
 - Only create orders when customer explicitly says "create my order" or "yes, proceed"
-- CRITICAL: Do NOT repeat pricing information in multiple formats - show it ONCE and move to confirmation
 
 COST TRANSPARENCY RULES - CRITICAL:
 When customers ask for "cost breakdown", "show me costs", "break that down", "transparency", "detailed costs", "cost details", or similar - you MUST provide ACTUAL CALCULATED DOLLAR AMOUNTS, never vague descriptions.
@@ -1739,42 +1565,53 @@ ${orderAnalysis}
 
 RESPONSE REQUIREMENTS:
 1. Be conversion-focused and direct
-2. Show ONE detailed pricing breakdown with all components and per-unit costs
-3. Include shipping options (regular vs express)
-4. Use enthusiastic but professional tone
-5. End with confirmation question: "Would you like me to create this order?"
-6. If budget provided, show maximum caps possible
-7. If no budget, ask for budget or provide estimate
-8. Reference previous conversation context - don't ask for information already provided
-9. DO NOT create orders without explicit confirmation
-10. CRITICAL: After showing breakdown and asking for confirmation, STOP - do not add additional summaries or breakdowns
+2. Show DETAILED per-unit pricing breakdowns (not just totals)
+3. Include exact cost breakdowns with individual components
+4. ALWAYS include shipping options (regular vs express)
+5. Use enthusiastic but professional tone
+6. ALWAYS end with confirmation question: "Would you like me to create this order?"
+7. If budget provided, show maximum caps possible
+8. If no budget, ask for budget or provide estimate
+9. REMEMBER: Reference previous conversation context - don't ask for information already provided
+10. DO NOT create orders without explicit confirmation
+11. **TRANSPARENCY PRIORITY**: When customers request cost breakdowns, use ACTUAL CALCULATED AMOUNTS from ORDER ANALYSIS - never generic descriptions
 
 FORMAT:
 - Use **bold** for important numbers and actions
-- Show ONE detailed cost breakdown: "Base Product: $XXX ($X.XX per cap)"
+- Show DETAILED cost breakdowns: "Base Product: $XXX ($X.XX per cap)"
 - Display individual customization options with per-unit costs
 - Show delivery options: Regular ($X.XX per cap) vs Express ($X.XX per cap)
 - Show logo setup costs per cap if applicable
 - Include premium closure, accessories, fabric costs per cap
 - Show total cost clearly
-- End with: "Would you like me to create this order for you?"
-- STOP after confirmation question - do not add summaries or repeat breakdowns
+- ALWAYS end with: "Would you like me to create this order for you?"
 
-CRITICAL: After providing ONE detailed breakdown with total cost and confirmation question, STOP - do not provide additional breakdowns, summaries, or repeat information in different formats.
+TRANSPARENCY FORMAT EXAMPLE (when customer requests breakdown):
+**Detailed Cost Breakdown:**
+- **Base Product**: $15,552.00 ($5.40 per cap) - 2880 premium caps
+- **Premium Fabric**: $2,880.00 ($1.00 per cap) - Acrylic upgrade
+- **Logo Setup**: $2,592.00 ($0.90 per cap) - Medium Rubber Patch, Front position
+- **Accessories**: $1,728.00 ($0.60 per cap) - Stickers & hang tags
+- **Delivery**: $5,328.00 ($1.85 per cap) - Regular delivery (1152+ tier)
+- **Total**: $28,080.00 ($9.75 per cap)
 
-${conversationContext}`;
+Use EXACT amounts from ORDER ANALYSIS - never estimate or use generic descriptions.`;
 
   let userPrompt = message;
   if (uploadedFiles && uploadedFiles.length > 0) {
    userPrompt += `\n\n[Logo files uploaded: ${uploadedFiles.map(f => `${f.name}`).join(', ')}]`;
   }
 
+  // Build complete messages array with conversation history
+  const messages = [
+   { role: 'system', content: systemPrompt },
+   ...conversationMessages,
+   { role: 'user', content: userPrompt }
+  ];
+
   const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
-   messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userPrompt }
-   ],
+   messages: messages,
    max_tokens: 800,
    temperature: 0.7,
   });
@@ -1889,15 +1726,15 @@ async function generateAIOrderProgressionResponse(message: string, context: Loca
    console.log(`📝 [ORDER-AI] Created quote order reference: ${orderReference}`);
   }
 
-  // 🧠 BUILD CONVERSATION CONTEXT: Include previous messages for AI memory
-  let conversationContext = '';
+  // 🧠 BUILD PROPER CONVERSATION MESSAGES: Include previous messages for AI memory
+  let conversationMessages = [];
   if (conversationHistory && conversationHistory.length > 0) {
-   conversationContext = '\n\nPREVIOUS CONVERSATION:\n';
-   conversationHistory.forEach((msg, index) => {
-    const role = msg.role === 'user' ? 'CUSTOMER' : 'ASSISTANT';
-    conversationContext += `${role}: ${msg.content}\n`;
-   });
-   conversationContext += '\nCURRENT MESSAGE:\n';
+   // Convert conversation history to proper OpenAI message format
+   conversationMessages = conversationHistory.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'assistant',
+    content: msg.content
+   }));
+   console.log(`🔄 [ORDER-CREATION] Using ${conversationMessages.length} previous messages for context`);
   }
 
   const systemPrompt = `You are finalizing a US Custom Cap order. The customer is confirming they want to proceed with order creation.
@@ -1913,8 +1750,6 @@ Your response should:
 5. **Be conversion-focused** and professional
 6. **Reference specific order details** from the conversation history
 
-${conversationContext}
-
 SAMPLE FORMAT:
 "🎉 **Order Created Successfully!** 
 **Order Reference:** ${orderReference}
@@ -1928,12 +1763,16 @@ You can track your order status in your dashboard!"
 
 Keep under 200 words. Be enthusiastic but professional.`;
 
+  // Build complete messages array with conversation history
+  const messages = [
+   { role: 'system', content: systemPrompt },
+   ...conversationMessages,
+   { role: 'user', content: message }
+  ];
+
   const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
-   messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: message }
-   ],
+   messages: messages,
    max_tokens: 400,
    temperature: 0.3,
   });
@@ -1999,15 +1838,15 @@ async function generateAIFollowUpResponse(message: string, context: LocalConvers
    return await generateAIOrderResponse(combinedMessage, context, [], conversationHistory);
   }
 
-  // 🧠 BUILD CONVERSATION CONTEXT: Include previous messages for AI memory
-  let conversationContext = '';
+  // 🧠 BUILD PROPER CONVERSATION MESSAGES: Include previous messages for AI memory
+  let conversationMessages = [];
   if (conversationHistory && conversationHistory.length > 0) {
-   conversationContext = '\n\nPREVIOUS CONVERSATION:\n';
-   conversationHistory.forEach((msg, index) => {
-    const role = msg.role === 'user' ? 'CUSTOMER' : 'ASSISTANT';
-    conversationContext += `${role}: ${msg.content}\n`;
-   });
-   conversationContext += '\nCURRENT MESSAGE:\n';
+   // Convert conversation history to proper OpenAI message format
+   conversationMessages = conversationHistory.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'assistant',
+    content: msg.content
+   }));
+   console.log(`🔄 [FOLLOW-UP] Using ${conversationMessages.length} previous messages for context`);
   }
 
   const systemPrompt = `You are handling follow-up questions for a US Custom Cap order. 
@@ -2021,16 +1860,18 @@ Common follow-ups include:
 - Delivery timeline questions
 - Order modifications
 
-Be helpful and guide them toward order completion. Keep responses focused and under 150 words.
+Be helpful and guide them toward order completion. Keep responses focused and under 150 words.`;
 
-${conversationContext}`;
+  // Build complete messages array with conversation history
+  const messages = [
+   { role: 'system', content: systemPrompt },
+   ...conversationMessages,
+   { role: 'user', content: message }
+  ];
 
   const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
-   messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: message }
-   ],
+   messages: messages,
    max_tokens: 300,
    temperature: 0.6,
   });
@@ -2052,15 +1893,15 @@ async function generateAIGuidanceResponse(message: string, conversationHistory?:
  console.log('🤖 [ORDER-AI] Generating AI-powered guidance');
  
  try {
-  // 🧠 BUILD CONVERSATION CONTEXT: Include previous messages for AI memory
-  let conversationContext = '';
+  // 🧠 BUILD PROPER CONVERSATION MESSAGES: Include previous messages for AI memory
+  let conversationMessages = [];
   if (conversationHistory && conversationHistory.length > 0) {
-   conversationContext = '\n\nPREVIOUS CONVERSATION:\n';
-   conversationHistory.forEach((msg, index) => {
-    const role = msg.role === 'user' ? 'CUSTOMER' : 'ASSISTANT';
-    conversationContext += `${role}: ${msg.content}\n`;
-   });
-   conversationContext += '\nCURRENT MESSAGE:\n';
+   // Convert conversation history to proper OpenAI message format
+   conversationMessages = conversationHistory.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'assistant',
+    content: msg.content
+   }));
+   console.log(`🔄 [GUIDANCE] Using ${conversationMessages.length} previous messages for context`);
   }
 
   const systemPrompt = `You are a US Custom Cap order assistant. Help customers understand how to place orders.
@@ -2073,16 +1914,18 @@ Key information to share:
 - 3D embroidery is premium, flat embroidery is standard
 - Examples: "200 caps with 3D logo for $800" or "Maximum caps for $1000"
 
-Be friendly, helpful, and guide them toward providing specific order details. Keep under 150 words.
+Be friendly, helpful, and guide them toward providing specific order details. Keep under 150 words.`;
 
-${conversationContext}`;
+  // Build complete messages array with conversation history
+  const messages = [
+   { role: 'system', content: systemPrompt },
+   ...conversationMessages,
+   { role: 'user', content: message }
+  ];
 
   const completion = await getOpenAIClient().chat.completions.create({
    model: 'gpt-4o',
-   messages: [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: message }
-   ],
+   messages: messages,
    max_tokens: 300,
    temperature: 0.7,
   });
