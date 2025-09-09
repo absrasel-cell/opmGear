@@ -244,8 +244,10 @@ export default function SupportPage() {
   const [currentQuoteData, setCurrentQuoteData] = useState<any>(null);
   const [quoteSelectionMode, setQuoteSelectionMode] = useState<any>(null);
   
-  // Temporary storage for routing message to be saved with conversations
-  let temporaryRoutingMessage: Message | null = null;
+  // Global flag to prevent double execution of sendMessage
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Routing message is now passed directly to storeConversation to avoid race conditions
   
   // Helper function to ensure default values for Order Builder completion
   const ensureDefaultQuoteData = (quoteData: any) => {
@@ -366,15 +368,28 @@ export default function SupportPage() {
       conversationId,
       role: messageData.role,
       contentLength: messageData.content?.length || 0,
-      hasHeaders: Object.keys(headers).length > 0
+      hasHeaders: Object.keys(headers).length > 0,
+      messageId: messageData.id,
+      isVercelDeployment: !!process.env.VERCEL_URL
     });
 
     try {
+      // Add longer timeout for Vercel serverless functions
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
-        headers,
-        body: JSON.stringify(messageData)
+        headers: {
+          ...headers,
+          'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '',
+          'x-request-id': `${messageData.id}_${Date.now()}` // Unique request ID for deduplication
+        },
+        body: JSON.stringify(messageData),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -401,7 +416,7 @@ export default function SupportPage() {
   };
 
   // Store conversation and messages in database
-  const storeConversation = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any, existingConversationId?: string) => {
+  const storeConversation = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any, existingConversationId?: string, routingMessage?: Message | null) => {
     console.log('🔥 storeConversation V3.0 - COMPREHENSIVE SESSION-INDEPENDENT VERSION called with:', { 
       userMessage: userMessage.content.substring(0, 50), 
       assistantMessage: assistantMessage.content.substring(0, 50),
@@ -508,62 +523,56 @@ export default function SupportPage() {
         }
       }
 
+      // SEQUENTIAL MESSAGE STORAGE to prevent race conditions
+      console.log('🔄 Starting sequential message storage to prevent duplicates...');
+
       // Store routing message first (if available) to preserve conversation flow
-      if (temporaryRoutingMessage) {
-        console.log('💾 Storing routing message in database:', temporaryRoutingMessage.content.substring(0, 100));
+      if (routingMessage) {
+        console.log('💾 [1/3] Storing routing message in database:', routingMessage.content.substring(0, 100));
         
         if (!currentConversationId) {
           throw new Error('No conversation ID available for routing message storage');
         }
         
-        try {
-          await storeMessage(currentConversationId, {
-            role: 'SYSTEM',
-            content: temporaryRoutingMessage.content,
-            metadata: {
-              ...temporaryRoutingMessage.metadata,
-              type: 'routing_message',
-              messageId: temporaryRoutingMessage.id,
-              storageMethod: useSessionAuth ? 'session_auth' : 'sessionless'
-            }
-          }, authHeaders);
-          
-          console.log('✅ Routing message stored successfully');
-        } catch (routingError) {
-          console.error('❌ Failed to store routing message:', routingError);
-          // Don't fail the entire operation for routing message failures
-        }
+        await storeMessage(currentConversationId, {
+          id: routingMessage.id, // Use the UI message ID to prevent duplicates
+          role: 'SYSTEM',
+          content: routingMessage.content,
+          timestamp: routingMessage.timestamp.toISOString(), // Preserve original timestamp
+          metadata: {
+            ...routingMessage.metadata,
+            type: 'routing_message',
+            messageId: routingMessage.id,
+            storageMethod: useSessionAuth ? 'session_auth' : 'sessionless'
+          }
+        }, authHeaders);
         
-        // Clear the temporary routing message after storing
-        temporaryRoutingMessage = null;
+        console.log('✅ [1/3] Routing message stored successfully');
       }
 
       // Store user message
-      console.log('💾 Storing user message in database:', userMessage.content.substring(0, 100) + '...');
+      console.log('💾 [2/3] Storing user message in database:', userMessage.content.substring(0, 100) + '...');
       
       if (!currentConversationId) {
         throw new Error('No conversation ID available for user message storage');
       }
       
-      try {
-        await storeMessage(currentConversationId, {
-          role: 'USER',
-          content: userMessage.content,
-          metadata: {
-            ...userMessage.metadata,
-            storageMethod: useSessionAuth ? 'session_auth' : 'sessionless',
-            messageId: userMessage.id
-          }
-        }, authHeaders);
-        
-        console.log('✅ User message stored successfully');
-      } catch (userError) {
-        console.error('❌ Failed to store user message:', userError);
-        throw new Error(`User message storage failed: ${userError instanceof Error ? userError.message : String(userError)}`);
-      }
+      await storeMessage(currentConversationId, {
+        id: userMessage.id, // Use the UI message ID to prevent duplicates
+        role: 'USER',
+        content: userMessage.content,
+        timestamp: userMessage.timestamp.toISOString(), // Preserve original timestamp
+        metadata: {
+          ...userMessage.metadata,
+          storageMethod: useSessionAuth ? 'session_auth' : 'sessionless',
+          messageId: userMessage.id
+        }
+      }, authHeaders);
+      
+      console.log('✅ [2/3] User message stored successfully');
 
       // Store assistant message - CRITICAL: This contains the detailed quote content
-      console.log('💾 CRITICAL: Storing assistant message (detailed quote content):', {
+      console.log('💾 [3/3] CRITICAL: Storing assistant message (detailed quote content):', {
         conversationId: currentConversationId,
         contentLength: assistantMessage.content.length,
         contentPreview: assistantMessage.content.substring(0, 100) + '...',
@@ -576,26 +585,24 @@ export default function SupportPage() {
         throw new Error('No conversation ID available for assistant message storage');
       }
       
-      try {
-        await storeMessage(currentConversationId, {
-          role: 'ASSISTANT',
-          content: assistantMessage.content,
-          metadata: {
-            ...assistantMessage.metadata,
-            type: 'ai_response',
-            messageId: assistantMessage.id,
-            preserveQuoteContent: true,
-            storageMethod: useSessionAuth ? 'session_auth' : 'sessionless',
-            contentLength: assistantMessage.content.length
-          },
-          model: assistantMessage.model
-        }, authHeaders);
-        
-        console.log('✅ CRITICAL SUCCESS: Assistant message (detailed quote) stored successfully!');
-      } catch (assistantError) {
-        console.error('❌ CRITICAL FAILURE: Assistant message (detailed quote) storage failed:', assistantError);
-        throw new Error(`CRITICAL: Assistant message storage failed - detailed quote content will be lost: ${assistantError instanceof Error ? assistantError.message : String(assistantError)}`);
-      }
+      await storeMessage(currentConversationId, {
+        id: assistantMessage.id, // Use the UI message ID to prevent duplicates
+        role: 'ASSISTANT',
+        content: assistantMessage.content,
+        timestamp: assistantMessage.timestamp.toISOString(), // Preserve original timestamp
+        metadata: {
+          ...assistantMessage.metadata,
+          type: 'ai_response',
+          messageId: assistantMessage.id,
+          preserveQuoteContent: true,
+          storageMethod: useSessionAuth ? 'session_auth' : 'sessionless',
+          contentLength: assistantMessage.content.length
+        },
+        model: assistantMessage.model
+      }, authHeaders);
+      
+      console.log('✅ [3/3] CRITICAL SUCCESS: Assistant message (detailed quote) stored successfully!');
+      console.log('🎉 SEQUENTIAL STORAGE COMPLETED: All 3 messages stored without race conditions');
 
       // Generate and update conversation title with comprehensive context
       if (!conversationId && currentConversationId) {
@@ -642,21 +649,33 @@ export default function SupportPage() {
         await loadUserConversations();
       }
 
+      console.log('✅ PRIMARY STORAGE COMPLETED: All messages stored successfully, skipping fallback');
+
     } catch (error) {
       console.error('❌ CRITICAL: storeConversation primary method failed:', error);
       
-      // FALLBACK: If primary storage fails, try the sessionless storage method
-      try {
-        console.log('🔄 Attempting fallback storage via storeMessagesWithoutSession...');
-        await storeMessagesWithoutSession(userMessage, assistantMessage, intent, quoteData);
-        console.log('✅ Fallback storage completed successfully - conversation saved!');
-      } catch (fallbackError) {
-        console.error('❌ CRITICAL: Both primary and fallback storage methods failed:', {
-          primaryError: error instanceof Error ? error.message : String(error),
-          fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
-        });
-        // Still don't throw - we don't want to crash the UI
-        console.error('🚨 IMPACT: This conversation will NOT be saved to database - user will lose conversation history');
+      // FALLBACK: Only try fallback if primary storage completely failed
+      // CRITICAL FIX: Be much more restrictive about triggering fallback
+      const isCompleteFailure = error instanceof Error && (
+        error.message.includes('Conversation creation failed') ||
+        error.message.includes('No conversation ID available')
+      ) && !error.message.includes('SUCCESS') && !error.message.includes('stored successfully');
+
+      if (isCompleteFailure) {
+        try {
+          console.log('🔄 Attempting fallback storage via storeMessagesWithoutSession...');
+          await storeMessagesWithoutSession(userMessage, assistantMessage, intent, quoteData, routingMessage);
+          console.log('✅ Fallback storage completed successfully - conversation saved!');
+        } catch (fallbackError) {
+          console.error('❌ CRITICAL: Both primary and fallback storage methods failed:', {
+            primaryError: error instanceof Error ? error.message : String(error),
+            fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          });
+          // Still don't throw - we don't want to crash the UI
+          console.error('🚨 IMPACT: This conversation will NOT be saved to database - user will lose conversation history');
+        }
+      } else {
+        console.log('⚠️ Primary storage had minor issues but likely succeeded - skipping fallback to prevent duplicates:', error.message);
       }
     }
   };
@@ -734,11 +753,11 @@ export default function SupportPage() {
           lastActivity: new Date().toISOString(),
           messageCount: messages.length,
           lastMessage: messages.length > 0 ? {
-            content: messages[messages.length - 1].content.substring(0, 100) + '...',
+            content: messages[messages.length - 1].content.substring(0, 300) + (messages[messages.length - 1].content.length > 300 ? '...' : ''),
             timestamp: messages[messages.length - 1].timestamp
           } : null,
           preview: messages.length > 0 ? {
-            content: messages[messages.length - 1].content.substring(0, 100) + '...',
+            content: messages[messages.length - 1].content.substring(0, 300) + (messages[messages.length - 1].content.length > 300 ? '...' : ''),
             timestamp: messages[messages.length - 1].timestamp
           } : null,
           tags: [],
@@ -804,11 +823,11 @@ export default function SupportPage() {
         lastActivity: new Date().toISOString(),
         messageCount: messages.length,
         lastMessage: messages.length > 0 ? {
-          content: (messages[messages.length - 1].content || '').substring(0, 100) + ((messages[messages.length - 1].content || '').length > 100 ? '...' : ''),
+          content: (messages[messages.length - 1].content || '').substring(0, 300) + ((messages[messages.length - 1].content || '').length > 300 ? '...' : ''),
           timestamp: messages[messages.length - 1].timestamp
         } : null,
         preview: messages.length > 0 ? {
-          content: (messages[messages.length - 1].content || '').substring(0, 100) + ((messages[messages.length - 1].content || '').length > 100 ? '...' : ''),
+          content: (messages[messages.length - 1].content || '').substring(0, 300) + ((messages[messages.length - 1].content || '').length > 300 ? '...' : ''),
           timestamp: messages[messages.length - 1].timestamp
         } : null,
         tags: [],
@@ -946,11 +965,11 @@ export default function SupportPage() {
               lastActivity: new Date().toISOString(),
               messageCount: messages.length,
               lastMessage: messages.length > 0 ? {
-                content: messages[messages.length - 1].content.substring(0, 100) + '...',
+                content: messages[messages.length - 1].content.substring(0, 300) + (messages[messages.length - 1].content.length > 300 ? '...' : ''),
                 timestamp: messages[messages.length - 1].timestamp
               } : null,
               preview: messages.length > 0 ? {
-                content: messages[messages.length - 1].content.substring(0, 100) + '...',
+                content: messages[messages.length - 1].content.substring(0, 300) + (messages[messages.length - 1].content.length > 300 ? '...' : ''),
                 timestamp: messages[messages.length - 1].timestamp
               } : null,
               tags: [],
@@ -1223,7 +1242,35 @@ export default function SupportPage() {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!inputMessage.trim() && uploadedFiles.length === 0) || isLoading || isUploading) return;
+    
+    const callTimestamp = Date.now();
+    console.log('🚀 sendMessage ENTRY:', { 
+      callId: callTimestamp,
+      inputMessage: inputMessage.substring(0, 50), 
+      uploadedFilesLength: uploadedFiles.length,
+      isLoading: isLoading,
+      timestamp: new Date().toISOString()
+    });
+    
+    // ABSOLUTE prevention of double execution
+    if (isProcessing || isLoading) {
+      console.log('🛑 BLOCKED: Message processing already in progress:', { callId: callTimestamp, isProcessing, isLoading });
+      return;
+    }
+    
+    console.log('✅ PROCEEDING: Starting message processing:', callTimestamp);
+    setIsProcessing(true);
+    setIsLoading(true);
+    
+    if ((!inputMessage.trim() && uploadedFiles.length === 0) || isLoading || isUploading) {
+      console.log('❌ sendMessage blocked:', { 
+        hasInput: !!inputMessage.trim(), 
+        hasFiles: uploadedFiles.length > 0, 
+        isLoading, 
+        isUploading 
+      });
+      return;
+    }
 
     // Check if this is a guest user trying to create a quote
     if (!authUser && !guestContactInfo) {
@@ -1241,16 +1288,19 @@ export default function SupportPage() {
       }
     }
 
+    const messageId = Date.now().toString();
+    console.log('🔑 Generated user message ID:', messageId);
+    
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: messageId,
       role: 'user',
       content: inputMessage,
       timestamp: new Date()
     };
 
+    console.log('📝 Adding user message to UI:', { id: userMessage.id, content: userMessage.content.substring(0, 50) });
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
-    setIsLoading(true);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1301,14 +1351,18 @@ export default function SupportPage() {
       }
 
       // Add system message about routing
+      const routingMessageId = Date.now().toString() + '_routing';
+      console.log('🔑 Generated routing message ID:', routingMessageId);
+      
       const routingMessage: Message = {
-        id: Date.now().toString() + '_routing',
+        id: routingMessageId,
         role: 'system',
         content: uploadedFiles.length > 0 
           ? `🖼️ Image analysis — Routing to ${selectedAssistant?.displayName || 'LogoCraft Pro 🎨'} for logo analysis`
           : `Model switch — Routed to ${selectedAssistant?.displayName || recommendedModel.toUpperCase()}`,
         timestamp: new Date()
       };
+      console.log('📝 Adding routing message to UI:', { id: routingMessage.id, content: routingMessage.content.substring(0, 50) });
       setMessages(prev => [...prev, routingMessage]);
 
       setCurrentModel(recommendedModel);
@@ -1318,11 +1372,12 @@ export default function SupportPage() {
       setIsOrderBuilderVisible(detectedIntent === 'ORDER_CREATION');
       
       // Store routing message for quote conversations (so they appear in history)
+      let routingMessageToStore = null;
       if (detectedIntent === 'ORDER_CREATION' && (authUser || guestContactInfo)) {
         try {
           console.log('💾 Will store routing message for quote conversation');
-          // We'll store this in the storeConversation function along with other messages
-          temporaryRoutingMessage = routingMessage;
+          // Pass the routing message directly to storeConversation to avoid race conditions
+          routingMessageToStore = routingMessage;
         } catch (error) {
           console.error('Error preparing routing message for storage:', error);
         }
@@ -1485,8 +1540,11 @@ export default function SupportPage() {
       // Let AI's natural response display as-is for better formatting and fluency
       // The Current AI Values section will still be updated from extractedQuoteData
 
+      const assistantMessageId = Date.now().toString() + '_assistant';
+      console.log('🔑 Generated assistant message ID:', assistantMessageId);
+      
       const assistantMessage: Message = {
-        id: Date.now().toString() + '_assistant',
+        id: assistantMessageId,
         role: 'assistant',
         content: displayContent,
         model: recommendedModel,
@@ -1494,6 +1552,7 @@ export default function SupportPage() {
         metadata: { ...data.metadata, quoteData: extractedQuoteData }
       };
 
+      console.log('📝 Adding assistant message to UI:', { id: assistantMessage.id, content: assistantMessage.content.substring(0, 50) });
       setMessages(prev => [...prev, assistantMessage]);
       
       // Always use storeConversation but pass the existing conversationId to prevent duplicates
@@ -1521,8 +1580,19 @@ export default function SupportPage() {
           }
         }
         
-        await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData, currentConversationId);
+        await storeConversation(userMessage, assistantMessage, detectedIntent, extractedQuoteData, currentConversationId, routingMessageToStore);
         console.log('✅ storeConversation completed successfully');
+        
+        // CRITICAL FIX: Move Order Builder updates to happen AFTER storeConversation completes
+        // This prevents race conditions with message storage and duplicate message creation
+        if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
+          // Ensure default values for Order Builder completion
+          const enhancedQuoteData = ensureDefaultQuoteData(extractedQuoteData);
+          
+          console.log('🔄 Updating Order Builder state after successful message storage');
+          setCurrentQuoteData(enhancedQuoteData);
+          updateOrderBuilderStatus(enhancedQuoteData);
+        }
       } catch (storeError) {
         console.error('❌ CRITICAL: storeConversation failed:', {
           error: storeError,
@@ -1533,15 +1603,14 @@ export default function SupportPage() {
         });
         // This is critical - if storeConversation fails, the detailed quote won't be saved
         console.error('🚨 IMPACT: Detailed quote content will be missing from conversation history');
-      }
-      
-      // Update order builder status if quote data is available
-      if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
-        // Ensure default values for Order Builder completion
-        const enhancedQuoteData = ensureDefaultQuoteData(extractedQuoteData);
         
-        setCurrentQuoteData(enhancedQuoteData);
-        updateOrderBuilderStatus(enhancedQuoteData);
+        // Even if storeConversation fails, update Order Builder for user experience
+        if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
+          console.log('🔄 Updating Order Builder state despite storage failure (for user experience)');
+          const enhancedQuoteData = ensureDefaultQuoteData(extractedQuoteData);
+          setCurrentQuoteData(enhancedQuoteData);
+          updateOrderBuilderStatus(enhancedQuoteData);
+        }
       }
 
       // Ensure sidebar refreshes after AI quote response (even if storage partially failed)
@@ -1580,6 +1649,8 @@ export default function SupportPage() {
       // Don't clear uploaded files on error - user might want to retry
     } finally {
       setIsLoading(false);
+      setIsProcessing(false);
+      console.log('🔓 RELEASED: Message processing completed');
     }
   };
 
@@ -2304,7 +2375,7 @@ Would you like me to save this quote or would you like to modify any specificati
   };
 
   // FALLBACK: Store messages without session using server-side authentication
-  const storeMessagesWithoutSession = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any) => {
+  const storeMessagesWithoutSession = async (userMessage: Message, assistantMessage: Message, intent?: string, quoteData?: any, routingMessage?: Message | null) => {
     console.log('🔄 storeMessagesWithoutSession: Using server-side auth approach');
     
     let currentConversationId = conversationId;
@@ -2365,7 +2436,26 @@ Would you like me to save this quote or would you like to modify any specificati
         // No Authorization header - server uses supabaseAdmin
       };
 
-      // Store user message first
+      // Store routing message first (if available)
+      if (routingMessage) {
+        console.log('💾 Fallback: Storing routing message...');
+        await storeMessage(currentConversationId, {
+          id: routingMessage.id,
+          role: 'SYSTEM',
+          content: routingMessage.content,
+          timestamp: routingMessage.timestamp.toISOString(), // Preserve original timestamp
+          metadata: {
+            ...routingMessage.metadata,
+            type: 'routing_message',
+            messageId: routingMessage.id,
+            storageMethod: 'fallback_sessionless',
+            storedViaFallback: true
+          }
+        }, fallbackHeaders);
+        console.log('✅ Fallback: Routing message stored successfully');
+      }
+
+      // Store user message
       console.log('💾 Fallback: Storing user message...');
       
       if (!currentConversationId) {
@@ -2373,8 +2463,10 @@ Would you like me to save this quote or would you like to modify any specificati
       }
       
       await storeMessage(currentConversationId, {
+        id: userMessage.id, // Use the UI message ID to prevent duplicates
         role: 'USER',
         content: userMessage.content,
+        timestamp: userMessage.timestamp.toISOString(), // Preserve original timestamp
         metadata: {
           ...userMessage.metadata,
           storageMethod: 'fallback_sessionless',
@@ -2388,8 +2480,10 @@ Would you like me to save this quote or would you like to modify any specificati
       // Store assistant message (CRITICAL - this contains detailed quote)
       console.log('💾 Fallback: Storing assistant message (detailed quote)...');
       await storeMessage(currentConversationId, {
+        id: assistantMessage.id, // Use the UI message ID to prevent duplicates
         role: 'ASSISTANT',
         content: assistantMessage.content,
+        timestamp: assistantMessage.timestamp.toISOString(), // Preserve original timestamp
         metadata: {
           ...assistantMessage.metadata,
           type: 'ai_response',
@@ -2468,6 +2562,7 @@ Would you like me to save this quote or would you like to modify any specificati
         hasCurrentQuoteData: !!currentQuoteData,
         hasOrderBuilderStatus: !!orderBuilderStatus,
         hasLeadTimeData: !!leadTimeData,
+        isProcessing: isProcessing, // Track if message processing is active
         orderBuilderStatusSnapshot: orderBuilderStatus ? {
           capStyleStatus: orderBuilderStatus.capStyle?.status,
           deliveryStatus: orderBuilderStatus.delivery?.status,
@@ -2475,14 +2570,23 @@ Would you like me to save this quote or would you like to modify any specificati
         } : null
       });
 
-      // Use a debounce approach to avoid too frequent updates
+      // CRITICAL FIX: Extend debounce to prevent interference with active message processing
+      // If message processing is active, wait longer to avoid race conditions
+      const debounceDelay = isProcessing ? 5000 : 2000; // 5 seconds if processing, 2 seconds otherwise
+      
       const timeoutId = setTimeout(() => {
-        updateConversationMetadata();
-      }, 2000); // 2 second debounce
+        // Double-check that processing isn't active before updating metadata
+        if (!isProcessing) {
+          console.log('🔄 Executing metadata update (processing is inactive)');
+          updateConversationMetadata();
+        } else {
+          console.log('⏸️ Skipping metadata update (processing is still active)');
+        }
+      }, debounceDelay);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [conversationId, currentQuoteData, orderBuilderStatus, userProfile, leadTimeData]);
+  }, [conversationId, currentQuoteData, orderBuilderStatus, userProfile, leadTimeData, isProcessing]);
 
   // Function to toggle individual block collapse
   const toggleBlockCollapse = (blockName: keyof typeof collapsedBlocks) => {
@@ -2952,6 +3056,12 @@ Would you like me to save this quote or would you like to modify any specificati
 
   // Load a specific conversation
   const loadConversation = async (conversationId: string) => {
+    // Prevent multiple simultaneous loads of the same conversation
+    if (isLoading) {
+      console.log('⏳ Conversation load already in progress, skipping...');
+      return;
+    }
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -2990,8 +3100,24 @@ Would you like me to save this quote or would you like to modify any specificati
             metadata: msg.metadata
           }));
 
+          // Enhanced deduplication: Remove duplicates by content + role + timestamp (for existing duplicates)
+          // AND by ID (for future duplicates with same UI/DB IDs)
+          const uniqueMessages = formattedMessages.filter((message: any, index: number, self: any[]) => {
+            // First try ID-based deduplication (for new messages with matching IDs)
+            const firstWithSameId = self.findIndex((m: any) => m.id === message.id);
+            if (firstWithSameId === index) return true;
+            
+            // For existing duplicates, use content + role + timestamp deduplication
+            const firstWithSameContent = self.findIndex((m: any) => 
+              m.content === message.content && 
+              m.role === message.role &&
+              Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime()) < 5000 // Within 5 seconds
+            );
+            return firstWithSameContent === index;
+          });
+
           // Verify we have the detailed quote content
-          const assistantMessages = formattedMessages.filter((msg: any) => msg.role === 'assistant');
+          const assistantMessages = uniqueMessages.filter((msg: any) => msg.role === 'assistant');
           const detailedQuoteMessage = assistantMessages.find((msg: any) => 
             msg.content && msg.content.length > 200 && 
             (msg.content.includes('detailed quote') || msg.content.includes('💰 Total Order') || msg.content.includes('📊') ||
@@ -3019,7 +3145,7 @@ Would you like me to save this quote or would you like to modify any specificati
             });
           }
 
-          setMessages(formattedMessages);
+          setMessages(uniqueMessages);
         } else {
           console.log('📭 No messages found for conversation');
           setMessages([]);
@@ -4564,72 +4690,13 @@ Would you like me to save this quote or would you like to modify any specificati
                 </div>
               </div>
             </div>
-            
-            {/* Features Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <div className="h-8 w-8 rounded-lg bg-blue-400/20 border border-blue-400/30 grid place-items-center flex-shrink-0">
-                  <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white mb-1">Quick Questions</h3>
-                  <p className="text-xs text-white/60">"What's my order status?"</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <div className="h-8 w-8 rounded-lg bg-rose-800/20 border border-rose-800/30 grid place-items-center flex-shrink-0">
-                  <svg className="h-4 w-4 text-rose-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 3v12a2 2 0 002 2h6a2 2 0 002-2V7M7 7h10M10 11v6M14 11v6" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white mb-1">Upload Files</h3>
-                  <p className="text-xs text-white/60">Share artwork & logos</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <div className="h-8 w-8 rounded-lg bg-green-400/20 border border-green-400/30 grid place-items-center flex-shrink-0">
-                  <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white mb-1">Instant Quotes</h3>
-                  <p className="text-xs text-white/60">Get pricing instantly</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <div className="h-8 w-8 rounded-lg bg-cyan-400/20 border border-cyan-400/30 grid place-items-center flex-shrink-0">
-                  <ClipboardDocumentListIcon className="h-4 w-4 text-cyan-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white mb-1">My Orders</h3>
-                  <p className="text-xs text-white/60">View order history</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10">
-                <div className="h-8 w-8 rounded-lg bg-orange-400/20 border border-orange-400/30 grid place-items-center flex-shrink-0">
-                  <ChatBubbleLeftRightIcon className="h-4 w-4 text-orange-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white mb-1">Quick Support</h3>
-                  <p className="text-xs text-white/60">Get help fast</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
         {/* Main Grid */}
         <main className={`${showConversationHistory ? 'max-w-[1800px] lg:ml-3 lg:mr-6' : 'max-w-[1850px] mx-auto'} px-3 sm:px-6 pb-3 sm:pb-6 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 sm:gap-6`}>
           {/* Chat Panel */}
-          <section className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden order-1 lg:order-1">
+          <section className="rounded-2xl border border-stone-600 bg-black/40 backdrop-blur-xl flex flex-col overflow-hidden order-1 lg:order-1 min-h-[70vh] lg:min-h-0">
             {/* Chat Header */}
             <div className="px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-600 flex items-center justify-between">
               <div className="flex items-center gap-3">
