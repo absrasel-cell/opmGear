@@ -1,4 +1,4 @@
-# for analysis purpose, always use Agent "Opus Aurelius", and for appliance and executions, use "fullstack-cap-engineer". Let them maintain a common todo list file "F:\Custom Cap - github\Claude Instruction\todo list.txt".
+# for appliance and executions, use "fullstack-cap-engineer". Let them maintain a common todo list file "F:\Custom Cap - github\Claude Instruction\todo list.txt".
 
 # CLAUDE.md - Project Context for US Custom Cap
 read current main Task from ""F:\Custom Cap - github\Claude Instruction\currentTask.txt""

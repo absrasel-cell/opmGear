@@ -247,6 +247,39 @@ export default function SupportPage() {
   // Temporary storage for routing message to be saved with conversations
   let temporaryRoutingMessage: Message | null = null;
   
+  // Helper function to ensure default values for Order Builder completion
+  const ensureDefaultQuoteData = (quoteData: any) => {
+    if (!quoteData) return null;
+    
+    return {
+      ...quoteData,
+      capDetails: {
+        size: 'Medium', // Default size for Cap Style Setup completion
+        color: 'Black', // Default color
+        profile: 'High', // Default profile
+        billShape: 'Curved', // Default bill shape
+        structure: 'Structured', // Default structure
+        fabric: 'Chino Twill', // Default fabric
+        closure: 'Snapback', // Default closure
+        stitching: 'Matching', // Default stitching
+        ...quoteData.capDetails // Override with actual AI values
+      },
+      customization: {
+        logoSetup: null,
+        accessories: [],
+        moldCharges: 0,
+        logoDetails: [],
+        ...quoteData.customization
+      },
+      delivery: {
+        method: 'Regular Delivery',
+        leadTime: '4-6 days',
+        cost: 0,
+        ...quoteData.delivery
+      }
+    };
+  };
+  
   const [orderBuilderStatus, setOrderBuilderStatus] = useState<OrderBuilderStatus>({
     capStyle: {
       completed: false,
@@ -1434,7 +1467,7 @@ export default function SupportPage() {
         console.log('🔧 [DYNAMIC-UPDATE] Enhancing quote data with user-specified requirements');
         
         // Get the user's latest message for specification extraction
-        const userMessage = messages[messages.length - 2]?.content || lastUserMessage;
+        const userMessage = inputMessage;
         
         if (userMessage) {
           const enhancedCapDetails = enhanceQuoteDataFromUserInput(userMessage, extractedQuoteData.capDetails);
@@ -1449,10 +1482,8 @@ export default function SupportPage() {
         }
       }
       
-      if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
-        // Format quote data for display
-        displayContent = formatQuoteDisplay(data.message, extractedQuoteData);
-      }
+      // Let AI's natural response display as-is for better formatting and fluency
+      // The Current AI Values section will still be updated from extractedQuoteData
 
       const assistantMessage: Message = {
         id: Date.now().toString() + '_assistant',
@@ -1506,8 +1537,11 @@ export default function SupportPage() {
       
       // Update order builder status if quote data is available
       if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
-        setCurrentQuoteData(extractedQuoteData);
-        updateOrderBuilderStatus(extractedQuoteData);
+        // Ensure default values for Order Builder completion
+        const enhancedQuoteData = ensureDefaultQuoteData(extractedQuoteData);
+        
+        setCurrentQuoteData(enhancedQuoteData);
+        updateOrderBuilderStatus(enhancedQuoteData);
       }
 
       // Ensure sidebar refreshes after AI quote response (even if storage partially failed)
@@ -1572,13 +1606,13 @@ export default function SupportPage() {
     
     // Update cap style status
     const capStyleItems = {
-      size: !!(capDetails?.sizes && capDetails.sizes.length > 0),
-      color: !!(capDetails?.colors && capDetails.colors.length > 0),
+      size: !!(capDetails?.size || (capDetails?.sizes && capDetails.sizes.length > 0)),
+      color: !!(capDetails?.color || (capDetails?.colors && capDetails.colors.length > 0)),
       profile: !!capDetails?.profile,
       shape: !!capDetails?.billShape,
       structure: !!capDetails?.structure,
       fabric: !!capDetails?.fabric,
-      stitch: !!capDetails?.closure // Using closure as stitch reference
+      stitch: !!(capDetails?.stitching || capDetails?.stitch || capDetails?.closure)
     };
     
     const compulsoryCapItems = capStyleItems.size && capStyleItems.color && capStyleItems.shape;
@@ -3068,8 +3102,8 @@ Would you like me to save this quote or would you like to modify any specificati
                 }
               }));
 
-              // Also set the current quote data for compatibility
-              setCurrentQuoteData(quoteVersion.quoteData);
+              // Also set the current quote data for compatibility with defaults
+              setCurrentQuoteData(ensureDefaultQuoteData(quoteVersion.quoteData));
             }
           }
         } else {
@@ -4703,6 +4737,7 @@ Would you like me to save this quote or would you like to modify any specificati
                             className="whitespace-pre-wrap"
                             dangerouslySetInnerHTML={{
                               __html: (message.content || '')
+                                .replace(/\\n/g, '\n') // Convert literal \n strings to actual newlines
                                 .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white/95 font-semibold">$1</strong>')
                                 .replace(/^• (.*?)$/gm, '<div class="flex items-start gap-2 my-1"><span class="text-lime-300 mt-0.5">•</span><span>$1</span></div>')
                                 .replace(/\n/g, '<br/>')
