@@ -3382,45 +3382,88 @@ Would you like me to save this quote or would you like to modify any specificati
             } : null
           });
           
-          // Merge metadata with message-extracted data (prioritize message data for completeness)
+          // ALWAYS ensure we restore currentQuoteData for "Current AI Values" display
+          let finalQuoteData = null;
+          
+          // FIXED: Merge metadata with message-extracted data (prioritize stored metadata for accuracy)
           if (orderBuilder.capDetails || orderBuilder.customization || orderBuilder.delivery) {
-            const mergedQuoteData = {
+            finalQuoteData = {
               capDetails: {
-                ...(messageExtractedQuoteData?.capDetails || {}),
-                ...(orderBuilder.capDetails || {})
+                // Start with stored metadata (contains accurate AI values)
+                ...(orderBuilder.capDetails || {}),
+                // Only add message data for missing fields
+                ...(messageExtractedQuoteData?.capDetails ? Object.fromEntries(
+                  Object.entries(messageExtractedQuoteData.capDetails).filter(([key, value]) => 
+                    !orderBuilder.capDetails?.[key] && value !== undefined
+                  )
+                ) : {})
               },
               customization: {
-                // Prioritize message-extracted accessories (more complete)
+                // Prioritize stored customization data
                 ...(orderBuilder.customization || {}),
-                ...(messageExtractedQuoteData?.customization || {}),
-                // Ensure accessories from message parsing take priority
-                accessories: messageExtractedQuoteData?.customization?.accessories || 
-                           orderBuilder.customization?.accessories || []
+                // Only add message-extracted accessories if not already stored
+                ...(messageExtractedQuoteData?.customization ? Object.fromEntries(
+                  Object.entries(messageExtractedQuoteData.customization).filter(([key, value]) => 
+                    !orderBuilder.customization?.[key] && value !== undefined
+                  )
+                ) : {}),
+                // Special handling for accessories - merge arrays if both exist
+                accessories: orderBuilder.customization?.accessories?.length > 0 
+                  ? orderBuilder.customization.accessories 
+                  : (messageExtractedQuoteData?.customization?.accessories || [])
               },
               delivery: {
-                ...(messageExtractedQuoteData?.delivery || {}),
-                ...(orderBuilder.delivery || {})
+                // Prioritize stored delivery data
+                ...(orderBuilder.delivery || {}),
+                // Only add message data for missing fields
+                ...(messageExtractedQuoteData?.delivery ? Object.fromEntries(
+                  Object.entries(messageExtractedQuoteData.delivery).filter(([key, value]) => 
+                    !orderBuilder.delivery?.[key] && value !== undefined
+                  )
+                ) : {})
               },
               pricing: {
-                ...(messageExtractedQuoteData?.pricing || {}),
-                ...(orderBuilder.pricing || {})
+                // Prioritize stored pricing data
+                ...(orderBuilder.pricing || {}),
+                // Only add message data for missing fields
+                ...(messageExtractedQuoteData?.pricing ? Object.fromEntries(
+                  Object.entries(messageExtractedQuoteData.pricing).filter(([key, value]) => 
+                    !orderBuilder.pricing?.[key] && value !== undefined
+                  )
+                ) : {})
               }
             };
             
-            console.log('✅ Merged quote data (message + metadata):', {
-              accessories: mergedQuoteData.customization?.accessories,
-              accessoryCount: mergedQuoteData.customization?.accessories?.length || 0,
+            console.log('✅ FIXED: Merged quote data (metadata priority for Current AI Values):', {
+              capDetails: finalQuoteData.capDetails,
+              size: finalQuoteData.capDetails?.size,
+              color: finalQuoteData.capDetails?.color,
+              fabric: finalQuoteData.capDetails?.fabric,
+              stitching: finalQuoteData.capDetails?.stitching || finalQuoteData.capDetails?.stitch,
+              accessories: finalQuoteData.customization?.accessories,
+              accessoryCount: finalQuoteData.customization?.accessories?.length || 0,
               mergedFrom: {
                 hasMessageData: !!messageExtractedQuoteData,
-                hasMetadataData: !!(orderBuilder.capDetails || orderBuilder.customization || orderBuilder.delivery)
+                hasMetadataData: !!(orderBuilder.capDetails || orderBuilder.customization || orderBuilder.delivery),
+                prioritySource: 'stored_metadata'
               }
             });
-            
-            setCurrentQuoteData(mergedQuoteData);
+          } else if (messageExtractedQuoteData) {
+            // Fallback: Use message-extracted data if metadata doesn't have quote data
+            finalQuoteData = messageExtractedQuoteData;
+            console.log('✅ Using message-extracted quote data as fallback for Current AI Values');
+          }
+          
+          // CRITICAL FIX: Always set currentQuoteData if we have quote data
+          if (finalQuoteData) {
+            setCurrentQuoteData(finalQuoteData);
+            console.log('🎯 FIXED: currentQuoteData set for Current AI Values display');
             
             // Use the proper updateOrderBuilderStatus function to dynamically calculate completion states
-            console.log('🔄 Calling updateOrderBuilderStatus with merged data to properly populate Order Builder');
-            updateOrderBuilderStatus(mergedQuoteData);
+            console.log('🔄 Calling updateOrderBuilderStatus with final data to properly populate Order Builder');
+            updateOrderBuilderStatus(finalQuoteData);
+          } else {
+            console.warn('⚠️ No quote data available to restore - Current AI Values will be empty');
           }
           
           // Skip manual orderBuilderStatus restoration - let updateOrderBuilderStatus handle it
@@ -3468,6 +3511,11 @@ Would you like me to save this quote or would you like to modify any specificati
           } else {
             console.warn('⚠️ No quote data found to populate Order Builder - buttons may remain disabled');
           }
+        } else if (messageExtractedQuoteData && hasQuotes) {
+          // ADDITIONAL FIX: Ensure message-extracted data is set as currentQuoteData if no metadata orderBuilder
+          console.log('🎯 ADDITIONAL FIX: Setting messageExtractedQuoteData as currentQuoteData for Current AI Values');
+          setCurrentQuoteData(messageExtractedQuoteData);
+          updateOrderBuilderStatus(messageExtractedQuoteData);
         }
         
         // Restore quote versions if available (if orderBuilder exists)
