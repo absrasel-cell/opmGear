@@ -83,10 +83,12 @@ export async function POST(request: NextRequest) {
           .limit(10);
 
         if (!messagesError && messages) {
-          conversationMessages = messages.map(msg => ({
-            role: msg.role.toLowerCase(),
-            content: msg.content
-          }));
+          conversationMessages = messages
+            .filter(msg => !isRoutingOrSystemMessage(msg))
+            .map(msg => ({
+              role: msg.role.toLowerCase(),
+              content: msg.content
+            }));
         }
       }
     }
@@ -288,10 +290,12 @@ export async function GET(request: NextRequest) {
       .order('createdAt', { ascending: true })
       .limit(10);
 
-    const messages = conversationMessages?.map(msg => ({
-      role: msg.role.toLowerCase(),
-      content: msg.content
-    })) || [];
+    const messages = conversationMessages
+      ?.filter(msg => !isRoutingOrSystemMessage(msg))
+      .map(msg => ({
+        role: msg.role.toLowerCase(),
+        content: msg.content
+      })) || [];
 
     // Extract order builder data from conversation metadata if available
     const orderBuilder = conversation.metadata ? 
@@ -321,6 +325,28 @@ export async function GET(request: NextRequest) {
     console.error('Error in GET request:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+// Helper function to filter out routing/system messages
+// These messages are system-generated routing notifications that should not appear in user-facing titles
+// Examples: "Model switch — Routed to CapCraft AI", "🖼️ Image analysis — Routing to LogoCraft Pro 🎨"
+function isRoutingOrSystemMessage(msg: any): boolean {
+  if (msg.role.toLowerCase() !== 'system') {
+    return false;
+  }
+  
+  const content = msg.content.toLowerCase();
+  const routingKeywords = [
+    'model switch',
+    'routed to',
+    'routing to',
+    'image analysis',
+    'switching to',
+    'transferred to',
+    'escalated to'
+  ];
+  
+  return routingKeywords.some(keyword => content.includes(keyword));
 }
 
 // Helper function to generate intelligent fallback titles

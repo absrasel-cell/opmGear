@@ -155,7 +155,7 @@ export default function MarketplacePage() {
 
  const getVendorName = (product: MarketplaceProduct) => {
   if (product.productType === 'factory') {
-   return 'OPM Gear';
+   return 'US Custom Caps';
   }
   // Check if it's an admin uploaded product (no createdBy info)
   if (!product.createdBy?.name && !product.createdBy?.company) {
@@ -255,9 +255,9 @@ export default function MarketplacePage() {
  const availableVendors = Array.from(new Set(
   products.map(p => getVendorName(p))
  )).sort((a, b) => {
-  // Sort with OPM Gear first, then Official, then alphabetically
-  if (a === 'OPM Gear') return -1;
-  if (b === 'OPM Gear') return 1;
+  // Sort with US Custom Caps first, then Official, then alphabetically
+  if (a === 'US Custom Caps') return -1;
+  if (b === 'US Custom Caps') return 1;
   if (a === 'Official') return -1;
   if (b === 'Official') return 1;
   return a.localeCompare(b);
@@ -398,8 +398,8 @@ export default function MarketplacePage() {
                />
                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-stone-500 hover:bg-white/[0.12] peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
                 <div className="w-6 h-6 rounded bg-stone-600 flex items-center justify-center overflow-hidden">
-                 {vendor === 'OPM Gear' ? (
-                  <Image src="/opmLogo.svg" alt="OPM Gear" width={20} height={20} />
+                 {vendor === 'US Custom Caps' ? (
+                  <Image src="/opmLogo.svg" alt="US Custom Caps" width={20} height={20} />
                  ) : (
                   <span className="text-xs font-bold text-stone-300">{vendor.charAt(0)}</span>
                  )}
@@ -703,8 +703,8 @@ export default function MarketplacePage() {
              {/* Vendor Logo - Top Right */}
              <div className="absolute top-3 right-3">
               <div className="w-10 h-10 rounded-full bg-stone-600 border border-stone-500 flex items-center justify-center overflow-hidden">
-               {vendorName === 'OPM Gear' ? (
-                <Image src="/opmLogo.svg" alt="OPM Gear" width={24} height={24} />
+               {vendorName === 'US Custom Caps' ? (
+                <Image src="/opmLogo.svg" alt="US Custom Caps" width={24} height={24} />
                ) : (
                 <Image 
                  src={vendorLogo} 

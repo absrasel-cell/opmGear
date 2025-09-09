@@ -52,7 +52,7 @@ export default function Navbar() {
               <div className="relative h-14 w-auto">
                 <img 
                   src="/opmLogo.svg" 
-                  alt="OPM Gear" 
+                  alt="US Custom Caps" 
                   className={`h-14 w-auto object-contain filter ${navGlassStyles.logoFilter} transition-all duration-300`}
                 />
               </div>
@@ -179,7 +179,7 @@ export default function Navbar() {
               <div className="relative h-[95%] w-auto">
                 <img 
                   src="/opmLogo.svg" 
-                  alt="OPM Gear" 
+                  alt="US Custom Caps" 
                   className="h-full w-auto object-contain filter drop-shadow-[0_0_8px_rgba(132,204,22,0.35)]"
                 />
               </div>

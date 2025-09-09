@@ -63,9 +63,9 @@ export default function LogoutPage() {
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
           <Link href="/" className="inline-flex items-center gap-3 group">
             <span className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/80 to-orange-400/80 grid place-items-center ring-1 ring-white/20 shadow-[0_0_40px_rgba(132,204,22,0.35)] text-black font-semibold">
-              OPM
+              USC
             </span>
-            <span className="text-white font-extrabold tracking-wide text-2xl">OPM Gear</span>
+            <span className="text-white font-extrabold tracking-wide text-2xl">US Custom Caps</span>
           </Link>
           <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white">
             {logoutComplete ? "Signed out successfully" : "Signing out..."}

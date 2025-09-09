@@ -68,7 +68,7 @@ export default function AboutPage() {
       }`}>
        <div className="rounded-3xl border border-stone-600/50 bg-stone-900/60 backdrop-blur-2xl ring-1 ring-stone-700/50 p-12 shadow-2xl">
         <h1 className="text-6xl md:text-7xl font-bold text-white mb-6 bg-gradient-to-r from-lime-400 to-orange-400 bg-clip-text text-transparent">
-         About OPM Gear
+         About US Custom Caps
         </h1>
         <p className="text-xl md:text-2xl text-slate-300 max-w-4xl mx-auto leading-relaxed">
          Reimagining Custom Gear for the Next Generation
@@ -84,7 +84,7 @@ export default function AboutPage() {
       <div className="rounded-3xl border border-stone-600/50 bg-stone-900/60 backdrop-blur-xl ring-1 ring-stone-700/50 p-8 shadow-xl">
        <h2 className="text-4xl font-bold text-white mb-6">Our Vision</h2>
        <p className="text-lg text-slate-300 leading-relaxed mb-6">
-        At OPM Gear, our vision is to redefine how athletic programs and communities build identity, generate revenue, and foster connection—starting with a cap. We believe custom gear should do more than complete a uniform; it should empower teams to fund their future and fuel long-term impact.
+        At US Custom Caps, our vision is to redefine how athletic programs and communities build identity, generate revenue, and foster connection—starting with a cap. We believe custom gear should do more than complete a uniform; it should empower teams to fund their future and fuel long-term impact.
        </p>
        <p className="text-lg text-slate-300 leading-relaxed mb-6">
         We envision a world where every school, club, and organization—regardless of size or budget—can access fully branded, retail-grade headwear without relying on traditional manufacturers or inflated markups.
@@ -123,7 +123,7 @@ export default function AboutPage() {
       <div className="grid md:grid-cols-2 gap-8">
        <div>
         <p className="text-lg text-slate-300 leading-relaxed mb-6">
-         At OPM Gear, impact isn&apos;t an afterthought — it&apos;s built into every stitch. Each cap sold helps bridge the financial gap for athletic programs by reinvesting a portion of every sale directly back into the schools, teams, and organizations behind the design.
+         At US Custom Caps, impact isn&apos;t an afterthought — it&apos;s built into every stitch. Each cap sold helps bridge the financial gap for athletic programs by reinvesting a portion of every sale directly back into the schools, teams, and organizations behind the design.
         </p>
         <p className="text-lg text-slate-300 leading-relaxed">
          Whether you&apos;re a coach outfitting a roster, a student launching a team fundraiser, or a parent supporting your child&apos;s passion, your purchase contributes to more than just gear — it funds travel, uniforms, tournament fees, and essential resources.

@@ -37,16 +37,24 @@ export async function POST(
     const resolvedParams = await params;
     const conversationId = resolvedParams.id;
     const body = await request.json();
-    const { role, content, metadata, attachments = [], model, tokens, processingTime } = body;
+    const { id, role, content, metadata, attachments = [], model, tokens, processingTime, timestamp } = body;
 
-    // Enhanced logging for debugging message storage issues
+    // Enhanced logging for debugging message storage issues (including Vercel environment)
     console.log('📝 Message storage API called:', {
       conversationId,
+      messageId: id,
       role,
       contentLength: content?.length || 0,
       hasMetadata: !!metadata,
       messageType: metadata?.type || 'unknown',
-      storedViaFallback: metadata?.storedViaFallback || false
+      storedViaFallback: metadata?.storedViaFallback || false,
+      timestamp: new Date().toISOString(),
+      providedTimestamp: timestamp,
+      // Vercel debugging info
+      vercelRegion: process.env.VERCEL_REGION || 'local',
+      vercelUrl: process.env.VERCEL_URL || 'localhost',
+      functionTimeout: process.env.VERCEL_FUNCTION_TIMEOUT || 'unknown',
+      isServerless: !!process.env.LAMBDA_TASK_ROOT
     });
 
     // Validate that conversation exists before storing message
@@ -73,8 +81,64 @@ export async function POST(
       isGuest: !conversation.userId
     });
 
-    // Generate a unique message ID
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Use provided ID if available, otherwise generate a unique message ID
+    const messageId = id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Check for duplicate messages (by ID or by content)
+    if (id) {
+      console.log('🔍 Checking for existing message with ID:', messageId);
+      
+      // First check for ID duplicates
+      const { data: existingById } = await supabaseAdmin
+        .from('ConversationMessage')
+        .select('id, role, content')
+        .eq('id', messageId)
+        .single();
+
+      if (existingById) {
+        console.log('⚠️ ID DUPLICATE DETECTED:', { messageId, existingRole: existingById.role });
+        return NextResponse.json({
+          id: existingById.id,
+          success: true,
+          message: 'Message with same ID already exists',
+          conversationId,
+          skipped: true
+        });
+      }
+
+      // Second check for content duplicates (critical for fallback scenario)
+      if (content && content.length > 10) {
+        const { data: existingByContent } = await supabaseAdmin
+          .from('ConversationMessage')
+          .select('id, role, content, createdAt')
+          .eq('conversationId', conversationId)
+          .eq('role', role.toUpperCase())
+          .eq('content', content)
+          .single();
+
+        if (existingByContent) {
+          console.log('⚠️ CONTENT DUPLICATE DETECTED - Identical message already exists:', {
+            existingId: existingByContent.id,
+            existingCreatedAt: existingByContent.createdAt,
+            newMessageId: messageId,
+            role: role,
+            contentLength: content.length
+          });
+          return NextResponse.json({
+            id: existingByContent.id,
+            success: true,
+            message: 'Message with identical content already exists',
+            conversationId,
+            skipped: true,
+            duplicateType: 'content'
+          });
+        }
+      }
+
+      console.log('✅ No existing message found (ID or content) - proceeding with insertion');
+    } else {
+      console.log('🆕 No ID provided, generating new message ID');
+    }
 
     // Create the message - using supabaseAdmin means no session required
     const { data: message, error: createError } = await supabaseAdmin
@@ -97,7 +161,7 @@ export async function POST(
         model,
         tokens,
         processingTime,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp || new Date().toISOString(), // Use provided timestamp if available
         updatedAt: new Date().toISOString(), // Fix: Add missing updatedAt field
       })
       .select()

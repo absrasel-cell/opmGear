@@ -139,10 +139,10 @@ export default function StorePage() {
   // Vendor helper functions from Admin Marketplace
   const getVendorName = (product: StoreProduct) => {
     if (product.productType === 'factory') {
-      return 'OPM Gear';
+      return 'US Custom Caps';
     }
     // For other products without specific vendor info, default to brand names
-    return 'OPM Gear';
+    return 'US Custom Caps';
   };
 
   const getVendorLogo = (product: StoreProduct) => {
@@ -156,9 +156,9 @@ export default function StorePage() {
   const availableVendors = Array.from(new Set(
     products.map(p => getVendorName(p))
   )).sort((a, b) => {
-    // Sort with OPM Gear first, then Official, then alphabetically
-    if (a === 'OPM Gear') return -1;
-    if (b === 'OPM Gear') return 1;
+    // Sort with US Custom Caps first, then Official, then alphabetically
+    if (a === 'US Custom Caps') return -1;
+    if (b === 'US Custom Caps') return 1;
     if (a === 'Official') return -1;
     if (b === 'Official') return 1;
     return a.localeCompare(b);
@@ -360,8 +360,8 @@ export default function StorePage() {
                         />
                         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
                           <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center overflow-hidden">
-                            {vendor === 'OPM Gear' ? (
-                              <Image src="/opmLogo.svg" alt="OPM Gear" width={16} height={16} />
+                            {vendor === 'US Custom Caps' ? (
+                              <Image src="/opmLogo.svg" alt="US Custom Caps" width={16} height={16} />
                             ) : (
                               <span className="text-xs font-bold text-white/70">{vendor.charAt(0)}</span>
                             )}
@@ -663,8 +663,8 @@ export default function StorePage() {
                               />
                               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/15 hover:bg-white/[0.12] backdrop-blur-sm peer-checked:bg-white/[0.15] peer-checked:border-lime-300/40 transition-all duration-300 shadow-sm">
                                 <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center overflow-hidden">
-                                  {vendor === 'OPM Gear' ? (
-                                    <Image src="/opmLogo.svg" alt="OPM Gear" width={20} height={20} />
+                                  {vendor === 'US Custom Caps' ? (
+                                    <Image src="/opmLogo.svg" alt="US Custom Caps" width={20} height={20} />
                                   ) : (
                                     <span className="text-xs font-bold text-white/70">{vendor.charAt(0)}</span>
                                   )}
@@ -1248,7 +1248,7 @@ export default function StorePage() {
                               <div className="min-w-0">
                                 <h3 className="text-[18px] font-bold tracking-tight text-white truncate drop-shadow-sm">{product.name}</h3>
                                 <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-white/90 drop-shadow-sm">OPM Gear</span>
+                                  <span className="text-sm font-semibold text-white/90 drop-shadow-sm">US Custom Caps</span>
                                   <span className="text-white/20">•</span>
                                   <span className="text-sm font-medium text-white/80">{product.priceTier || 'Standard'}</span>
                                 </div>

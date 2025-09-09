@@ -461,69 +461,66 @@ export default function SupportPage() {
       let currentConversationId: string | null = existingConversationId || conversationId;
       
       if (!currentConversationId) {
-        console.log('⚠️ No conversationId provided - this should not happen with new pre-AI conversation creation');
-        console.log('💾 Creating fallback conversation...');
-        const conversationResponse = await fetch('/api/conversations', {
-          method: 'POST',
-          headers: authHeaders,
-          body: JSON.stringify({
-            userId: userId, // null for guest users
-            sessionId: sessionId,
-            context: intent === 'ORDER_CREATION' ? 'QUOTE_REQUEST' : 'SUPPORT',
-            title: intent === 'ORDER_CREATION' ? 'Quote Request' : 'Support Conversation',
-            metadata: {
-              intent,
-              hasQuoteData: !!quoteData,
-              quoteStatus: intent === 'ORDER_CREATION' && quoteData ? 'QUOTE_PENDING' : undefined,
-              firstMessage: userMessage.content.substring(0, 100),
-              storageMethod: useSessionAuth ? 'session_auth' : 'sessionless',
-              orderBuilder: {
-                capDetails: currentQuoteData?.capDetails,
-                customization: currentQuoteData?.customization,
-                delivery: currentQuoteData?.delivery,
-                pricing: currentQuoteData?.pricing,
-                orderBuilderStatus: orderBuilderStatus,
-                leadTimeData: leadTimeData,
-                timestamp: new Date().toISOString()
-              },
-              userProfile: {
-                name: userProfile?.name || authUser?.name,
-                email: userProfile?.email || authUser?.email,
-                company: userProfile?.company,
-                phone: userProfile?.phone,
-                address: userProfile?.address
-              },
-              session: {
-                sessionId: sessionId,
-                uploadedFiles: uploadedFiles.length > 0 ? uploadedFiles : undefined,
-                isGuest: !authUser,
-                userAgent: navigator?.userAgent?.substring(0, 100)
-              }
-            }
-          })
-        });
-
-        if (conversationResponse.ok) {
-          const newConversation = await conversationResponse.json();
-          currentConversationId = newConversation.id;
-          setConversationId(currentConversationId);
-          console.log('✅ Conversation created successfully:', {
-            conversationId: currentConversationId,
-            userId: userId || 'GUEST',
-            context: newConversation.context
-          });
-        } else {
-          const errorText = await conversationResponse.text();
-          console.error('❌ Failed to create conversation:', {
-            status: conversationResponse.status,
-            statusText: conversationResponse.statusText,
-            error: errorText
-          });
-          throw new Error(`Conversation creation failed: ${errorText}`);
-        }
+        console.error('❌ CRITICAL: No conversationId provided - this indicates pre-AI conversation creation failed');
+        console.error('💥 PRE-AI CREATION ISSUE: The conversation should have been created BEFORE the AI call');
+        throw new Error('No conversation ID available - cannot store messages without a conversation. Pre-AI creation failed.');
       }
 
-      // SEQUENTIAL MESSAGE STORAGE to prevent race conditions
+      // CHECK IF MESSAGES ALREADY STORED BY AI API
+      console.log('🔍 Checking if messages were already stored by AI API...');
+      
+      // For quote generation, the order-ai API already stores messages directly
+      // Skip message storage but still update conversation metadata
+      if (intent === 'ORDER_CREATION' && quoteData) {
+        console.log('✅ SKIPPING message storage - AI API already stored messages for quote generation');
+        console.log('🎯 Quote data available - messages already in database via order-ai API');
+        
+        // However, we still need to update the conversation metadata with the latest Order Builder data
+        console.log('🔄 Updating conversation metadata with fresh quote data...');
+        try {
+          const metadataUpdate = await fetch(`/api/conversations/${currentConversationId}`, {
+            method: 'PATCH',
+            headers: authHeaders,
+            body: JSON.stringify({
+              metadata: {
+                intent,
+                hasQuoteData: true,
+                quoteStatus: 'QUOTE_GENERATED',
+                lastUpdated: new Date().toISOString(),
+                orderBuilder: {
+                  // CRITICAL FIX: Use the fresh AI-extracted data for accurate Current AI Values
+                  capDetails: quoteData?.capDetails || currentQuoteData?.capDetails,
+                  customization: quoteData?.customization || currentQuoteData?.customization,
+                  delivery: quoteData?.delivery || currentQuoteData?.delivery,
+                  pricing: quoteData?.pricing || currentQuoteData?.pricing,
+                  orderBuilderStatus: orderBuilderStatus,
+                  leadTimeData: leadTimeData,
+                  timestamp: new Date().toISOString()
+                },
+                userProfile: {
+                  name: userProfile?.name || authUser?.name,
+                  email: userProfile?.email || authUser?.email,
+                  company: userProfile?.company,
+                  phone: userProfile?.phone,
+                  address: userProfile?.address
+                }
+              }
+            })
+          });
+          
+          if (metadataUpdate.ok) {
+            console.log('✅ Conversation metadata updated successfully with fresh quote data');
+          } else {
+            console.error('❌ Failed to update conversation metadata:', await metadataUpdate.text());
+          }
+        } catch (metadataError) {
+          console.error('❌ Error updating conversation metadata:', metadataError);
+        }
+        
+        return; // Exit early - no need to store messages again
+      }
+
+      // SEQUENTIAL MESSAGE STORAGE to prevent race conditions (for non-quote messages only)
       console.log('🔄 Starting sequential message storage to prevent duplicates...');
 
       // Store routing message first (if available) to preserve conversation flow
@@ -619,10 +616,11 @@ export default function SupportPage() {
                 { role: assistantMessage.role, content: assistantMessage.content }
               ],
               orderBuilder: {
-                capDetails: currentQuoteData?.capDetails,
-                customization: currentQuoteData?.customization,
-                delivery: currentQuoteData?.delivery,
-                quoteData: currentQuoteData
+                // CRITICAL FIX: Store the AI-extracted data instead of existing currentQuoteData
+                capDetails: quoteData?.capDetails || currentQuoteData?.capDetails,
+                customization: quoteData?.customization || currentQuoteData?.customization,
+                delivery: quoteData?.delivery || currentQuoteData?.delivery,
+                quoteData: quoteData || currentQuoteData
               },
               userProfile: {
                 name: userProfile?.name || authUser?.name,
@@ -4117,6 +4115,7 @@ Would you like me to save this quote or would you like to modify any specificati
 
       const updatedMetadata = {
         orderBuilder: {
+          // Use current quote data for live updates (this should match what's displayed)
           capDetails: currentQuoteData?.capDetails,
           customization: currentQuoteData?.customization,
           delivery: currentQuoteData?.delivery,

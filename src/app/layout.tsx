@@ -12,8 +12,8 @@ import ConditionalFooter from "@/components/ConditionalFooter";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OPM Gear — Custom Caps",
-  description: "Neon-smooth customization, live previews, wholesale-ready cart, role-based access.",
+  title: "US Custom Caps — Custom Baseball Caps",
+  description: "Premium custom baseball caps with live previews, wholesale pricing, and professional customization tools.",
 };
 
 export default function RootLayout({

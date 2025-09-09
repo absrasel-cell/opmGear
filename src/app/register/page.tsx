@@ -162,7 +162,7 @@ export default function RegisterPage() {
               <div className="relative h-16 w-auto">
                 <img 
                   src="/opmLogo.svg" 
-                  alt="OPM Gear" 
+                  alt="US Custom Caps" 
                   className="h-16 w-auto object-contain filter drop-shadow-[0_0_15px_rgba(132,204,22,0.4)]"
                 />
               </div>

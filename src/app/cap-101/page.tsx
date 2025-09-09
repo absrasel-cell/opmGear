@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 export const metadata = {
-  title: "Cap 101 | OPM Gear — Custom Caps",
+  title: "Cap 101 | US Custom Caps — Custom Baseball Caps",
   description:
     "Learn how our custom cap process works: styles, fabrics, logos, pricing tiers, and delivery. A quick guide to building your perfect cap.",
 };
