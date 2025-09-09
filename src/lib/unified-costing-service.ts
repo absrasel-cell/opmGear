@@ -28,7 +28,7 @@ import {
   loadBaseProductPricing
 } from './costing-knowledge-base';
 
-import { calculateUnitPrice } from './pricing';
+import { calculateUnitPrice } from './pricing-server';
 
 // Main service class
 export class UnifiedCostingService {
@@ -119,7 +119,7 @@ export class UnifiedCostingService {
    */
   private async calculateBaseProductCost(context: CostingContext): Promise<number> {
     const tier = context.productTier || BUSINESS_RULES.DEFAULTS.productTier;
-    const unitPrice = calculateUnitPrice(context.quantity, tier);
+    const unitPrice = await calculateUnitPrice(context.quantity, tier);
     return unitPrice * context.quantity;
   }
 

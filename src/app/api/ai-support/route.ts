@@ -204,11 +204,6 @@ export async function POST(request: NextRequest) {
   if (conversationHistory.length === 0 && !conversation.title && message?.trim().length > 0) {
     try {
       console.log('🎯 Generating title for new conversation:', conversation.id);
-      
-      // Create AbortController for timeout handling
-      const titleController = new AbortController();
-      const titleTimeoutId = setTimeout(() => titleController.abort(), 8000); // 8 second timeout for title generation
-
       const titleResponse = await getOpenAIClient()?.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -220,11 +215,7 @@ export async function POST(request: NextRequest) {
         ],
         temperature: 0.3,
         max_tokens: 50
-      }, {
-        signal: titleController.signal
       });
-
-      clearTimeout(titleTimeoutId);
 
       const generatedTitle = titleResponse?.choices[0]?.message?.content?.trim();
       if (generatedTitle && generatedTitle.length > 0) {
@@ -316,10 +307,6 @@ If user mentions "quote" or pricing after logo analysis, check if logo analysis 
 
 Respond with JSON: {"intent": "INTENT_NAME", "confidence": 0.0-1.0, "reasoning": "explanation"}`;
 
-  // Create AbortController for timeout handling
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for intent detection
-
   const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o-mini",
    messages: [
@@ -328,11 +315,7 @@ Respond with JSON: {"intent": "INTENT_NAME", "confidence": 0.0-1.0, "reasoning":
    ],
    temperature: 0.1,
    max_tokens: 200
-  }, {
-   signal: controller.signal
   });
-
-  clearTimeout(timeoutId);
 
   const result = JSON.parse(response.choices[0]?.message?.content || '{"intent": "GENERAL_SUPPORT", "confidence": 0.5}');
   
@@ -461,10 +444,6 @@ Customer Role: ${userProfile?.customerRole || 'RETAIL'}
 Provide professional logo analysis with clear next steps for quote generation.`;
 
  try {
-  // Create AbortController for timeout handling - logo analysis needs extended timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
-
   const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o",
    messages: [
@@ -473,11 +452,7 @@ Provide professional logo analysis with clear next steps for quote generation.`;
    ],
    temperature: 0.2,
    max_tokens: 1500
-  }, {
-   signal: controller.signal
   });
-
-  clearTimeout(timeoutId);
 
   const aiResponse = response.choices[0]?.message?.content || 'Analysis complete.';
   
@@ -485,17 +460,6 @@ Provide professional logo analysis with clear next steps for quote generation.`;
   
  } catch (error) {
   console.error('LogoCraft Pro response failed:', error);
-  
-  // Check if this is a timeout error
-  const isTimeoutError = error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('aborted');
-  
-  if (isTimeoutError) {
-    return formatAssistantResponse(
-     AI_ASSISTANTS.LOGO_EXPERT, 
-     'Your logo analysis is taking longer than expected due to complex image processing. This often happens with detailed logos or high-resolution images.\n\nI\'m working on analyzing your logo for:\n• Embroidery compatibility\n• Color count and complexity\n• Recommended customization methods\n• Size and placement options\n• Cost optimization\n\nPlease try uploading your logo again, or provide a description of your logo requirements if the image is very large.'
-    );
-  }
-  
   return formatAssistantResponse(
    AI_ASSISTANTS.LOGO_EXPERT, 
    'I\'m ready to analyze your logo! Please upload your logo image or PDF file and I\'ll provide detailed customization recommendations with accurate pricing.'
@@ -665,10 +629,6 @@ Customer Role: ${userProfile?.customerRole || 'RETAIL'}
 Focus on converting inquiries into orders with comprehensive, accurate quotes that seamlessly incorporate LogoCraft Pro's analysis.`;
 
  try {
-  // Create AbortController for timeout handling - extended timeout for complex quote calculations
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 40000); // 40 second timeout for complex calculations
-
   const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o-mini", 
    messages: [
@@ -677,11 +637,7 @@ Focus on converting inquiries into orders with comprehensive, accurate quotes th
    ],
    temperature: 0.3,
    max_tokens: 2000
-  }, {
-   signal: controller.signal
   });
-
-  clearTimeout(timeoutId);
 
   const aiResponse = response.choices[0]?.message?.content || 'Quote generation complete.';
   
@@ -694,17 +650,6 @@ Focus on converting inquiries into orders with comprehensive, accurate quotes th
   
  } catch (error) {
   console.error('CapCraft AI response failed:', error);
-  
-  // Check if this is a timeout error
-  const isTimeoutError = error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('aborted');
-  
-  if (isTimeoutError) {
-    return formatAssistantResponse(
-     AI_ASSISTANTS.QUOTE_MASTER, 
-     'Your quote request is complex and requires detailed calculations. This often happens with premium fabrics and customizations.\n\nI\'m working on calculating accurate pricing that includes blank cap costs, premium materials, customization, and delivery.\n\nPlease provide your requirements again, or if urgent, let me start with basic details:\n• Quantity needed\n• Cap style preference\n• Logo/customization type\n• Preferred delivery timeline'
-    );
-  }
-  
   return formatAssistantResponse(
    AI_ASSISTANTS.QUOTE_MASTER, 
    'I\'m ready to create your custom cap quote! Please provide details about quantity, colors, logo requirements, and any specific preferences.'
@@ -749,10 +694,6 @@ Customer Role: ${userProfile?.customerRole || 'RETAIL'}
 Provide helpful, accurate support responses. If the customer needs logo analysis or quotes, mention our specialist AIs.`;
 
  try {
-  // Create AbortController for timeout handling
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for support queries
-
   const response = await getOpenAIClient().chat.completions.create({
    model: "gpt-4o-mini",
    messages: [
@@ -761,11 +702,7 @@ Provide helpful, accurate support responses. If the customer needs logo analysis
    ],
    temperature: 0.7,
    max_tokens: 800
-  }, {
-   signal: controller.signal
   });
-
-  clearTimeout(timeoutId);
 
   const aiResponse = response.choices[0]?.message?.content || 'How can I help you today?';
   

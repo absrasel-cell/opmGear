@@ -528,7 +528,10 @@
       "Bash(start:*)",
       "Bash(PORT=3010 npm run dev)",
       "Read(//c/Users/Rasel/Downloads/Documents/**)",
-      "Read(//f/BackUp Next.js/44/src/**)"
+      "Read(//f/BackUp Next.js/44/src/**)",
+      "Bash(git reset:*)",
+      "Bash(PORT=3004 npm run dev)",
+      "Bash(PORT=3000 npm run dev)"
     ],
     "deny": [],
     "ask": [],

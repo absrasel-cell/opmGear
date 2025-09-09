@@ -554,6 +554,7 @@ RESPONSE FORMAT: Provide a detailed JSON response with:
    "closure": "...",
    "fabric": "...",
    "premiumFabric": "...", // If premium fabric specified
+   "stitching": "...", // Required: Matching, Contrasting, or color name
    "colors": ["..."],
    "sizes": ["..."],
    "quantityBreakdown": [
@@ -767,44 +768,70 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
 5. Set pricing.premiumClosureCost = closure_cost
 6. Include in total: total = baseProductCost + premiumClosureCost + logosCost + deliveryCost`;
 
-  // Call OpenAI API using GPT-4o Mini for order creation with extended timeout
-  // Create AbortController for timeout handling
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    console.error('⏰ OpenAI API timeout after 45 seconds - aborting request');
-    controller.abort();
-  }, 45000); // 45 second timeout for complex quote calculations with premium fabrics
+  // Call OpenAI API using GPT-4o Mini for order creation with timeout and retry logic
+  const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number = 120000) => {
+   const controller = new AbortController();
+   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+   
+   try {
+    const response = await fetch(url, {
+     ...options,
+     signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+     throw new Error('Request timeout: OpenAI API call exceeded 2 minutes');
+    }
+    throw error;
+   }
+  };
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-   method: 'POST',
-   headers: {
-    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-    'Content-Type': 'application/json',
-   },
-   body: JSON.stringify({
-    model: quoteMaster.model, // Using QuoteMaster AI configuration
-    messages: [
-     { role: 'system', content: enhancedSystemPrompt },
-     { role: 'user', content: userPrompt }
-    ],
-    temperature: quoteMaster.temperature,
-    max_tokens: quoteMaster.maxTokens,
-    response_format: { type: 'json_object' }
-   }),
-   signal: controller.signal
-  });
-
-  clearTimeout(timeoutId);
+  let response;
+  let retryCount = 0;
+  const maxRetries = 2;
+  
+  while (retryCount <= maxRetries) {
+   try {
+    response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+     method: 'POST',
+     headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+     },
+     body: JSON.stringify({
+      model: quoteMaster.model, // Using QuoteMaster AI configuration
+      messages: [
+       { role: 'system', content: enhancedSystemPrompt },
+       { role: 'user', content: userPrompt }
+      ],
+      temperature: quoteMaster.temperature,
+      max_tokens: quoteMaster.maxTokens,
+      response_format: { type: 'json_object' }
+     }),
+    }, 120000); // 2-minute timeout
+    break; // Success, exit retry loop
+   } catch (error) {
+    console.error(`OpenAI API attempt ${retryCount + 1} failed:`, error);
+    retryCount++;
+    
+    if (retryCount > maxRetries) {
+     console.error('All OpenAI API retry attempts failed');
+     throw error;
+    }
+    
+    // Wait before retry (exponential backoff)
+    const waitTime = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
+    console.log(`Retrying in ${waitTime}ms...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+   }
+  }
 
   if (!response.ok) {
    const errorText = await response.text();
    console.error('OpenAI API error:', response.status, response.statusText, errorText);
-   
-   // Check for specific timeout/rate limit errors
-   if (response.status === 408 || response.status === 504 || response.status === 524) {
-     throw new Error(`Request timeout: The quote calculation is taking longer than expected. This often happens with complex requests involving premium fabrics and customizations.`);
-   }
-   
    throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
   }
 
@@ -817,70 +844,108 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
   }
 
   let orderResponse;
-  try {
-   orderResponse = JSON.parse(content);
-  } catch (parseError) {
-   console.error('Failed to parse OpenAI response:', content);
+  
+  // Enhanced JSON parsing with multiple fallback strategies
+  const parseWithFallbacks = (jsonString: string) => {
+   const fallbackStrategies = [
+    // Strategy 1: Direct parse
+    () => JSON.parse(jsonString),
+    
+    // Strategy 2: Clean common JSON issues
+    () => {
+     let cleanedString = jsonString
+      .replace(/^\s*```json\s*/, '') // Remove markdown code blocks
+      .replace(/\s*```\s*$/, '')
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+      .trim();
+     
+     // Fix common truncation issues
+     if (!cleanedString.endsWith('}')) {
+      const lastBrace = cleanedString.lastIndexOf('}');
+      if (lastBrace > -1) {
+       cleanedString = cleanedString.substring(0, lastBrace + 1);
+      }
+     }
+     
+     return JSON.parse(cleanedString);
+    },
+    
+    // Strategy 3: Extract JSON from text content
+    () => {
+     const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+     if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+     }
+     throw new Error('No JSON found in response');
+    },
+    
+    // Strategy 4: Build minimal valid response from key fields
+    () => {
+     const messageMatch = jsonString.match(/"message":\s*"([^"]+)"/);
+     const quantityMatch = message.match(/\d+/);
+     
+     return {
+      message: messageMatch?.[1] || `I understand you're looking for a quote for ${quantityMatch?.[0] || 'your'} custom caps. Let me help you with detailed pricing.`,
+      quoteData: null,
+      actions: ["create_detailed_quote", "modify_specs"]
+     };
+    }
+   ];
    
-   // Enhanced fallback response with better error handling
+   for (let i = 0; i < fallbackStrategies.length; i++) {
+    try {
+     const result = fallbackStrategies[i]();
+     if (i > 0) {
+      console.log(`JSON parsing succeeded using fallback strategy ${i + 1}`);
+     }
+     return result;
+    } catch (error) {
+     if (i === fallbackStrategies.length - 1) {
+      console.error(`All JSON parsing strategies failed. Original content: ${jsonString.substring(0, 500)}...`);
+      throw error;
+     }
+    }
+   }
+  };
+
+  try {
+   orderResponse = parseWithFallbacks(content);
+   
+   // Validate essential fields
+   if (!orderResponse.message) {
+    orderResponse.message = "I understand you're looking for a quote. Let me help you with that.";
+   }
+   
+   // Ensure actions array exists
+   if (!orderResponse.actions) {
+    orderResponse.actions = ["create_detailed_quote", "modify_specs"];
+   }
+   
+  } catch (parseError) {
+   console.error('All JSON parsing strategies failed:', parseError);
+   
+   // Final fallback - create structured response from message analysis
    const extractedQuantity = message.match(/\d+/)?.[0] || 'specified';
    const hasQuantity = extractedQuantity !== 'specified';
-   const hasAcrylicFabric = message.toLowerCase().includes('acrylic');
-   const has3DEmbroidery = message.toLowerCase().includes('3d embroidery');
-   
-   // Check if this was a timeout error specifically
-   const isTimeoutError = parseError.name === 'AbortError' || parseError.message?.includes('aborted');
+   const colorMatch = message.match(/\b(red|blue|black|white|green|yellow|navy|gray|khaki)\b/gi);
+   const sizeMatch = message.match(/\b(small|medium|large|xl|xxl|fitted|one size)\b/gi);
    
    orderResponse = {
-    message: isTimeoutError ? 
-    `I understand you're looking for a quote for ${hasQuantity ? extractedQuantity + ' pieces' : 'custom caps'}${hasAcrylicFabric ? ' with Acrylic fabric' : ''}${has3DEmbroidery ? ' and 3D embroidery' : ''}.
-
-Your request is complex and requires detailed calculations. Let me process this step by step:
-
-${hasQuantity ? `✅ Quantity: ${extractedQuantity} pieces` : '• Please specify the exact quantity'}
-${hasAcrylicFabric ? '✅ Premium Acrylic fabric noted' : ''}  
-${has3DEmbroidery ? '✅ 3D embroidery customization noted' : ''}
-
-I'm generating a comprehensive quote with:
-• Accurate blank cap pricing for your quantity
-• Premium fabric costs (if applicable)  
-• Customization pricing breakdown
-• Delivery costs and timeline
-• Total investment calculation
-
-Please allow me a moment to calculate precise pricing from our latest data. If you need immediate assistance, please provide:
-• Exact quantity needed
-• Preferred colors
-• Logo/design requirements
-• Any deadline requirements
-
-I'll provide detailed, accurate pricing - not estimates.` :
-    
-    `I understand you're looking for a quote. Let me help you with that request.
+    message: `I understand you're looking for a quote. Let me help you with that request.
 
 Based on your message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"
 
-${hasQuantity ? `I see you mentioned ${extractedQuantity} pieces.` : ''} Let me create a detailed quote for you. 
+${hasQuantity ? `I see you mentioned ${extractedQuantity} pieces. ` : ''}${colorMatch ? `You mentioned ${colorMatch.join(', ')} colors. ` : ''}${sizeMatch ? `Size requirements: ${sizeMatch.join(', ')}. ` : ''}
 
-To provide the most accurate pricing, please confirm:
+To provide you with accurate pricing, please confirm:
 • The exact quantity you need
 • Your preferred cap style and colors  
 • What type of customization you're looking for (embroidery, patches, etc.)
 • Any specific requirements or deadlines
 
 I'll get back to you with precise pricing based on your specifications, including all costs for materials, customization, and delivery.`,
-    
     quoteData: null,
-    actions: ["create_detailed_quote", "modify_specs"],
-    metadata: {
-     errorType: isTimeoutError ? 'timeout' : 'parse_error',
-     hasQuantity,
-     extractedQuantity: hasQuantity ? extractedQuantity : null,
-     detectedFeatures: {
-      acrylicFabric: hasAcrylicFabric,
-      threeDEmbroidery: has3DEmbroidery
-     }
-    }
+    actions: ["create_detailed_quote", "modify_specs"]
    };
   }
 
@@ -1192,16 +1257,10 @@ I'll get back to you with precise pricing based on your specifications, includin
   // Get QuoteMaster AI assistant configuration for error response
   const quoteMasterError = AI_ASSISTANTS.QUOTE_MASTER;
   
-  // Check if this is a timeout error
-  const isTimeoutError = error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('aborted');
-  
   return NextResponse.json(
    { 
-    message: isTimeoutError ? 
-     "Your quote request is complex and requires extended processing time. This often happens with premium fabrics like Acrylic and detailed customizations like 3D embroidery.\n\nI'm working on calculating accurate pricing that includes:\n• Blank cap costs\n• Premium fabric costs\n• Customization pricing\n• Delivery costs\n\nPlease try your request again, or if urgent, provide simplified details and I'll build a basic quote first." :
-     "I apologize, but I'm having trouble creating your quote right now. Please try rephrasing your request with specific details like quantity, colors, and customization requirements.",
-    error: isTimeoutError ? 'Request timeout - complex calculation' : 'Processing failed',
-    isTimeout: isTimeoutError,
+    message: "I apologize, but I'm having trouble creating your quote right now. Please try rephrasing your request with specific details like quantity, colors, and customization requirements.",
+    error: 'Processing failed',
     assistant: {
      id: quoteMasterError.id,
      name: quoteMasterError.name,
@@ -1213,7 +1272,7 @@ I'll get back to you with precise pricing based on your specifications, includin
     },
     model: quoteMasterError.model
    },
-   { status: isTimeoutError ? 408 : 500 }
+   { status: 500 }
   );
  }
 }

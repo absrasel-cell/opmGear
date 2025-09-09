@@ -1428,6 +1428,26 @@ export default function SupportPage() {
           console.log('✅ [FABRIC-FIX] Enhanced structured data with fabric:', messageQuoteData.capDetails.fabric);
         }
       }
+
+      // CRITICAL FIX: Dynamic user specification extraction and enhancement
+      if (extractedQuoteData && extractedQuoteData.capDetails) {
+        console.log('🔧 [DYNAMIC-UPDATE] Enhancing quote data with user-specified requirements');
+        
+        // Get the user's latest message for specification extraction
+        const userMessage = messages[messages.length - 2]?.content || lastUserMessage;
+        
+        if (userMessage) {
+          const enhancedCapDetails = enhanceQuoteDataFromUserInput(userMessage, extractedQuoteData.capDetails);
+          extractedQuoteData.capDetails = { ...extractedQuoteData.capDetails, ...enhancedCapDetails };
+          
+          console.log('✅ [DYNAMIC-UPDATE] Enhanced quote data with user specifications:', {
+            originalSize: extractedQuoteData.capDetails.size,
+            originalColors: extractedQuoteData.capDetails.colors,
+            originalClosure: extractedQuoteData.capDetails.closure,
+            originalStitching: extractedQuoteData.capDetails.stitching
+          });
+        }
+      }
       
       if (extractedQuoteData && detectedIntent === 'ORDER_CREATION') {
         // Format quote data for display
@@ -1648,6 +1668,176 @@ export default function SupportPage() {
     });
   };
   
+  // Enhanced function to extract user specifications and update quote data
+  const enhanceQuoteDataFromUserInput = (userMessage: string, currentCapDetails: any): any => {
+    console.log('🔍 [USER-SPEC-EXTRACT] Processing user message:', userMessage.substring(0, 100));
+    
+    const enhancements: any = {};
+    
+    // Extract color specifications
+    const colorMatch = userMessage.match(/\b(red|blue|black|white|green|yellow|navy|gray|grey|brown|khaki|orange|purple)\b/gi);
+    if (colorMatch && colorMatch.length > 0) {
+      // Capitalize colors and remove duplicates
+      const uniqueColors = [...new Set(colorMatch.map(color => 
+        color.charAt(0).toUpperCase() + color.slice(1).toLowerCase()
+      ))];
+      enhancements.colors = uniqueColors;
+      enhancements.color = uniqueColors[0]; // Set primary color
+      console.log('✅ [USER-SPEC] Extracted colors:', uniqueColors);
+    }
+    
+    // Extract size specifications
+    const sizePatterns = [
+      /\b(small|medium|large|xl|xxl|fitted)\b/gi,
+      /\b(one size|adjustable|universal)\b/gi,
+      /\b(\d+\s*cm|\d+\.\d+\s*cm)\b/gi, // Size in cm
+      /\b(7\s*1\/8|7\s*1\/4|7\s*3\/8|7\s*1\/2|7\s*5\/8|7\s*3\/4|7\s*7\/8|8)\b/gi // Hat sizes
+    ];
+    
+    for (const pattern of sizePatterns) {
+      const sizeMatch = userMessage.match(pattern);
+      if (sizeMatch && sizeMatch.length > 0) {
+        let extractedSize = sizeMatch[0].toLowerCase();
+        
+        // Normalize size values
+        if (extractedSize === 'fitted') {
+          // Don't set size for fitted - this is a closure type
+          continue;
+        } else if (['small', 'medium', 'large', 'xl', 'xxl'].includes(extractedSize)) {
+          extractedSize = extractedSize.charAt(0).toUpperCase() + extractedSize.slice(1);
+        } else if (extractedSize.includes('one size') || extractedSize.includes('adjustable')) {
+          extractedSize = 'One Size';
+        }
+        
+        enhancements.size = extractedSize;
+        console.log('✅ [USER-SPEC] Extracted size:', extractedSize);
+        break;
+      }
+    }
+    
+    // Extract closure specifications (including fitted)
+    const closurePatterns = [
+      /\b(fitted|snapback|adjustable|velcro|buckle|elastic)\b/gi,
+      /closure:\s*([^\s,]+)/gi
+    ];
+    
+    for (const pattern of closurePatterns) {
+      const closureMatch = userMessage.match(pattern);
+      if (closureMatch && closureMatch.length > 0) {
+        let extractedClosure = closureMatch[0].toLowerCase();
+        
+        // Normalize closure values
+        if (extractedClosure === 'fitted') {
+          extractedClosure = 'Fitted';
+        } else if (extractedClosure === 'snapback') {
+          extractedClosure = 'Snapback';
+        } else if (extractedClosure === 'adjustable') {
+          extractedClosure = 'Adjustable';
+        } else if (extractedClosure === 'velcro') {
+          extractedClosure = 'Velcro';
+        } else if (extractedClosure === 'buckle') {
+          extractedClosure = 'Buckle';
+        }
+        
+        enhancements.closure = extractedClosure;
+        console.log('✅ [USER-SPEC] Extracted closure:', extractedClosure);
+        break;
+      }
+    }
+    
+    // Extract stitching specifications
+    const stitchingPatterns = [
+      /stitching:\s*([^\s,]+)/gi,
+      /\b(matching|contrasting|black|white|red|blue)\s*stitching\b/gi,
+      /stitch.*?(matching|contrasting|black|white|red|blue)/gi
+    ];
+    
+    for (const pattern of stitchingPatterns) {
+      const stitchingMatch = userMessage.match(pattern);
+      if (stitchingMatch && stitchingMatch.length > 0) {
+        let extractedStitching = stitchingMatch[0];
+        
+        // Extract just the stitching type
+        if (extractedStitching.includes('matching')) {
+          extractedStitching = 'Matching';
+        } else if (extractedStitching.includes('contrasting')) {
+          extractedStitching = 'Contrasting';
+        } else if (extractedStitching.includes('black')) {
+          extractedStitching = 'Black';
+        } else if (extractedStitching.includes('white')) {
+          extractedStitching = 'White';
+        } else if (extractedStitching.includes('red')) {
+          extractedStitching = 'Red';
+        } else if (extractedStitching.includes('blue')) {
+          extractedStitching = 'Blue';
+        }
+        
+        enhancements.stitching = extractedStitching;
+        enhancements.stitch = extractedStitching; // Support both fields
+        console.log('✅ [USER-SPEC] Extracted stitching:', extractedStitching);
+        break;
+      }
+    }
+    
+    // Extract fabric specifications
+    const fabricPatterns = [
+      /\b(acrylic|cotton|polyester|mesh|trucker|suede|leather|canvas|denim)\b/gi,
+      /fabric:\s*([^\s,]+)/gi
+    ];
+    
+    for (const pattern of fabricPatterns) {
+      const fabricMatch = userMessage.match(pattern);
+      if (fabricMatch && fabricMatch.length > 0) {
+        let extractedFabric = fabricMatch[0];
+        
+        // Normalize fabric values
+        if (extractedFabric.toLowerCase().includes('acrylic')) {
+          extractedFabric = 'Acrylic';
+        } else if (extractedFabric.toLowerCase().includes('mesh')) {
+          extractedFabric = 'Air Mesh';
+        } else if (extractedFabric.toLowerCase().includes('trucker')) {
+          extractedFabric = 'Trucker Mesh';
+        } else if (extractedFabric.toLowerCase().includes('suede')) {
+          extractedFabric = 'Suede Cotton';
+        } else if (extractedFabric.toLowerCase().includes('leather')) {
+          extractedFabric = 'Genuine Leather';
+        }
+        
+        enhancements.fabric = extractedFabric;
+        console.log('✅ [USER-SPEC] Extracted fabric:', extractedFabric);
+        break;
+      }
+    }
+    
+    // Extract profile specifications
+    const profilePatterns = [
+      /\b(high|mid|medium|low)\s*profile\b/gi,
+      /profile:\s*([^\s,]+)/gi
+    ];
+    
+    for (const pattern of profilePatterns) {
+      const profileMatch = userMessage.match(pattern);
+      if (profileMatch && profileMatch.length > 0) {
+        let extractedProfile = profileMatch[0];
+        
+        if (extractedProfile.toLowerCase().includes('high')) {
+          extractedProfile = 'High';
+        } else if (extractedProfile.toLowerCase().includes('mid') || extractedProfile.toLowerCase().includes('medium')) {
+          extractedProfile = 'Mid';
+        } else if (extractedProfile.toLowerCase().includes('low')) {
+          extractedProfile = 'Low';
+        }
+        
+        enhancements.profile = extractedProfile;
+        console.log('✅ [USER-SPEC] Extracted profile:', extractedProfile);
+        break;
+      }
+    }
+    
+    console.log('🔧 [USER-SPEC-EXTRACT] Final enhancements:', enhancements);
+    return enhancements;
+  };
+
   // Helper function to generate descriptive labels for quote versions
   const parseQuoteFromMessage = (message: string): any => {
     try {
@@ -4761,6 +4951,9 @@ Please provide a detailed quote with cost breakdown.`;
                                 )}
                                 {currentQuoteData.capDetails.closure && (
                                   <div className="text-white/70">Closure: <span className="text-white">{currentQuoteData.capDetails.closure}</span></div>
+                                )}
+                                {(currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch) && (
+                                  <div className="text-white/70">Stitching: <span className="text-white">{currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch}</span></div>
                                 )}
                               </div>
                             </div>
