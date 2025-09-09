@@ -136,7 +136,6 @@ export default function Navbar() {
                 {userOpen && (
                   <div className="absolute right-0 mt-2 w-48 text-sm z-50">
                     <Link href="/dashboard" className="block px-3 py-2 rounded-lg glass-button glass-hover font-medium text-slate-200 hover:text-white transition-colors mb-1">Dashboard</Link>
-                    <Link href="/messages" className="block px-3 py-2 rounded-lg glass-button glass-hover font-medium text-slate-200 hover:text-white transition-colors mb-1">Messages</Link>
                     <Link href="/support" className="block px-3 py-2 rounded-lg glass-button glass-hover font-medium text-slate-200 hover:text-white transition-colors mb-1">Support</Link>
                     <Link href="/quote-request" className="block px-3 py-2 rounded-lg glass-button glass-hover font-medium text-slate-200 hover:text-white transition-colors mb-1">Quote Request</Link>
                     <button onClick={() => { window.location.href = '/api/auth/signout'; }} className="block w-full text-left px-3 py-2 rounded-lg glass-button glass-hover text-red-300 hover:text-red-200 font-medium transition-colors">Sign out</button>
@@ -234,7 +233,6 @@ export default function Navbar() {
               ) : (
                 <div className="grid gap-2 text-sm">
                   <Link href="/dashboard" className="px-4 py-3 rounded-full glass-button glass-hover text-white">Dashboard</Link>
-                  <Link href="/messages" className="px-4 py-3 rounded-full glass-button glass-hover text-white">Messages</Link>
                   <Link href="/support" className="px-4 py-3 rounded-full glass-button glass-hover text-white">Support</Link>
                   <Link href="/quote-request" className="px-4 py-3 rounded-full glass-button glass-hover text-white">Quote Request</Link>
                   <button onClick={() => { window.location.href = '/api/auth/signout'; }} className="w-full text-left px-4 py-3 rounded-full glass-button glass-hover text-red-300">Sign out</button>
