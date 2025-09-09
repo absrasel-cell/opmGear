@@ -239,11 +239,10 @@ export async function POST(request: NextRequest) {
         conversationQuote = updatedBridge;
       } else {
         // Create new bridge - explicitly provide UUID to avoid null constraint error
-        const bridgeId = `cq_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
         const { data: newBridge, error: bridgeError } = await supabaseAdmin
           .from('ConversationQuotes')
           .insert({
-            id: bridgeId, // Explicitly provide UUID to avoid NOT NULL constraint
+            id: crypto.randomUUID(), // Explicitly provide UUID to avoid NOT NULL constraint
             conversationId,
             quoteOrderId,
             isMainQuote: true,

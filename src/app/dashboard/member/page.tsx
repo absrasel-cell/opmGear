@@ -582,11 +582,11 @@ export default function NewMemberDashboard() {
         <DashboardContent>
           {/* Header */}
           <header className="sticky top-0 z-20 mt-2">
-            <div className="px-6 md:px-10 pt-2">
+            <div className="px-4 sm:px-6 md:px-10 pt-2">
               <div className="glass-morphism rounded-2xl md:rounded-[40px] p-0 animate-glass-slide-in">
                 {/* Top Row - Search and Actions */}
-                <div className="flex items-center gap-3 p-3 border-b border-stone-600">
-                  <div className="flex-1">
+                <div className="flex flex-wrap md:flex-nowrap items-center gap-2 p-3 border-b border-stone-600">
+                  <div className="flex-1 min-w-0">
                     <SearchInput
                       icon={Search}
                       placeholder="Search orders, IDs, products…"
@@ -595,28 +595,28 @@ export default function NewMemberDashboard() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full md:w-auto justify-start md:justify-end flex-wrap">
                     {/* Live Sync Badge */}
-                    <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-lg text-lime-400 text-xs font-medium">
+                    <div className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-lg text-lime-400 text-xs font-medium">
                       Live Sync
                       <span className="ml-2 h-1.5 w-1.5 rounded-full bg-lime-400 animate-pulse" />
                     </div>
 
                     {/* Notification bell */}
-                    <button className="relative grid h-12 w-12 place-items-center rounded-2xl bg-black/60 border border-white/10 backdrop-blur-lg transition-all hover:-translate-y-0.5 hover:scale-105">
+                    <button className="relative grid h-10 w-10 md:h-12 md:w-12 place-items-center rounded-2xl bg-black/60 border border-white/10 backdrop-blur-lg transition-all hover:-translate-y-0.5 hover:scale-105">
                       <Bell className="h-5 w-5 text-white" />
                     </button>
 
                                          {/* Settings Icon */}
                      <Link href="/dashboard/member/settings">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105" title="Settings">
+                       <button className="relative grid h-10 w-10 md:h-12 md:w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105" title="Settings">
                          <Settings className="h-5 w-5 text-white" />
                        </button>
                      </Link>
 
                      {/* Profile Icon - Clickable */}
                      <Link href="/dashboard/member/profile">
-                       <button className="relative grid h-12 w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105" title="Profile">
+                       <button className="relative grid h-10 w-10 md:h-12 md:w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105" title="Profile">
                          {user.avatarUrl ? (
                            <img 
                              src={user.avatarUrl} 
@@ -630,22 +630,22 @@ export default function NewMemberDashboard() {
                      </Link>
 
                      {/* Refresh Session Button */}
-                     <button 
-                       onClick={refreshSession}
-                       className="relative grid h-12 w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105"
-                       title="Refresh Session"
-                     >
-                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                       </svg>
-                     </button>
+                      <button 
+                        onClick={refreshSession}
+                        className="relative grid h-10 w-10 md:h-12 md:w-12 place-items-center rounded-2xl glass-morphism transition-all hover:-translate-y-0.5 hover:scale-105"
+                        title="Refresh Session"
+                      >
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
                   </div>
                 </div>
                 
                 {/* Bottom Row - Title */}
                 <div className="p-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-4xl font-extrabold tracking-tight text-white md:text-5xl">
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">
                       Welcome back, {user.name}
                     </h1>
                     
@@ -689,7 +689,7 @@ export default function NewMemberDashboard() {
           <div className="flex-1 flex flex-col min-h-0 mt-2">
             {/* Checkout Success Notification */}
             {checkoutSuccess && (
-              <div className="px-6 md:px-10 mt-4">
+              <div className="px-4 sm:px-6 md:px-10 mt-4">
                 <div className="overflow-hidden rounded-2xl border border-lime-300/20 bg-lime-300/15 p-4 text-lime-100 ">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5" />
@@ -706,7 +706,7 @@ export default function NewMemberDashboard() {
 
             {/* Role Change Notification */}
             {roleChangeNotification && (
-              <div className="px-6 md:px-10 mt-4">
+              <div className="px-4 sm:px-6 md:px-10 mt-4">
                 <div className="overflow-hidden rounded-2xl border border-lime-300/20 bg-lime-300/15 p-4 text-lime-100 ">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-5 w-5" />
@@ -718,7 +718,7 @@ export default function NewMemberDashboard() {
 
             {/* Database Status Banner */}
             {databaseStatus === 'unavailable' && (
-              <div className="px-6 md:px-10 mt-4">
+              <div className="px-4 sm:px-6 md:px-10 mt-4">
                 <div className="overflow-hidden rounded-2xl border border-amber-300/20 bg-amber-300/15 p-4 text-amber-100 ">
                   <div className="flex items-center gap-3">
                     <AlertTriangle className="h-5 w-5" />
@@ -732,19 +732,19 @@ export default function NewMemberDashboard() {
             )}
 
             {/* Shipping Notification */}
-            <div className="px-6 md:px-10 mt-4">
+            <div className="px-4 sm:px-6 md:px-10 mt-4">
               <PersonalizedShippingNotification orders={orders} />
             </div>
 
             {/* Quick Actions */}
-            <div className="px-6 md:px-10 mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="px-4 sm:px-6 md:px-10 mt-4 grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <QuickActionCard href="/store" title="Browse Products" subtitle="Explore latest styles" icon={ShoppingCart} glowClass="bg-cyan-400" />
               <QuickActionCard href="/cart" title="View Cart" subtitle="Review selected items" icon={ShoppingBag} glowClass="bg-emerald-400" />
               <QuickActionCard href="/dashboard/member/quote-request" title="Request Quote" subtitle="Get a tailored offer" icon={MessageSquareQuote} glowClass="bg-amber-300" />
             </div>
 
             {/* Stats Grid */}
-            <div className="px-6 md:px-10 mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+            <div className="px-4 sm:px-6 md:px-10 mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
               <StatCard 
                 label="Total Orders" 
                 value={stats.totalOrders} 
@@ -790,7 +790,7 @@ export default function NewMemberDashboard() {
             </div>
 
             {/* Orders / Quotes */}
-            <div className="px-6 md:px-10 mt-6 mb-8">
+            <div className="px-4 sm:px-6 md:px-10 mt-6 mb-8">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   {(['all','saved','checkout','completed','pending','quotes'] as FilterType[]).map((f) => (

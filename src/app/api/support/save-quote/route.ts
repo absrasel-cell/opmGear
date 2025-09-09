@@ -352,6 +352,7 @@ export async function POST(request: NextRequest) {
               await supabaseAdmin
                 .from('ConversationQuotes')
                 .insert({
+                  id: crypto.randomUUID(), // Explicitly set the ID to fix null constraint violation
                   conversationId: conversationRecord.id,
                   quoteOrderId: quoteOrder.id,
                   isMainQuote: true,
@@ -482,6 +483,7 @@ export async function POST(request: NextRequest) {
             await supabaseAdmin
               .from('ConversationQuotes')
               .insert({
+                id: crypto.randomUUID(), // Explicitly set the ID to fix null constraint violation
                 conversationId: conversationRecord.id,
                 quoteOrderId: quoteOrder.id,
                 isMainQuote: true,

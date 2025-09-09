@@ -18,6 +18,306 @@ interface OrderCreationRequest {
  attachedFiles?: string[];
 }
 
+// 🚨 POST-PROCESSING FIX: Correct AI quantity-based pricing errors for ALL components
+async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any[], logoOptions: any[], accessoryOptions: any[], deliveryOptions: any[]): Promise<any> {
+  if (!orderResponse || !orderResponse.quoteData) {
+    return orderResponse;
+  }
+
+  const quoteData = orderResponse.quoteData;
+  const quantity = quoteData.pricing?.quantity || 0;
+  
+  if (quantity <= 0) {
+    return orderResponse;
+  }
+
+  console.log('🔧 [POST-PROCESSING] Correcting ALL AI pricing components for quantity:', quantity);
+  let correctionsMade = false;
+
+  // ===== 1. CORRECT BASE CAP PRICING =====
+  const capDetails = quoteData.capDetails;
+  let tierName = 'Tier 3'; // Default for 7-panel caps
+  
+  if (capDetails?.productName?.includes('5-Panel') || capDetails?.productName?.includes('4-Panel')) {
+    tierName = 'Tier 1';
+  } else if (capDetails?.productName?.includes('6-Panel')) {
+    tierName = 'Tier 2';
+  }
+
+  const tierPricing = pricingTiers.find(t => t.Name === tierName);
+  if (tierPricing) {
+    // Get correct unit price based on quantity
+    let correctUnitPrice = 0;
+    if (quantity >= 10000) correctUnitPrice = tierPricing.price10000;
+    else if (quantity >= 2880) correctUnitPrice = tierPricing.price2880;
+    else if (quantity >= 1152) correctUnitPrice = tierPricing.price1152;
+    else if (quantity >= 576) correctUnitPrice = tierPricing.price576;
+    else if (quantity >= 144) correctUnitPrice = tierPricing.price144;
+    else correctUnitPrice = tierPricing.price48;
+
+    const oldUnitPrice = quoteData.capDetails?.quantityBreakdown?.[0]?.unitCost || 0;
+    const oldBaseProductCost = quoteData.pricing?.baseProductCost || 0;
+    const newBaseProductCost = correctUnitPrice * quantity;
+
+    if (Math.abs(oldUnitPrice - correctUnitPrice) > 0.01) {
+      console.log('🔧 [POST-PROCESSING] Correcting base cap pricing:', {
+        quantity,
+        tierName,
+        oldUnitPrice: `$${oldUnitPrice}`,
+        correctUnitPrice: `$${correctUnitPrice}`,
+        oldBaseProductCost: `$${oldBaseProductCost}`,
+        newBaseProductCost: `$${newBaseProductCost}`
+      });
+
+      // Update all pricing references
+      if (quoteData.capDetails?.quantityBreakdown?.[0]) {
+        quoteData.capDetails.quantityBreakdown[0].unitCost = correctUnitPrice;
+        quoteData.capDetails.quantityBreakdown[0].subtotal = newBaseProductCost;
+      }
+      
+      if (quoteData.pricing) {
+        const pricingDiff = newBaseProductCost - oldBaseProductCost;
+        quoteData.pricing.baseProductCost = newBaseProductCost;
+        if (quoteData.pricing.total) {
+          quoteData.pricing.total += pricingDiff;
+        }
+      }
+
+      // Update detailed breakdown
+      if (quoteData.pricing?.detailedBreakdown?.blankCapsByColor?.[0]) {
+        quoteData.pricing.detailedBreakdown.blankCapsByColor[0].unitPrice = `$${correctUnitPrice.toFixed(2)}`;
+        quoteData.pricing.detailedBreakdown.blankCapsByColor[0].subtotal = `$${newBaseProductCost.toFixed(2)}`;
+      }
+
+      correctionsMade = true;
+    }
+  }
+
+  // ===== 2. CORRECT CUSTOMIZATION PRICING (LOGOS) =====
+  if (quoteData.customization?.logos && Array.isArray(quoteData.customization.logos)) {
+    let totalLogoCostDiff = 0;
+
+    quoteData.customization.logos.forEach((logo: any, index: number) => {
+      // Map AI logo names to CSV names
+      let csvLogoName = '';
+      let csvSize = logo.size || 'Small';
+      let csvApplication = 'Direct';
+
+      if (logo.type?.includes('Leather')) {
+        csvLogoName = 'Leather';
+        csvApplication = 'Patch';
+      } else if (logo.type?.includes('Rubber')) {
+        csvLogoName = 'Rubber';
+        csvApplication = 'Patch';
+      } else if (logo.type?.includes('3D Embroidery')) {
+        csvLogoName = '3D Embroidery';
+        csvApplication = 'Direct';
+      } else if (logo.type?.includes('Flat Embroidery') || logo.type?.includes('Size Embroidery')) {
+        csvLogoName = 'Flat Embroidery';
+        csvApplication = 'Direct';
+      }
+
+      if (csvLogoName) {
+        // Find correct logo pricing in CSV
+        const logoOption = logoOptions.find(l => 
+          (l.Name === csvLogoName || l.Name?.includes(csvLogoName)) &&
+          l.Size === csvSize &&
+          l.Application === csvApplication
+        );
+
+        if (logoOption) {
+          // Get correct unit price based on quantity
+          let correctLogoUnitPrice = 0;
+          if (quantity >= 20000) correctLogoUnitPrice = logoOption.price20000 || 0;
+          else if (quantity >= 10000) correctLogoUnitPrice = logoOption.price10000 || 0;
+          else if (quantity >= 2880) correctLogoUnitPrice = logoOption.price2880 || 0;
+          else if (quantity >= 1152) correctLogoUnitPrice = logoOption.price1152 || 0;
+          else if (quantity >= 576) correctLogoUnitPrice = logoOption.price576 || 0;
+          else if (quantity >= 144) correctLogoUnitPrice = logoOption.price144 || 0;
+          else correctLogoUnitPrice = logoOption.price48 || 0;
+
+          const oldLogoUnitPrice = logo.unitCost || 0;
+          const oldLogoTotalCost = logo.totalCost || 0;
+          const newLogoTotalCost = correctLogoUnitPrice * quantity;
+
+          if (Math.abs(oldLogoUnitPrice - correctLogoUnitPrice) > 0.01) {
+            console.log(`🔧 [POST-PROCESSING] Correcting ${csvLogoName} pricing:`, {
+              logoType: logo.type,
+              size: csvSize,
+              oldUnitPrice: `$${oldLogoUnitPrice}`,
+              correctUnitPrice: `$${correctLogoUnitPrice}`,
+              oldTotalCost: `$${oldLogoTotalCost}`,
+              newTotalCost: `$${newLogoTotalCost}`
+            });
+
+            // Update logo pricing
+            logo.unitCost = correctLogoUnitPrice;
+            logo.totalCost = newLogoTotalCost;
+
+            const logoCostDiff = newLogoTotalCost - oldLogoTotalCost;
+            totalLogoCostDiff += logoCostDiff;
+
+            correctionsMade = true;
+          }
+        }
+      }
+    });
+
+    // Update total logo cost
+    if (totalLogoCostDiff !== 0) {
+      if (quoteData.pricing) {
+        quoteData.pricing.logosCost = (quoteData.pricing.logosCost || 0) + totalLogoCostDiff;
+        if (quoteData.pricing.total) {
+          quoteData.pricing.total += totalLogoCostDiff;
+        }
+      }
+    }
+  }
+
+  // ===== 3. CORRECT ACCESSORY PRICING =====
+  if (quoteData.customization?.accessories && Array.isArray(quoteData.customization.accessories)) {
+    let totalAccessoryCostDiff = 0;
+
+    quoteData.customization.accessories.forEach((accessory: any, index: number) => {
+      // Map AI accessory names to CSV names
+      let csvAccessoryName = '';
+      if (accessory.type?.includes('Hang Tag')) {
+        csvAccessoryName = 'Hang Tag';
+      } else if (accessory.type?.includes('Sticker')) {
+        csvAccessoryName = 'Sticker';
+      } else if (accessory.type?.includes('Label')) {
+        csvAccessoryName = 'Inside Label';
+      } else if (accessory.type?.includes('B-Tape')) {
+        csvAccessoryName = 'B-Tape Print';
+      }
+
+      if (csvAccessoryName) {
+        const accessoryOption = accessoryOptions.find(a => a.Name === csvAccessoryName);
+        
+        if (accessoryOption) {
+          // Get correct unit price based on quantity
+          let correctAccessoryUnitPrice = 0;
+          if (quantity >= 10000) correctAccessoryUnitPrice = accessoryOption.price10000;
+          else if (quantity >= 2880) correctAccessoryUnitPrice = accessoryOption.price2880;
+          else if (quantity >= 1152) correctAccessoryUnitPrice = accessoryOption.price1152;
+          else if (quantity >= 576) correctAccessoryUnitPrice = accessoryOption.price576;
+          else if (quantity >= 144) correctAccessoryUnitPrice = accessoryOption.price144;
+          else correctAccessoryUnitPrice = accessoryOption.price48;
+
+          const oldAccessoryUnitPrice = accessory.unitCost || 0;
+          const oldAccessoryTotalCost = accessory.totalCost || 0;
+          const newAccessoryTotalCost = correctAccessoryUnitPrice * quantity;
+
+          if (Math.abs(oldAccessoryUnitPrice - correctAccessoryUnitPrice) > 0.01) {
+            console.log(`🔧 [POST-PROCESSING] Correcting ${csvAccessoryName} pricing:`, {
+              oldUnitPrice: `$${oldAccessoryUnitPrice}`,
+              correctUnitPrice: `$${correctAccessoryUnitPrice}`,
+              oldTotalCost: `$${oldAccessoryTotalCost}`,
+              newTotalCost: `$${newAccessoryTotalCost}`
+            });
+
+            // Update accessory pricing
+            accessory.unitCost = correctAccessoryUnitPrice;
+            accessory.totalCost = newAccessoryTotalCost;
+
+            const accessoryCostDiff = newAccessoryTotalCost - oldAccessoryTotalCost;
+            totalAccessoryCostDiff += accessoryCostDiff;
+
+            correctionsMade = true;
+          }
+        }
+      }
+    });
+
+    // Update total accessory cost
+    if (totalAccessoryCostDiff !== 0) {
+      if (quoteData.pricing) {
+        quoteData.pricing.accessoriesCost = (quoteData.pricing.accessoriesCost || 0) + totalAccessoryCostDiff;
+        if (quoteData.pricing.total) {
+          quoteData.pricing.total += totalAccessoryCostDiff;
+        }
+      }
+    }
+  }
+
+  // ===== 4. CORRECT DELIVERY PRICING =====
+  if (quoteData.delivery) {
+    const deliveryMethod = quoteData.delivery.method || 'Regular Delivery';
+    const deliveryOption = deliveryOptions.find(d => d.Name === deliveryMethod);
+    
+    if (deliveryOption) {
+      // Get correct unit price based on quantity
+      let correctDeliveryUnitPrice = 0;
+      if (quantity >= 20000) correctDeliveryUnitPrice = deliveryOption.price20000;
+      else if (quantity >= 10000) correctDeliveryUnitPrice = deliveryOption.price10000;
+      else if (quantity >= 2880) correctDeliveryUnitPrice = deliveryOption.price2880;
+      else if (quantity >= 1152) correctDeliveryUnitPrice = deliveryOption.price1152;
+      else if (quantity >= 576) correctDeliveryUnitPrice = deliveryOption.price576;
+      else if (quantity >= 144) correctDeliveryUnitPrice = deliveryOption.price144;
+      else correctDeliveryUnitPrice = deliveryOption.price48;
+
+      const oldDeliveryUnitPrice = quoteData.delivery.unitCost || 0;
+      const oldDeliveryTotalCost = quoteData.delivery.totalCost || 0;
+      const newDeliveryTotalCost = correctDeliveryUnitPrice * quantity;
+
+      if (Math.abs(oldDeliveryUnitPrice - correctDeliveryUnitPrice) > 0.01) {
+        console.log('🔧 [POST-PROCESSING] Correcting delivery pricing:', {
+          method: deliveryMethod,
+          oldUnitPrice: `$${oldDeliveryUnitPrice}`,
+          correctUnitPrice: `$${correctDeliveryUnitPrice}`,
+          oldTotalCost: `$${oldDeliveryTotalCost}`,
+          newTotalCost: `$${newDeliveryTotalCost}`
+        });
+
+        // Update delivery pricing
+        quoteData.delivery.unitCost = correctDeliveryUnitPrice;
+        quoteData.delivery.totalCost = newDeliveryTotalCost;
+
+        const deliveryCostDiff = newDeliveryTotalCost - oldDeliveryTotalCost;
+        if (quoteData.pricing) {
+          quoteData.pricing.deliveryCost = newDeliveryTotalCost;
+          if (quoteData.pricing.total) {
+            quoteData.pricing.total += deliveryCostDiff;
+          }
+        }
+
+        correctionsMade = true;
+      }
+    }
+  }
+
+  // ===== 5. UPDATE CUSTOMER MESSAGE =====
+  if (correctionsMade && orderResponse.message) {
+    console.log('🔧 [POST-PROCESSING] Updating customer message with corrected pricing');
+
+    // Update base cap pricing in message
+    const oldCapPricePattern = /pieces\s+×\s+\$[\d.]+\s+=\s+\$[\d,]+\.?\d*/g;
+    const newCapCalculation = `pieces × $${tierPricing ? (quantity >= 576 ? tierPricing.price576 : quantity >= 144 ? tierPricing.price144 : tierPricing.price48).toFixed(2) : '0.00'} = $${quoteData.pricing?.baseProductCost?.toFixed(2) || '0.00'}`;
+    
+    // Update customization pricing in message (this is complex, so we'll regenerate key sections)
+    if (quoteData.customization?.logos) {
+      quoteData.customization.logos.forEach((logo: any) => {
+        const logoPattern = new RegExp(`${logo.type}.*?\\$[\\d,]+\\.\\d+`, 'g');
+        const newLogoLine = `${logo.type}: ${quantity} pieces × $${logo.unitCost?.toFixed(2) || '0.00'} = $${logo.totalCost?.toFixed(2) || '0.00'}`;
+        orderResponse.message = orderResponse.message.replace(logoPattern, newLogoLine);
+      });
+    }
+
+    // Update total in message
+    const totalPattern = /💰.*?Total Order.*?\$[\d,]+\.?\d*/g;
+    const newTotal = `💰 **Total Order: $${(quoteData.pricing?.total || 0).toFixed(2)}**`;
+    orderResponse.message = orderResponse.message.replace(totalPattern, newTotal);
+  }
+
+  if (correctionsMade) {
+    console.log('✅ [POST-PROCESSING] All pricing components corrected successfully');
+  } else {
+    console.log('✅ [POST-PROCESSING] All pricing already correct, no changes needed');
+  }
+
+  return orderResponse;
+}
+
 export async function POST(request: NextRequest) {
  try {
   const body: OrderCreationRequest = await request.json();
@@ -357,8 +657,31 @@ ${blankCapProducts.filter(p => p['Panel Count'] === '6-Panel').slice(0, 5).map(p
 7-Panel Caps:
 ${blankCapProducts.filter(p => p['Panel Count'] === '7-Panel').map(p => `${p.Name} - ${p.Profile} profile, ${p['Bill Shape']} bill, ${p.priceTier}, ${p['Structure Type']}`).join('\n')}
 
-PRICING TIERS:
+PRICING TIERS - QUANTITY-BASED PRICING RULES:
 ${pricingTiers.map(t => `${t.Name}: 48pc=$${t.price48}, 144pc=$${t.price144}, 576pc=$${t.price576}, 1152pc=$${t.price1152}, 2880pc=$${t.price2880}, 10k+pc=$${t.price10000}`).join('\n')}
+
+🚨 CRITICAL QUANTITY-BASED PRICING RULES (MUST FOLLOW):
+
+**7-PANEL CAP (TIER 3) PRICING BY QUANTITY:**
+• 48 pieces = $6.00 per cap
+• 144 pieces = $4.25 per cap  
+• 576 pieces = $4.00 per cap
+• 1152+ pieces = $3.68 per cap
+
+**6-PANEL CAP (TIER 2) PRICING BY QUANTITY:**
+• 48 pieces = $5.50 per cap
+• 144 pieces = $4.00 per cap
+• 576 pieces = $3.75 per cap  
+• 1152+ pieces = $3.63 per cap
+
+**5-PANEL CAP (TIER 1) PRICING BY QUANTITY:**
+• 48 pieces = $4.50 per cap
+• 144 pieces = $3.75 per cap
+• 576 pieces = $3.63 per cap
+• 1152+ pieces = $3.55 per cap
+
+EXAMPLE: Customer orders "144 pieces 7-Panel Cap" → Use $4.25 per cap (NOT $6.00!)
+EXAMPLE: Customer orders "576 pieces 7-Panel Cap" → Use $4.00 per cap (NOT $6.00!)
 
 CUSTOMIZATION OPTIONS (Per-Piece Pricing):
 
@@ -492,29 +815,29 @@ PRICING CALCULATION (CRITICAL - CALCULATE CORRECTLY):
 7. Include all mold charges for patches (Rubber, Leather patches)
 8. Sum all components for accurate total
 
-EXAMPLE CALCULATION FOR 48pc BASIC ORDER:
-- Base Product (Tier A): 48 × $1.00 = $48.00
+EXAMPLE CALCULATION FOR 48pc BASIC ORDER (Tier 1):
+- Base Product (Tier 1): 48 × $4.50 = $216.00
 - Regular Delivery: 48 × $3.00 = $144.00 (NOT $3.00!)
-- TOTAL: $192.00
+- TOTAL: $360.00
 
-EXAMPLE CALCULATION FOR 288pc ACRYLIC CAPS (Premium Fabric):
-- Base Product (Tier B): 288 × $1.20 = $345.60
-- Acrylic Premium Fabric: 288 × $0.8 = $230.40
-- Regular Delivery: 288 × $2.20 = $633.60
-- TOTAL: $1,209.60 (Base + Premium Fabric + Delivery)
+EXAMPLE CALCULATION FOR 144pc ACRYLIC CAPS (Premium Fabric, Tier 2):
+- Base Product (Tier 2): 144 × $4.00 = $576.00  
+- Acrylic Premium Fabric: 144 × $1.0 = $144.00
+- Regular Delivery: 144 × $2.20 = $316.80
+- TOTAL: $1,036.80 (Base + Premium Fabric + Delivery)
 
-EXAMPLE CALCULATION FOR 288pc FITTED CAPS (Premium Closure):
-- Base Product (Tier B): 288 × $1.20 = $345.60
-- Fitted Premium Closure: 288 × $0.30 = $86.40
-- Regular Delivery: 288 × $2.20 = $633.60
-- TOTAL: $1,065.60 (Base + Premium Closure + Delivery)
+EXAMPLE CALCULATION FOR 576pc FITTED CAPS (Premium Closure, Tier 3):
+- Base Product (Tier 3): 576 × $4.00 = $2,304.00
+- Fitted Premium Closure: 576 × $0.30 = $172.80
+- Regular Delivery: 576 × $1.90 = $1,094.40
+- TOTAL: $3,571.20 (Base + Premium Closure + Delivery)
 
-EXAMPLE CALCULATION FOR 576pc WITH RUBBER PATCH + 3D EMBROIDERY:
-- Base Product: 576 × $2.90 = $1,670.40
+EXAMPLE CALCULATION FOR 576pc WITH RUBBER PATCH + 3D EMBROIDERY (Tier 3):
+- Base Product (Tier 3): 576 × $4.00 = $2,304.00
 - Large Rubber Patch Front: $1.20 × 576 = $691.20 + $80 mold = $771.20
 - Large 3D Embroidery Back: $0.12 × 576 = $69.12 
 - Regular Delivery: $1.90 × 576 = $1,094.40
-- TOTAL: $3,605.12 (not $1,670.40 or $0.85!)
+- TOTAL: $4,238.72 (not $1,670.40 or $0.85!)
 
 CRITICAL PREMIUM FABRIC RECOGNITION PATTERNS:
 When customer says "Acrylic Flat bill cap" or "Suede Cotton caps" or "Air Mesh hats":
@@ -588,10 +911,10 @@ RESPONSE FORMAT: Provide a detailed JSON response with:
    "total": 0.0,
    "detailedBreakdown": {
     "blankCapsByColor": [
-     {"colors": "Black/White", "qty": 48, "unitPrice": "$2.90", "subtotal": "$139.20"},
-     {"colors": "Khaki", "qty": 144, "unitPrice": "$2.90", "subtotal": "$417.60"},
-     {"colors": "Navy/Khaki", "qty": 288, "unitPrice": "$2.90", "subtotal": "$835.20"},
-     {"colors": "Red", "qty": 96, "unitPrice": "$2.90", "subtotal": "$278.40"}
+     {"colors": "Black/White", "qty": 48, "unitPrice": "$4.50", "subtotal": "$216.00"},
+     {"colors": "Khaki", "qty": 144, "unitPrice": "$4.25", "subtotal": "$612.00"},
+     {"colors": "Navy/Khaki", "qty": 288, "unitPrice": "$3.75", "subtotal": "$1,080.00"},
+     {"colors": "Red", "qty": 96, "unitPrice": "$6.00", "subtotal": "$576.00"}
     ],
     "premiumFabricBreakdown": {
      "fabricName": "Acrylic",
@@ -649,7 +972,7 @@ ${shouldUseAnalysisData ?
 
 IMPORTANT FOR CUSTOMER RESPONSES:
 - If customer requests "breakdown by color" or specifies different quantities per color, ALWAYS show detailed breakdown in the message
-- Include individual calculations like: "Black/White: 48 pieces × $2.90 = $139.20"
+- Include individual calculations like: "Black/White: 48 pieces × $4.50 = $216.00"
 - Show subtotals for each color group clearly
 - Make the customer feel confident by showing transparent pricing calculations
 - Use clear formatting with bullet points or emojis for readability
@@ -661,7 +984,7 @@ ${imageAnalysisData ? '- Reference the uploaded image analysis in your response 
 CRITICAL: When customer asks for quantity breakdown or specifies different quantities per color:
 1. ALWAYS show detailed breakdown in the "message" field visible to customer
 2. Include individual line items with calculations
-3. Use clear formatting: "• Black/White: 48 pieces × $2.90 = $139.20"
+3. Use clear formatting: "• Black/White: 48 pieces × $4.50 = $216.00"
 4. Show running totals and final total
 5. Make customer feel confident with transparent pricing
 
@@ -673,9 +996,9 @@ EXAMPLE MESSAGE FORMAT for breakdown request:
 **Subtotal Blank Caps: $1,382.40**
 
 OR for multi-color example:
-• Black/White: 48 pieces × $2.90 = $139.20
-• Khaki: 144 pieces × $2.90 = $417.60 
-• Navy/Khaki: 288 pieces × $2.90 = $835.20
+• Black/White: 48 pieces × $4.50 = $216.00
+• Khaki: 144 pieces × $4.25 = $612.00 
+• Navy/Khaki: 288 pieces × $3.75 = $1,080.00
 **Subtotal Blank Caps: $1,392.20**
 
 🧵 **Premium Fabric (Acrylic):**
@@ -910,6 +1233,9 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
 
   try {
    orderResponse = parseWithFallbacks(content);
+   
+   // 🚨 POST-PROCESSING FIX: Correct AI pricing errors for ALL components
+   orderResponse = await correctQuantityBasedPricing(orderResponse, pricingTiers, logoOptions, accessoryOptions, deliveryOptions);
    
    // Validate essential fields
    if (!orderResponse.message) {
@@ -1174,18 +1500,59 @@ I'll get back to you with precise pricing based on your specifications, includin
        quoteOrderId: orderResponse.quoteData.quoteOrderId
       });
 
+      // Create unique ID for the ConversationQuotes record using multiple fallback approaches
+      let conversationQuoteId;
+      try {
+        conversationQuoteId = crypto.randomUUID();
+      } catch (cryptoError) {
+        console.warn('crypto.randomUUID() failed, using alternative approach:', cryptoError);
+        conversationQuoteId = uuidv4();
+      }
+      
+      // Final fallback to manual UUID-like string if both fail
+      if (!conversationQuoteId) {
+        conversationQuoteId = `cq_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      }
+      
+      const now = new Date().toISOString();
+      
+      console.log('🔧 ConversationQuotes insert attempt with ID:', conversationQuoteId);
+
       const { error: conversationQuotesError } = await supabaseAdmin
         .from('ConversationQuotes')
         .insert({
+          id: conversationQuoteId, // Explicitly set the ID to fix null constraint violation
           conversationId: conversationId,
           quoteOrderId: orderResponse.quoteData.quoteOrderId,
           isMainQuote: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          createdAt: now,
+          updatedAt: now
         });
 
       if (conversationQuotesError) {
-        throw new Error(`Failed to create ConversationQuotes: ${conversationQuotesError.message}`);
+        console.error('❌ ConversationQuotes insert error details:', {
+          code: conversationQuotesError.code,
+          message: conversationQuotesError.message,
+          details: conversationQuotesError.details,
+          hint: conversationQuotesError.hint,
+          insertedData: {
+            id: conversationQuoteId,
+            conversationId,
+            quoteOrderId: orderResponse.quoteData.quoteOrderId,
+            isMainQuote: true
+          }
+        });
+        
+        // CRITICAL FIX: Don't fail the entire quote creation process due to this linking issue
+        // The quote was successfully created and saved, just the conversation linking failed
+        console.warn('⚠️ ConversationQuotes linking failed but quote creation succeeded. Continuing...');
+        
+        // Mark in metadata that linking failed for debugging
+        if (!orderResponse.metadata) orderResponse.metadata = {};
+        orderResponse.metadata.conversationQuotesLinkFailed = true;
+        orderResponse.metadata.conversationQuotesError = conversationQuotesError.message;
+      } else {
+        console.log('✅ Successfully linked QuoteOrder to Conversation');
       }
 
       // Update conversation to mark it has a quote and update activity
@@ -1201,10 +1568,9 @@ I'll get back to you with precise pricing based on your specifications, includin
         .eq('id', conversationId);
 
       if (conversationUpdateError) {
-        throw new Error(`Failed to update Conversation: ${conversationUpdateError.message}`);
+        console.error('❌ Failed to update Conversation:', conversationUpdateError);
+        // Continue without failing - the quote creation was successful
       }
-
-      console.log('✅ Successfully linked QuoteOrder to Conversation');
      } catch (linkError) {
       console.error('❌ Failed to link QuoteOrder to Conversation:', linkError);
       // Continue without failing the request

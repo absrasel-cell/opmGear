@@ -48,6 +48,39 @@ export interface OrderRequirements {
   };
 }
 
+/**
+ * Determine the correct product tier based on cap specifications
+ * Based on Customer Products CSV data:
+ * - Tier 1: 4-Panel, 5-Panel, 6-Panel curved caps (most affordable)
+ * - Tier 2: 6-Panel flat caps (premium options)  
+ * - Tier 3: 7-Panel caps (specialty caps)
+ */
+function determineProductTier(requirements: OrderRequirements): string {
+  // If panelCount is explicitly provided, use it directly
+  if (requirements.panelCount) {
+    if (requirements.panelCount === 7) return 'Tier 3';
+    if (requirements.panelCount === 6 && requirements.billStyle?.toLowerCase().includes('flat')) return 'Tier 2';
+    return 'Tier 1'; // 4-Panel, 5-Panel, 6-Panel curved
+  }
+  
+  // If no panelCount, try to detect from other fields (fallback logic)
+  // Check bill style for 7-panel indicators (7-panel caps are often flat billed)
+  if (requirements.billStyle?.toLowerCase().includes('7') || 
+      requirements.structure?.toLowerCase().includes('7') ||
+      requirements.fabricType?.toLowerCase().includes('7')) {
+    return 'Tier 3';
+  }
+  
+  // Check for 6-panel flat cap indicators
+  if (requirements.billStyle?.toLowerCase().includes('flat') && 
+      (requirements.panelCount === 6 || requirements.structure?.toLowerCase().includes('6'))) {
+    return 'Tier 2';
+  }
+  
+  // Default to Tier 1 (most affordable - 4/5/6-panel curved)
+  return 'Tier 1';
+}
+
 // Logo setup helper functions (matching Advanced Product Page)
 const getDefaultLogoSize = (position: string) => position === 'Front' ? 'Large' : 'Small';
 
@@ -400,8 +433,10 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   }
   
   // Detect panel count from CSV "Panel Count" field values
-  // Check for specific panel mentions first
-  if (lowerMessage.includes('6 panel') || lowerMessage.includes('6-panel')) {
+  // Check for specific panel mentions first (order matters - check 7 first)
+  if (lowerMessage.includes('7 panel') || lowerMessage.includes('7-panel')) {
+    panelCount = 7;
+  } else if (lowerMessage.includes('6 panel') || lowerMessage.includes('6-panel')) {
     panelCount = 6;
   } else if (lowerMessage.includes('5 panel') || lowerMessage.includes('5-panel')) {
     panelCount = 5;
@@ -654,7 +689,7 @@ export async function calculateQuickEstimate(requirements: OrderRequirements, co
       fabricType: requirements.fabricType,
       closureType: requirements.closureType,
       deliveryMethod: requirements.deliveryMethod || 'regular',
-      productTier: 'Tier 1'
+      productTier: determineProductTier(requirements) // Use dynamic tier detection
     };
 
     // Use unified quick estimate
@@ -740,7 +775,7 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
       fabricType: requirements.fabricType,
       closureType: requirements.closureType,
       deliveryMethod: requirements.deliveryMethod || 'regular', // Default to regular delivery
-      productTier: 'Tier 1', // Default to most affordable tier
+      productTier: determineProductTier(requirements), // Use dynamic tier detection
       accessories: requirements.accessories || [], // Include detected accessories
       services: [] // Can be expanded later
     };
@@ -751,6 +786,8 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
       fabricType: costingContext.fabricType,
       closureType: costingContext.closureType,
       deliveryMethod: costingContext.deliveryMethod,
+      productTier: costingContext.productTier,
+      panelCount: requirements.panelCount,
       accessoriesCount: costingContext.accessories?.length || 0,
       accessories: costingContext.accessories
     });
@@ -989,19 +1026,19 @@ function getBasePriceForQuantity(quantity: number): number {
 function getPriceForLogoQuantity(logoType: string, quantity: number): number {
   // Hardcoded CSV pricing for logo types (should ideally load from CSV)
   const logoPricing: Record<string, { price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number }> = {
-    '3D Embroidery': { price48: 0.2, price144: 0.15, price576: 0.12, price1152: 0.1, price2880: 0.1, price10000: 0.08 },
-    'Small Rubber Patch': { price48: 1.0, price144: 0.7, price576: 0.65, price1152: 0.6, price2880: 0.55, price10000: 0.5 },
-    'Medium Rubber Patch': { price48: 1.25, price144: 0.9, price576: 0.85, price1152: 0.8, price2880: 0.75, price10000: 0.7 },
-    'Large Rubber Patch': { price48: 1.5, price144: 1.2, price576: 1.0, price1152: 0.9, price2880: 0.85, price10000: 0.8 },
-    'Small Leather Patch': { price48: 1.0, price144: 0.6, price576: 0.5, price1152: 0.45, price2880: 0.4, price10000: 0.35 },
-    'Medium Leather Patch': { price48: 1.2, price144: 0.75, price576: 0.7, price1152: 0.65, price2880: 0.6, price10000: 0.55 },
-    'Large Leather Patch': { price48: 1.35, price144: 0.9, price576: 0.85, price1152: 0.8, price2880: 0.75, price10000: 0.7 },
-    'Small Print Woven Patch': { price48: 0.8, price144: 0.55, price576: 0.4, price1152: 0.35, price2880: 0.3, price10000: 0.25 },
-    'Medium Print Woven Patch': { price48: 1.0, price144: 0.7, price576: 0.6, price1152: 0.55, price2880: 0.5, price10000: 0.45 },
-    'Large Print Woven Patch': { price48: 1.2, price144: 0.9, price576: 0.8, price1152: 0.75, price2880: 0.7, price10000: 0.65 },
-    'Small Size Embroidery': { price48: 0.7, price144: 0.45, price576: 0.35, price1152: 0.3, price2880: 0.25, price10000: 0.2 },
-    'Medium Size Embroidery': { price48: 0.9, price144: 0.65, price576: 0.55, price1152: 0.52, price2880: 0.5, price10000: 0.45 },
-    'Large Size Embroidery': { price48: 1.2, price144: 0.8, price576: 0.7, price1152: 0.65, price2880: 0.6, price10000: 0.55 }
+    '3D Embroidery': { price48: 0.5, price144: 0.38, price576: 0.3, price1152: 0.25, price2880: 0.25, price10000: 0.2 },
+    'Small Rubber Patch': { price48: 2.5, price144: 1.75, price576: 1.63, price1152: 1.5, price2880: 1.38, price10000: 1.25 },
+    'Medium Rubber Patch': { price48: 3.13, price144: 2.25, price576: 2.13, price1152: 2, price2880: 1.88, price10000: 1.75 },
+    'Large Rubber Patch': { price48: 3.75, price144: 3, price576: 2.5, price1152: 2.25, price2880: 2.13, price10000: 2 },
+    'Small Leather Patch': { price48: 2.5, price144: 1.5, price576: 1.25, price1152: 1.13, price2880: 1, price10000: 0.88 },
+    'Medium Leather Patch': { price48: 3, price144: 1.88, price576: 1.75, price1152: 1.63, price2880: 1.5, price10000: 1.38 },
+    'Large Leather Patch': { price48: 3.38, price144: 2.25, price576: 2.13, price1152: 2.0, price2880: 1.88, price10000: 1.75 },
+    'Small Print Woven Patch': { price48: 2, price144: 1.38, price576: 1, price1152: 0.88, price2880: 0.75, price10000: 0.63 },
+    'Medium Print Woven Patch': { price48: 2.5, price144: 1.75, price576: 1.5, price1152: 1.38, price2880: 1.25, price10000: 1.13 },
+    'Large Print Woven Patch': { price48: 3, price144: 2.25, price576: 2, price1152: 1.88, price2880: 1.75, price10000: 1.63 },
+    'Small Size Embroidery': { price48: 1.75, price144: 1.13, price576: 0.88, price1152: 0.75, price2880: 0.63, price10000: 0.5 },
+    'Medium Size Embroidery': { price48: 2.25, price144: 1.63, price576: 1.38, price1152: 1.3, price2880: 1.25, price10000: 1.13 },
+    'Large Size Embroidery': { price48: 3, price144: 2, price576: 1.75, price1152: 1.63, price2880: 1.5, price10000: 1.38 }
   };
   
   const pricing = logoPricing[logoType];
@@ -1029,7 +1066,7 @@ function getFallbackPremiumFabricPrice(fabricType: string, quantity: number): nu
     'Air Mesh': { price48: 0.5, price144: 0.35, price576: 0.3, price1152: 0.28, price2880: 0.25, price10000: 0.25 },
     'Camo': { price48: 0.5, price144: 0.4, price576: 0.35, price1152: 0.3, price2880: 0.25, price10000: 0.2 },
     'Genuine Leather': { price48: 2.0, price144: 1.8, price576: 1.7, price1152: 1.65, price2880: 1.6, price10000: 1.55 },
-    'Laser Cut': { price48: 0.5, price144: 0.4, price576: 0.35, price1152: 0.3, price2880: 0.28, price10000: 0.25 }
+    'Laser Cut': { price48: 1.25, price144: 1.0, price576: 0.88, price1152: 0.75, price2880: 0.7, price10000: 0.63 }
   };
   
   const pricing = fabricPricing[fabricType];

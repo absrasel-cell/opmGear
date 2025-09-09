@@ -120,9 +120,9 @@ async function loadCSVData<T>(filePath: string): Promise<T[]> {
         // Convert numeric fields where appropriate
         const processedData = { ...data };
         
-        // Convert price fields to numbers
+        // Convert price fields to numbers (but not priceTier)
         Object.keys(processedData).forEach(key => {
-          if (key.startsWith('price') && processedData[key] !== '') {
+          if (key.startsWith('price') && key !== 'priceTier' && processedData[key] !== '') {
             processedData[key] = parseFloat(processedData[key]) || 0;
           }
         });
@@ -137,6 +137,36 @@ async function loadCSVData<T>(filePath: string): Promise<T[]> {
             processedData.type = 'Service';
           } else {
             processedData.type = 'logos';
+          }
+        }
+
+        // For customization pricing CSV, map size names to standard sizes
+        if (processedData.Name && processedData.type === 'logos') {
+          // Determine size from name for customization pricing
+          if (processedData.Name.toLowerCase().includes('small')) {
+            processedData.Size = 'Small';
+            processedData.Application = 'Patch';
+          } else if (processedData.Name.toLowerCase().includes('medium')) {
+            processedData.Size = 'Medium'; 
+            processedData.Application = 'Patch';
+          } else if (processedData.Name.toLowerCase().includes('large')) {
+            processedData.Size = 'Large';
+            processedData.Application = 'Patch';
+          } else if (processedData.Name === '3D Embroidery') {
+            processedData.Size = 'Small';
+            processedData.Application = 'Direct';
+            processedData.Name = '3D Embroidery';
+          } else if (processedData.Name.toLowerCase().includes('size embroidery')) {
+            // Handle "Small Size Embroidery" -> "Flat Embroidery"
+            if (processedData.Name.toLowerCase().includes('small')) {
+              processedData.Size = 'Small';
+            } else if (processedData.Name.toLowerCase().includes('medium')) {
+              processedData.Size = 'Medium';
+            } else if (processedData.Name.toLowerCase().includes('large')) {
+              processedData.Size = 'Large';
+            }
+            processedData.Name = 'Flat Embroidery';
+            processedData.Application = 'Direct';
           }
         }
 
@@ -158,11 +188,11 @@ export class AIDataLoader {
   }
 
   static async getPricingTiers(): Promise<PricingTier[]> {
-    return loadCSVData<PricingTier>('ai/Blank Cap/priceTier.csv');
+    return loadCSVData<PricingTier>('csv/Blank Cap Pricings.csv');
   }
 
   static async getLogoOptions(): Promise<LogoOption[]> {
-    return loadCSVData<LogoOption>('ai/Options/Logo.csv');
+    return loadCSVData<LogoOption>('csv/Customization Pricings.csv');
   }
 
   static async getColorOptions(): Promise<ColorOption[]> {

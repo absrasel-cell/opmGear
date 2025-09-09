@@ -1120,7 +1120,7 @@ function generateDualCapOrderFallback(message: string): string {
 **Setup 2 - 5-Panel Khaki/Red (288 pieces):**
 • Base Cap: 5-panel structured - $2.90/cap at 288+ quantity 
 • Large Rubber Patch (Front): $1.10/cap (volume discount)
-• **Subtotal**: $6.00/cap × 288 = **$1,728.00**
+• **Subtotal**: $4.00/cap × 288 = **$1,152.00**
 
 **Shared Costs:**
 • Large Rubber Patch mold: $80.00 (one-time charge)
