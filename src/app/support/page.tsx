@@ -1978,13 +1978,13 @@ export default function SupportPage() {
       const extractFabric = (text: string): string => {
         // Look for premium fabric mentions in various formats
         const fabricPatterns = [
-          // Pattern 1: Direct fabric specification (e.g., "Fabric: Acrylic")
-          /(?:Fabric|Material):\s*([^,\n]+)/i,
-          // Pattern 2: Premium Fabric section with specific fabric (e.g., "Premium Fabric (Acrylic):")
+          // Pattern 1: Premium Fabric section with specific fabric (e.g., "Premium Fabric (Acrylic):")
           /🧵\s*Premium Fabric\s*\(([^)]+)\)/i,
           /Premium Fabric\s*\(([^)]+)\)/i,
-          // Pattern 3: CapCraft AI specific format "🧵 Premium Fabric (Acrylic):"
+          // Pattern 2: CapCraft AI specific format "🧵 Premium Fabric (Acrylic):"
           /🧵[^:]*Premium Fabric[^:]*\(([^)]+)\)[^:]*:/i,
+          // Pattern 3: Direct fabric specification (e.g., "Fabric: Acrylic")
+          /(?:Fabric|Material):\s*([A-Za-z][A-Za-z\s]*?)(?:\s|$|,|\n|\.)/i,
           // Pattern 4: Acrylic Premium Fabric line
           /Acrylic Premium Fabric/i,
           // Pattern 5: Multi-fabric combinations (e.g., "Duck Camo (Front) and Black Air Mesh (Back)")
@@ -2010,6 +2010,12 @@ export default function SupportPage() {
           if (match) {
             let fabricValue = match[1] || match[0];
             fabricValue = fabricValue.trim();
+            
+            // Critical fix: Ensure we only extract the fabric type, not pricing or other content
+            if (fabricValue.includes('$') || fabricValue.includes('*') || fabricValue.includes('\n') || fabricValue.length > 50) {
+              console.log(`⚠️ [FABRIC-EXTRACTION] Detected invalid fabric value (contains pricing/formatting): "${fabricValue.substring(0, 50)}..."`);
+              continue; // Skip this match and try next pattern
+            }
             
             // Clean up extracted fabric value and separate from colors
             if (fabricValue.toLowerCase().includes('duck camo') && fabricValue.toLowerCase().includes('air mesh')) {
@@ -2133,6 +2139,66 @@ export default function SupportPage() {
         return foundColors.length > 0 ? foundColors : ['Black']; // Default to black
       };
       
+      // Extract accessories from AI response
+      const extractAccessories = (text: string): string[] => {
+        const accessories: string[] = [];
+        console.log('🎁 [ACCESSORIES-EXTRACTION] Analyzing text for accessories:', text.substring(0, 300));
+        
+        // Look for accessories in the 🎁 Accessories section
+        const accessoriesSection = text.match(/🎁\s*\*\*Accessories:\*\*([\s\S]*?)(?=🚚|\*\*|$)/i);
+        
+        if (accessoriesSection) {
+          const accessoriesContent = accessoriesSection[1];
+          console.log('🎁 [ACCESSORIES-EXTRACTION] Found accessories section:', accessoriesContent.substring(0, 200));
+          
+          // Extract individual accessories
+          const accessoryPatterns = [
+            /•\s*([^:]+):\s*\d+\s*pieces/gi, // Pattern: • Hang Tag: 144 pieces
+            /([A-Za-z\s]+):\s*\d+\s*pieces/gi, // Alternative pattern
+          ];
+          
+          for (const pattern of accessoryPatterns) {
+            const matches = [...accessoriesContent.matchAll(pattern)];
+            matches.forEach(match => {
+              const accessoryName = String(match[1]).trim();
+              // Clean up accessory name and ensure it's a valid string
+              if (accessoryName && accessoryName !== 'undefined' && accessoryName !== 'null' && !accessories.includes(accessoryName)) {
+                accessories.push(accessoryName);
+                console.log('✅ [ACCESSORIES-EXTRACTION] Found accessory:', accessoryName);
+              }
+            });
+          }
+        }
+        
+        // Fallback: Look for common accessory mentions throughout the text
+        if (accessories.length === 0) {
+          const commonAccessories = [
+            { name: 'Hang Tag', patterns: [/hang\s*tag/gi] },
+            { name: 'Sticker', patterns: [/sticker/gi] },
+            { name: 'Inside Label', patterns: [/inside\s*label/gi, /label/gi] },
+            { name: 'B-Tape Print', patterns: [/b-tape/gi, /btape/gi] }
+          ];
+          
+          commonAccessories.forEach(accessory => {
+            accessory.patterns.forEach(pattern => {
+              if (pattern.test(text) && !accessories.includes(accessory.name)) {
+                // Ensure we always push a string, never an object
+                const accessoryName = String(accessory.name);
+                if (accessoryName && accessoryName !== 'undefined' && accessoryName !== 'null') {
+                  accessories.push(accessoryName);
+                  console.log('✅ [ACCESSORIES-EXTRACTION] Found common accessory:', accessoryName);
+                }
+              }
+            });
+          });
+        }
+        
+        // Final safety check: ensure all items are strings
+        const safeAccessories = accessories.filter(acc => acc && typeof acc === 'string');
+        console.log('🎁 [ACCESSORIES-EXTRACTION] Final accessories list:', safeAccessories);
+        return safeAccessories;
+      };
+      
       // Extract bill shape
       const extractBillShape = (text: string): string => {
         // Look for shape patterns in various formats
@@ -2187,6 +2253,10 @@ export default function SupportPage() {
       const fabric = extractFabric(message);
       console.log('🧵 [FABRIC-FIX] Extracted fabric from AI message:', fabric);
       
+      // Extract accessories from message
+      const accessories = extractAccessories(message);
+      console.log('🎁 [ACCESSORIES-FIX] Extracted accessories from AI message:', accessories);
+      
       // Extract cap size from message, default to "7 1/4"
       const extractSize = (msg: string): string => {
         const sizePatterns = [
@@ -2224,7 +2294,7 @@ export default function SupportPage() {
         },
         customization: {
           logos: logoTypes,
-          accessories: [],
+          accessories: accessories, // Now uses extracted accessories from AI response
           totalMoldCharges: message.includes('Mold Charge') ? 80 : 0
         },
         delivery: {
@@ -3237,40 +3307,27 @@ Would you like me to save this quote or would you like to modify any specificati
           setIsOrderBuilderVisible(false);
         }
 
-        // If no quote data was found in metadata, try to extract from conversation messages
-        if (hasQuotes && !currentQuoteData && data.ConversationMessage && data.ConversationMessage.length > 0) {
-          console.log('🔍 No saved quote data found, attempting to extract from conversation messages');
+        // Store extracted data from messages to preserve accessories and other parsed data
+        let messageExtractedQuoteData = null;
+        
+        // ALWAYS try to extract from conversation messages for complete data (including accessories)
+        if (hasQuotes && data.ConversationMessage && data.ConversationMessage.length > 0) {
+          console.log('🔍 Extracting quote data from conversation messages to preserve accessories');
           
-          // Look for AI messages that might contain quote data
+          // Look for AI messages that might contain quote data in metadata first
           const assistantMessages = data.ConversationMessage.filter((msg: any) => 
             msg.role.toLowerCase() === 'assistant' && msg.metadata?.quoteData
           );
           
           if (assistantMessages.length > 0) {
             const latestQuoteMessage = assistantMessages[assistantMessages.length - 1];
-            const extractedQuoteData = latestQuoteMessage.metadata.quoteData;
+            messageExtractedQuoteData = latestQuoteMessage.metadata.quoteData;
             
-            console.log('✅ Found quote data in message metadata:', extractedQuoteData);
-            
-            // Set states immediately and force Order Builder visibility
-            setCurrentQuoteData(extractedQuoteData);
-            setIsOrderBuilderVisible(true);
-            
-            // Also backup to localStorage to prevent state loss
-            try {
-              localStorage.setItem(`currentQuoteData_${data.id}`, JSON.stringify(extractedQuoteData));
-              console.log('💾 Backed up quote data to localStorage');
-            } catch (e) {
-              console.warn('Failed to backup quote data:', e);
-            }
-            
-            console.log('🔧 Forcing Order Builder visibility and quote data set');
-            
-            updateOrderBuilderStatus(extractedQuoteData);
+            console.log('✅ Found quote data in message metadata:', messageExtractedQuoteData);
           } else {
             console.log('⚠️ No quote data found in message metadata, trying message content extraction');
             
-            // Try parsing quote data from message content
+            // Try parsing quote data from message content (this includes accessories parsing)
             const detailedMessages = data.ConversationMessage.filter((msg: any) => 
               msg.role.toLowerCase() === 'assistant' && msg.content && msg.content.length > 200
             );
@@ -3278,12 +3335,30 @@ Would you like me to save this quote or would you like to modify any specificati
             for (const msg of detailedMessages) {
               const extractedData = parseQuoteFromMessage(msg.content);
               if (extractedData) {
-                console.log('✅ Extracted quote data from message content:', extractedData);
-                setCurrentQuoteData(extractedData);
-                updateOrderBuilderStatus(extractedData);
+                console.log('✅ Extracted quote data from message content (with accessories):', {
+                  accessories: extractedData.customization?.accessories,
+                  accessoryCount: extractedData.customization?.accessories?.length || 0
+                });
+                messageExtractedQuoteData = extractedData;
                 break;
               }
             }
+          }
+          
+          // Set the extracted data if we found it
+          if (messageExtractedQuoteData) {
+            setCurrentQuoteData(messageExtractedQuoteData);
+            setIsOrderBuilderVisible(true);
+            
+            // Backup to localStorage
+            try {
+              localStorage.setItem(`currentQuoteData_${data.id}`, JSON.stringify(messageExtractedQuoteData));
+              console.log('💾 Backed up message-extracted quote data to localStorage');
+            } catch (e) {
+              console.warn('Failed to backup quote data:', e);
+            }
+            
+            updateOrderBuilderStatus(messageExtractedQuoteData);
           }
         }
 
@@ -3307,27 +3382,52 @@ Would you like me to save this quote or would you like to modify any specificati
             } : null
           });
           
-          // Restore quote data first
+          // Merge metadata with message-extracted data (prioritize message data for completeness)
           if (orderBuilder.capDetails || orderBuilder.customization || orderBuilder.delivery) {
-            const restoredQuoteData = {
-              capDetails: orderBuilder.capDetails,
-              customization: orderBuilder.customization,
-              delivery: orderBuilder.delivery,
-              pricing: orderBuilder.pricing
+            const mergedQuoteData = {
+              capDetails: {
+                ...(messageExtractedQuoteData?.capDetails || {}),
+                ...(orderBuilder.capDetails || {})
+              },
+              customization: {
+                // Prioritize message-extracted accessories (more complete)
+                ...(orderBuilder.customization || {}),
+                ...(messageExtractedQuoteData?.customization || {}),
+                // Ensure accessories from message parsing take priority
+                accessories: messageExtractedQuoteData?.customization?.accessories || 
+                           orderBuilder.customization?.accessories || []
+              },
+              delivery: {
+                ...(messageExtractedQuoteData?.delivery || {}),
+                ...(orderBuilder.delivery || {})
+              },
+              pricing: {
+                ...(messageExtractedQuoteData?.pricing || {}),
+                ...(orderBuilder.pricing || {})
+              }
             };
             
-            console.log('✅ Restoring quote data:', restoredQuoteData);
-            setCurrentQuoteData(restoredQuoteData);
+            console.log('✅ Merged quote data (message + metadata):', {
+              accessories: mergedQuoteData.customization?.accessories,
+              accessoryCount: mergedQuoteData.customization?.accessories?.length || 0,
+              mergedFrom: {
+                hasMessageData: !!messageExtractedQuoteData,
+                hasMetadataData: !!(orderBuilder.capDetails || orderBuilder.customization || orderBuilder.delivery)
+              }
+            });
+            
+            setCurrentQuoteData(mergedQuoteData);
             
             // Use the proper updateOrderBuilderStatus function to dynamically calculate completion states
-            console.log('🔄 Calling updateOrderBuilderStatus to properly populate Order Builder from quote data');
-            updateOrderBuilderStatus(restoredQuoteData);
+            console.log('🔄 Calling updateOrderBuilderStatus with merged data to properly populate Order Builder');
+            updateOrderBuilderStatus(mergedQuoteData);
           }
           
           // Skip manual orderBuilderStatus restoration - let updateOrderBuilderStatus handle it
           // The updateOrderBuilderStatus function called above will properly calculate all states
           console.log('✅ Order Builder status will be calculated dynamically from quote data');
-        } else {
+        } else if (!messageExtractedQuoteData) {
+          // Only try reconstruction if we haven't already extracted message data
           // If no metadata orderBuilder but hasQuotes, try to restore from conversation data
           if (data.quoteData && data.quoteData.quoteOrder) {
             const quoteOrder = data.quoteData.quoteOrder;
@@ -3345,7 +3445,8 @@ Would you like me to save this quote or would you like to modify any specificati
                     location: 'front',
                     technique: 'embroidery',
                     colors: 1
-                  }]
+                  }],
+                  accessories: [] // Will be empty since quoteOrder doesn't preserve accessories
                 },
                 delivery: {
                   method: 'standard',
@@ -3360,7 +3461,7 @@ Would you like me to save this quote or would you like to modify any specificati
                 }
               };
 
-              console.log('🔄 Reconstructing quote data from quoteOrder for Order Builder');
+              console.log('🔄 Reconstructing quote data from quoteOrder for Order Builder (accessories may be missing)');
               setCurrentQuoteData(reconstructedQuoteData);
               updateOrderBuilderStatus(reconstructedQuoteData);
             }
@@ -4891,7 +4992,7 @@ Would you like me to save this quote or would you like to modify any specificati
                     type="button"
                     onClick={handleQuoteOrder}
                     disabled={!canQuoteOrder()}
-                    className="h-12 sm:h-10 md:h-12 px-4 sm:px-4 md:px-5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_-10px_rgba(16,185,129,0.4)] hover:-translate-y-0.5 touch-manipulation"
+                    className="h-12 sm:h-10 md:h-12 px-4 sm:px-4 md:px-5 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition-colors flex items-center gap-2 font-medium tracking-tight disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_-10px_rgba(234,88,12,0.4)] hover:-translate-y-0.5 touch-manipulation"
                   >
                     <span className="hidden sm:inline">Quote</span>
                     <DocumentTextIcon className="h-5 w-5 -mr-0.5" />
@@ -5140,7 +5241,15 @@ Please provide a detailed quote with cost breakdown.`;
                                   <div className="text-white/70">Logo Setup: <span className="text-white">{currentQuoteData.customization.logoSetup}</span></div>
                                 )}
                                 {currentQuoteData.customization.accessories && currentQuoteData.customization.accessories.length > 0 && (
-                                  <div className="text-white/70">Accessories: <span className="text-white">{currentQuoteData.customization.accessories.join(', ')}</span></div>
+                                  <div className="text-white/70">
+                                    Accessories: <span className="text-white">
+                                      {currentQuoteData.customization.accessories
+                                        .map((acc: any) => typeof acc === 'string' ? acc : acc.name || String(acc))
+                                        .join(', ')
+                                      }
+                                    </span>
+                                    <div className="text-green-300 text-[9px] mt-0.5">{currentQuoteData.customization.accessories.length}</div>
+                                  </div>
                                 )}
                                 {currentQuoteData.customization.moldCharges && (
                                   <div className="text-white/70">Mold Charges: <span className="text-white">${currentQuoteData.customization.moldCharges}</span></div>
