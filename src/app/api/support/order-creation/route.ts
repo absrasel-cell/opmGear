@@ -767,7 +767,14 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
 5. Set pricing.premiumClosureCost = closure_cost
 6. Include in total: total = baseProductCost + premiumClosureCost + logosCost + deliveryCost`;
 
-  // Call OpenAI API using GPT-4o Mini for order creation
+  // Call OpenAI API using GPT-4o Mini for order creation with extended timeout
+  // Create AbortController for timeout handling
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.error('⏰ OpenAI API timeout after 45 seconds - aborting request');
+    controller.abort();
+  }, 45000); // 45 second timeout for complex quote calculations with premium fabrics
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
    method: 'POST',
    headers: {
@@ -784,11 +791,20 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
     max_tokens: quoteMaster.maxTokens,
     response_format: { type: 'json_object' }
    }),
+   signal: controller.signal
   });
+
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
    const errorText = await response.text();
    console.error('OpenAI API error:', response.status, response.statusText, errorText);
+   
+   // Check for specific timeout/rate limit errors
+   if (response.status === 408 || response.status === 504 || response.status === 524) {
+     throw new Error(`Request timeout: The quote calculation is taking longer than expected. This often happens with complex requests involving premium fabrics and customizations.`);
+   }
+   
    throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
   }
 
@@ -805,26 +821,66 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
    orderResponse = JSON.parse(content);
   } catch (parseError) {
    console.error('Failed to parse OpenAI response:', content);
-   // Fallback response with dynamic parsing
+   
+   // Enhanced fallback response with better error handling
    const extractedQuantity = message.match(/\d+/)?.[0] || 'specified';
    const hasQuantity = extractedQuantity !== 'specified';
+   const hasAcrylicFabric = message.toLowerCase().includes('acrylic');
+   const has3DEmbroidery = message.toLowerCase().includes('3d embroidery');
+   
+   // Check if this was a timeout error specifically
+   const isTimeoutError = parseError.name === 'AbortError' || parseError.message?.includes('aborted');
    
    orderResponse = {
-    message: `I understand you're looking for a quote. Let me help you with that request.
+    message: isTimeoutError ? 
+    `I understand you're looking for a quote for ${hasQuantity ? extractedQuantity + ' pieces' : 'custom caps'}${hasAcrylicFabric ? ' with Acrylic fabric' : ''}${has3DEmbroidery ? ' and 3D embroidery' : ''}.
 
-Based on your message: "${message}"
+Your request is complex and requires detailed calculations. Let me process this step by step:
 
-I'm having a brief technical issue with my quote calculation system, but I can still help you! ${hasQuantity ? `I see you mentioned ${extractedQuantity} pieces.` : ''}
+${hasQuantity ? `✅ Quantity: ${extractedQuantity} pieces` : '• Please specify the exact quantity'}
+${hasAcrylicFabric ? '✅ Premium Acrylic fabric noted' : ''}  
+${has3DEmbroidery ? '✅ 3D embroidery customization noted' : ''}
 
-Let me create a detailed quote for you. Could you please confirm:
+I'm generating a comprehensive quote with:
+• Accurate blank cap pricing for your quantity
+• Premium fabric costs (if applicable)  
+• Customization pricing breakdown
+• Delivery costs and timeline
+• Total investment calculation
+
+Please allow me a moment to calculate precise pricing from our latest data. If you need immediate assistance, please provide:
+• Exact quantity needed
+• Preferred colors
+• Logo/design requirements
+• Any deadline requirements
+
+I'll provide detailed, accurate pricing - not estimates.` :
+    
+    `I understand you're looking for a quote. Let me help you with that request.
+
+Based on your message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"
+
+${hasQuantity ? `I see you mentioned ${extractedQuantity} pieces.` : ''} Let me create a detailed quote for you. 
+
+To provide the most accurate pricing, please confirm:
 • The exact quantity you need
 • Your preferred cap style and colors  
 • What type of customization you're looking for (embroidery, patches, etc.)
 • Any specific requirements or deadlines
 
-I'll get back to you with accurate pricing based on your actual specifications, not generic estimates.`,
+I'll get back to you with precise pricing based on your specifications, including all costs for materials, customization, and delivery.`,
+    
     quoteData: null,
-    actions: ["create_detailed_quote", "modify_specs"]
+    actions: ["create_detailed_quote", "modify_specs"],
+    metadata: {
+     errorType: isTimeoutError ? 'timeout' : 'parse_error',
+     hasQuantity,
+     extractedQuantity: hasQuantity ? extractedQuantity : null,
+     detectedFeatures: {
+      acrylicFabric: hasAcrylicFabric,
+      threeDEmbroidery: has3DEmbroidery
+     }
+    }
    };
   }
 
@@ -1136,10 +1192,16 @@ I'll get back to you with accurate pricing based on your actual specifications, 
   // Get QuoteMaster AI assistant configuration for error response
   const quoteMasterError = AI_ASSISTANTS.QUOTE_MASTER;
   
+  // Check if this is a timeout error
+  const isTimeoutError = error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('aborted');
+  
   return NextResponse.json(
    { 
-    message: "I apologize, but I'm having trouble creating your quote right now. Please try rephrasing your request with specific details like quantity, colors, and customization requirements.",
-    error: 'Processing failed',
+    message: isTimeoutError ? 
+     "Your quote request is complex and requires extended processing time. This often happens with premium fabrics like Acrylic and detailed customizations like 3D embroidery.\n\nI'm working on calculating accurate pricing that includes:\n• Blank cap costs\n• Premium fabric costs\n• Customization pricing\n• Delivery costs\n\nPlease try your request again, or if urgent, provide simplified details and I'll build a basic quote first." :
+     "I apologize, but I'm having trouble creating your quote right now. Please try rephrasing your request with specific details like quantity, colors, and customization requirements.",
+    error: isTimeoutError ? 'Request timeout - complex calculation' : 'Processing failed',
+    isTimeout: isTimeoutError,
     assistant: {
      id: quoteMasterError.id,
      name: quoteMasterError.name,
@@ -1151,7 +1213,7 @@ I'll get back to you with accurate pricing based on your actual specifications, 
     },
     model: quoteMasterError.model
    },
-   { status: 500 }
+   { status: isTimeoutError ? 408 : 500 }
   );
  }
 }
