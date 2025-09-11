@@ -27,9 +27,67 @@ export interface CustomizationPricing {
   price20000?: number;
 }
 
+export interface FabricPricing {
+  Name: string;
+  costType: string;
+  colorNote: string;
+  price48: number;
+  price144: number;
+  price576: number;
+  price1152: number;
+  price2880: number;
+  price10000: number;
+  price20000?: number;
+  marginPercent: number;
+}
+
+export interface ClosurePricing {
+  Name: string;
+  type: string;
+  price48: number;
+  price144: number;
+  price576: number;
+  price1152: number;
+  price2880: number;
+  price10000: number;
+  price20000?: number;
+  comment?: string;
+  marginPercent: number;
+}
+
+export interface AccessoryPricing {
+  Name: string;
+  price48: number;
+  price144: number;
+  price576: number;
+  price1152: number;
+  price2880: number;
+  price10000: number;
+  price20000?: number;
+  marginPercent: number;
+}
+
+export interface DeliveryPricing {
+  Name: string;
+  type: string;
+  deliveryDays: string;
+  price48: number;
+  price144: number;
+  price576: number;
+  price1152: number;
+  price2880: number;
+  price10000: number;
+  price20000?: number;
+  marginPercent: number;
+}
+
 // Cache for loaded pricing data to avoid repeated file reads
 let blankCapPricingCache: BaseProductPricing[] | null = null;
 let customizationPricingCache: CustomizationPricing[] | null = null;
+let fabricPricingCache: FabricPricing[] | null = null;
+let closurePricingCache: ClosurePricing[] | null = null;
+let accessoryPricingCache: AccessoryPricing[] | null = null;
+let deliveryPricingCache: DeliveryPricing[] | null = null;
 
 // Helper function to parse CSV lines properly
 function parseCSVLine(line: string): string[] {
@@ -156,9 +214,9 @@ export async function calculateUnitPrice(quantity: number, tierName?: string): P
   return pricing.price48;
 }
 
-// Calculate delivery unit price based on quantity and method using CSV data
+// Calculate delivery unit price based on quantity and method using dedicated delivery CSV data
 export async function calculateDeliveryUnitPrice(quantity: number, deliveryMethod: string = 'regular'): Promise<number> {
-  const customizationPricing = await loadCustomizationPricing();
+  const deliveryPricing = await loadDeliveryPricing();
   
   // Map delivery method names to CSV names
   const methodMap: Record<string, string> = {
@@ -169,21 +227,20 @@ export async function calculateDeliveryUnitPrice(quantity: number, deliveryMetho
   };
   
   const csvMethodName = methodMap[deliveryMethod] || 'Regular Delivery';
-  const deliveryPricing = customizationPricing.find(p => 
-    p.type === 'Shipping' && p.Name === csvMethodName
-  );
+  const delivery = deliveryPricing.find(d => d.Name === csvMethodName);
   
-  if (!deliveryPricing) {
+  if (!delivery) {
     console.warn(`Delivery pricing not found for: ${csvMethodName}`);
     // Try to find Regular Delivery as fallback
-    const fallback = customizationPricing.find(p => 
-      p.type === 'Shipping' && p.Name === 'Regular Delivery'
-    );
-    if (!fallback) return 0;
+    const fallback = deliveryPricing.find(d => d.Name === 'Regular Delivery');
+    if (!fallback) {
+      console.error('No Regular Delivery fallback found in CSV');
+      return 0;
+    }
     return getPriceForQuantityFromCSV(fallback, quantity);
   }
   
-  return getPriceForQuantityFromCSV(deliveryPricing, quantity);
+  return getPriceForQuantityFromCSV(delivery, quantity);
 }
 
 // Helper function to get price for quantity from CSV pricing data
@@ -195,4 +252,154 @@ export function getPriceForQuantityFromCSV(pricing: any, quantity: number): numb
   if (quantity >= 576) return pricing.price576;
   if (quantity >= 144) return pricing.price144;
   return pricing.price48;
+}
+
+// Load fabric pricing from CSV file
+export async function loadFabricPricing(): Promise<FabricPricing[]> {
+  if (fabricPricingCache) {
+    return fabricPricingCache;
+  }
+  
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/ai/Options/Fabric.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const dataLines = lines.slice(1); // Skip header
+    
+    const pricingData = dataLines.map(line => {
+      const values = parseCSVLine(line);
+      return {
+        Name: (values[0] || '').replace(/"/g, '').trim(),
+        costType: (values[1] || '').trim(),
+        colorNote: (values[2] || '').trim(),
+        price48: parseFloat(values[3]) || 0,
+        price144: parseFloat(values[4]) || 0,
+        price576: parseFloat(values[5]) || 0,
+        price1152: parseFloat(values[6]) || 0,
+        price2880: parseFloat(values[7]) || 0,
+        price10000: parseFloat(values[8]) || 0,
+        price20000: parseFloat(values[9]) || 0,
+        marginPercent: parseFloat(values[10]) || 0,
+      };
+    }).filter(item => item.Name && item.Name.length > 0);
+    
+    fabricPricingCache = pricingData;
+    console.log('✅ Loaded', pricingData.length, 'fabric pricing items from CSV');
+    return pricingData;
+  } catch (error) {
+    console.error('Error loading fabric pricing from CSV:', error);
+    return [];
+  }
+}
+
+// Load closure pricing from CSV file
+export async function loadClosurePricing(): Promise<ClosurePricing[]> {
+  if (closurePricingCache) {
+    return closurePricingCache;
+  }
+  
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/ai/Options/Closure.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const dataLines = lines.slice(1); // Skip header
+    
+    const pricingData = dataLines.map(line => {
+      const values = parseCSVLine(line);
+      return {
+        Name: (values[0] || '').replace(/"/g, '').trim(),
+        type: (values[1] || '').trim(),
+        price48: parseFloat(values[2]) || 0,
+        price144: parseFloat(values[3]) || 0,
+        price576: parseFloat(values[4]) || 0,
+        price1152: parseFloat(values[5]) || 0,
+        price2880: parseFloat(values[6]) || 0,
+        price10000: parseFloat(values[7]) || 0,
+        price20000: parseFloat(values[8]) || 0,
+        comment: (values[9] || '').trim(),
+        marginPercent: parseFloat(values[10]) || 0,
+      };
+    }).filter(item => item.Name && item.Name.length > 0);
+    
+    closurePricingCache = pricingData;
+    console.log('✅ Loaded', pricingData.length, 'closure pricing items from CSV');
+    return pricingData;
+  } catch (error) {
+    console.error('Error loading closure pricing from CSV:', error);
+    return [];
+  }
+}
+
+// Load accessory pricing from CSV file
+export async function loadAccessoryPricing(): Promise<AccessoryPricing[]> {
+  if (accessoryPricingCache) {
+    return accessoryPricingCache;
+  }
+  
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/ai/Options/Accessories.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const dataLines = lines.slice(1); // Skip header
+    
+    const pricingData = dataLines.map(line => {
+      const values = parseCSVLine(line);
+      return {
+        Name: (values[0] || '').replace(/"/g, '').trim(),
+        price48: parseFloat(values[1]) || 0,
+        price144: parseFloat(values[2]) || 0,
+        price576: parseFloat(values[3]) || 0,
+        price1152: parseFloat(values[4]) || 0,
+        price2880: parseFloat(values[5]) || 0,
+        price10000: parseFloat(values[6]) || 0,
+        price20000: parseFloat(values[7]) || 0,
+        marginPercent: parseFloat(values[8]) || 0,
+      };
+    }).filter(item => item.Name && item.Name.length > 0);
+    
+    accessoryPricingCache = pricingData;
+    console.log('✅ Loaded', pricingData.length, 'accessory pricing items from CSV');
+    return pricingData;
+  } catch (error) {
+    console.error('Error loading accessory pricing from CSV:', error);
+    return [];
+  }
+}
+
+// Load delivery pricing from CSV file (updated to use dedicated delivery CSV)
+export async function loadDeliveryPricing(): Promise<DeliveryPricing[]> {
+  if (deliveryPricingCache) {
+    return deliveryPricingCache;
+  }
+  
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/ai/Options/Delivery.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const dataLines = lines.slice(1); // Skip header
+    
+    const pricingData = dataLines.map(line => {
+      const values = parseCSVLine(line);
+      return {
+        Name: (values[0] || '').replace(/"/g, '').trim(),
+        type: (values[1] || '').trim(),
+        deliveryDays: (values[2] || '').trim(),
+        price48: parseFloat(values[3]) || 0,
+        price144: parseFloat(values[4]) || 0,
+        price576: parseFloat(values[5]) || 0,
+        price1152: parseFloat(values[6]) || 0,
+        price2880: parseFloat(values[7]) || 0,
+        price10000: parseFloat(values[8]) || 0,
+        price20000: parseFloat(values[9]) || 0,
+        marginPercent: parseFloat(values[10]) || 0,
+      };
+    }).filter(item => item.Name && item.Name.length > 0);
+    
+    deliveryPricingCache = pricingData;
+    console.log('✅ Loaded', pricingData.length, 'delivery pricing items from CSV');
+    return pricingData;
+  } catch (error) {
+    console.error('Error loading delivery pricing from CSV:', error);
+    return [];
+  }
 }

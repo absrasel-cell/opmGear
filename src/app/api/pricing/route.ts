@@ -1,33 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { loadBlankCapPricing } from '@/lib/pricing-server';
 
-// Fallback pricing tiers in case database is unavailable
-const FALLBACK_PRICING_TIERS = {
- 'Tier 1': {
-  price48: 1.80,
-  price144: 1.50,
-  price576: 1.45,
-  price1152: 1.42,
-  price2880: 1.38,
-  price10000: 1.35,
- },
- 'Tier 2': {
-  price48: 2.20,
-  price144: 1.60,
-  price576: 1.50,
-  price1152: 1.45,
-  price2880: 1.40,
-  price10000: 1.35,
- },
- 'Tier 3': {
-  price48: 2.40,
-  price144: 1.70,
-  price576: 1.60,
-  price1152: 1.47,
-  price2880: 1.44,
-  price10000: 1.41,
- }
-};
+// REMOVED: All hardcoded pricing fallbacks have been eliminated.
+// The system now exclusively uses live CSV data for accurate pricing.
 
 export async function GET(request: NextRequest) {
  try {
@@ -62,13 +38,35 @@ export async function GET(request: NextRequest) {
     };
    });
   } catch (dbError) {
-   console.error('Error loading pricing tiers from database:', dbError);
-   pricingTiers = FALLBACK_PRICING_TIERS;
+   console.error('Error loading pricing tiers from database, using CSV fallback:', dbError);
+   // Load from CSV as fallback
+   const csvPricing = await loadBlankCapPricing();
+   csvPricing.forEach((tier) => {
+     pricingTiers[tier.name] = {
+       price48: tier.price48,
+       price144: tier.price144,
+       price576: tier.price576,
+       price1152: tier.price1152,
+       price2880: tier.price2880,
+       price10000: tier.price10000,
+     };
+   });
   }
 
-  // Use fallback if no tiers found
+  // Use CSV fallback if no tiers found
   if (Object.keys(pricingTiers).length === 0) {
-   pricingTiers = FALLBACK_PRICING_TIERS;
+   console.warn('No pricing tiers found in database, loading from CSV');
+   const csvPricing = await loadBlankCapPricing();
+   csvPricing.forEach((tier) => {
+     pricingTiers[tier.name] = {
+       price48: tier.price48,
+       price144: tier.price144,
+       price576: tier.price576,
+       price1152: tier.price1152,
+       price2880: tier.price2880,
+       price10000: tier.price10000,
+     };
+   });
   }
 
   // Load margin settings if requested
@@ -177,19 +175,41 @@ export async function GET(request: NextRequest) {
  } catch (error) {
   console.error('Error in pricing API:', error);
   
-  // Return fallback data on error
+  // Return CSV fallback data on error
   const tierParam = new URL(request.url).searchParams.get('tier');
-  if (tierParam && FALLBACK_PRICING_TIERS[tierParam as keyof typeof FALLBACK_PRICING_TIERS]) {
-   return NextResponse.json({
-    tier: tierParam,
-    pricing: FALLBACK_PRICING_TIERS[tierParam as keyof typeof FALLBACK_PRICING_TIERS],
-    marginSettings: null
-   });
+  try {
+    const csvPricing = await loadBlankCapPricing();
+    const csvPricingTiers: Record<string, any> = {};
+    csvPricing.forEach((tier) => {
+      csvPricingTiers[tier.name] = {
+        price48: tier.price48,
+        price144: tier.price144,
+        price576: tier.price576,
+        price1152: tier.price1152,
+        price2880: tier.price2880,
+        price10000: tier.price10000,
+      };
+    });
+    
+    if (tierParam && csvPricingTiers[tierParam]) {
+      return NextResponse.json({
+        tier: tierParam,
+        pricing: csvPricingTiers[tierParam],
+        marginSettings: null
+      });
+    }
+    
+    return NextResponse.json({
+      tiers: csvPricingTiers,
+      marginSettings: null
+    });
+  } catch (csvError) {
+    console.error('CSV fallback failed:', csvError);
+    return NextResponse.json({
+      error: 'Unable to load pricing data',
+      tiers: {},
+      marginSettings: null
+    }, { status: 500 });
   }
-  
-  return NextResponse.json({
-   tiers: FALLBACK_PRICING_TIERS,
-   marginSettings: null
-  });
  }
 }

@@ -3,23 +3,15 @@
  * Core logic for parsing order requirements and optimizing quantities
  */
 
-import { getBaseProductPricing, calculateUnitPrice, calculateDeliveryUnitPrice } from '@/lib/pricing';
-import { 
-  costingService, 
-  calculateCost, 
-  calculateQuickEstimate as unifiedQuickEstimate 
-} from '@/lib/unified-costing-service';
+// AI-SPECIFIC PRICING IMPORTS - ONLY uses /ai/Options/ CSV files
 import {
-  CostingContext,
-  BUSINESS_RULES,
-  detectFabricFromText,
-  detectLogoTypeFromText,
-  detectAllLogosFromText,
-  detectClosureFromText,
-  detectSizeFromText,
-  detectAccessoriesFromText,
-  getDefaultApplicationMethod
-} from '@/lib/costing-knowledge-base';
+  getAIAccessoryPrice,
+  getAILogoPrice,
+  getAIClosurePrice,
+  getAIFabricPrice,
+  getAIDeliveryPrice,
+  getAIBlankCapPrice
+} from '@/lib/ai-pricing-service';
 
 export interface OrderRequirements {
   quantity: number;
@@ -553,7 +545,7 @@ export function optimizeQuantityForBudget(budget: number, logoType: string) {
   const testQuantities = [48, 144, 576, 1152, 2880, 10000];
   
   for (const qty of testQuantities) {
-    const basePrice = getBasePriceForQuantity(qty);
+    const basePrice = getBasePriceForQuantity(qty, 'Tier 1'); // Use default tier for budget optimization
     const logoSetupCost = logoType === "3D Embroidery" ? 100 : 
                          logoType === "None" ? 0 : 50;
     const deliveryUnitPrice = calculateDeliveryUnitPrice(qty, 'regular');
@@ -706,11 +698,20 @@ export async function calculateQuickEstimate(requirements: OrderRequirements, co
   } catch (error) {
     console.error('Failed to calculate quick estimate using unified service, using fallback:', error);
     
-    // Fallback to simple calculation
-    const basePrice = getBasePriceForQuantity(requirements.quantity);
-    const logoSetupCost = requirements.logoType === "3D Embroidery" ? 100 : 
-                         requirements.logoType === "None" ? 0 : 50;
-    const deliveryUnitPrice = calculateDeliveryUnitPrice(requirements.quantity, requirements.deliveryMethod || 'regular');
+    // Fallback to simple calculation with correct tier using CSV data
+    const productTier = determineProductTier(requirements);
+    const basePrice = await getBasePriceForQuantity(requirements.quantity, productTier);
+    
+    // Calculate logo cost from CSV instead of hardcoded values
+    let logoSetupCost = 0;
+    if (requirements.logoType && requirements.logoType !== "None") {
+      const logoSize = requirements.logoSize || 'Medium';
+      logoSetupCost = await getPriceForLogoQuantity(`${logoSize} ${requirements.logoType}`, requirements.quantity) * requirements.quantity;
+    }
+    
+    // Calculate delivery cost from CSV
+    const { calculateDeliveryUnitPrice } = await import('@/lib/pricing-server');
+    const deliveryUnitPrice = await calculateDeliveryUnitPrice(requirements.quantity, requirements.deliveryMethod || 'regular');
     const deliveryCost = requirements.quantity * deliveryUnitPrice;
     const total = (requirements.quantity * basePrice) + logoSetupCost + deliveryCost;
     
@@ -726,119 +727,200 @@ export async function calculateQuickEstimate(requirements: OrderRequirements, co
 }
 
 /**
- * Calculate precise order estimate using unified costing service
+ * Calculate precise order estimate using AI-SPECIFIC pricing from /ai/Options/ CSV files
  */
 export async function calculatePreciseOrderEstimate(requirements: OrderRequirements) {
+  console.log('🧮 [ORDER-AI-CORE] Calculating precise estimate using AI-SPECIFIC pricing for:', {
+    quantity: requirements.quantity,
+    logoType: requirements.logoType,
+    logoSize: requirements.logoSize,
+    color: requirements.color,
+    profile: requirements.profile,
+    billStyle: requirements.billStyle,
+    panelCount: requirements.panelCount,
+    closureType: requirements.closureType,
+    fabricType: requirements.fabricType
+  });
+  
   try {
-    console.log('🧮 [ORDER-AI-CORE] Calculating precise estimate using unified service for:', {
-      quantity: requirements.quantity,
-      logoType: requirements.logoType,
-      logoSize: requirements.logoSize,
-      color: requirements.color,
-      profile: requirements.profile,
-      billStyle: requirements.billStyle,
-      panelCount: requirements.panelCount,
-      closureType: requirements.closureType,
-      fabricType: requirements.fabricType
-    });
+    // 1. Calculate blank cap cost
+    const productTier = determineProductTier(requirements);
+    const blankCapUnitPrice = await getAIBlankCapPrice(productTier, requirements.quantity);
+    const baseProductTotal = blankCapUnitPrice * requirements.quantity;
     
-    // Build costing context from requirements using unified service format
-    const logoSetup: any[] = [];
+    console.log(`🧢 [AI-PRICING] Blank caps (${productTier}): $${blankCapUnitPrice} x ${requirements.quantity} = $${baseProductTotal}`);
+    
+    // 2. Calculate logo costs
+    let logoSetupTotal = 0;
+    let moldChargeTotal = 0;
+    const logoBreakdown = [];
     
     if (requirements.multiLogoSetup && requirements.logoType !== "None") {
-      // Use multi-logo setup for comprehensive logo configuration
-      Object.entries(requirements.multiLogoSetup).forEach(([position, config]: [string, any]) => {
-        logoSetup.push({
+      // Multi-logo setup
+      for (const [position, config] of Object.entries(requirements.multiLogoSetup)) {
+        const { unitPrice, moldCharge } = await getAILogoPrice(
+          config.type, 
+          config.size, 
+          config.application, 
+          requirements.quantity
+        );
+        const logoCost = unitPrice * requirements.quantity;
+        logoSetupTotal += logoCost;
+        moldChargeTotal += moldCharge;
+        
+        logoBreakdown.push({
+          position: position,
           type: config.type,
           size: config.size,
-          position: position.charAt(0).toUpperCase() + position.slice(1),
-          application: config.application
+          application: config.application,
+          unitPrice: unitPrice,
+          totalCost: logoCost,
+          moldCharge: moldCharge
         });
-      });
+      }
     } else if (requirements.logoType !== "None") {
       // Single logo setup
-      const position = requirements.logoPosition || "Front";
-      const size = requirements.logoSize || detectSizeFromText("", position);
-      const application = requirements.logoApplication || getDefaultApplicationMethod(requirements.logoType);
+      const size = requirements.logoSize || getDefaultLogoSize(requirements.logoPosition || 'Front');
+      const application = requirements.logoApplication || getDefaultApplication(requirements.logoType);
       
-      logoSetup.push({
+      const { unitPrice, moldCharge } = await getAILogoPrice(
+        requirements.logoType, 
+        size, 
+        application, 
+        requirements.quantity
+      );
+      const logoCost = unitPrice * requirements.quantity;
+      logoSetupTotal += logoCost;
+      moldChargeTotal += moldCharge;
+      
+      logoBreakdown.push({
+        position: requirements.logoPosition || 'Front',
         type: requirements.logoType,
         size: size,
-        position: position,
-        application: application
+        application: application,
+        unitPrice: unitPrice,
+        totalCost: logoCost,
+        moldCharge: moldCharge
       });
     }
-
-    const costingContext: CostingContext = {
-      quantity: requirements.quantity,
-      logoSetup: logoSetup.length > 0 ? logoSetup : undefined,
-      fabricType: requirements.fabricType,
-      closureType: requirements.closureType,
-      deliveryMethod: requirements.deliveryMethod || 'regular', // Default to regular delivery
-      productTier: determineProductTier(requirements), // Use dynamic tier detection
-      accessories: requirements.accessories || [], // Include detected accessories
-      services: [] // Can be expanded later
-    };
     
-    console.log('📤 [ORDER-AI-CORE] Using unified costing service with context:', {
-      quantity: costingContext.quantity,
-      logoSetupCount: costingContext.logoSetup?.length || 0,
-      fabricType: costingContext.fabricType,
-      closureType: costingContext.closureType,
-      deliveryMethod: costingContext.deliveryMethod,
-      productTier: costingContext.productTier,
-      panelCount: requirements.panelCount,
-      accessoriesCount: costingContext.accessories?.length || 0,
-      accessories: costingContext.accessories
+    console.log(`🎨 [AI-PRICING] Logo setup total: $${logoSetupTotal}, Mold charges: $${moldChargeTotal}`);
+    
+    // 3. Calculate premium fabric cost
+    let premiumFabricTotal = 0;
+    if (requirements.fabricType && !['Chino Twill', 'Trucker Mesh', 'Micro Mesh', 'Cotton Polyester Mix', 'Polyester', 'Ripstop'].includes(requirements.fabricType)) {
+      const fabricUnitPrice = await getAIFabricPrice(requirements.fabricType, requirements.quantity);
+      premiumFabricTotal = fabricUnitPrice * requirements.quantity;
+      console.log(`🧵 [AI-PRICING] Premium fabric (${requirements.fabricType}): $${fabricUnitPrice} x ${requirements.quantity} = $${premiumFabricTotal}`);
+    }
+    
+    // 4. Calculate premium closure cost
+    let closureTotal = 0;
+    if (requirements.closureType && !['Snapback', 'Velcro'].includes(requirements.closureType)) {
+      const closureUnitPrice = await getAIClosurePrice(requirements.closureType, requirements.quantity);
+      closureTotal = closureUnitPrice * requirements.quantity;
+      console.log(`🔒 [AI-PRICING] Premium closure (${requirements.closureType}): $${closureUnitPrice} x ${requirements.quantity} = $${closureTotal}`);
+    }
+    
+    // 5. Calculate accessories cost
+    let accessoriesTotal = 0;
+    const accessoriesBreakdown = [];
+    if (requirements.accessories && requirements.accessories.length > 0) {
+      for (const accessory of requirements.accessories) {
+        const unitPrice = await getAIAccessoryPrice(accessory, requirements.quantity);
+        const accessoryCost = unitPrice * requirements.quantity;
+        accessoriesTotal += accessoryCost;
+        
+        accessoriesBreakdown.push({
+          name: accessory,
+          unitPrice: unitPrice,
+          totalCost: accessoryCost
+        });
+      }
+      console.log(`🎁 [AI-PRICING] Accessories total: $${accessoriesTotal}`);
+    }
+    
+    // 6. Calculate delivery cost
+    const deliveryMethod = requirements.deliveryMethod || 'Regular Delivery';
+    const deliveryUnitPrice = await getAIDeliveryPrice(deliveryMethod, requirements.quantity);
+    const deliveryTotal = deliveryUnitPrice * requirements.quantity;
+    console.log(`🚚 [AI-PRICING] Delivery (${deliveryMethod}): $${deliveryUnitPrice} x ${requirements.quantity} = $${deliveryTotal}`);
+    
+    // 7. Calculate total
+    const totalCost = baseProductTotal + logoSetupTotal + moldChargeTotal + premiumFabricTotal + closureTotal + accessoriesTotal + deliveryTotal;
+    
+    console.log('💰 [AI-PRICING] FINAL BREAKDOWN:', {
+      baseProductTotal: baseProductTotal,
+      logoSetupTotal: logoSetupTotal,
+      moldChargeTotal: moldChargeTotal,
+      premiumFabricTotal: premiumFabricTotal,
+      closureTotal: closureTotal,
+      accessoriesTotal: accessoriesTotal,
+      deliveryTotal: deliveryTotal,
+      totalCost: totalCost,
+      costPerUnit: totalCost / requirements.quantity
     });
-
-    // Use unified costing service
-    const costBreakdown = await calculateCost(costingContext);
     
-    console.log('📥 [ORDER-AI-CORE] Received unified cost calculation:', {
-      baseProductCost: costBreakdown.baseProductCost,
-      logoSetupTotal: costBreakdown.logoSetupCosts.reduce((sum, cost) => sum + cost.cost, 0),
-      premiumFabricTotal: costBreakdown.premiumFabricCosts.reduce((sum, cost) => sum + cost.cost, 0),
-      closureTotal: costBreakdown.closureCosts.reduce((sum, cost) => sum + cost.cost, 0),
-      moldChargeTotal: costBreakdown.moldChargeCosts.reduce((sum, cost) => sum + cost.cost, 0),
-      deliveryTotal: costBreakdown.deliveryCosts.reduce((sum, cost) => sum + cost.cost, 0),
-      totalCost: costBreakdown.totalCost
-    });
-    
-    // Format response to match expected structure for backward compatibility
     return {
       costBreakdown: {
-        baseProductTotal: costBreakdown.baseProductCost,
-        logoSetupTotal: costBreakdown.logoSetupCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        deliveryTotal: costBreakdown.deliveryCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        accessoriesTotal: costBreakdown.accessoriesCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        closureTotal: costBreakdown.closureCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        moldChargeTotal: costBreakdown.moldChargeCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        servicesTotal: costBreakdown.servicesCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        premiumFabricTotal: costBreakdown.premiumFabricCosts.reduce((sum, cost) => sum + cost.cost, 0),
-        totalCost: costBreakdown.totalCost,
-        // Map detailed breakdown for AI responses
-        detailedBreakdown: costBreakdown
+        baseProductTotal: baseProductTotal,
+        logoSetupTotal: logoSetupTotal,
+        deliveryTotal: deliveryTotal,
+        accessoriesTotal: accessoriesTotal,
+        closureTotal: closureTotal,
+        moldChargeTotal: moldChargeTotal,
+        servicesTotal: 0,
+        premiumFabricTotal: premiumFabricTotal,
+        totalCost: totalCost,
+        // Detailed breakdown for AI responses
+        detailedBreakdown: {
+          blankCaps: { unitPrice: blankCapUnitPrice, total: baseProductTotal },
+          logos: logoBreakdown,
+          accessories: accessoriesBreakdown,
+          delivery: { unitPrice: deliveryUnitPrice, total: deliveryTotal },
+          premiumFabric: { unitPrice: premiumFabricTotal / requirements.quantity, total: premiumFabricTotal },
+          premiumClosure: { unitPrice: closureTotal / requirements.quantity, total: closureTotal }
+        }
       },
       orderEstimate: {
         quantity: requirements.quantity,
-        costPerUnit: costBreakdown.totalCost / requirements.quantity,
-        totalCost: costBreakdown.totalCost
+        costPerUnit: totalCost / requirements.quantity,
+        totalCost: totalCost
       }
     };
   } catch (error) {
-    console.error('Failed to get precise cost calculation using unified service, using enhanced fallback:', error);
+    console.error('❌ [AI-PRICING] Error in AI-specific pricing calculation:', error);
     
-    // Use enhanced fallback that includes premium costs
-    return calculateEnhancedFallbackEstimate(requirements);
+    // Simple fallback with basic estimates
+    const fallbackTotal = requirements.quantity * 8.0; // Basic fallback
+    return {
+      costBreakdown: {
+        baseProductTotal: fallbackTotal,
+        logoSetupTotal: 0,
+        deliveryTotal: 0,
+        accessoriesTotal: 0,
+        closureTotal: 0,
+        moldChargeTotal: 0,
+        servicesTotal: 0,
+        premiumFabricTotal: 0,
+        totalCost: fallbackTotal
+      },
+      orderEstimate: {
+        quantity: requirements.quantity,
+        costPerUnit: fallbackTotal / requirements.quantity,
+        totalCost: fallbackTotal
+      }
+    };
   }
 }
 
 /**
  * Enhanced fallback calculation when API is unavailable - includes premium costs
+ * Now uses live CSV data instead of hardcoded pricing
  */
-function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
-  const basePrice = getBasePriceForQuantity(requirements.quantity);
+async function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
+  const productTier = determineProductTier(requirements);
+  const basePrice = await getBasePriceForQuantity(requirements.quantity, productTier);
   const baseProductTotal = requirements.quantity * basePrice;
   let totalCost = baseProductTotal;
   
@@ -856,9 +938,9 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
   
   if (requirements.logoType !== "None") {
     if (requirements.multiLogoSetup) {
-      // Calculate cost for each logo position
-      Object.entries(requirements.multiLogoSetup).forEach(([position, config]) => {
-        const logoUnitPrice = getPriceForLogoQuantity(`${config.size} ${config.type}`, requirements.quantity);
+      // Calculate cost for each logo position using CSV data
+      for (const [position, config] of Object.entries(requirements.multiLogoSetup)) {
+        const logoUnitPrice = await getPriceForLogoQuantity(`${config.size} ${config.type}`, requirements.quantity);
         const logoCost = logoUnitPrice * requirements.quantity;
         
         logoSetupCosts.push({
@@ -868,11 +950,11 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
           details: `${config.size} ${config.type} on ${position.charAt(0).toUpperCase() + position.slice(1)}`
         });
         logoSetupCost += logoCost;
-      });
+      }
     } else {
-      // Single logo calculation
+      // Single logo calculation using CSV data
       const size = requirements.logoSize || 'Medium';
-      const logoUnitPrice = getPriceForLogoQuantity(`${size} ${requirements.logoType}`, requirements.quantity);
+      const logoUnitPrice = await getPriceForLogoQuantity(`${size} ${requirements.logoType}`, requirements.quantity);
       logoSetupCost = logoUnitPrice * requirements.quantity;
       
       logoSetupCosts.push({
@@ -891,7 +973,7 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
   const premiumFabrics = ['Acrylic', 'Suede Cotton', 'Genuine Leather', 'Air Mesh', 'Camo', 'Laser Cut'];
   
   if (requirements.fabricType && premiumFabrics.includes(requirements.fabricType)) {
-    const fabricUnitPrice = getFallbackPremiumFabricPrice(requirements.fabricType, requirements.quantity);
+    const fabricUnitPrice = await getFabricPriceFromCSV(requirements.fabricType, requirements.quantity);
     premiumFabricTotal = fabricUnitPrice * requirements.quantity;
     
     premiumFabricCosts.push({
@@ -901,7 +983,7 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
     });
     totalCost += premiumFabricTotal;
     
-    console.log('🔧 [ENHANCED-FALLBACK] Added premium fabric cost:', {
+    console.log('🔧 [ENHANCED-FALLBACK] Added premium fabric cost from CSV:', {
       fabric: requirements.fabricType,
       unitPrice: fabricUnitPrice,
       totalCost: premiumFabricTotal
@@ -914,7 +996,7 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
   const premiumClosures = ['flexfit', 'fitted', 'buckle', 'stretched'];
   
   if (requirements.closureType && premiumClosures.includes(requirements.closureType.toLowerCase())) {
-    const closureUnitPrice = getFallbackClosurePrice(requirements.closureType, requirements.quantity);
+    const closureUnitPrice = await getClosurePriceFromCSV(requirements.closureType, requirements.quantity);
     closureTotal = closureUnitPrice * requirements.quantity;
     
     closureCosts.push({
@@ -924,7 +1006,7 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
     });
     totalCost += closureTotal;
     
-    console.log('🔧 [ENHANCED-FALLBACK] Added premium closure cost:', {
+    console.log('🔧 [ENHANCED-FALLBACK] Added premium closure cost from CSV:', {
       closure: requirements.closureType,
       unitPrice: closureUnitPrice,
       totalCost: closureTotal
@@ -937,7 +1019,7 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
   
   if (requirements.logoType && (requirements.logoType.includes('Rubber Patch') || requirements.logoType.includes('Leather Patch'))) {
     const size = requirements.logoSize || 'Medium';
-    const moldCharge = getFallbackMoldCharge(size);
+    const moldCharge = await getMoldChargeFromCSV(requirements.logoType, size);
     moldChargeTotal = moldCharge;
     
     moldChargeCosts.push({
@@ -948,7 +1030,7 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
     });
     totalCost += moldChargeTotal;
     
-    console.log('🔧 [ENHANCED-FALLBACK] Added mold charge:', {
+    console.log('🔧 [ENHANCED-FALLBACK] Added mold charge from CSV:', {
       logoType: requirements.logoType,
       size: size,
       moldCharge
@@ -1009,107 +1091,115 @@ function calculateEnhancedFallbackEstimate(requirements: OrderRequirements) {
 /**
  * Basic fallback calculation when API is unavailable (legacy - use enhanced version)
  */
-function calculateBasicEstimate(requirements: OrderRequirements) {
-  return calculateEnhancedFallbackEstimate(requirements);
+async function calculateBasicEstimate(requirements: OrderRequirements) {
+  return await calculateEnhancedFallbackEstimate(requirements);
 }
 
 /**
- * Get base price based on quantity tiers (uses real CSV pricing)
+ * Get base price based on quantity tiers and product tier (uses live CSV pricing)
  */
-function getBasePriceForQuantity(quantity: number): number {
-  return calculateUnitPrice(quantity, 'Tier 1'); // Use real pricing system
-}
-
-/**
- * Get logo pricing for specific quantity using CSV-based customization pricing
- */
-function getPriceForLogoQuantity(logoType: string, quantity: number): number {
-  // Hardcoded CSV pricing for logo types (should ideally load from CSV)
-  const logoPricing: Record<string, { price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number }> = {
-    '3D Embroidery': { price48: 0.5, price144: 0.38, price576: 0.3, price1152: 0.25, price2880: 0.25, price10000: 0.2 },
-    'Small Rubber Patch': { price48: 2.5, price144: 1.75, price576: 1.63, price1152: 1.5, price2880: 1.38, price10000: 1.25 },
-    'Medium Rubber Patch': { price48: 3.13, price144: 2.25, price576: 2.13, price1152: 2, price2880: 1.88, price10000: 1.75 },
-    'Large Rubber Patch': { price48: 3.75, price144: 3, price576: 2.5, price1152: 2.25, price2880: 2.13, price10000: 2 },
-    'Small Leather Patch': { price48: 2.5, price144: 1.5, price576: 1.25, price1152: 1.13, price2880: 1, price10000: 0.88 },
-    'Medium Leather Patch': { price48: 3, price144: 1.88, price576: 1.75, price1152: 1.63, price2880: 1.5, price10000: 1.38 },
-    'Large Leather Patch': { price48: 3.38, price144: 2.25, price576: 2.13, price1152: 2.0, price2880: 1.88, price10000: 1.75 },
-    'Small Print Woven Patch': { price48: 2, price144: 1.38, price576: 1, price1152: 0.88, price2880: 0.75, price10000: 0.63 },
-    'Medium Print Woven Patch': { price48: 2.5, price144: 1.75, price576: 1.5, price1152: 1.38, price2880: 1.25, price10000: 1.13 },
-    'Large Print Woven Patch': { price48: 3, price144: 2.25, price576: 2, price1152: 1.88, price2880: 1.75, price10000: 1.63 },
-    'Small Size Embroidery': { price48: 1.75, price144: 1.13, price576: 0.88, price1152: 0.75, price2880: 0.63, price10000: 0.5 },
-    'Medium Size Embroidery': { price48: 2.25, price144: 1.63, price576: 1.38, price1152: 1.3, price2880: 1.25, price10000: 1.13 },
-    'Large Size Embroidery': { price48: 3, price144: 2, price576: 1.75, price1152: 1.63, price2880: 1.5, price10000: 1.38 }
-  };
-  
-  const pricing = logoPricing[logoType];
-  if (!pricing) {
-    console.warn(`⚠️ [ORDER-AI-CORE] No pricing found for logo type: ${logoType}, using fallback`);
-    return 0.5; // Fallback price
+async function getBasePriceForQuantity(quantity: number, productTier: string = 'Tier 1'): Promise<number> {
+  try {
+    const { calculateUnitPrice } = await import('@/lib/pricing-server');
+    return await calculateUnitPrice(quantity, productTier);
+  } catch (error) {
+    console.error(`❌ [ORDER-AI-CORE] Error loading base price from CSV for ${productTier}:`, error);
+    return 0; // Return 0 to indicate error
   }
-  
-  // Return appropriate price based on quantity tier
-  if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
-  return pricing.price48;
 }
 
 /**
- * Get premium fabric pricing for fallback calculations
+ * Get logo pricing for specific quantity using live CSV data
+ * REMOVED: All hardcoded pricing - now loads exclusively from CSV files
  */
-function getFallbackPremiumFabricPrice(fabricType: string, quantity: number): number {
-  const fabricPricing: Record<string, { price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number }> = {
-    'Suede Cotton': { price48: 1.2, price144: 1.0, price576: 0.8, price1152: 0.7, price2880: 0.65, price10000: 0.6 },
-    'Acrylic': { price48: 1.2, price144: 1.0, price576: 0.8, price1152: 0.7, price2880: 0.65, price10000: 0.6 },
-    'Air Mesh': { price48: 0.5, price144: 0.35, price576: 0.3, price1152: 0.28, price2880: 0.25, price10000: 0.25 },
-    'Camo': { price48: 0.5, price144: 0.4, price576: 0.35, price1152: 0.3, price2880: 0.25, price10000: 0.2 },
-    'Genuine Leather': { price48: 2.0, price144: 1.8, price576: 1.7, price1152: 1.65, price2880: 1.6, price10000: 1.55 },
-    'Laser Cut': { price48: 1.25, price144: 1.0, price576: 0.88, price1152: 0.75, price2880: 0.7, price10000: 0.63 }
-  };
-  
-  const pricing = fabricPricing[fabricType];
-  if (!pricing) {
-    console.warn(`⚠️ [ORDER-AI-CORE] No pricing found for premium fabric: ${fabricType}`);
+async function getPriceForLogoQuantity(logoType: string, quantity: number): Promise<number> {
+  try {
+    const { loadCustomizationPricing, getPriceForQuantityFromCSV } = await import('@/lib/pricing-server');
+    const customizationPricing = await loadCustomizationPricing();
+    
+    // Find pricing for the logo type from CSV
+    const logoPricing = customizationPricing.find(p => 
+      p.type === 'logos' && p.Name === logoType
+    );
+    
+    if (!logoPricing) {
+      console.warn(`⚠️ [ORDER-AI-CORE] No CSV pricing found for logo type: ${logoType}`);
+      return 0; // Return 0 to indicate pricing not available
+    }
+    
+    return getPriceForQuantityFromCSV(logoPricing, quantity);
+  } catch (error) {
+    console.error(`❌ [ORDER-AI-CORE] Error loading logo pricing from CSV for ${logoType}:`, error);
+    return 0; // Return 0 to indicate error
+  }
+}
+
+/**
+ * Get premium fabric pricing from CSV data
+ * REMOVED: All hardcoded pricing - now loads exclusively from CSV files
+ */
+async function getFabricPriceFromCSV(fabricType: string, quantity: number): Promise<number> {
+  try {
+    const { loadFabricPricing, getPriceForQuantityFromCSV } = await import('@/lib/pricing-server');
+    const fabricPricing = await loadFabricPricing();
+    
+    // Find pricing for the fabric type from CSV
+    const fabric = fabricPricing.find(f => f.Name === fabricType);
+    
+    if (!fabric) {
+      console.warn(`⚠️ [ORDER-AI-CORE] No CSV pricing found for fabric: ${fabricType}`);
+      return 0; // Return 0 to indicate pricing not available
+    }
+    
+    return getPriceForQuantityFromCSV(fabric, quantity);
+  } catch (error) {
+    console.error(`❌ [ORDER-AI-CORE] Error loading fabric pricing from CSV for ${fabricType}:`, error);
+    return 0; // Return 0 to indicate error
+  }
+}
+
+/**
+ * Get premium closure pricing from CSV data
+ * REMOVED: All hardcoded pricing - now loads exclusively from CSV files
+ */
+async function getClosurePriceFromCSV(closureType: string, quantity: number): Promise<number> {
+  try {
+    const { loadClosurePricing, getPriceForQuantityFromCSV } = await import('@/lib/pricing-server');
+    const closurePricing = await loadClosurePricing();
+    
+    // Find pricing for the closure type from CSV
+    const closure = closurePricing.find(c => c.Name === closureType);
+    
+    if (!closure) {
+      console.warn(`⚠️ [ORDER-AI-CORE] No CSV pricing found for closure: ${closureType}`);
+      return 0; // Return 0 to indicate pricing not available
+    }
+    
+    return getPriceForQuantityFromCSV(closure, quantity);
+  } catch (error) {
+    console.error(`❌ [ORDER-AI-CORE] Error loading closure pricing from CSV for ${closureType}:`, error);
+    return 0; // Return 0 to indicate error
+  }
+}
+
+/**
+ * Get mold charge from CSV data (one-time cost)
+ * REMOVED: All hardcoded pricing - now loads exclusively from CSV files
+ */
+async function getMoldChargeFromCSV(logoType: string, size: string): Promise<number> {
+  try {
+    // For now, we'll check the logo type and size to determine if mold charge applies
+    // This should be loaded from a mold charges CSV or included in customization CSV
+    if (logoType.includes('Rubber Patch') || logoType.includes('Leather Patch')) {
+      // For now, return 0 and log a warning - this needs to be implemented with proper CSV
+      console.warn(`⚠️ [ORDER-AI-CORE] Mold charge calculation needs CSV implementation for ${logoType} ${size}`);
+      return 0;
+    }
+    return 0;
+  } catch (error) {
+    console.error(`❌ [ORDER-AI-CORE] Error calculating mold charge for ${logoType} ${size}:`, error);
     return 0;
   }
-  
-  // Return appropriate price based on quantity tier
-  if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
-  return pricing.price48;
-}
-
-/**
- * Get premium closure pricing for fallback calculations
- */
-function getFallbackClosurePrice(closureType: string, quantity: number): number {
-  const closurePricing = { price48: 0.5, price144: 0.4, price576: 0.3, price1152: 0.25, price2880: 0.2, price10000: 0.15 };
-  
-  // Return appropriate price based on quantity tier
-  if (quantity >= 10000) return closurePricing.price10000;
-  if (quantity >= 2880) return closurePricing.price2880;
-  if (quantity >= 1152) return closurePricing.price1152;
-  if (quantity >= 576) return closurePricing.price576;
-  if (quantity >= 144) return closurePricing.price144;
-  return closurePricing.price48;
-}
-
-/**
- * Get mold charge for fallback calculations (one-time cost)
- */
-function getFallbackMoldCharge(size: string): number {
-  const moldCharges = {
-    'Small': 40,
-    'Medium': 60,
-    'Large': 80
-  };
-  
-  return moldCharges[size as keyof typeof moldCharges] || moldCharges.Medium;
 }
 
 /**

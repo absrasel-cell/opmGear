@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-// Removed Prisma - migrated to Supabase
 
 export async function GET(request: NextRequest) {
  try {
@@ -23,22 +22,15 @@ export async function GET(request: NextRequest) {
    );
   }
 
-  const dbUser = await prisma.user.findUnique({
-   where: { email: user.email },
-   select: {
-    id: true,
-    email: true,
-    name: true,
-    phone: true,
-    company: true,
-    address: true,
-    preferences: true,
-    accessRole: true,
-    customerRole: true
-   }
-  });
+  // Query Supabase users table
+  const { data: dbUser, error: dbError } = await supabaseAdmin
+   .from('users')
+   .select('id, email, name, phone, company, address, preferences, access_role, customer_role')
+   .eq('email', user.email)
+   .single();
 
-  if (!dbUser) {
+  if (dbError || !dbUser) {
+   console.error('Database error:', dbError);
    return NextResponse.json(
     { error: 'User not found' },
     { status: 404 }
@@ -55,12 +47,12 @@ export async function GET(request: NextRequest) {
    address: dbUser.address,
    preferences: dbUser.preferences,
    roles: {
-    access: dbUser.accessRole,
-    customer: dbUser.customerRole
+    access: dbUser.access_role,
+    customer: dbUser.customer_role
    }
   };
 
-  return NextResponse.json(profileData);
+  return NextResponse.json({ profile: profileData });
 
  } catch (error) {
   console.error('Profile loading error:', error);

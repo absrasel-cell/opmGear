@@ -76,7 +76,8 @@ export async function POST(request: NextRequest) {
   }
   
   // Fallback to client-provided conversation history if database context is empty
-  const conversationContext = fullConversationContext || conversationHistory
+  const historyArray = conversationHistory || [];
+  const conversationContext = fullConversationContext || historyArray
    .slice(-5) // Last 5 messages for context (increased from 3)
    .map(msg => `${msg.role}: ${msg.content}`)
    .join('\n');

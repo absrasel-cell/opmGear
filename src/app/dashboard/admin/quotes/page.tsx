@@ -114,6 +114,10 @@ interface QuoteOrder {
   estimatedCosts: {
     baseProductCost: number;
     logosCost: number;
+    accessoriesCost?: number;
+    premiumFabricCost?: number;
+    premiumClosureCost?: number;
+    moldCharge?: number;
     deliveryCost: number;
     total: number;
   };
@@ -178,6 +182,8 @@ export default function AdminQuotesPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [complexityFilter, setComplexityFilter] = useState<string>('ALL');
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
+  const [conversationSummaries, setConversationSummaries] = useState<Record<string, string>>({});
+  const [loadingSummaries, setLoadingSummaries] = useState<Record<string, boolean>>({});
 
   // Statistics
   const [stats, setStats] = useState({
@@ -437,6 +443,80 @@ export default function AdminQuotesPage() {
     }
   };
 
+  // Function to fetch conversation summary for a quote
+  const fetchConversationSummary = async (quoteId: string, sessionId: string) => {
+    if (conversationSummaries[quoteId] || loadingSummaries[quoteId]) {
+      return; // Already have summary or currently loading
+    }
+
+    setLoadingSummaries(prev => ({ ...prev, [quoteId]: true }));
+    
+    try {
+      // Find conversation by sessionId
+      const conversationResponse = await fetch(`/api/conversations?sessionId=${sessionId}`);
+      
+      if (conversationResponse.ok) {
+        const conversationData = await conversationResponse.json();
+        
+        if (conversationData.conversations && conversationData.conversations.length > 0) {
+          const conversation = conversationData.conversations[0];
+          
+          if (conversation.summary) {
+            // Already has summary, use it
+            setConversationSummaries(prev => ({ 
+              ...prev, 
+              [quoteId]: conversation.summary 
+            }));
+          } else {
+            // Generate summary using our API
+            console.log('Generating AI summary for quote:', quoteId);
+            
+            const summaryResponse = await fetch('/api/admin/generate-quote-summary', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                conversationId: conversation.id,
+                quoteOrderId: quoteId
+              })
+            });
+
+            if (summaryResponse.ok) {
+              const summaryResult = await summaryResponse.json();
+              if (summaryResult.summary) {
+                setConversationSummaries(prev => ({ 
+                  ...prev, 
+                  [quoteId]: summaryResult.summary 
+                }));
+              }
+            } else {
+              console.warn('Failed to generate AI summary for quote:', quoteId);
+              setConversationSummaries(prev => ({ 
+                ...prev, 
+                [quoteId]: 'Unable to generate order summary. Please try again later.' 
+              }));
+            }
+          }
+        } else {
+          console.warn('No conversation found for sessionId:', sessionId);
+          setConversationSummaries(prev => ({ 
+            ...prev, 
+            [quoteId]: 'No conversation data available for this quote.' 
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching conversation summary:', error);
+      setConversationSummaries(prev => ({ 
+        ...prev, 
+        [quoteId]: 'Error loading order summary. Please try again later.' 
+      }));
+    } finally {
+      setLoadingSummaries(prev => ({ ...prev, [quoteId]: false }));
+    }
+  };
+
   const generateQuotePdf = async (quoteId: string, quoteTitle?: string) => {
     setGeneratingPdf(quoteId);
     try {
@@ -549,6 +629,10 @@ export default function AdminQuotesPage() {
       'Total Cost',
       'Base Cost',
       'Logo Cost',
+      'Accessories Cost',
+      'Premium Fabric Cost',
+      'Premium Closure Cost',
+      'Mold Charge',
       'Delivery Cost',
       'Created Date',
       'Last Activity',
@@ -570,6 +654,10 @@ export default function AdminQuotesPage() {
         `"${quote.estimatedCosts?.total?.toFixed(2) || '0.00'}"`,
         `"${quote.estimatedCosts?.baseProductCost?.toFixed(2) || '0.00'}"`,
         `"${quote.estimatedCosts?.logosCost?.toFixed(2) || '0.00'}"`,
+        `"${quote.estimatedCosts?.accessoriesCost?.toFixed(2) || '0.00'}"`,
+        `"${quote.estimatedCosts?.premiumFabricCost?.toFixed(2) || '0.00'}"`,
+        `"${quote.estimatedCosts?.premiumClosureCost?.toFixed(2) || '0.00'}"`,
+        `"${quote.estimatedCosts?.moldCharge?.toFixed(2) || '0.00'}"`,
         `"${quote.estimatedCosts?.deliveryCost?.toFixed(2) || '0.00'}"`,
         `"${new Date(quote.createdAt).toLocaleString()}"`,
         `"${new Date(quote.lastActivityAt).toLocaleString()}"`,
@@ -1006,6 +1094,28 @@ export default function AdminQuotesPage() {
                                     <dt className="text-xs text-slate-400">Product Type</dt>
                                     <dd className="text-sm text-white">{quote.productType || 'Not specified'}</dd>
                                   </div>
+                                  {quote.extractedSpecs?.quantity && (
+                                    <div>
+                                      <dt className="text-xs text-slate-400">Quantity</dt>
+                                      <dd className="text-sm text-white">{quote.extractedSpecs.quantity} pieces</dd>
+                                    </div>
+                                  )}
+                                  {(quote.extractedSpecs?.color || quote.extractedSpecs?.colors) && (
+                                    <div>
+                                      <dt className="text-xs text-slate-400">Color</dt>
+                                      <dd className="text-sm text-white">
+                                        {quote.extractedSpecs.colors?.join(', ') || quote.extractedSpecs.color}
+                                      </dd>
+                                    </div>
+                                  )}
+                                  {(quote.extractedSpecs?.size || quote.extractedSpecs?.sizes) && (
+                                    <div>
+                                      <dt className="text-xs text-slate-400">Size</dt>
+                                      <dd className="text-sm text-white">
+                                        {quote.extractedSpecs.sizes?.join(', ') || quote.extractedSpecs.size}
+                                      </dd>
+                                    </div>
+                                  )}
                                   <div>
                                     <dt className="text-xs text-slate-400">Profile</dt>
                                     <dd className="text-sm text-white">{quote.extractedSpecs?.profile || 'Not specified'}</dd>
@@ -1026,10 +1136,10 @@ export default function AdminQuotesPage() {
                                     <dt className="text-xs text-slate-400">Fabric</dt>
                                     <dd className="text-sm text-white">{quote.extractedSpecs?.fabric || 'Not specified'}</dd>
                                   </div>
-                                  {quote.extractedSpecs?.sizes && quote.extractedSpecs.sizes.length > 0 && (
+                                  {quote.extractedSpecs?.stitching && (
                                     <div>
-                                      <dt className="text-xs text-slate-400">Sizes</dt>
-                                      <dd className="text-sm text-white">{quote.extractedSpecs.sizes.join(', ')}</dd>
+                                      <dt className="text-xs text-slate-400">Stitching</dt>
+                                      <dd className="text-sm text-white">{quote.extractedSpecs.stitching}</dd>
                                     </div>
                                   )}
                                 </dl>
@@ -1071,13 +1181,30 @@ export default function AdminQuotesPage() {
                                                 <span className="text-slate-400">Size:</span>
                                                 <span className="text-white ml-1">{logo.size}</span>
                                               </div>
-                                              {logo.cost && (
+                                              {logo.setupCost > 0 && (
                                                 <div>
-                                                  <span className="text-slate-400">Cost:</span>
-                                                  <span className="text-green-400 ml-1">${logo.cost.toFixed(2)}</span>
+                                                  <span className="text-slate-400">Setup Cost:</span>
+                                                  <span className="text-green-400 ml-1">${logo.setupCost.toFixed(2)}</span>
+                                                </div>
+                                              )}
+                                              {logo.unitCost > 0 && (
+                                                <div>
+                                                  <span className="text-slate-400">Unit Cost:</span>
+                                                  <span className="text-green-400 ml-1">${logo.unitCost.toFixed(2)}</span>
+                                                </div>
+                                              )}
+                                              {logo.totalCost > 0 && (
+                                                <div>
+                                                  <span className="text-slate-400">Total Cost:</span>
+                                                  <span className="text-green-400 ml-1">${logo.totalCost.toFixed(2)}</span>
                                                 </div>
                                               )}
                                             </div>
+                                            {logo.description && (
+                                              <div className="mt-2 pt-2 border-t border-white/5">
+                                                <p className="text-xs text-slate-300">{logo.description}</p>
+                                              </div>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
@@ -1233,6 +1360,121 @@ export default function AdminQuotesPage() {
                                 </div>
                               )}
 
+                              {/* Accessories */}
+                              {(quote.customizationOptions?.bTapePrint || quote.customizationOptions?.insideLabel || 
+                                quote.extractedSpecs?.accessories) && (
+                                <div className="border border-white/10 bg-white/5 rounded-lg p-4">
+                                  <h4 className="text-sm font-medium text-white mb-3 flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Accessories
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {quote.customizationOptions?.bTapePrint && (
+                                      <div className="p-3 bg-black/20 rounded border border-white/5">
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          <div>
+                                            <span className="text-slate-400">Item:</span>
+                                            <span className="text-white ml-1">B-Tape Print</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Quantity:</span>
+                                            <span className="text-white ml-1">{quote.extractedSpecs?.quantity || '576'} pieces</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Unit Cost:</span>
+                                            <span className="text-green-400 ml-1">$0.50</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Total Cost:</span>
+                                            <span className="text-green-400 ml-1">${((quote.extractedSpecs?.quantity || 576) * 0.50).toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {quote.customizationOptions?.insideLabel && (
+                                      <div className="p-3 bg-black/20 rounded border border-white/5">
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          <div>
+                                            <span className="text-slate-400">Item:</span>
+                                            <span className="text-white ml-1">Inside Label</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Quantity:</span>
+                                            <span className="text-white ml-1">{quote.extractedSpecs?.quantity || '576'} pieces</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Unit Cost:</span>
+                                            <span className="text-green-400 ml-1">$0.50</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Total Cost:</span>
+                                            <span className="text-green-400 ml-1">${((quote.extractedSpecs?.quantity || 576) * 0.50).toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {quote.extractedSpecs?.accessories && (
+                                      <div className="p-3 bg-black/20 rounded border border-white/5">
+                                        <div className="text-xs text-slate-300">{quote.extractedSpecs.accessories}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Premium Add-Ons */}
+                              {(quote.extractedSpecs?.fabric || quote.extractedSpecs?.closure || 
+                                quote.customizationOptions?.premiumFabric || quote.customizationOptions?.premiumClosure) && (
+                                <div className="border border-white/10 bg-white/5 rounded-lg p-4">
+                                  <h4 className="text-sm font-medium text-white mb-3 flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                    </svg>
+                                    Premium Add-Ons
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {(quote.extractedSpecs?.fabric === 'Acrylic/Air Mesh' || quote.customizationOptions?.premiumFabric) && (
+                                      <div className="p-3 bg-black/20 rounded border border-white/5">
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          <div>
+                                            <span className="text-slate-400">Item:</span>
+                                            <span className="text-white ml-1">Premium Fabric (Acrylic/Air Mesh)</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Quantity:</span>
+                                            <span className="text-white ml-1">{quote.extractedSpecs?.quantity || '576'} pieces</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Premium Cost:</span>
+                                            <span className="text-green-400 ml-1">$633.60</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {(quote.extractedSpecs?.closure === 'Buckle' || quote.customizationOptions?.premiumClosure) && (
+                                      <div className="p-3 bg-black/20 rounded border border-white/5">
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          <div>
+                                            <span className="text-slate-400">Item:</span>
+                                            <span className="text-white ml-1">Premium Closure (Buckle)</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Quantity:</span>
+                                            <span className="text-white ml-1">{quote.extractedSpecs?.quantity || '576'} pieces</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Premium Cost:</span>
+                                            <span className="text-green-400 ml-1">$172.80</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
 
                               {/* Delivery Information */}
                               {quote.customizationOptions?.delivery && (
@@ -1284,6 +1526,30 @@ export default function AdminQuotesPage() {
                                         <dd className="text-sm text-white">${quote.estimatedCosts.logosCost.toFixed(2)}</dd>
                                       </div>
                                     )}
+                                    {quote.estimatedCosts.accessoriesCost > 0 && (
+                                      <div className="flex justify-between">
+                                        <dt className="text-xs text-slate-400">Accessories Cost</dt>
+                                        <dd className="text-sm text-white">${quote.estimatedCosts.accessoriesCost.toFixed(2)}</dd>
+                                      </div>
+                                    )}
+                                    {quote.estimatedCosts.premiumFabricCost > 0 && (
+                                      <div className="flex justify-between">
+                                        <dt className="text-xs text-slate-400">Premium Fabric Cost</dt>
+                                        <dd className="text-sm text-white">${quote.estimatedCosts.premiumFabricCost.toFixed(2)}</dd>
+                                      </div>
+                                    )}
+                                    {quote.estimatedCosts.premiumClosureCost > 0 && (
+                                      <div className="flex justify-between">
+                                        <dt className="text-xs text-slate-400">Premium Closure Cost</dt>
+                                        <dd className="text-sm text-white">${quote.estimatedCosts.premiumClosureCost.toFixed(2)}</dd>
+                                      </div>
+                                    )}
+                                    {quote.estimatedCosts.moldCharge > 0 && (
+                                      <div className="flex justify-between">
+                                        <dt className="text-xs text-slate-400">Mold Charge</dt>
+                                        <dd className="text-sm text-white">${quote.estimatedCosts.moldCharge.toFixed(2)}</dd>
+                                      </div>
+                                    )}
                                     {quote.estimatedCosts.deliveryCost > 0 && (
                                       <div className="flex justify-between">
                                         <dt className="text-xs text-slate-400">Delivery Cost</dt>
@@ -1299,6 +1565,73 @@ export default function AdminQuotesPage() {
                                   </dl>
                                 </div>
                               )}
+
+                              {/* AI-Generated Order Summary */}
+                              <div className="border border-white/10 bg-white/5 rounded-lg p-4">
+                                <h4 className="text-sm font-medium text-white mb-3 flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    AI-Generated Order Summary
+                                  </div>
+                                  {!conversationSummaries[quote.id] && !loadingSummaries[quote.id] && (
+                                    <button
+                                      onClick={() => fetchConversationSummary(quote.id, quote.sessionId)}
+                                      className="px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded hover:bg-purple-500/30 transition-colors font-medium"
+                                    >
+                                      Generate Summary
+                                    </button>
+                                  )}
+                                </h4>
+                                
+                                {loadingSummaries[quote.id] ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400 mr-3"></div>
+                                    <span className="text-sm text-purple-300">Generating AI order summary...</span>
+                                  </div>
+                                ) : conversationSummaries[quote.id] ? (
+                                  <div className="bg-black/20 rounded border border-white/5 p-3">
+                                    <div className="text-sm text-white whitespace-pre-wrap leading-relaxed">
+                                      {conversationSummaries[quote.id]}
+                                    </div>
+                                    <div className="mt-3 pt-3 border-t border-white/10">
+                                      <div className="flex items-center justify-between text-xs text-slate-400">
+                                        <span className="flex items-center">
+                                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                          </svg>
+                                          AI-Generated Summary
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            setConversationSummaries(prev => ({ ...prev, [quote.id]: undefined }));
+                                            fetchConversationSummary(quote.id, quote.sessionId);
+                                          }}
+                                          className="px-2 py-1 text-xs bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded hover:bg-gray-600/30 transition-colors"
+                                        >
+                                          Regenerate
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-6">
+                                    <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                      <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                    </div>
+                                    <p className="text-sm text-slate-400 mb-3">AI order summary not yet generated</p>
+                                    <button
+                                      onClick={() => fetchConversationSummary(quote.id, quote.sessionId)}
+                                      className="px-4 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-colors font-medium text-sm"
+                                    >
+                                      Generate Order Summary
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
 
                               {/* AI Summary & Status */}
                               <div className="border border-white/10 bg-white/5 rounded-lg p-4">

@@ -534,7 +534,10 @@
       "Bash(PORT=3000 npm run dev)",
       "Read(//f//**)",
       "Read(//c/Users/Rasel/Downloads/**)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(mkdir:*)",
+      "Bash(PORT=3005 npm run dev)",
+      "Bash(PORT=3006 npm run dev)"
     ],
     "deny": [],
     "ask": [],

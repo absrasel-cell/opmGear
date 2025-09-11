@@ -48,58 +48,20 @@ export interface CustomizationPricing {
   price20000: number;
 }
 
-// Client-safe hardcoded pricing fallbacks (updated to match CSV data)
-// These are used when server-side CSV loading is not available
-const FALLBACK_PRICING_TIERS: Record<string, ClientPricing> = {
-  'Tier 1': {
-    price48: 3.6,
-    price144: 3.0,
-    price576: 2.9,
-    price1152: 2.84,
-    price2880: 2.76,
-    price10000: 2.7,
-  },
-  'Tier 2': {
-    price48: 4.4,
-    price144: 3.2,
-    price576: 3.0,
-    price1152: 2.9,
-    price2880: 2.8,
-    price10000: 2.7,
-  },
-  'Tier 3': {
-    price48: 4.8,
-    price144: 3.4,
-    price576: 3.2,
-    price1152: 2.94,
-    price2880: 2.88,
-    price10000: 2.82,
-  },
-};
+// REMOVED: All hardcoded pricing fallbacks have been eliminated.
+// The system now exclusively uses live CSV data for accurate pricing.
+// This ensures pricing consistency and eliminates hardcoded cost data.
 
-// Client-safe version of getBaseProductPricing (returns hardcoded fallbacks)
+// Client-safe version of getBaseProductPricing (requires server-side CSV loading)
+// This function can only be used on the server-side as it requires CSV access
 export function getBaseProductPricing(tierName?: string): ClientPricing {
-  const tier = tierName || 'Tier 1';
-  return FALLBACK_PRICING_TIERS[tier] || FALLBACK_PRICING_TIERS['Tier 1'];
+  throw new Error('getBaseProductPricing requires server-side CSV loading. Use server-side functions from pricing-server.ts instead.');
 }
 
-// Client-safe delivery pricing calculation
+// Client-safe delivery pricing calculation (requires server-side CSV loading)
+// This function can only be used on the server-side as it requires CSV access
 export function calculateDeliveryUnitPrice(quantity: number, deliveryMethod: string = 'regular'): number {
-  // Hardcoded delivery pricing based on common rates
-  const deliveryRates = {
-    regular: 0.75,
-    express: 1.50,
-    overnight: 3.00,
-  };
-  
-  const baseRate = deliveryRates[deliveryMethod as keyof typeof deliveryRates] || deliveryRates.regular;
-  
-  // Volume discounts for delivery
-  if (quantity >= 2880) return baseRate * 0.6;
-  if (quantity >= 1152) return baseRate * 0.7;
-  if (quantity >= 576) return baseRate * 0.8;
-  if (quantity >= 144) return baseRate * 0.9;
-  return baseRate;
+  throw new Error('calculateDeliveryUnitPrice requires server-side CSV loading. Use server-side functions from pricing-server.ts instead.');
 }
 
 // Shared cost breakdown interface for consistency across pages

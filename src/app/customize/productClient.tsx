@@ -8,7 +8,7 @@ import CustomerInfoForm from "../../components/forms/CustomerInfoForm";
 import { useAuth } from "../../components/auth/AuthContext";
 import AddToCartButton from "../../components/cart/AddToCartButton";
 import TempLogoUploader from "../../components/customize/TempLogoUploader";
-import { calculateUnitPrice } from "@/lib/pricing";
+// REMOVED: Direct calculateUnitPrice import - now uses API calls for live CSV data
 
 interface Pricing {
  price48: number;
@@ -1691,14 +1691,19 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
   setTimeout(() => setCartError(''), 5000);
  };
 
- // Calculate current pricing for cart using centralized pricing logic
+ // Calculate current pricing for cart using live CSV-based pricing logic
  const getCurrentPricing = () => {
   const totalVolume = Object.values(selectedColors).reduce((sum, colorData) => 
    sum + Object.values(colorData.sizes).reduce((sizeSum, qty) => sizeSum + qty, 0), 0
   );
 
-  // Use centralized pricing calculation with the provided pricing data
-  const unitPrice = calculateUnitPrice(totalVolume, pricingData);
+  // Calculate unit price using CSV pricing data (same logic as calculateUnitPrice)
+  let unitPrice = pricingData.price48; // Default to 48+ pricing
+  if (totalVolume >= 10000) unitPrice = pricingData.price10000;
+  else if (totalVolume >= 2880) unitPrice = pricingData.price2880;
+  else if (totalVolume >= 1152) unitPrice = pricingData.price1152;
+  else if (totalVolume >= 576) unitPrice = pricingData.price576;
+  else if (totalVolume >= 144) unitPrice = pricingData.price144;
 
   return {
    unitPrice,

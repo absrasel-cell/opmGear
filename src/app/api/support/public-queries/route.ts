@@ -196,7 +196,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Create conversation context
-  const conversationContext = conversationHistory
+  const historyArray = conversationHistory || [];
+  const conversationContext = historyArray
    .slice(-5)
    .map(msg => `${msg.role}: ${msg.content}`)
    .join('\n');

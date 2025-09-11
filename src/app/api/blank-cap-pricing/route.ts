@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadBlankCapPricingServer } from '@/lib/server/webflow-server';
-import { getBaseProductPricing } from '@/lib/pricing';
+import { getBaseProductPricing, loadBlankCapPricing } from '@/lib/pricing-server';
 
 export async function POST(request: NextRequest) {
  try {
@@ -26,16 +26,16 @@ export async function POST(request: NextRequest) {
    console.warn('Webflow pricing unavailable, falling back to centralized pricing:', webflowError);
   }
 
-  // Fallback to centralized pricing for consistency
-  const centralizedPricing = getBaseProductPricing(priceTier);
-  return NextResponse.json(centralizedPricing);
+  // Fallback to centralized CSV pricing for consistency
+  const centralizedPricing = await getBaseProductPricing(priceTier);
+  return NextResponse.json(centralizedPricing || {});
 
  } catch (error) {
   console.error('Error fetching blank cap pricing:', error);
   
-  // Final fallback to default centralized pricing
-  const defaultPricing = getBaseProductPricing();
-  return NextResponse.json(defaultPricing);
+  // Final fallback to default CSV pricing
+  const defaultPricing = await getBaseProductPricing('Tier 1');
+  return NextResponse.json(defaultPricing || {});
  }
 }
 
@@ -55,24 +55,18 @@ export async function GET() {
   console.warn('Server pricing unavailable, using fallbacks:', error);
  }
  
- // Fallback to centralized pricing
- const fallbackPricing = [
-  {
-   Name: 'Tier 1',
-   Slug: 'tier-1',
-   ...getBaseProductPricing('Tier 1')
-  },
-  {
-   Name: 'Tier 2',
-   Slug: 'tier-2',
-   ...getBaseProductPricing('Tier 2')
-  },
-  {
-   Name: 'Tier 3',
-   Slug: 'tier-3',
-   ...getBaseProductPricing('Tier 3')
-  }
- ];
+ // Fallback to CSV pricing
+ const csvPricing = await loadBlankCapPricing();
+ const fallbackPricing = csvPricing.map(tier => ({
+  Name: tier.name,
+  Slug: tier.name.toLowerCase().replace(' ', '-'),
+  price48: tier.price48,
+  price144: tier.price144,
+  price576: tier.price576,
+  price1152: tier.price1152,
+  price2880: tier.price2880,
+  price10000: tier.price10000,
+ }));
  
  return NextResponse.json({ 
   pricing: fallbackPricing,

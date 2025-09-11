@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     // Perform database operations (Supabase doesn't have transactions like Prisma, so we'll do operations sequentially)
     console.log('🔄 Starting database operations');
     
-    let orderBuilderRecord, updatedConversation, conversationQuote;
+    let orderBuilderRecord, updatedConversation, conversationQuote, orderId = null;
 
     try {
       // 1. Create or update OrderBuilderState
@@ -275,7 +275,6 @@ export async function POST(request: NextRequest) {
       console.log('✅ QuoteOrder status updated to COMPLETED');
       
       // AUTO-ACCEPT: Create Order from QuoteOrder (same logic as Accept button)
-      let orderId = null;
       console.log('🚀 Auto-creating Order from QuoteOrder (Quote button auto-accept):', quoteOrderId);
       
       try {
@@ -308,7 +307,6 @@ export async function POST(request: NextRequest) {
             priority: 'NORMAL',
             totalCost: fullQuoteOrder.estimatedCosts?.total || 0,
             estimatedCost: fullQuoteOrder.estimatedCosts?.total || 0,
-            currency: 'USD',
             paymentStatus: 'PENDING',
             productionStatus: 'QUEUED',
             orderData: {

@@ -10,6 +10,8 @@ General understanding of the overall business "F:\Custom Cap - github\Claude Ins
 ## Use supabase MCP for any Database related tasks.
 # 🎯 CRITICAL REFERENCE FILES
 
+## Support Page cost and knowledgebase "F:\Custom Cap - github\USCC\src\app\ai"
+
 ## Support Page Complete Memory
 **ALWAYS READ FIRST**: "F:\Custom Cap - github\Claude Instruction\SUPPORT_PAGE_MEMORY.md"
 - Comprehensive support page structure, state management, and troubleshooting guide

@@ -31,8 +31,8 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     return orderResponse;
   }
 
-  console.log('🔧 [POST-PROCESSING] Correcting ALL AI pricing components for quantity:', quantity);
-  let correctionsMade = false;
+  console.log('🔧 [POST-PROCESSING] DISABLED - AI system now uses correct pricing sources from /ai/Options/');
+  return orderResponse; // Skip post-processing - AI now uses correct sources
 
   // ===== 1. CORRECT BASE CAP PRICING =====
   const capDetails = quoteData.capDetails;
@@ -295,10 +295,36 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     const correctUnitPrice = tierPricing ? (quantity >= 576 ? tierPricing.price576 : quantity >= 144 ? tierPricing.price144 : tierPricing.price48) : 0;
     const correctBaseTotal = (quoteData.pricing?.baseProductCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     
-    // Replace base cap pricing: "576 pieces × $6.00 = $3,456.00" becomes "576 pieces × $4.00 = $2,304.00"
-    const oldCapPricePattern = /(\d+)\s+pieces\s+×\s+\$[\d,.]+\s+=\s+\$[\d,]+\.?\d*/g;
-    const newCapCalculation = `$1 pieces × $${correctUnitPrice.toFixed(2)} = $${correctBaseTotal}`;
-    const updatedMessage = orderResponse.message.replace(oldCapPricePattern, newCapCalculation);
+    // Replace base cap pricing ONLY: "576 pieces × $6.00 = $3,456.00" becomes "576 pieces × $4.00 = $2,304.00"
+    // Use more specific patterns to avoid replacing other pricing lines (logos, accessories, etc.)
+    const baseCapPatterns = [
+      /(\d+)\s+pieces\s+×\s+\$[\d,.]+\s+=\s+\$[\d,]+\.?\d*(?=\s*$)/m, // End of line pattern
+      /(Black\/Grey|All Colors):\s*(\d+)\s+pieces\s+×\s+\$[\d,.]+\s+=\s+\$[\d,]+\.?\d*/g, // Color-specific pattern
+      /📊.*?Blank Cap Costs.*?(\d+)\s+pieces\s+×\s+\$[\d,.]+\s+=\s+\$[\d,]+\.?\d*/gs // Section-specific pattern
+    ];
+    
+    let updatedMessage = orderResponse.message;
+    
+    // Try each pattern to find and replace only base cap pricing
+    baseCapPatterns.forEach(pattern => {
+      const matches = updatedMessage.match(pattern);
+      if (matches) {
+        // Replace only the first occurrence of base cap pricing
+        updatedMessage = updatedMessage.replace(pattern, (match) => {
+          // Extract quantity from the match
+          const quantityMatch = match.match(/(\d+)\s+pieces/);
+          if (quantityMatch) {
+            const qty = quantityMatch[1];
+            if (match.includes('Black/Grey') || match.includes('All Colors')) {
+              return match.replace(/×\s+\$[\d,.]+\s+=\s+\$[\d,]+\.?\d*/, `× $${correctUnitPrice.toFixed(2)} = $${correctBaseTotal}`);
+            } else {
+              return `${qty} pieces × $${correctUnitPrice.toFixed(2)} = $${correctBaseTotal}`;
+            }
+          }
+          return match;
+        });
+      }
+    });
     
     console.log('🔍 [DEBUG] Base cap pricing replacement:', {
       pattern: 'pieces × $X.XX = $X,XXX.XX',
@@ -663,6 +689,13 @@ DEFAULT LOGO SETUP (Position-Based Size Rules):
 - Upper Bill: Medium size (e.g., Medium Flat Embroidery)
 - Under Bill: Large size (e.g., Large Sublimated Print)
 
+🚨 CRITICAL EMBROIDERY APPLICATION RULE:
+- 3D Embroidery: ALWAYS use "Direct" application (NOT "Patch")
+- Flat Embroidery: ALWAYS use "Direct" application (NOT "Patch")
+- Screen Print: ALWAYS use "Direct" application (NOT "Patch")
+- Sublimation: ALWAYS use "Direct" application (NOT "Patch")
+- ONLY Rubber, Leather, and Woven use "Patch" application
+
 IMPORTANT POSITION-BASED SIZING RULES:
 When customer requests "Rubber Patch on Front" → Use "Large Rubber Patch" (not Small)
 When customer requests "3D Embroidery on Back" → Use "Small 3D Embroidery" (not Medium/Large)
@@ -761,21 +794,21 @@ CRITICAL FABRIC COST CALCULATION RULES:
 6. MANDATORY: Include premium fabric line item in customer message breakdown
 
 PREMIUM FABRIC DETECTION CHECKLIST:
-- "Laser Cut" → Premium Fabric Cost: quantity × $0.75 (576pc), $0.88 (144pc), $1.25 (48pc)
-- "Acrylic" → Premium Fabric Cost: quantity × $0.8
-- "Suede Cotton" → Premium Fabric Cost: quantity × $0.8 
-- "Air Mesh" → Premium Fabric Cost: quantity × $0.3
-- "Genuine Leather" → Premium Fabric Cost: quantity × $1.7
-- "PU Leather" → Premium Fabric Cost: quantity × $1.3
-- "Camo" → Premium Fabric Cost: quantity × $0.35
-- "Canvas" → Premium Fabric Cost: quantity × $0.35
-- "Spandex" → Premium Fabric Cost: quantity × $0.35
+- "Laser Cut" → Premium Fabric Cost: USE CSV DATA - fabricOptions Laser Cut pricing
+- "Acrylic" → Premium Fabric Cost: USE CSV DATA - fabricOptions Acrylic pricing
+- "Suede Cotton" → Premium Fabric Cost: USE CSV DATA - fabricOptions Suede Cotton pricing
+- "Air Mesh" → Premium Fabric Cost: USE CSV DATA - fabricOptions Air Mesh pricing
+- "Genuine Leather" → Premium Fabric Cost: USE CSV DATA - fabricOptions Genuine Leather pricing
+- "PU Leather" → Premium Fabric Cost: USE CSV DATA - fabricOptions PU Leather pricing
+- "Camo" → Premium Fabric Cost: USE CSV DATA - fabricOptions Camo pricing
+- "Canvas" → Premium Fabric Cost: USE CSV DATA - fabricOptions Canvas pricing
+- "Spandex" → Premium Fabric Cost: USE CSV DATA - fabricOptions Spandex pricing
 
 PREMIUM CLOSURE DETECTION CHECKLIST:
-- "Fitted" → Premium Closure Cost: quantity × $0.30 (for 576pc tier), $0.40 (for 144pc), $0.50 (for 48pc)
-- "Flexfit" → Premium Closure Cost: quantity × $0.30 (for 576pc tier), $0.40 (for 144pc), $0.50 (for 48pc)
-- "Buckle" → Premium Closure Cost: quantity × $0.30 (for 576pc tier), $0.35 (for 144pc), $0.50 (for 48pc)
-- "Stretched" → Premium Closure Cost: quantity × $0.30 (for 576pc tier), $0.40 (for 144pc), $0.50 (for 48pc)
+- "Fitted" → Premium Closure Cost: USE CSV DATA - closureOptions Fitted pricing
+- "Flexfit" → Premium Closure Cost: USE CSV DATA - closureOptions Flexfit pricing
+- "Buckle" → Premium Closure Cost: USE CSV DATA - closureOptions Buckle pricing
+- "Stretched" → Premium Closure Cost: USE CSV DATA - closureOptions Stretched pricing
 
 DELIVERY OPTIONS (Per-Piece Pricing - MULTIPLY BY QUANTITY):
 ${deliveryOptions.map(d => `${d.Name}: $${d.price48}/pc for 48pc order = $${d.price48 * 48} total, $${d.price144}/pc for 144pc order = $${d.price144 * 144} total, $${d.price576}/pc for 576pc order = $${d.price576 * 576} total (${d['Delivery Days']})`).join('\n')}
@@ -799,13 +832,13 @@ When customer specifies accessories (B-Tape Print, Hang Tag, Inside Label, Stick
 5. Show accessories as separate line items in customer message breakdown
 
 ACCESSORY NAME MAPPING FOR ARTWORK ANALYSIS:
-- "B-Tape Print" → B-Tape Print ($0.20/pc for 576pc)
-- "Brand Label" → Inside Label ($0.20/pc for 576pc) 
-- "Main Label" → Inside Label ($0.20/pc for 576pc)
-- "Size Label" → Inside Label ($0.20/pc for 576pc)
-- Any label type → Inside Label ($0.20/pc for 576pc)
-- "Hang Tag Label" → Hang Tag ($0.30/pc for 576pc)
-- "Hang Tag" → Hang Tag ($0.30/pc for 576pc)
+- "B-Tape Print" → B-Tape Print: USE CSV DATA - accessoryOptions B-Tape Print pricing
+- "Brand Label" → Inside Label: USE CSV DATA - accessoryOptions Inside Label pricing
+- "Main Label" → Inside Label: USE CSV DATA - accessoryOptions Inside Label pricing
+- "Size Label" → Inside Label: USE CSV DATA - accessoryOptions Inside Label pricing
+- Any label type → Inside Label: USE CSV DATA - accessoryOptions Inside Label pricing
+- "Hang Tag Label" → Hang Tag: USE CSV DATA - accessoryOptions Hang Tag pricing
+- "Hang Tag" → Hang Tag: USE CSV DATA - accessoryOptions Hang Tag pricing
 - When artwork analysis specifies accessories, map them to CSV names and calculate costs
 
 COLOR COMBINATIONS AND CRITICAL PRICING RULES:
@@ -820,53 +853,29 @@ PRICING CALCULATION (CRITICAL - CALCULATE CORRECTLY):
 1. Find matching blank cap product and pricing tier
 2. Calculate base cost: quantity × tier price
 3. ADD PREMIUM FABRIC COSTS if customer specifies premium fabrics:
-  - Acrylic: quantity × $0.8 (for 576pc tier), $1.0 (for 144pc), $1.2 (for 48pc)
-  - Suede Cotton: quantity × $0.8 (for 576pc tier), $1.0 (for 144pc), $1.2 (for 48pc)
-  - Air Mesh: quantity × $0.3 (for 576pc tier), $0.35 (for 144pc), $0.5 (for 48pc)
-  - Genuine Leather: quantity × $1.7 (for 576pc tier), $1.8 (for 144pc), $2.0 (for 48pc)
-  - EXAMPLE: "288pc Acrylic caps" = Base cost + (288 × $0.8) = Base cost + $230.40
+  - Use fabricOptions CSV data for accurate pricing by quantity tier
+  - Get fabric unit price from CSV for the specific quantity tier
   - CRITICAL: Set pricing.premiumFabricCost = calculated premium fabric total
 4. ADD PREMIUM CLOSURE COSTS if customer specifies premium closures:
-  - Fitted: quantity × $0.30 (for 576pc tier), $0.40 (for 144pc), $0.50 (for 48pc)
-  - Flexfit: quantity × $0.30 (for 576pc tier), $0.40 (for 144pc), $0.50 (for 48pc) 
-  - Buckle: quantity × $0.30 (for 576pc tier), $0.35 (for 144pc), $0.50 (for 48pc)
-  - EXAMPLE: "288pc Fitted caps" = Base cost + (288 × $0.30) = Base cost + $86.40
+  - Use closureOptions CSV data for accurate pricing by quantity tier
+  - Get closure unit price from CSV for the specific quantity tier
   - CRITICAL: Set pricing.premiumClosureCost = calculated premium closure total
-  - CRITICAL: Set capDetails.closure = "Fitted" (NOT "Snapback")
+  - CRITICAL: Set capDetails.closure = actual closure name (NOT "Snapback")
 5. For each logo: (unit price × quantity) + mold charge (if applicable)
-  - Large Rubber Patch: $1.20/unit × 576 = $691.20 + Large Mold Charge $80 = $771.20
-  - Large 3D Embroidery: $0.12/unit × 576 = $69.12 (no mold charge)
+  - Use logoOptions CSV data for accurate pricing by size, application, and quantity tier
+  - Apply mold charges from CSV for Rubber and Leather patches
   - DO NOT show only unit price - multiply by full quantity!
 6. Add delivery costs: delivery unit price × quantity
-  - Regular Delivery for 48pc: $3.00/unit × 48 = $144.00 (NOT $3.00 total!)
-  - Regular Delivery for 576pc: $1.90/unit × 576 = $1,094.40
-  - IMPORTANT: The CSV shows per-unit prices, not total prices!
+  - Use deliveryOptions CSV data for accurate pricing by quantity tier
+  - IMPORTANT: The CSV shows per-unit prices, multiply by quantity for total!
 7. Include all mold charges for patches (Rubber, Leather patches)
 8. Sum all components for accurate total
 
-EXAMPLE CALCULATION FOR 48pc BASIC ORDER (Tier 1):
-- Base Product (Tier 1): 48 × $4.50 = $216.00
-- Regular Delivery: 48 × $3.00 = $144.00 (NOT $3.00!)
-- TOTAL: $360.00
-
-EXAMPLE CALCULATION FOR 144pc ACRYLIC CAPS (Premium Fabric, Tier 2):
-- Base Product (Tier 2): 144 × $4.00 = $576.00  
-- Acrylic Premium Fabric: 144 × $1.0 = $144.00
-- Regular Delivery: 144 × $2.20 = $316.80
-- TOTAL: $1,036.80 (Base + Premium Fabric + Delivery)
-
-EXAMPLE CALCULATION FOR 576pc FITTED CAPS (Premium Closure, Tier 3):
-- Base Product (Tier 3): 576 × $4.00 = $2,304.00
-- Fitted Premium Closure: 576 × $0.30 = $172.80
-- Regular Delivery: 576 × $1.90 = $1,094.40
-- TOTAL: $3,571.20 (Base + Premium Closure + Delivery)
-
-EXAMPLE CALCULATION FOR 576pc WITH RUBBER PATCH + 3D EMBROIDERY (Tier 3):
-- Base Product (Tier 3): 576 × $4.00 = $2,304.00
-- Large Rubber Patch Front: $1.20 × 576 = $691.20 + $80 mold = $771.20
-- Large 3D Embroidery Back: $0.12 × 576 = $69.12 
-- Regular Delivery: $1.90 × 576 = $1,094.40
-- TOTAL: $4,238.72 (not $1,670.40 or $0.85!)
+EXAMPLE CALCULATIONS:
+- All calculations must use CSV pricing data based on quantity tiers
+- Example: 576pc Tier 3 order with premium options
+- Refer to CSV data for exact unit prices at each quantity tier
+- Show calculation methodology: quantity × csv_unit_price = total_cost
 
 CRITICAL PREMIUM FABRIC RECOGNITION PATTERNS:
 When customer says "Laser Cut Flat bill cap" or "Polyester/Laser Cut caps" or "Acrylic Flat bill cap" or "Suede Cotton caps" or "Air Mesh hats":
@@ -1056,17 +1065,17 @@ When customer mentions premium fabrics, ALWAYS include fabric cost as separate l
 
 PREMIUM CLOSURE CUSTOMER MESSAGE REQUIREMENTS:
 When customer mentions premium closures, ALWAYS include closure cost as separate line item in customer message:
-- Show premium closure calculation: "Fitted Premium Closure: 288 × $0.30 = $86.40"
+- Show premium closure calculation using CSV pricing: "Fitted Premium Closure: quantity × csv_unit_price = total"
 - Include closure cost in total calculation 
 - Explain that premium closure replaces default Snapback closure
-- Set the closure field correctly: "Closure: Fitted" (NOT "Snapback")
+- Set the closure field correctly to the actual closure name (NOT "Snapback")
 
 ACCESSORIES CUSTOMER MESSAGE REQUIREMENTS:
 When customer specifies accessories (especially from artwork analysis), ALWAYS include accessories cost as separate line items:
-- Show each accessory calculation: "B-Tape Print: 576 × $0.20 = $115.20"
-- Show each accessory calculation: "Brand Label (Inside Label): 576 × $0.20 = $115.20"
-- Show each accessory calculation: "Hang Tag: 576 × $0.30 = $172.80"
-- Map ALL label types to Inside Label pricing: Brand Label, Main Label, Size Label = $0.20/pc
+- Show each accessory calculation using CSV pricing: "B-Tape Print: quantity × csv_unit_price = total"
+- Show each accessory calculation using CSV pricing: "Brand Label (Inside Label): quantity × csv_unit_price = total"
+- Show each accessory calculation using CSV pricing: "Hang Tag: quantity × csv_unit_price = total"
+- Map ALL label types to Inside Label pricing from CSV data
 - Include total accessories cost in final calculation
 - Use section header: "🎁 **Accessories:**" for better visibility
 
@@ -1096,14 +1105,11 @@ When ANY premium closure is mentioned (Fitted, Flexfit, Buckle, Stretched):
 5. NEVER set closure to "Snapback" when premium closure is specified
 
 When ANY accessories are mentioned (B-Tape Print, Brand Label, Main Label, Size Label, Hang Tag Label, etc.):
-1. ALWAYS map artwork analysis names to CSV names:
-  - Any Label type (Brand Label, Main Label, Size Label, etc.) → Inside Label ($0.20/pc)
-  - Hang Tag Label → Hang Tag ($0.30/pc)
-  - B-Tape Print → B-Tape Print ($0.20/pc)
+1. ALWAYS map artwork analysis names to CSV names and use CSV pricing for accurate calculations
 2. ALWAYS set pricing.accessoriesCost to the calculated total cost (NOT zero!)
 3. ALWAYS include accessoriesBreakdown in detailedBreakdown with each accessory listed separately
 4. ALWAYS add accessories cost section to the message breakdown with "🎁 **Accessories:**" header
-5. Calculate using CSV pricing: All Labels = $0.20/pc, Hang Tag = $0.30/pc, B-Tape Print = $0.20/pc
+5. Calculate using CSV pricing data based on quantity tier
 
 STEP-BY-STEP PREMIUM FABRIC PROCESSING:
 1. Scan customer message for fabric names: "Laser Cut", "Polyester/Laser Cut", "Acrylic", "Suede Cotton", "Air Mesh", "Camo", etc.

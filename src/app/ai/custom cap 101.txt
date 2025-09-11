@@ -73,37 +73,48 @@ When users request "best quality" or "premium" with no budget constraints, recom
 - 48 units: $4.8/cap | 144+ units: $3.4/cap | 576+ units: $3.2/cap
 - 1152+ units: $2.94/cap | 2880+ units: $2.88/cap | 10000+ units: $2.82/cap
 
-### Customization Pricing (Per Cap):
+### Customization Pricing (Per Cap): **UPDATED TO MATCH CSV FILES**
 **Logo Setup Options:**
-- **3D Embroidery**: $0.20 (48), $0.15 (144+), $0.12 (576+), $0.10 (1152+)
-- **Small Embroidery**: $0.70 (48), $0.45 (144+), $0.35 (576+), $0.30 (1152+)
-- **Medium Embroidery**: $0.90 (48), $0.65 (144+), $0.55 (576+), $0.52 (1152+)
-- **Large Embroidery**: $1.20 (48), $0.80 (144+), $0.70 (576+), $0.65 (1152+)
+- **3D Embroidery Small**: $2.25 (48), $1.50 (144+), $1.18 (576+), $1.00 (1152+)
+- **Flat Embroidery Small**: $1.75 (48), $1.13 (144+), $0.88 (576+), $0.75 (1152+)
+- **Flat Embroidery Medium**: $2.25 (48), $1.63 (144+), $1.38 (576+), $1.30 (1152+)
+- **Flat Embroidery Large**: $3.00 (48), $2.00 (144+), $1.75 (576+), $1.63 (1152+)
 
 **Premium Patches:**
-- **Small Rubber Patch**: $1.00 (48), $0.70 (144+), $0.65 (576+), $0.60 (1152+)
-- **Medium Rubber Patch**: $1.25 (48), $0.90 (144+), $0.85 (576+), $0.80 (1152+)
-- **Large Rubber Patch**: $1.50 (48), $1.20 (144+), $1.00 (576+), $0.90 (1152+)
-- **Small Leather Patch**: $1.00 (48), $0.60 (144+), $0.50 (576+), $0.45 (1152+)
-- **Medium Leather Patch**: $1.20 (48), $0.75 (144+), $0.70 (576+), $0.65 (1152+)
-- **Large Leather Patch**: $1.35 (48), $0.90 (144+), $0.85 (576+), $0.80 (1152+)
+- **Small Rubber Patch**: $3.25 (48), $2.38 (144+), $2.13 (576+), $1.95 (1152+) + $100 Mold
+- **Medium Rubber Patch**: $3.88 (48), $2.88 (144+), $2.63 (576+), $2.45 (1152+) + $150 Mold
+- **Large Rubber Patch**: $4.50 (48), $3.63 (144+), $3.00 (576+), $2.70 (1152+) + $200 Mold
+- **Small Leather Patch**: $3.25 (48), $2.13 (144+), $1.75 (576+), $1.58 (1152+) + $150 Mold
+- **Medium Leather Patch**: $3.75 (48), $2.50 (144+), $2.25 (576+), $2.08 (1152+) + $100 Mold
+- **Large Leather Patch**: $4.13 (48), $2.88 (144+), $2.63 (576+), $2.45 (1152+) + $200 Mold
 
 **Accessories:**
-- **Hang Tag**: $0.50 (48), $0.35 (144+), $0.30 (576+), $0.25 (1152+)
-- **Stickers**: $0.30 (48), $0.25 (144+), $0.20 (576+), $0.18 (1152+)
-- **Inside Label**: $0.30 (48), $0.25 (144+), $0.20 (576+), $0.15 (1152+)
+- **Hang Tag**: $1.25 (48), $0.88 (144+), $0.75 (576+), $0.63 (1152+)
+- **Stickers**: $0.75 (48), $0.63 (144+), $0.50 (576+), $0.45 (1152+)
+- **Inside Label**: $0.75 (48), $0.63 (144+), $0.50 (576+), $0.38 (1152+)
 
 **Premium Fabric Upgrades:**
-- **Suede Cotton**: $1.20 (48), $1.00 (144+), $0.80 (576+), $0.70 (1152+)
-- **Genuine Leather**: $2.00 (48), $1.80 (144+), $1.70 (576+), $1.65 (1152+)
-- **Acrylic**: $1.20 (48), $1.00 (144+), $0.80 (576+), $0.70 (1152+)
+- **Suede Cotton**: $3.00 (48), $2.50 (144+), $2.00 (576+), $1.75 (1152+)
+- **Acrylic**: $3.00 (48), $2.50 (144+), $2.00 (576+), $1.75 (1152+)
+- **Air Mesh**: $1.25 (48), $0.88 (144+), $0.75 (576+), $0.70 (1152+)
+- **Camo**: $1.25 (48), $1.00 (144+), $0.88 (576+), $0.75 (1152+)
+- **Genuine Leather**: $5.00 (48), $4.50 (144+), $4.25 (576+), $4.13 (1152+)
+- **Laser Cut**: $1.25 (48), $1.00 (144+), $0.88 (576+), $0.75 (1152+)
 
 **Services:**
 - **Graphics Design**: $50 flat fee
 - **Physical Sampling**: $150 flat fee
 
+**Premium Closures:**
+- **Snapback**: Free
+- **Velcro**: Free
+- **Buckle**: $1.25 (48), $0.88 (144+), $0.75 (576+), $0.63 (1152+)
+- **Fitted**: $1.25 (48), $1.00 (144+), $0.75 (576+), $0.63 (1152+)
+- **Flexfit**: $1.25 (48), $1.00 (144+), $0.75 (576+), $0.63 (1152+)
+- **Stretched**: $1.25 (48), $1.00 (144+), $0.75 (576+), $0.63 (1152+)
+
 **Mold Charges (One-time fees for Patches):**
-- **Small Mold**: $40 | **Medium Mold**: $60 | **Large Mold**: $80
+- **Small Mold**: $100 | **Medium Mold**: $150 | **Large Mold**: $200
 
 ### Fabric Information Reference:
 **When asked about fabrics, provide these details:**

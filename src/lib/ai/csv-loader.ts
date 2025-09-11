@@ -192,7 +192,7 @@ export class AIDataLoader {
   }
 
   static async getLogoOptions(): Promise<LogoOption[]> {
-    return loadCSVData<LogoOption>('csv/Customization Pricings.csv');
+    return loadCSVData<LogoOption>('ai/Options/Logo.csv');
   }
 
   static async getColorOptions(): Promise<ColorOption[]> {

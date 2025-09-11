@@ -147,6 +147,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ENHANCED: Extract complete cost breakdown from Current AI Values data
+    const baseProductCost = pricing?.baseProductCost || 0;
+    const logosCost = pricing?.logosCost || 0;
+    
+    // Extract accessories cost from Current AI Values customization data
+    const accessoriesCost = (() => {
+      let total = 0;
+      if (customization?.accessories && Array.isArray(customization.accessories)) {
+        customization.accessories.forEach((acc: any) => {
+          total += (acc.cost || acc.totalCost || 0);
+        });
+      }
+      // Also check pricing breakdown for accessories
+      if (pricing?.accessoriesCost) {
+        total = Math.max(total, pricing.accessoriesCost);
+      }
+      return total;
+    })();
+    
+    // Extract premium fabric cost from Current AI Values
+    const premiumFabricCost = (() => {
+      if (pricing?.premiumFabricCost) return pricing.premiumFabricCost;
+      if (capDetails?.fabric && !['Standard Cotton', 'Cotton Twill', 'Standard'].includes(capDetails.fabric)) {
+        return (pricing?.quantity || 1) * 1.25;
+      }
+      return 0;
+    })();
+    
+    // Extract premium closure cost from Current AI Values
+    const premiumClosureCost = (() => {
+      if (pricing?.premiumClosureCost) return pricing.premiumClosureCost;
+      if (capDetails?.closure && !['Snapback', 'Standard'].includes(capDetails.closure)) {
+        return (pricing?.quantity || 1) * 0.50;
+      }
+      return 0;
+    })();
+    
+    const moldCharge = customization?.totalMoldCharges || pricing?.moldCharge || 0;
+    const deliveryCost = pricing?.deliveryCost || 0;
+
     // Prepare quote order data
     const quoteOrderData = {
       status: 'COMPLETED', // User is completing/saving the quote (COMPLETED passes enum validation)
@@ -155,25 +195,65 @@ export async function POST(request: NextRequest) {
       quantities: { quantity: pricing?.quantity || 1 },
       colors: { colors: capDetails?.colors || [] },
       logoRequirements: {
-        logos: customization?.logos || []
+        // ENHANCED: Extract complete Logo Setup data from Current AI Values
+        logos: (customization?.logos || []).map((logo: any) => ({
+          location: logo.location || logo.position,
+          type: logo.type || logo.logoType,
+          size: logo.size,
+          setupCost: logo.setupCost || logo.moldCost || 0,
+          unitCost: logo.unitCost || logo.cost || 0,
+          totalCost: logo.totalCost || ((logo.unitCost || 0) * (pricing?.quantity || 1)) + (logo.setupCost || 0),
+          application: logo.application || 'Direct',
+          description: logo.description || `${logo.size || 'Standard'} ${logo.type || 'Logo'} at ${logo.location || 'Front'} position`
+        })),
+        logoSetup: customization?.logoSetup,
+        totalLogoCost: logosCost,
+        totalSetupCosts: (customization?.logos || []).reduce((sum: number, logo: any) => sum + (logo.setupCost || logo.moldCost || 0), 0)
       },
       customizationOptions: {
-        accessories: customization?.accessories || [],
-        moldCharges: customization?.totalMoldCharges || 0,
-        delivery: delivery || {}
+        // ENHANCED: Extract complete Accessories data from Current AI Values
+        accessories: (customization?.accessories || []).map((acc: any) => ({
+          type: acc.type || acc.name,
+          quantity: acc.quantity || pricing?.quantity || 1,
+          unitCost: acc.unitCost || acc.cost || 0,
+          totalCost: acc.totalCost || acc.cost || ((acc.unitCost || 0) * (pricing?.quantity || 1)),
+          description: acc.description || `${acc.type || acc.name} accessory`
+        })),
+        moldCharges: moldCharge,
+        totalAccessoriesCost: accessoriesCost,
+        // ENHANCED: Extract complete Delivery data from Current AI Values  
+        delivery: {
+          method: delivery?.method || 'Standard Delivery',
+          leadTime: delivery?.leadTime || delivery?.timeframe,
+          cost: deliveryCost,
+          urgency: delivery?.urgency || 'standard',
+          estimatedDelivery: delivery?.estimatedDelivery,
+          description: delivery?.description || `${delivery?.method || 'Standard'} delivery service`
+        }
       },
       extractedSpecs: {
+        // ENHANCED: Extract complete Cap Style Setup data from Current AI Values
+        productName: capDetails?.productName || capDetails?.style,
         profile: capDetails?.profile,
-        billShape: capDetails?.billShape,
+        billShape: capDetails?.billShape || capDetails?.shape,
         structure: capDetails?.structure,
         closure: capDetails?.closure,
         fabric: capDetails?.fabric,
-        sizes: capDetails?.sizes || []
+        size: capDetails?.size, // Single size from Current AI Values
+        sizes: capDetails?.sizes || (capDetails?.size ? [capDetails.size] : []),
+        color: capDetails?.color,
+        colors: capDetails?.colors || (capDetails?.color ? [capDetails.color] : []),
+        quantity: pricing?.quantity,
+        stitching: capDetails?.stitching || capDetails?.stitch
       },
       estimatedCosts: {
-        baseProductCost: pricing?.baseProductCost || 0,
-        logosCost: pricing?.logosCost || 0,
-        deliveryCost: pricing?.deliveryCost || 0,
+        baseProductCost: baseProductCost,
+        logosCost: logosCost,
+        accessoriesCost: accessoriesCost,
+        premiumFabricCost: premiumFabricCost,
+        premiumClosureCost: premiumClosureCost,
+        moldCharge: moldCharge,
+        deliveryCost: deliveryCost,
         total: pricing?.total || 0
       },
       aiSummary: `Quote generated for ${pricing?.quantity || 1} ${capDetails?.productName || 'Custom Cap'}(s) with total cost of $${pricing?.total || 0}`,
@@ -603,6 +683,60 @@ export async function POST(request: NextRequest) {
     } catch (pdfError) {
       // Don't fail the quote save if PDF generation fails
       console.error('⚠️ PDF generation failed for quote order:', quoteOrder.id, pdfError);
+    }
+    
+    // Generate AI order summary and store in conversation.summary field (run in background)
+    if (conversationRecord?.id) {
+      setImmediate(async () => {
+        try {
+          console.log('🤖 Generating AI order summary for conversation:', conversationRecord.id);
+          
+          const summaryResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/admin/generate-quote-summary`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cookie': request.headers.get('cookie') || '',
+              'Authorization': request.headers.get('authorization') || '',
+            },
+            body: JSON.stringify({
+              conversationId: conversationRecord.id,
+              quoteOrderId: quoteOrder.id,
+              quoteData: {
+                id: quoteOrder.id,
+                productType: quoteOrder.productType,
+                quantities: quoteOrder.quantities,
+                colors: quoteOrder.colors,
+                logoRequirements: quoteOrder.logoRequirements,
+                customizationOptions: quoteOrder.customizationOptions,
+                extractedSpecs: quoteOrder.extractedSpecs,
+                estimatedCosts: quoteOrder.estimatedCosts,
+                status: quoteOrder.status,
+                createdAt: quoteOrder.createdAt
+              },
+              customerInfo: {
+                name: quoteOrder.customerName,
+                email: quoteOrder.customerEmail,
+                company: quoteOrder.customerCompany,
+                phone: quoteOrder.customerPhone
+              }
+            })
+          });
+
+          if (summaryResponse.ok) {
+            const summaryResult = await summaryResponse.json();
+            console.log('✅ AI order summary generated successfully for conversation:', conversationRecord.id);
+            console.log('📝 Summary preview:', summaryResult.summary?.substring(0, 200) + '...');
+          } else {
+            const errorText = await summaryResponse.text();
+            console.error('⚠️ Failed to generate AI order summary:', errorText);
+          }
+        } catch (summaryError) {
+          console.error('❌ Error generating AI order summary:', summaryError);
+          // Don't fail the quote save if summary generation fails
+        }
+      });
+    } else {
+      console.log('⚠️ No conversation record available, skipping AI summary generation');
     }
     
     // Send email notifications using enhanced notification service (run in background)
