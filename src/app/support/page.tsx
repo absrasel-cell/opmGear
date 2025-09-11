@@ -1882,27 +1882,41 @@ export default function SupportPage() {
       }
     }
     
-    // Extract fabric specifications
+    // Extract fabric specifications with combination support
     const fabricPatterns = [
-      /\b(acrylic|cotton|polyester|mesh|trucker|suede|leather|canvas|denim)\b/gi,
-      /fabric:\s*([^\s,]+)/gi
+      // High priority: fabric combinations (must come first!)
+      /(acrylic\/air mesh|air mesh\/acrylic|acrylic\/airmesh|airmesh\/acrylic)/gi,
+      /(acrylic\s*\+\s*air mesh|air mesh\s*\+\s*acrylic)/gi,
+      /(acrylic\s+and\s+air mesh|air mesh\s+and\s+acrylic)/gi,
+      /(duck camo\/air mesh|air mesh\/duck camo)/gi,
+      // Medium priority: specific fabric mentions
+      /fabric:\s*([^\s,]+(?:\/[^\s,]+)?)/gi,
+      // Low priority: single fabric words
+      /\b(acrylic|cotton|polyester|mesh|trucker|suede|leather|canvas|denim)\b/gi
     ];
     
     for (const pattern of fabricPatterns) {
       const fabricMatch = userMessage.match(pattern);
       if (fabricMatch && fabricMatch.length > 0) {
         let extractedFabric = fabricMatch[0];
+        const lowerFabric = extractedFabric.toLowerCase();
         
-        // Normalize fabric values
-        if (extractedFabric.toLowerCase().includes('acrylic')) {
+        // Normalize fabric values - preserve combinations first
+        if (lowerFabric.includes('acrylic') && lowerFabric.includes('air mesh')) {
+          extractedFabric = 'Acrylic/Air Mesh';
+        } else if (lowerFabric.includes('acrylic') && lowerFabric.includes('airmesh')) {
+          extractedFabric = 'Acrylic/Air Mesh';
+        } else if (lowerFabric.includes('duck camo') && lowerFabric.includes('air mesh')) {
+          extractedFabric = 'Duck Camo/Air Mesh';
+        } else if (lowerFabric.includes('acrylic') && !lowerFabric.includes('air mesh')) {
           extractedFabric = 'Acrylic';
-        } else if (extractedFabric.toLowerCase().includes('mesh')) {
-          extractedFabric = 'Air Mesh';
-        } else if (extractedFabric.toLowerCase().includes('trucker')) {
+        } else if (lowerFabric.includes('mesh') && lowerFabric.includes('trucker')) {
           extractedFabric = 'Trucker Mesh';
-        } else if (extractedFabric.toLowerCase().includes('suede')) {
+        } else if (lowerFabric.includes('mesh') && !lowerFabric.includes('acrylic')) {
+          extractedFabric = 'Air Mesh';
+        } else if (lowerFabric.includes('suede')) {
           extractedFabric = 'Suede Cotton';
-        } else if (extractedFabric.toLowerCase().includes('leather')) {
+        } else if (lowerFabric.includes('leather')) {
           extractedFabric = 'Genuine Leather';
         }
         
@@ -1975,28 +1989,31 @@ export default function SupportPage() {
       // Enhanced fabric extraction to preserve AI-generated fabric specifications
       const extractFabric = (text: string): string => {
         // Look for premium fabric mentions in various formats
+        // IMPORTANT: Order matters! More specific patterns first to prevent partial matches
         const fabricPatterns = [
-          // Pattern 1: Premium Fabric section with specific fabric (e.g., "Premium Fabric (Acrylic):")
+          // Pattern 1: Complex fabric combinations (HIGHEST PRIORITY - must be first!)
+          /(Acrylic\/Air Mesh|Air Mesh\/Acrylic|Acrylic\/Airmesh|Airmesh\/Acrylic)/i,
+          /(Acrylic\s*\+\s*Air Mesh|Air Mesh\s*\+\s*Acrylic)/i,
+          /(Acrylic\s+and\s+Air Mesh|Air Mesh\s+and\s+Acrylic)/i,
+          /(Duck Camo\/Air Mesh|Air Mesh\/Duck Camo)/i,
+          /(Duck Camo.*?Air Mesh|Trucker Mesh.*?Air Mesh|Air Mesh.*?Trucker Mesh)/i,
+          // Pattern 2: Premium Fabric section with specific fabric combinations
           /🧵\s*Premium Fabric\s*\(([^)]+)\)/i,
           /Premium Fabric\s*\(([^)]+)\)/i,
-          // Pattern 2: CapCraft AI specific format "🧵 Premium Fabric (Acrylic):"
+          // Pattern 3: CapCraft AI specific format "🧵 Premium Fabric (Acrylic/Air Mesh):"
           /🧵[^:]*Premium Fabric[^:]*\(([^)]+)\)[^:]*:/i,
-          // Pattern 3: Direct fabric specification (e.g., "Fabric: Acrylic")
-          /(?:Fabric|Material):\s*([A-Za-z][A-Za-z\s]*?)(?:\s|$|,|\n|\.)/i,
-          // Pattern 4: Acrylic Premium Fabric line
-          /Acrylic Premium Fabric/i,
-          // Pattern 5: Multi-fabric combinations (e.g., "Duck Camo (Front) and Black Air Mesh (Back)")
-          /(Duck Camo.*?Air Mesh|Trucker Mesh.*?Air Mesh|Air Mesh.*?Trucker Mesh)/i,
-          // Pattern 6: User change requests for fabric (e.g., "change the back fabric to Air Mesh")
+          // Pattern 4: Direct fabric specification (e.g., "Fabric: Acrylic/Air Mesh")
+          /(?:Fabric|Material):\s*([A-Za-z][A-Za-z\s\/\+]*?)(?:\s|$|,|\n|\.)/i,
+          // Pattern 5: User change requests for fabric (e.g., "change the back fabric to Air Mesh")
           /(?:change|changing).*?fabric.*?to\s+([^,\n.!?]+)/i,
-          // Pattern 7: Complex fabric combinations (e.g., "Acrylic/Air Mesh")
-          /(Acrylic\/Air Mesh|Air Mesh\/Acrylic|Acrylic Air Mesh|Air Mesh Acrylic)/i,
-          // Pattern 8: Other premium fabrics
+          // Pattern 6: Acrylic Premium Fabric line
+          /Acrylic Premium Fabric/i,
+          // Pattern 7: Other premium fabrics combinations
           /(Suede Cotton|Cotton Suede)/i,
           /(Genuine Leather|Real Leather|Leather)/i,
-          // Pattern 9: General fabric detection with context
+          // Pattern 8: General fabric detection with context
           /(?:made from|constructed from|featuring)\s+([^,\n]*(?:Acrylic|Air Mesh|Suede Cotton|Camo|Leather|Polyester|Cotton)[^,\n]*)/i,
-          // Pattern 10: Standalone fabric mentions
+          // Pattern 9: Standalone fabric mentions (LOWEST PRIORITY - last resort!)
           /\b(Acrylic|Air Mesh|Trucker Mesh|Suede|Leather|Polyester|Cotton)\b/i
         ];
         
@@ -2015,28 +2032,30 @@ export default function SupportPage() {
               continue; // Skip this match and try next pattern
             }
             
-            // Clean up extracted fabric value and separate from colors
-            if (fabricValue.toLowerCase().includes('duck camo') && fabricValue.toLowerCase().includes('air mesh')) {
-              // Handle multi-fabric cases like "Duck Camo (Front) and Black Air Mesh (Back)"
+            // Clean up extracted fabric value - preserve combinations from high-priority patterns
+            const lowerFabric = fabricValue.toLowerCase();
+            
+            // If we already captured a combination from high-priority patterns, preserve it
+            if (lowerFabric.includes('acrylic') && lowerFabric.includes('air mesh')) {
+              fabricValue = 'Acrylic/Air Mesh';
+            } else if (lowerFabric.includes('acrylic') && lowerFabric.includes('airmesh')) {
+              fabricValue = 'Acrylic/Air Mesh';
+            } else if (lowerFabric.includes('duck camo') && lowerFabric.includes('air mesh')) {
               fabricValue = 'Duck Camo/Air Mesh';
-            } else if (fabricValue.toLowerCase().includes('duck camo') && fabricValue.toLowerCase().includes('trucker mesh')) {
+            } else if (lowerFabric.includes('duck camo') && lowerFabric.includes('trucker mesh')) {
               fabricValue = 'Duck Camo/Trucker Mesh';
-            } else if (fabricValue.toLowerCase().includes('acrylic')) {
-              if (fabricValue.toLowerCase().includes('air mesh')) {
-                fabricValue = 'Acrylic/Air Mesh';
-              } else {
-                fabricValue = 'Acrylic';
-              }
-            } else if (fabricValue.toLowerCase().includes('air mesh')) {
-              fabricValue = 'Air Mesh';
-            } else if (fabricValue.toLowerCase().includes('trucker mesh')) {
-              fabricValue = 'Trucker Mesh';
-            } else if (fabricValue.toLowerCase().includes('suede')) {
+            } else if (lowerFabric.includes('suede')) {
               fabricValue = 'Suede Cotton';
-            } else if (fabricValue.toLowerCase().includes('leather')) {
+            } else if (lowerFabric.includes('leather')) {
               fabricValue = 'Genuine Leather';
             } else if (fabricValue === 'Acrylic Premium Fabric') {
               fabricValue = 'Acrylic';
+            } else if (lowerFabric.includes('acrylic') && !lowerFabric.includes('air mesh')) {
+              fabricValue = 'Acrylic';
+            } else if (lowerFabric.includes('air mesh') && !lowerFabric.includes('acrylic')) {
+              fabricValue = 'Air Mesh';
+            } else if (lowerFabric.includes('trucker mesh')) {
+              fabricValue = 'Trucker Mesh';
             }
             
             console.log(`✅ [FABRIC-EXTRACTION] Found fabric using pattern ${i + 1}: "${fabricValue}"`);
@@ -2063,11 +2082,14 @@ export default function SupportPage() {
       };
       
       const extractClosure = (text: string): string => {
-        // Look for closure patterns in various formats
+        // Look for closure patterns in various formats - FIXED to avoid capturing pricing data
         const closurePatterns = [
-          /(?:Closure|Fit):\s*([^,\n]+)/i,
-          /Premium Closure\s*\(([^)]+)\)/i,
-          /\b(Fitted|Snapback|Adjustable|Velcro)\b/i
+          // Pattern 1: Look for "Closure: [TYPE]" but stop at first space, dollar sign, or newline
+          /(?:Closure|Fit):\s*(Fitted|Snapback|Adjustable|Velcro|Buckle|Elastic)\b/i,
+          // Pattern 2: Look for premium closure in parentheses
+          /Premium Closure\s*\((Fitted|Snapback|Adjustable|Velcro|Buckle|Elastic)\)/i,
+          // Pattern 3: Look for standalone closure types
+          /\b(Fitted|Snapback|Adjustable|Velcro|Buckle|Elastic)\b/i
         ];
         
         console.log('🔒 [CLOSURE-EXTRACTION] Analyzing text for closure patterns:', text.substring(0, 200));
@@ -2079,6 +2101,9 @@ export default function SupportPage() {
             let closureValue = match[1] || match[0];
             closureValue = closureValue.trim();
             
+            // Clean up any captured pricing/formatting characters
+            closureValue = closureValue.replace(/[\$\*\n,]+.*$/, '').trim();
+            
             // Normalize closure values
             if (closureValue.toLowerCase().includes('fitted')) {
               closureValue = 'Fitted';
@@ -2088,6 +2113,10 @@ export default function SupportPage() {
               closureValue = 'Adjustable';
             } else if (closureValue.toLowerCase().includes('velcro')) {
               closureValue = 'Velcro';
+            } else if (closureValue.toLowerCase().includes('buckle')) {
+              closureValue = 'Buckle';
+            } else if (closureValue.toLowerCase().includes('elastic')) {
+              closureValue = 'Elastic';
             }
             
             console.log(`✅ [CLOSURE-EXTRACTION] Found closure using pattern ${i + 1}: "${closureValue}"`);
@@ -2143,23 +2172,30 @@ export default function SupportPage() {
         console.log('🎁 [ACCESSORIES-EXTRACTION] Analyzing text for accessories:', text.substring(0, 300));
         
         // Look for accessories in the 🎁 Accessories section
-        const accessoriesSection = text.match(/🎁\s*\*\*Accessories:\*\*([\s\S]*?)(?=🚚|\*\*|$)/i);
+        const accessoriesSection = text.match(/🎁\s*\*\*?Accessories:?\*\*?([\s\S]*?)(?=🚚|\*\*|$)/i);
         
         if (accessoriesSection) {
           const accessoriesContent = accessoriesSection[1];
           console.log('🎁 [ACCESSORIES-EXTRACTION] Found accessories section:', accessoriesContent.substring(0, 200));
           
-          // Extract individual accessories
+          // Extract individual accessories with enhanced patterns for AI response format
           const accessoryPatterns = [
-            /•\s*([^:]+):\s*\d+\s*pieces/gi, // Pattern: • Hang Tag: 144 pieces
-            /([A-Za-z\s]+):\s*\d+\s*pieces/gi, // Alternative pattern
+            /•\s*([^:]+?):\s*\d+\s*pieces/gi, // Pattern: • Hang Tag: 144 pieces
+            /([A-Za-z\s\-()]+?):\s*\d+\s*pieces/gi, // Enhanced pattern: Name: 576 pieces
+            /•\s*([^:]+?)(?:\s*\([^)]*\))?:\s*\d+/gi, // Pattern: • Name (description): 576
           ];
           
           for (const pattern of accessoryPatterns) {
             const matches = [...accessoriesContent.matchAll(pattern)];
             matches.forEach(match => {
-              const accessoryName = String(match[1]).trim();
-              // Clean up accessory name and ensure it's a valid string
+              let accessoryName = String(match[1]).trim();
+              
+              // Clean up accessory name - handle special cases from AI responses
+              if (accessoryName.includes('(Inside Label)')) {
+                accessoryName = 'Label'; // Simplify "Label (Inside Label)" to "Label"
+              }
+              
+              // Ensure it's a valid string and not already included
               if (accessoryName && accessoryName !== 'undefined' && accessoryName !== 'null' && !accessories.includes(accessoryName)) {
                 accessories.push(accessoryName);
                 console.log('✅ [ACCESSORIES-EXTRACTION] Found accessory:', accessoryName);
@@ -2173,8 +2209,9 @@ export default function SupportPage() {
           const commonAccessories = [
             { name: 'Hang Tag', patterns: [/hang\s*tag/gi] },
             { name: 'Sticker', patterns: [/sticker/gi] },
-            { name: 'Inside Label', patterns: [/inside\s*label/gi, /label/gi] },
-            { name: 'B-Tape Print', patterns: [/b-tape/gi, /btape/gi] }
+            { name: 'Inside Label', patterns: [/inside\s*label/gi, /label\s*\([^)]*inside[^)]*\)/gi] },
+            { name: 'Label', patterns: [/label(?!\s*\([^)]*inside[^)]*\))/gi] }, // Label but not Inside Label
+            { name: 'B-Tape Print', patterns: [/b-tape\s*print/gi, /b-tape/gi, /btape/gi] }
           ];
           
           commonAccessories.forEach(accessory => {
@@ -2235,18 +2272,118 @@ export default function SupportPage() {
         return 'Curved'; // Default
       };
       
-      // Extract logo information with enhanced detection
-      const logoTypes = [];
-      if (message.includes('3D Embroidery')) {
-        logoTypes.push({location: 'Front', type: 'Large 3D Embroidery', size: 'Large'});
-      }
-      if (message.includes('Rubber Patch')) {
-        logoTypes.push({location: 'Front', type: 'Large Rubber Patch', size: 'Large'});
-      }
-      if (message.includes('Flat Embroidery')) {
-        logoTypes.push({location: 'Back', type: 'Small Flat Embroidery', size: 'Small'});
-        logoTypes.push({location: 'Left', type: 'Small Flat Embroidery', size: 'Small'});
-      }
+      // Extract logo information with enhanced position detection
+      const extractLogos = (text: string) => {
+        const logos = [];
+        console.log('🏷️ [LOGO-EXTRACTION] Analyzing text for logo patterns:', text.substring(0, 300));
+
+        // Comprehensive logo position patterns
+        const logoPatterns = [
+          // Pattern: [Size] [Type] [Position] - e.g., "Large Leather Patch Front", "Small 3D Embroidery Left"
+          /(Large|Small)\s+(Leather\s+Patch|3D\s+Embroidery|Flat\s+Embroidery|Rubber\s+Patch|Screen\s+Print)\s+(Front|Left|Right|Back|Upper\s+Bill|Under\s+Bill)/gi,
+          // Pattern: [Size] [Type] [Position] - alternative with colon
+          /•\s*(Large|Small)\s+(Leather\s+Patch|3D\s+Embroidery|Flat\s+Embroidery|Rubber\s+Patch|Screen\s+Print)\s+(Front|Left|Right|Back|Upper\s+Bill|Under\s+Bill)/gi,
+          // Pattern: [Position]: [Description] - e.g., "Front: Large Leather Patch"
+          /(Front|Left|Right|Back|Upper\s+Bill|Under\s+Bill):\s*([^:\n]+?)(?=\s*\d+|$|\n|•)/gi,
+          // Pattern: Logo at [Position] - e.g., "3D Embroidery at Front"
+          /(Leather\s+Patch|3D\s+Embroidery|Flat\s+Embroidery|Rubber\s+Patch|Screen\s+Print)\s+(?:at|on)\s+(Front|Left|Right|Back|Upper\s+Bill|Under\s+Bill)/gi
+        ];
+
+        for (const pattern of logoPatterns) {
+          const matches = [...text.matchAll(pattern)];
+          matches.forEach(match => {
+            let position, logoType, size;
+            
+            if (pattern.toString().includes('Front|Left|Right') && pattern.toString().includes(':')) {
+              // Pattern: "Position: Description"
+              position = match[1].trim();
+              const description = match[2].trim();
+              
+              // Extract logo type and size from description
+              if (description.toLowerCase().includes('large') && description.toLowerCase().includes('leather')) {
+                logoType = 'Large Leather Patch';
+                size = 'Large';
+              } else if (description.toLowerCase().includes('small') && description.toLowerCase().includes('3d')) {
+                logoType = 'Small 3D Embroidery';
+                size = 'Small';
+              } else if (description.toLowerCase().includes('small') && description.toLowerCase().includes('flat')) {
+                logoType = 'Small Flat Embroidery';
+                size = 'Small';
+              } else if (description.toLowerCase().includes('large') && description.toLowerCase().includes('rubber')) {
+                logoType = 'Large Rubber Patch';
+                size = 'Large';
+              } else if (description.toLowerCase().includes('screen')) {
+                logoType = 'Screen Print';
+                size = description.toLowerCase().includes('large') ? 'Large' : 'Small';
+              } else {
+                logoType = description;
+                size = description.toLowerCase().includes('large') ? 'Large' : 'Small';
+              }
+            } else if (match[3]) {
+              // Pattern: "[Size] [Type] [Position]"
+              size = match[1].trim();
+              logoType = `${size} ${match[2].trim()}`;
+              position = match[3].trim();
+            } else if (match[2] && !match[3]) {
+              // Pattern: "[Type] at/on [Position]"
+              logoType = match[1].trim();
+              position = match[2].trim();
+              size = logoType.toLowerCase().includes('large') ? 'Large' : 'Small';
+            }
+
+            if (position && logoType) {
+              // Normalize position names
+              position = position.replace(/\s+/g, ' ').trim();
+              if (position.toLowerCase().includes('upper bill')) {
+                position = 'Upper Bill';
+              } else if (position.toLowerCase().includes('under bill')) {
+                position = 'Under Bill';
+              } else {
+                position = position.charAt(0).toUpperCase() + position.slice(1).toLowerCase();
+              }
+
+              const logo = {
+                location: position,
+                type: logoType,
+                size: size
+              };
+
+              // Avoid duplicates
+              const isDuplicate = logos.some(existingLogo => 
+                existingLogo.location === logo.location && existingLogo.type === logo.type
+              );
+
+              if (!isDuplicate) {
+                logos.push(logo);
+                console.log('✅ [LOGO-EXTRACTION] Found logo:', logo);
+              }
+            }
+          });
+        }
+
+        // Fallback: Look for generic logo mentions if no specific patterns matched
+        if (logos.length === 0) {
+          console.log('⚠️ [LOGO-EXTRACTION] No specific patterns found, using fallback detection');
+          
+          if (text.includes('3D Embroidery')) {
+            logos.push({location: 'Front', type: 'Large 3D Embroidery', size: 'Large'});
+          }
+          if (text.includes('Rubber Patch')) {
+            logos.push({location: 'Front', type: 'Large Rubber Patch', size: 'Large'});
+          }
+          if (text.includes('Flat Embroidery')) {
+            logos.push({location: 'Back', type: 'Small Flat Embroidery', size: 'Small'});
+          }
+          if (text.includes('Leather Patch')) {
+            logos.push({location: 'Front', type: 'Large Leather Patch', size: 'Large'});
+          }
+        }
+
+        console.log('🏷️ [LOGO-EXTRACTION] Final logos extracted:', logos);
+        return logos;
+      };
+
+      const logoTypes = extractLogos(message);
       
       const fabric = extractFabric(message);
       console.log('🧵 [FABRIC-FIX] Extracted fabric from AI message:', fabric);
@@ -5200,7 +5337,22 @@ Please provide a detailed quote with cost breakdown.`;
                                   <div className="text-white/70">Fabric: <span className="text-white">{currentQuoteData.capDetails.fabric}</span></div>
                                 )}
                                 {currentQuoteData.capDetails.closure && (
-                                  <div className="text-white/70">Closure: <span className="text-white">{currentQuoteData.capDetails.closure}</span></div>
+                                  <div className="text-white/70">Closure: <span className="text-white">{
+                                    // FIXED: Clean up corrupted closure data that might contain pricing information
+                                    (() => {
+                                      const closure = currentQuoteData.capDetails.closure;
+                                      if (typeof closure !== 'string') return 'Snapback';
+                                      
+                                      // If closure contains pricing symbols or markdown, extract just the closure type
+                                      if (closure.includes('$') || closure.includes('*') || closure.includes('\n') || closure.length > 20) {
+                                        // Try to extract closure type from corrupted data
+                                        const cleanClosureMatch = closure.match(/\b(Fitted|Snapback|Adjustable|Velcro|Buckle|Elastic)\b/i);
+                                        return cleanClosureMatch ? cleanClosureMatch[0] : 'Snapback';
+                                      }
+                                      
+                                      return closure;
+                                    })()
+                                  }</span></div>
                                 )}
                                 {(currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch) && (
                                   <div className="text-white/70">Stitching: <span className="text-white">{currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch}</span></div>
@@ -5287,15 +5439,59 @@ Please provide a detailed quote with cost breakdown.`;
                                 {currentQuoteData.customization.logoSetup && (
                                   <div className="text-white/70">Logo Setup: <span className="text-white">{currentQuoteData.customization.logoSetup}</span></div>
                                 )}
+                                {currentQuoteData.customization.logos && currentQuoteData.customization.logos.length > 0 && (
+                                  <div className="text-white/70">
+                                    <div>Logo Setup:</div>
+                                    {currentQuoteData.customization.logos.map((logo: any, index: number) => (
+                                      <div key={index} className="text-white ml-2 text-[9px]">
+                                        • {logo.location}: <span className="text-amber-200">{logo.type}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {currentQuoteData.customization.accessories && currentQuoteData.customization.accessories.length > 0 && (
                                   <div className="text-white/70">
-                                    Accessories: <span className="text-white">
+                                    Accessories ({currentQuoteData.customization.accessories.length}): <span className="text-white">
                                       {currentQuoteData.customization.accessories
-                                        .map((acc: any) => typeof acc === 'string' ? acc : acc.name || String(acc))
+                                        .map((acc: any) => {
+                                          // Handle string accessories (most common case)
+                                          if (typeof acc === 'string') {
+                                            return acc;
+                                          }
+                                          // Handle object accessories with name property
+                                          if (acc && typeof acc === 'object' && acc.name) {
+                                            return acc.name;
+                                          }
+                                          // Handle object accessories with type property
+                                          if (acc && typeof acc === 'object' && acc.type) {
+                                            return acc.type;
+                                          }
+                                          // Enhanced fallback: try to extract accessory name from known patterns
+                                          if (acc && typeof acc === 'object') {
+                                            const accStr = JSON.stringify(acc);
+                                            // Look for B-Tape pattern
+                                            if (accStr.includes('B-Tape') || accStr.includes('b-tape')) {
+                                              return 'B-Tape Print';
+                                            }
+                                            // Look for Label pattern
+                                            if (accStr.includes('Label') || accStr.includes('label')) {
+                                              return 'Inside Label';
+                                            }
+                                            // Look for other common accessories
+                                            if (accStr.includes('Hang') || accStr.includes('hang')) {
+                                              return 'Hang Tag';
+                                            }
+                                            if (accStr.includes('Sticker') || accStr.includes('sticker')) {
+                                              return 'Sticker';
+                                            }
+                                          }
+                                          // Last resort: return the object as string but clean it up
+                                          return String(acc).replace('[object Object]', 'Unknown Accessory');
+                                        })
+                                        .filter(acc => acc && acc !== 'Unknown Accessory') // Filter out failed extractions
                                         .join(', ')
                                       }
                                     </span>
-                                    <div className="text-green-300 text-[9px] mt-0.5">{currentQuoteData.customization.accessories.length}</div>
                                   </div>
                                 )}
                                 {currentQuoteData.customization.moldCharges && (
