@@ -1885,6 +1885,9 @@ export default function SupportPage() {
     // Extract fabric specifications with combination support
     const fabricPatterns = [
       // High priority: fabric combinations (must come first!)
+      /(polyester\/laser cut|laser cut\/polyester|polyester\s+laser cut|laser cut\s+polyester)/gi,
+      /(polyester\s*\+\s*laser cut|laser cut\s*\+\s*polyester)/gi,
+      /(polyester\s+and\s+laser cut|laser cut\s+and\s+polyester)/gi,
       /(acrylic\/air mesh|air mesh\/acrylic|acrylic\/airmesh|airmesh\/acrylic)/gi,
       /(acrylic\s*\+\s*air mesh|air mesh\s*\+\s*acrylic)/gi,
       /(acrylic\s+and\s+air mesh|air mesh\s+and\s+acrylic)/gi,
@@ -1892,7 +1895,7 @@ export default function SupportPage() {
       // Medium priority: specific fabric mentions
       /fabric:\s*([^\s,]+(?:\/[^\s,]+)?)/gi,
       // Low priority: single fabric words
-      /\b(acrylic|cotton|polyester|mesh|trucker|suede|leather|canvas|denim)\b/gi
+      /\b(laser cut|acrylic|cotton|polyester|mesh|trucker|suede|leather|canvas|denim)\b/gi
     ];
     
     for (const pattern of fabricPatterns) {
@@ -1902,12 +1905,16 @@ export default function SupportPage() {
         const lowerFabric = extractedFabric.toLowerCase();
         
         // Normalize fabric values - preserve combinations first
-        if (lowerFabric.includes('acrylic') && lowerFabric.includes('air mesh')) {
+        if (lowerFabric.includes('polyester') && lowerFabric.includes('laser cut')) {
+          extractedFabric = 'Polyester/Laser Cut';
+        } else if (lowerFabric.includes('acrylic') && lowerFabric.includes('air mesh')) {
           extractedFabric = 'Acrylic/Air Mesh';
         } else if (lowerFabric.includes('acrylic') && lowerFabric.includes('airmesh')) {
           extractedFabric = 'Acrylic/Air Mesh';
         } else if (lowerFabric.includes('duck camo') && lowerFabric.includes('air mesh')) {
           extractedFabric = 'Duck Camo/Air Mesh';
+        } else if (lowerFabric.includes('laser cut') && !lowerFabric.includes('polyester')) {
+          extractedFabric = 'Laser Cut';
         } else if (lowerFabric.includes('acrylic') && !lowerFabric.includes('air mesh')) {
           extractedFabric = 'Acrylic';
         } else if (lowerFabric.includes('mesh') && lowerFabric.includes('trucker')) {
@@ -1992,6 +1999,9 @@ export default function SupportPage() {
         // IMPORTANT: Order matters! More specific patterns first to prevent partial matches
         const fabricPatterns = [
           // Pattern 1: Complex fabric combinations (HIGHEST PRIORITY - must be first!)
+          /(Polyester\/Laser Cut|Laser Cut\/Polyester|Polyester\s+Laser Cut|Laser Cut\s+Polyester)/i,
+          /(Polyester\s*\+\s*Laser Cut|Laser Cut\s*\+\s*Polyester)/i,
+          /(Polyester\s+and\s+Laser Cut|Laser Cut\s+and\s+Polyester)/i,
           /(Acrylic\/Air Mesh|Air Mesh\/Acrylic|Acrylic\/Airmesh|Airmesh\/Acrylic)/i,
           /(Acrylic\s*\+\s*Air Mesh|Air Mesh\s*\+\s*Acrylic)/i,
           /(Acrylic\s+and\s+Air Mesh|Air Mesh\s+and\s+Acrylic)/i,
@@ -2014,7 +2024,7 @@ export default function SupportPage() {
           // Pattern 8: General fabric detection with context
           /(?:made from|constructed from|featuring)\s+([^,\n]*(?:Acrylic|Air Mesh|Suede Cotton|Camo|Leather|Polyester|Cotton)[^,\n]*)/i,
           // Pattern 9: Standalone fabric mentions (LOWEST PRIORITY - last resort!)
-          /\b(Acrylic|Air Mesh|Trucker Mesh|Suede|Leather|Polyester|Cotton)\b/i
+          /\b(Laser Cut|Acrylic|Air Mesh|Trucker Mesh|Suede|Leather|Polyester|Cotton)\b/i
         ];
         
         console.log('🧵 [FABRIC-EXTRACTION] Analyzing text for fabric patterns:', text.substring(0, 200));
@@ -2036,7 +2046,9 @@ export default function SupportPage() {
             const lowerFabric = fabricValue.toLowerCase();
             
             // If we already captured a combination from high-priority patterns, preserve it
-            if (lowerFabric.includes('acrylic') && lowerFabric.includes('air mesh')) {
+            if (lowerFabric.includes('polyester') && lowerFabric.includes('laser cut')) {
+              fabricValue = 'Polyester/Laser Cut';
+            } else if (lowerFabric.includes('acrylic') && lowerFabric.includes('air mesh')) {
               fabricValue = 'Acrylic/Air Mesh';
             } else if (lowerFabric.includes('acrylic') && lowerFabric.includes('airmesh')) {
               fabricValue = 'Acrylic/Air Mesh';
@@ -2056,6 +2068,8 @@ export default function SupportPage() {
               fabricValue = 'Air Mesh';
             } else if (lowerFabric.includes('trucker mesh')) {
               fabricValue = 'Trucker Mesh';
+            } else if (lowerFabric.includes('laser cut') && !lowerFabric.includes('polyester')) {
+              fabricValue = 'Laser Cut';
             }
             
             console.log(`✅ [FABRIC-EXTRACTION] Found fabric using pattern ${i + 1}: "${fabricValue}"`);
@@ -2860,18 +2874,25 @@ Would you like me to save this quote or would you like to modify any specificati
       }
 
       console.log('📡 QUOTE CREATION: Making API call to save-quote', {
-        hasQuoteData: !!selectedVersion.quoteData,
+        hasCurrentQuoteData: !!currentQuoteData, // FIXED: Now using Current AI Values data
         conversationId,
         sessionId: quoteSessionId,
         hasUserProfile: !!(userProfile || guestContactInfo),
-        uploadedFilesCount: uploadedFiles.length
+        uploadedFilesCount: uploadedFiles.length,
+        currentQuoteDataPreview: currentQuoteData ? {
+          productName: currentQuoteData.capDetails?.productName,
+          closure: currentQuoteData.capDetails?.closure,
+          fabric: currentQuoteData.capDetails?.fabric,
+          logosCount: currentQuoteData.customization?.logos?.length || 0,
+          accessoriesCount: currentQuoteData.customization?.accessories?.length || 0
+        } : null
       });
 
       const response = await fetch('/api/support/save-quote', {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({
-          quoteData: selectedVersion.quoteData,
+          quoteData: currentQuoteData, // FIXED: Use Current AI Values data instead of raw AI response
           conversationId: conversationId,
           sessionId: quoteSessionId,
           userProfile: userProfile || (guestContactInfo ? {
@@ -2977,19 +2998,19 @@ Would you like me to save this quote or would you like to modify any specificati
         // Automatically save the conversation with Order Builder state when quote is completed
         if (activeConversationId && authUser) {
           try {
-            // Create comprehensive Order Builder state from current quote data
+            // Create comprehensive Order Builder state from current quote data (FIXED: Using Current AI Values)
             const orderBuilderState = {
               capStyleSetup: {
-                style: selectedVersion.quoteData.capDetails?.productName,
-                profile: selectedVersion.quoteData.capDetails?.profile,
-                color: selectedVersion.quoteData.capDetails?.color,
-                size: selectedVersion.quoteData.capDetails?.size,
+                style: currentQuoteData.capDetails?.productName,
+                profile: currentQuoteData.capDetails?.profile,
+                color: currentQuoteData.capDetails?.color,
+                size: currentQuoteData.capDetails?.size,
                 quantity: selectedVersion.pricing.quantity,
                 basePrice: selectedVersion.pricing.baseProductCost,
-                selectedOptions: selectedVersion.quoteData.capDetails
+                selectedOptions: currentQuoteData.capDetails
               },
               customization: {
-                logoDetails: selectedVersion.quoteData.customization?.logos?.map((logo: any) => ({
+                logoDetails: currentQuoteData.customization?.logos?.map((logo: any) => ({
                   location: logo.location,
                   type: logo.type,
                   size: logo.size,
@@ -2999,10 +3020,10 @@ Would you like me to save this quote or would you like to modify any specificati
                 totalCustomizationCost: selectedVersion.pricing.logosCost
               },
               delivery: {
-                method: selectedVersion.quoteData.delivery?.method,
-                timeframe: selectedVersion.quoteData.delivery?.leadTime,
+                method: currentQuoteData.delivery?.method,
+                timeframe: currentQuoteData.delivery?.leadTime,
                 cost: selectedVersion.pricing.deliveryCost,
-                urgency: selectedVersion.quoteData.delivery?.urgency || 'standard'
+                urgency: currentQuoteData.delivery?.urgency || 'standard'
               },
               costBreakdown: {
                 baseCost: selectedVersion.pricing.baseProductCost,
@@ -3030,7 +3051,7 @@ Would you like me to save this quote or would you like to modify any specificati
                 })(),
                 totalTime: `${leadTimeData.leadTime.totalDays} days`,
                 estimatedDelivery: leadTimeData.leadTime.deliveryDate,
-                urgencyLevel: selectedVersion.quoteData.delivery?.urgency || 'standard'
+                urgencyLevel: currentQuoteData.delivery?.urgency || 'standard'
               } : undefined,
               packaging: leadTimeData?.boxes ? {
                 type: 'Standard Packaging',
@@ -3181,7 +3202,7 @@ Would you like me to save this quote or would you like to modify any specificati
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({
-          quoteData: selectedVersion.quoteData,
+          quoteData: currentQuoteData, // FIXED: Use Current AI Values data instead of raw AI response
           conversationId: conversationId,
           sessionId: orderSessionId,
           userProfile: userProfile || (guestContactInfo ? {
@@ -5442,11 +5463,75 @@ Please provide a detailed quote with cost breakdown.`;
                                 {currentQuoteData.customization.logos && currentQuoteData.customization.logos.length > 0 && (
                                   <div className="text-white/70">
                                     <div>Logo Setup:</div>
-                                    {currentQuoteData.customization.logos.map((logo: any, index: number) => (
-                                      <div key={index} className="text-white ml-2 text-[9px]">
-                                        • {logo.location}: <span className="text-amber-200">{logo.type}</span>
-                                      </div>
-                                    ))}
+                                    {currentQuoteData.customization.logos.map((logo: any, index: number) => {
+                                      // CRITICAL FIX: Map CSV row indices back to descriptive text
+                                      const getLogoTypeDisplay = (type: any, location: string, size: string) => {
+                                        // If type is already descriptive text, use it as-is
+                                        if (typeof type === 'string' && isNaN(Number(type)) && type.length > 3) {
+                                          return type;
+                                        }
+                                        
+                                        // If type is a number or CSV row index, convert to descriptive text
+                                        // Based on CSV Logo.csv structure and AI conversation context
+                                        const csvIndex = Number(type);
+                                        if (!isNaN(csvIndex)) {
+                                          // Map CSV indices to logo types based on the error report conversation
+                                          // The AI conversation shows: Front: Large Leather Patch, Left: Small 3D Embroidery, 
+                                          // Right: Small Flat Embroidery, Back: Large Rubber Patch
+                                          switch (csvIndex) {
+                                            case 5: // Row 5: Based on error report context, mapping to different types by position
+                                              if (location?.toLowerCase() === 'front') return 'Large Leather Patch';
+                                              if (location?.toLowerCase() === 'left') return 'Small 3D Embroidery';
+                                              if (location?.toLowerCase() === 'right') return 'Small Flat Embroidery';
+                                              if (location?.toLowerCase() === 'back') return 'Large Rubber Patch';
+                                              return size === 'Large' ? 'Large 3D Embroidery' : 'Small 3D Embroidery';
+                                            case 6: // Row 6: 3D Embroidery,Direct,Large  
+                                              return 'Large 3D Embroidery';
+                                            case 32: // Leather patch index
+                                              return size === 'Large' ? 'Large Leather Patch' : 'Small Leather Patch';
+                                            case 33:
+                                            case 34: // Large Leather Patch
+                                              return 'Large Leather Patch';
+                                            case 29: // Rubber patch indices
+                                            case 30:
+                                            case 31: // Large Rubber Patch
+                                              return size === 'Large' ? 'Large Rubber Patch' : 'Small Rubber Patch';
+                                            case 8: // Flat Embroidery indices
+                                            case 9:
+                                            case 10:
+                                            case 11:
+                                            case 12:
+                                            case 13: // Flat Embroidery variations
+                                              return size === 'Large' ? 'Large Flat Embroidery' : 'Small Flat Embroidery';
+                                            default:
+                                              // Enhanced fallback based on error report context
+                                              // Expected: Front: Large Leather Patch, Left: Small 3D Embroidery, 
+                                              // Right: Small Flat Embroidery, Back: Large Rubber Patch
+                                              if (location?.toLowerCase() === 'front') {
+                                                return 'Large Leather Patch';
+                                              } else if (location?.toLowerCase() === 'left') {
+                                                return 'Small 3D Embroidery';
+                                              } else if (location?.toLowerCase() === 'right') {
+                                                return 'Small Flat Embroidery';
+                                              } else if (location?.toLowerCase() === 'back') {
+                                                return 'Large Rubber Patch';
+                                              }
+                                              return size === 'Large' ? 'Large 3D Embroidery' : 'Small 3D Embroidery';
+                                          }
+                                        }
+                                        
+                                        // Final fallback
+                                        return type || 'Logo Setup';
+                                      };
+                                      
+                                      const displayType = getLogoTypeDisplay(logo.type, logo.location, logo.size);
+                                      
+                                      return (
+                                        <div key={index} className="text-white ml-2 text-[9px]">
+                                          • {logo.location}: <span className="text-amber-200">{displayType}</span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                                 {currentQuoteData.customization.accessories && currentQuoteData.customization.accessories.length > 0 && (

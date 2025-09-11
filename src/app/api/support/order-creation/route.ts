@@ -289,10 +289,25 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
   // ===== 5. UPDATE CUSTOMER MESSAGE =====
   if (correctionsMade && orderResponse.message) {
     console.log('🔧 [POST-PROCESSING] Updating customer message with corrected pricing');
+    console.log('🔍 [DEBUG] Original message preview:', orderResponse.message?.substring(0, 500));
 
-    // Update base cap pricing in message
-    const oldCapPricePattern = /pieces\s+×\s+\$[\d.]+\s+=\s+\$[\d,]+\.?\d*/g;
-    const newCapCalculation = `pieces × $${tierPricing ? (quantity >= 576 ? tierPricing.price576 : quantity >= 144 ? tierPricing.price144 : tierPricing.price48).toFixed(2) : '0.00'} = $${quoteData.pricing?.baseProductCost?.toFixed(2) || '0.00'}`;
+    // Update base cap pricing in message - fix the pattern and actually use the replacement
+    const correctUnitPrice = tierPricing ? (quantity >= 576 ? tierPricing.price576 : quantity >= 144 ? tierPricing.price144 : tierPricing.price48) : 0;
+    const correctBaseTotal = (quoteData.pricing?.baseProductCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    // Replace base cap pricing: "576 pieces × $6.00 = $3,456.00" becomes "576 pieces × $4.00 = $2,304.00"
+    const oldCapPricePattern = /(\d+)\s+pieces\s+×\s+\$[\d,.]+\s+=\s+\$[\d,]+\.?\d*/g;
+    const newCapCalculation = `$1 pieces × $${correctUnitPrice.toFixed(2)} = $${correctBaseTotal}`;
+    const updatedMessage = orderResponse.message.replace(oldCapPricePattern, newCapCalculation);
+    
+    console.log('🔍 [DEBUG] Base cap pricing replacement:', {
+      pattern: 'pieces × $X.XX = $X,XXX.XX',
+      correctUnitPrice: `$${correctUnitPrice.toFixed(2)}`,
+      correctBaseTotal: `$${correctBaseTotal}`,
+      replacementMade: updatedMessage !== orderResponse.message
+    });
+    
+    orderResponse.message = updatedMessage;
     
     // Update customization pricing in message (this is complex, so we'll regenerate key sections)
     if (quoteData.customization?.logos) {
@@ -582,6 +597,19 @@ Logo analysis data found but requires interpretation. Create quote with general 
   // Comprehensive system prompt for CapCraft AI
   const systemPrompt = `You are ${quoteMaster.displayName} ${quoteMaster.icon}, ${quoteMaster.specialty} for US Custom Cap. You specialize in creating accurate quotes and orders based on customer requirements with artisanal attention to detail.
 
+🚨 CRITICAL QUANTITY PARSING RULE (READ FIRST):
+When customer mentions a specific quantity (like 48, 144, 576, 1152), you MUST:
+1. Parse the exact quantity number from their message
+2. Use that quantity for ALL calculations 
+3. Apply quantity-based pricing (higher qty = lower per-piece price)
+4. NEVER default to 48-piece pricing for higher quantities
+
+Example: "576 pieces 7-Panel Cap" means:
+- Quantity: 576 pieces (NOT 48!)
+- Product: 7-Panel = Tier 3 pricing  
+- Correct price: Tier 3 @ 576pc = $4.00 per piece
+- Calculation: 576 × $4.00 = $2,304.00
+
 ${imageAnalysisContext}
 
 ${shouldUseAnalysisData ? 
@@ -662,26 +690,26 @@ ${pricingTiers.map(t => `${t.Name}: 48pc=$${t.price48}, 144pc=$${t.price144}, 57
 
 🚨 CRITICAL QUANTITY-BASED PRICING RULES (MUST FOLLOW):
 
-**7-PANEL CAP (TIER 3) PRICING BY QUANTITY:**
-• 48 pieces = $6.00 per cap
-• 144 pieces = $4.25 per cap  
-• 576 pieces = $4.00 per cap
-• 1152+ pieces = $3.68 per cap
+**STEP-BY-STEP PRICING CALCULATION:**
+1. **IDENTIFY PANEL COUNT**: Look for "7-Panel", "6-Panel", "5-Panel" in customer request
+2. **DETERMINE TIER**: 7-Panel = Tier 3, 6-Panel Flat = Tier 2, Others = Tier 1
+3. **IDENTIFY QUANTITY**: Look for quantity number (48, 144, 576, 1152, etc.)
+4. **USE CORRECT CSV PRICE**: From the pricing data above, use the exact price for that tier and quantity
 
-**6-PANEL CAP (TIER 2) PRICING BY QUANTITY:**
-• 48 pieces = $5.50 per cap
-• 144 pieces = $4.00 per cap
-• 576 pieces = $3.75 per cap  
-• 1152+ pieces = $3.63 per cap
+**CRITICAL: FOR 576 PIECES OF 7-PANEL CAP:**
+- TIER: Tier 3 (because 7-Panel)
+- QUANTITY: 576 pieces
+- CORRECT PRICE: Use "Tier 3: 576pc=$4.00" from CSV data above
+- WRONG: Do NOT use $6.00 (that's 48pc price)
+- CALCULATION: 576 × $4.00 = $2,304.00
 
-**5-PANEL CAP (TIER 1) PRICING BY QUANTITY:**
-• 48 pieces = $4.50 per cap
-• 144 pieces = $3.75 per cap
-• 576 pieces = $3.63 per cap
-• 1152+ pieces = $3.55 per cap
+**QUANTITY TIER LOGIC FOR TIER 3:**
+- 48pc → $6.00 per piece
+- 144pc → $4.25 per piece
+- 576pc → $4.00 per piece ← USE THIS FOR 576 PIECES
+- 1152pc → $3.68 per piece
 
-EXAMPLE: Customer orders "144 pieces 7-Panel Cap" → Use $4.25 per cap (NOT $6.00!)
-EXAMPLE: Customer orders "576 pieces 7-Panel Cap" → Use $4.00 per cap (NOT $6.00!)
+ALWAYS VERIFY: Quantity × Per-piece price = Subtotal
 
 CUSTOMIZATION OPTIONS (Per-Piece Pricing):
 
@@ -733,6 +761,7 @@ CRITICAL FABRIC COST CALCULATION RULES:
 6. MANDATORY: Include premium fabric line item in customer message breakdown
 
 PREMIUM FABRIC DETECTION CHECKLIST:
+- "Laser Cut" → Premium Fabric Cost: quantity × $0.75 (576pc), $0.88 (144pc), $1.25 (48pc)
 - "Acrylic" → Premium Fabric Cost: quantity × $0.8
 - "Suede Cotton" → Premium Fabric Cost: quantity × $0.8 
 - "Air Mesh" → Premium Fabric Cost: quantity × $0.3
@@ -840,8 +869,8 @@ EXAMPLE CALCULATION FOR 576pc WITH RUBBER PATCH + 3D EMBROIDERY (Tier 3):
 - TOTAL: $4,238.72 (not $1,670.40 or $0.85!)
 
 CRITICAL PREMIUM FABRIC RECOGNITION PATTERNS:
-When customer says "Acrylic Flat bill cap" or "Suede Cotton caps" or "Air Mesh hats":
-1. Extract fabric name: "Acrylic", "Suede Cotton", "Air Mesh"
+When customer says "Laser Cut Flat bill cap" or "Polyester/Laser Cut caps" or "Acrylic Flat bill cap" or "Suede Cotton caps" or "Air Mesh hats":
+1. Extract fabric name: "Laser Cut", "Polyester/Laser Cut", "Acrylic", "Suede Cotton", "Air Mesh"
 2. Find base cap product (ignore fabric name in product matching)
 3. Add premium fabric cost as separate line item
 4. Show calculation: Base Cost + Premium Fabric Cost = Subtotal
@@ -1053,7 +1082,7 @@ When artwork analysis shows same color in all positions (e.g., "Black" front, ba
 3. DO NOT multiply by 3 or by number of positions
 4. Show in customer message as: "Black (All Positions): 576 pieces × $2.40 = $1,382.40"
 
-When ANY premium fabric is mentioned (Acrylic, Suede Cotton, Air Mesh, etc.):
+When ANY premium fabric is mentioned (Laser Cut, Polyester/Laser Cut, Acrylic, Suede Cotton, Air Mesh, etc.):
 1. ALWAYS set capDetails.premiumFabric to the fabric name
 2. ALWAYS set pricing.premiumFabricCost to the calculated cost (NOT zero!)
 3. ALWAYS include premiumFabricBreakdown in detailedBreakdown
@@ -1077,7 +1106,7 @@ When ANY accessories are mentioned (B-Tape Print, Brand Label, Main Label, Size 
 5. Calculate using CSV pricing: All Labels = $0.20/pc, Hang Tag = $0.30/pc, B-Tape Print = $0.20/pc
 
 STEP-BY-STEP PREMIUM FABRIC PROCESSING:
-1. Scan customer message for fabric names: "Acrylic", "Suede Cotton", "Air Mesh", "Camo", etc.
+1. Scan customer message for fabric names: "Laser Cut", "Polyester/Laser Cut", "Acrylic", "Suede Cotton", "Air Mesh", "Camo", etc.
 2. If found, treat as premium fabric upgrade (NOT part of product name)
 3. Calculate: fabric_cost = quantity × fabric_unit_price
 4. Set pricing.premiumFabricCost = fabric_cost 
