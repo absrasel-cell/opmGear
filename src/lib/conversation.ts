@@ -42,10 +42,11 @@ export class ConversationService {
         .from('Conversation')
         .select('*')
         .eq('id', conversationId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        throw new Error(`Failed to get conversation by ID: ${error.message}`);
+        console.error(`Database error getting conversation ${conversationId}:`, error.message);
+        return null;
       }
 
       return conversation;

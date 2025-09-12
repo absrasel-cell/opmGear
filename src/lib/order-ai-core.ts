@@ -13,6 +13,20 @@ import {
   getAIBlankCapPrice
 } from '@/lib/ai-pricing-service';
 
+// Import business rules and knowledge base functions
+import { 
+  BUSINESS_RULES,
+  detectFabricFromText,
+  detectClosureFromText,
+  detectAccessoriesFromText,
+  detectSizeFromText,
+  detectAllLogosFromText,
+  CostingContext
+} from '@/lib/costing-knowledge-base';
+
+// Import unified costing service
+import { calculateQuickEstimate } from '@/lib/unified-costing-service';
+
 export interface OrderRequirements {
   quantity: number;
   logoType: string;
@@ -467,7 +481,7 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   
   // Apply position-based size default and correct application method using knowledge base
   logoSize = detectSizeFromText(message, logoPosition);
-  const logoApplication = getDefaultApplicationMethod(logoType);
+  const logoApplication = getDefaultApplication(logoType);
   
   // Detect cap size from message, default to "7 1/4" if not specified
   const detectCapSize = (text: string): string => {
@@ -533,9 +547,9 @@ export function extractBudget(message: string): number | null {
 }
 
 /**
- * Optimize quantity for budget (simple version)
+ * Optimize quantity for budget (simple version) - now async to use CSV data
  */
-export function optimizeQuantityForBudget(budget: number, logoType: string) {
+export async function optimizeQuantityForBudget(budget: number, logoType: string) {
   // Start with a rough estimate and iterate to find optimal quantity
   let bestQuantity = 0;
   let bestCostPerUnit = 0;
@@ -545,10 +559,12 @@ export function optimizeQuantityForBudget(budget: number, logoType: string) {
   const testQuantities = [48, 144, 576, 1152, 2880, 10000];
   
   for (const qty of testQuantities) {
-    const basePrice = getBasePriceForQuantity(qty, 'Tier 1'); // Use default tier for budget optimization
+    const basePrice = await getBasePriceForQuantity(qty, 'Tier 1'); // Use default tier for budget optimization
     const logoSetupCost = logoType === "3D Embroidery" ? 100 : 
                          logoType === "None" ? 0 : 50;
-    const deliveryUnitPrice = calculateDeliveryUnitPrice(qty, 'regular');
+    // Use proper CSV delivery pricing
+    const { calculateDeliveryUnitPrice } = await import('@/lib/pricing-server');
+    const deliveryUnitPrice = await calculateDeliveryUnitPrice(qty, 'regular');
     const deliveryCost = qty * deliveryUnitPrice;
     const totalCost = (qty * basePrice) + logoSetupCost + deliveryCost;
     
@@ -596,7 +612,7 @@ export async function optimizeQuantityForBudgetPrecise(budget: number, logoType:
       logoType,
       logoPosition: 'Front',
       logoSize: 'Medium',
-      logoApplication: getDefaultApplicationMethod(logoType),
+      logoApplication: getDefaultApplication(logoType),
       capSize: '7 1/4', // Default cap size
       fabricType: BUSINESS_RULES.DEFAULTS.fabricType,
       closureType: BUSINESS_RULES.DEFAULTS.closure,
@@ -672,7 +688,7 @@ export async function calculateQuickEstimate(requirements: OrderRequirements, co
       type: requirements.logoType,
       size: requirements.logoSize || 'Medium',
       position: requirements.logoPosition || 'Front',
-      application: requirements.logoApplication || getDefaultApplicationMethod(requirements.logoType)
+      application: requirements.logoApplication || getDefaultApplication(requirements.logoType)
     }] : undefined;
 
     const costingContext: CostingContext = {
@@ -685,7 +701,7 @@ export async function calculateQuickEstimate(requirements: OrderRequirements, co
     };
 
     // Use unified quick estimate
-    const estimate = await unifiedQuickEstimate(costingContext);
+    const estimate = await calculateQuickEstimate(costingContext);
     
     return {
       quantity: estimate.quantity,
@@ -808,16 +824,18 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
     
     // 3. Calculate premium fabric cost
     let premiumFabricTotal = 0;
+    let fabricUnitPrice = 0;
     if (requirements.fabricType && !['Chino Twill', 'Trucker Mesh', 'Micro Mesh', 'Cotton Polyester Mix', 'Polyester', 'Ripstop'].includes(requirements.fabricType)) {
-      const fabricUnitPrice = await getAIFabricPrice(requirements.fabricType, requirements.quantity);
+      fabricUnitPrice = await getAIFabricPrice(requirements.fabricType, requirements.quantity);
       premiumFabricTotal = fabricUnitPrice * requirements.quantity;
       console.log(`🧵 [AI-PRICING] Premium fabric (${requirements.fabricType}): $${fabricUnitPrice} x ${requirements.quantity} = $${premiumFabricTotal}`);
     }
     
     // 4. Calculate premium closure cost
     let closureTotal = 0;
+    let closureUnitPrice = 0;
     if (requirements.closureType && !['Snapback', 'Velcro'].includes(requirements.closureType)) {
-      const closureUnitPrice = await getAIClosurePrice(requirements.closureType, requirements.quantity);
+      closureUnitPrice = await getAIClosurePrice(requirements.closureType, requirements.quantity);
       closureTotal = closureUnitPrice * requirements.quantity;
       console.log(`🔒 [AI-PRICING] Premium closure (${requirements.closureType}): $${closureUnitPrice} x ${requirements.quantity} = $${closureTotal}`);
     }
@@ -878,8 +896,8 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
           logos: logoBreakdown,
           accessories: accessoriesBreakdown,
           delivery: { unitPrice: deliveryUnitPrice, total: deliveryTotal },
-          premiumFabric: { unitPrice: premiumFabricTotal / requirements.quantity, total: premiumFabricTotal },
-          premiumClosure: { unitPrice: closureTotal / requirements.quantity, total: closureTotal }
+          premiumFabric: { unitPrice: fabricUnitPrice, total: premiumFabricTotal },
+          premiumClosure: { unitPrice: closureUnitPrice, total: closureTotal }
         }
       },
       orderEstimate: {
@@ -1037,8 +1055,9 @@ async function calculateEnhancedFallbackEstimate(requirements: OrderRequirements
     });
   }
 
-  // Delivery cost calculation
-  const deliveryUnitPrice = calculateDeliveryUnitPrice(requirements.quantity, requirements.deliveryMethod || 'regular');
+  // Delivery cost calculation using server-side CSV pricing
+  const { calculateDeliveryUnitPrice } = await import('@/lib/pricing-server');
+  const deliveryUnitPrice = await calculateDeliveryUnitPrice(requirements.quantity, requirements.deliveryMethod || 'regular');
   const deliveryCost = requirements.quantity * deliveryUnitPrice;
   totalCost += deliveryCost;
 
@@ -1064,20 +1083,26 @@ async function calculateEnhancedFallbackEstimate(requirements: OrderRequirements
       premiumFabricTotal,
       totalCost,
       detailedBreakdown: {
-        baseProductCost: baseProductTotal,
-        logoSetupCosts,
-        deliveryCosts: [{
-          name: "Regular Delivery",
-          cost: deliveryCost,
-          unitPrice: deliveryUnitPrice
-        }],
-        accessoriesCosts: [],
-        closureCosts,
-        moldChargeCosts,
-        servicesCosts: [],
-        premiumFabricCosts,
-        totalCost,
-        totalUnits: requirements.quantity
+        blankCaps: { unitPrice: basePrice, total: baseProductTotal },
+        logos: logoSetupCosts.map(logo => ({
+          position: logo.details?.split(' on ')[1] || 'Front',
+          type: logo.name,
+          size: logo.name.split(' ')[0],
+          application: 'Direct',
+          unitPrice: logo.unitPrice,
+          totalCost: logo.cost,
+          moldCharge: 0
+        })),
+        accessories: [], // Empty for fallback
+        delivery: { unitPrice: deliveryUnitPrice, total: deliveryCost },
+        premiumFabric: premiumFabricCosts.length > 0 ? { 
+          unitPrice: premiumFabricCosts[0]?.unitPrice || 0, 
+          total: premiumFabricTotal 
+        } : null,
+        premiumClosure: closureCosts.length > 0 ? { 
+          unitPrice: closureCosts[0]?.unitPrice || 0, 
+          total: closureTotal 
+        } : null
       }
     },
     orderEstimate: {
