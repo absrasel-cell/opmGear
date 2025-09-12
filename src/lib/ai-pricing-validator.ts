@@ -32,8 +32,8 @@ export async function validateAndCorrectAIPricing(aiResponse: string, context: a
       const correctCapPrice = costBreakdown.detailedBreakdown.blankCaps.unitPrice;
       const correctCapTotal = costBreakdown.detailedBreakdown.blankCaps.total;
       
-      // Pattern to match: "quantity pieces × $price = $total"
-      const capPricePattern = new RegExp(`${quantity}\\s*(?:pieces?|caps?)\\s*×\\s*\\$([\\d,.]+)\\s*=\\s*\\$([\\d,.]+)`, 'gi');
+      // Pattern to match: "•Color: quantity pieces × $price = $total" or "quantity pieces × $price = $total"
+      const capPricePattern = new RegExp(`(?:•\\w+:\\s*)?${quantity}\\s*(?:pieces?|caps?)\\s*×\\s*\\$([\\d,.]+)\\s*=\\s*\\$([\\d,.]+)`, 'gi');
       
       correctedResponse = correctedResponse.replace(capPricePattern, (match, unitPrice, total) => {
         const aiUnitPrice = parseFloat(unitPrice.replace(/,/g, ''));
@@ -45,7 +45,10 @@ export async function validateAndCorrectAIPricing(aiResponse: string, context: a
             correct: { unitPrice: correctCapPrice, total: correctCapTotal }
           });
           correctionsMade++;
-          return `${quantity} pieces × $${correctCapPrice.toFixed(2)} = $${correctCapTotal.toFixed(2)}`;
+          // Preserve color prefix if it exists
+          const colorPrefix = match.match(/^•\w+:\s*/);
+          const prefix = colorPrefix ? colorPrefix[0] : '';
+          return `${prefix}${quantity} pieces × $${correctCapPrice.toFixed(2)} = $${correctCapTotal.toFixed(2)}`;
         }
         return match;
       });
