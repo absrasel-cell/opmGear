@@ -14,6 +14,7 @@ let cachedAIClosure: any[] | null = null;
 let cachedAIFabric: any[] | null = null;
 let cachedAIDelivery: any[] | null = null;
 let cachedAIBlankCaps: any[] | null = null;
+let cachedCustomerProducts: any[] | null = null;
 
 // Helper function to parse CSV lines
 function parseCSVLine(line: string): string[] {
@@ -228,14 +229,15 @@ async function loadAIDelivery(): Promise<any[]> {
   }
 }
 
-// Load blank cap pricing (shared with advanced product page)
+// Load blank cap pricing (AI-SPECIFIC from priceTier.csv)
 async function loadAIBlankCaps(): Promise<any> {
   if (cachedAIBlankCaps) {
     return cachedAIBlankCaps;
   }
   
   try {
-    const csvPath = path.join(process.cwd(), 'src/app/csv/Blank Cap Pricings.csv');
+    // 🚨 CRITICAL FIX: Load from the correct AI-specific priceTier.csv file
+    const csvPath = path.join(process.cwd(), 'src/app/ai/Blank Cap/priceTier.csv');
     const csvContent = await fs.readFile(csvPath, 'utf-8');
     
     const lines = csvContent.split('\n').filter(line => line.trim());
@@ -291,7 +293,7 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
   let selectedPrice = 0;
   let selectedTier = '';
   
-  // CORRECTED: Tier boundaries based on CSV column names representing MINIMUM quantities for that price
+  // 🚨 CRITICAL FIX: Tier boundaries based on CSV column names representing MINIMUM quantities for that price
   // price48 = 48+ pieces, price144 = 144+ pieces, price576 = 576+ pieces, etc.
   // The tier pricing applies when you reach that minimum quantity threshold
   if (quantity >= 20000) {
@@ -310,7 +312,7 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
     selectedPrice = pricingData.price576 || 0;
     selectedTier = 'price576';
   } else if (quantity >= 144) {
-    selectedPrice = pricingData.price144 || 0;
+    selectedPrice = pricingData.price144 || 0;  // 🎯 144 caps = $3.75!
     selectedTier = 'price144';
   } else if (quantity >= 48) {
     selectedPrice = pricingData.price48 || 0;
@@ -332,6 +334,138 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
   }
   
   return selectedPrice;
+}
+
+// Load Customer Products CSV for product-tier mapping
+async function loadCustomerProducts(): Promise<any[]> {
+  if (cachedCustomerProducts) {
+    return cachedCustomerProducts;
+  }
+  
+  try {
+    const csvPath = path.join(process.cwd(), 'src/app/csv/Customer Products.csv');
+    const csvContent = await fs.readFile(csvPath, 'utf-8');
+    
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const dataLines = lines.slice(1); // Skip header
+    
+    cachedCustomerProducts = dataLines.map(line => {
+      const values = parseCSVLine(line);
+      return {
+        Name: (values[0] || '').replace(/"/g, '').trim(),
+        Profile: (values[1] || '').replace(/"/g, '').trim(),
+        billOrVisorShape: (values[2] || '').replace(/"/g, '').trim(),
+        panelCount: (values[3] || '').replace(/"/g, '').trim(),
+        priceTier: (values[4] || '').replace(/"/g, '').trim(),
+        structureType: (values[5] || '').replace(/"/g, '').trim(),
+        nickNames: (values[6] || '').replace(/"/g, '').trim()
+      };
+    }).filter(item => item.Name && item.Name.length > 0 && item.priceTier);
+    
+    console.log(`✅ [AI-PRICING] Loaded ${cachedCustomerProducts.length} customer products from CSV`);
+    return cachedCustomerProducts;
+  } catch (error) {
+    console.error('❌ [AI-PRICING] Error loading Customer Products CSV:', error);
+    return [];
+  }
+}
+
+/**
+ * Find the correct tier for a product based on description matching
+ */
+export async function findProductTierFromDescription(description: string): Promise<string> {
+  const products = await loadCustomerProducts();
+  
+  if (!products.length) {
+    console.warn('⚠️ [AI-PRICING] No customer products loaded, falling back to Tier 2');
+    return 'Tier 2';
+  }
+  
+  const lowerDescription = description.toLowerCase();
+  console.log(`🔍 [AI-PRICING] Searching for product tier from description: "${description}"`);
+  
+  // Score-based matching for best product match
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  for (const product of products) {
+    let score = 0;
+    const productName = product.Name.toLowerCase();
+    const nickNames = product.nickNames.toLowerCase();
+    const allMatchable = `${productName} ${nickNames} ${product.Profile.toLowerCase()} ${product.billOrVisorShape.toLowerCase()} ${product.panelCount.toLowerCase()} ${product.structureType.toLowerCase()}`;
+    
+    // Score based on keyword matches
+    const keywords = [
+      // Panel count
+      '4-panel', '4 panel', '5-panel', '5 panel', '6-panel', '6 panel', '7-panel', '7 panel',
+      // Profile
+      'high', 'mid', 'low', 'medium',
+      // Bill shape
+      'curved', 'flat', 'slight curved', 'flatbill',
+      // Structure
+      'structured', 'unstructured', 'foam', 'soft',
+      // Common names
+      'trucker', 'baseball', 'snapback', 'dad hat', 'fitted',
+      // Fabric indicators
+      'mesh', 'twill', 'cotton', 'polyester'
+    ];
+    
+    for (const keyword of keywords) {
+      if (lowerDescription.includes(keyword) && allMatchable.includes(keyword)) {
+        score += 2;
+      }
+    }
+    
+    // Special scoring for fabric mentions (Duck Camo = premium fabric)
+    if (lowerDescription.includes('duck camo') || lowerDescription.includes('camo')) {
+      if (allMatchable.includes('trucker') || allMatchable.includes('mesh')) {
+        score += 5; // Bonus for trucker/mesh caps with camo (common combo)
+      }
+    }
+    
+    // Special scoring for trucker mesh backs
+    if (lowerDescription.includes('trucker mesh') && allMatchable.includes('trucker')) {
+      score += 10;
+    }
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = product;
+    }
+  }
+  
+  if (bestMatch && bestScore > 0) {
+    console.log(`✅ [AI-PRICING] Found best product match: "${bestMatch.Name}" (${bestMatch.priceTier}) with score ${bestScore}`);
+    console.log(`📊 [AI-PRICING] Product details:`, {
+      name: bestMatch.Name,
+      profile: bestMatch.Profile,
+      billShape: bestMatch.billOrVisorShape,
+      panelCount: bestMatch.panelCount,
+      structure: bestMatch.structureType,
+      tier: bestMatch.priceTier
+    });
+    return bestMatch.priceTier;
+  }
+  
+  // If no good match, try simpler heuristics based on description patterns
+  console.log('🔄 [AI-PRICING] No specific product match, using heuristics...');
+  
+  // Heuristic: 7-panel caps are usually Tier 3
+  if (lowerDescription.includes('7') && (lowerDescription.includes('panel') || lowerDescription.includes('crown'))) {
+    console.log('📊 [AI-PRICING] Heuristic match: 7-panel → Tier 3');
+    return 'Tier 3';
+  }
+  
+  // Heuristic: Flat bill 6-panel caps are often Tier 2
+  if ((lowerDescription.includes('flat') && lowerDescription.includes('6')) || 
+      (lowerDescription.includes('6') && lowerDescription.includes('panel') && lowerDescription.includes('flat'))) {
+    console.log('📊 [AI-PRICING] Heuristic match: 6-panel flat → Tier 2');
+    return 'Tier 2';
+  }
+  
+  // Default fallback to Tier 1 (most common, affordable option)
+  console.log('📊 [AI-PRICING] No match found, defaulting to Tier 1');
+  return 'Tier 1';
 }
 
 // PUBLIC API FUNCTIONS
@@ -419,25 +553,36 @@ export async function getAIFabricPrice(fabricName: string, quantity: number): Pr
   if (!fabric && fabricName.includes('/')) {
     const fabricNames = fabricName.split('/').map(f => f.trim());
     console.log(`🧵 [AI-PRICING] Dual fabric detected: ${fabricNames.join(', ')}`);
+    console.log(`🧵 [AI-PRICING] Available fabrics in CSV:`, fabrics.map(f => f.Name));
     
-    // Find the premium fabric from the dual fabric setup
-    // Premium fabrics: Acrylic, Suede Cotton, Genuine Leather, Air Mesh, Camo, Laser Cut, etc.
-    const premiumFabrics = ['Acrylic', 'Suede Cotton', 'Genuine Leather', 'Air Mesh', 'Camo', 'Laser Cut', 'PU Leather', 'Spandex', 'Cotton Corduroy', 'Ribbed Corduroy', 'Polyester 97% Spandex 3%', '100% Polyester Jersey', 'Canvas'];
+    // Find the most expensive premium fabric from the dual fabric setup
+    let selectedFabric = null;
+    let highestPrice = 0;
     
     for (const name of fabricNames) {
-      const matchingPremium = premiumFabrics.find(premium => 
-        premium.toLowerCase() === name.toLowerCase()
+      console.log(`🧵 [AI-PRICING] Checking fabric component: "${name}"`);
+      
+      const candidateFabric = fabrics.find(item => 
+        item.Name.toLowerCase() === name.toLowerCase()
       );
       
-      if (matchingPremium) {
-        fabric = fabrics.find(item => 
-          item.Name.toLowerCase() === matchingPremium.toLowerCase()
-        );
-        if (fabric) {
-          console.log(`🧵 [AI-PRICING] Using premium fabric: ${matchingPremium} from dual fabric setup`);
-          break;
+      if (candidateFabric) {
+        const candidatePrice = getPriceForQuantity(candidateFabric, quantity);
+        console.log(`🧵 [AI-PRICING] Found "${candidateFabric.Name}" with price $${candidatePrice}`);
+        
+        if (candidatePrice > highestPrice) {
+          highestPrice = candidatePrice;
+          selectedFabric = candidateFabric;
+          console.log(`🧵 [AI-PRICING] New highest price fabric: ${candidateFabric.Name} ($${candidatePrice})`);
         }
+      } else {
+        console.log(`🧵 [AI-PRICING] Fabric component "${name}" not found in CSV`);
       }
+    }
+    
+    if (selectedFabric) {
+      fabric = selectedFabric;
+      console.log(`🧵 [AI-PRICING] Using most expensive fabric from dual setup: ${fabric.Name} ($${highestPrice})`);
     }
   }
   
@@ -471,18 +616,38 @@ export async function getAIDeliveryPrice(deliveryMethod: string, quantity: numbe
 }
 
 /**
- * Get blank cap price for AI
+ * Get blank cap price for AI with automatic product-tier detection
  */
-export async function getAIBlankCapPrice(tier: string, quantity: number): Promise<number> {
+export async function getAIBlankCapPrice(tier: string, quantity: number, productDescription?: string): Promise<number> {
   const blankCaps = await loadAIBlankCaps();
-  const tierData = blankCaps[tier];
+  
+  // If product description is provided, try to find the correct tier from Customer Products.csv
+  let actualTier = tier;
+  if (productDescription) {
+    try {
+      actualTier = await findProductTierFromDescription(productDescription);
+      console.log(`🧢 [AI-PRICING] Product tier detection: "${tier}" → "${actualTier}" based on description: "${productDescription}"`);
+    } catch (error) {
+      console.warn(`⚠️ [AI-PRICING] Failed to determine tier from description, using provided tier: ${tier}`);
+      actualTier = tier;
+    }
+  }
+  
+  const tierData = blankCaps[actualTier];
   
   if (!tierData) {
-    console.error(`❌ [AI-PRICING] Tier not found: ${tier}. Available tiers:`, Object.keys(blankCaps));
+    console.error(`❌ [AI-PRICING] Tier not found: ${actualTier}. Available tiers:`, Object.keys(blankCaps));
     return 0; // Return 0 to indicate error instead of using incorrect fallback
   }
   
   const unitPrice = getPriceForQuantity(tierData, quantity);
-  console.log(`🧢 [AI-PRICING] ${tier} blank cap: $${unitPrice} per unit at ${quantity} qty`);
+  console.log(`🧢 [AI-PRICING] ${actualTier} blank cap: $${unitPrice} per unit at ${quantity} qty`);
   return unitPrice;
+}
+
+/**
+ * Get blank cap price for AI (legacy version for backward compatibility)
+ */
+export async function getAIBlankCapPriceByTier(tier: string, quantity: number): Promise<number> {
+  return getAIBlankCapPrice(tier, quantity);
 }

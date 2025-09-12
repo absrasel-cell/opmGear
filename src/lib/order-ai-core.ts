@@ -25,7 +25,7 @@ import {
 } from '@/lib/costing-knowledge-base';
 
 // Import unified costing service
-import { calculateQuickEstimate } from '@/lib/unified-costing-service';
+// import { calculateQuickEstimate } from '@/lib/unified-costing-service'; // Using local implementation instead
 
 export interface OrderRequirements {
   quantity: number;
@@ -745,7 +745,7 @@ export async function calculateQuickEstimate(requirements: OrderRequirements, co
 /**
  * Calculate precise order estimate using AI-SPECIFIC pricing from /ai/Options/ CSV files
  */
-export async function calculatePreciseOrderEstimate(requirements: OrderRequirements) {
+export async function calculatePreciseOrderEstimate(requirements: OrderRequirements, originalMessage?: string) {
   console.log('🧮 [ORDER-AI-CORE] Calculating precise estimate using AI-SPECIFIC pricing for:', {
     quantity: requirements.quantity,
     logoType: requirements.logoType,
@@ -755,13 +755,34 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
     billStyle: requirements.billStyle,
     panelCount: requirements.panelCount,
     closureType: requirements.closureType,
-    fabricType: requirements.fabricType
+    fabricType: requirements.fabricType,
+    hasOriginalMessage: !!originalMessage
   });
   
   try {
-    // 1. Calculate blank cap cost
+    // 1. Calculate blank cap cost using Customer Products.csv lookup
     const productTier = determineProductTier(requirements);
-    const blankCapUnitPrice = await getAIBlankCapPrice(productTier, requirements.quantity);
+    
+    // Build product description for Customer Products.csv matching
+    let productDescription = '';
+    if (originalMessage) {
+      // Use the original message for best product matching
+      productDescription = originalMessage;
+    } else {
+      // Build description from requirements
+      const parts = [];
+      if (requirements.fabricType) parts.push(requirements.fabricType);
+      if (requirements.profile) parts.push(`${requirements.profile} Profile`);
+      if (requirements.billStyle) parts.push(requirements.billStyle);
+      if (requirements.panelCount) parts.push(`${requirements.panelCount}-Panel`);
+      if (requirements.structure) parts.push(requirements.structure);
+      if (requirements.closureType) parts.push(requirements.closureType);
+      productDescription = parts.join(' ');
+    }
+    
+    console.log(`🔍 [AI-PRICING] Using product description for tier lookup: "${productDescription}"`);
+    
+    const blankCapUnitPrice = await getAIBlankCapPrice(productTier, requirements.quantity, productDescription);
     const baseProductTotal = blankCapUnitPrice * requirements.quantity;
     
     console.log(`🧢 [AI-PRICING] Blank caps (${productTier}): $${blankCapUnitPrice} x ${requirements.quantity} = $${baseProductTotal}`);
@@ -867,6 +888,14 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
     // 7. Calculate total
     const totalCost = baseProductTotal + logoSetupTotal + moldChargeTotal + premiumFabricTotal + closureTotal + accessoriesTotal + deliveryTotal;
     
+    // DEBUGGING: Calculate total cost per cap for clarity
+    const totalBlankCapCost = baseProductTotal + premiumFabricTotal;
+    const totalBlankCapUnitPrice = totalBlankCapCost / requirements.quantity;
+    
+    console.log('🚨 [AI-PRICING] BLANK CAP BREAKDOWN:');
+    console.log(`   Base cap price: $${blankCapUnitPrice} × ${requirements.quantity} = $${baseProductTotal}`);
+    console.log(`   Premium fabric: $${fabricUnitPrice} × ${requirements.quantity} = $${premiumFabricTotal}`);
+    console.log(`   TOTAL BLANK CAPS: $${totalBlankCapUnitPrice} × ${requirements.quantity} = $${totalBlankCapCost}`);
     console.log('💰 [AI-PRICING] FINAL BREAKDOWN:', {
       baseProductTotal: baseProductTotal,
       logoSetupTotal: logoSetupTotal,
@@ -1269,7 +1298,7 @@ export async function calculatePreciseOrderEstimateWithMessage(requirements: Ord
     }
   });
   
-  return calculatePreciseOrderEstimate(finalRequirements);
+  return calculatePreciseOrderEstimate(finalRequirements, message);
 }
 
 /**

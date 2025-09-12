@@ -462,8 +462,23 @@ export function detectFabricFromText(text: string): string | null {
   }
   
   if (!dualFabricMatch) {
-    // Pattern 3: "Camo/Laser Cut" (slash separated)
-    dualFabricMatch = lowerText.match(/([\w\s]+?)\/([\w\s]+?)(?:\s+fabric)?(?:\s*[.,]|$)/i);
+    // Pattern 3: "Camo/Laser Cut" (slash separated) - but NOT colors like "Red/White"
+    const slashMatch = lowerText.match(/([\w\s]+?)\/([\w\s]+?)(?:\s+fabric)?(?:\s*[.,]|$)/i);
+    if (slashMatch) {
+      const part1 = slashMatch[1].trim();
+      const part2 = slashMatch[2].trim();
+      
+      // Common colors that should NOT be treated as fabric
+      const colors = ['red', 'white', 'black', 'blue', 'green', 'yellow', 'orange', 'purple', 'grey', 'gray', 'brown', 'pink', 'navy', 'royal', 'maroon', 'gold', 'charcoal', 'khaki'];
+      
+      // If both parts are colors, skip this as fabric detection
+      if (colors.includes(part1) && colors.includes(part2)) {
+        console.log(`🚫 [FABRIC-DETECTION] Skipping color pattern: ${part1}/${part2}`);
+        dualFabricMatch = null;
+      } else {
+        dualFabricMatch = slashMatch;
+      }
+    }
   }
   if (dualFabricMatch) {
     const frontFabric = dualFabricMatch[1].trim();

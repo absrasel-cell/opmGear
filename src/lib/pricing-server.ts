@@ -206,14 +206,14 @@ export async function calculateUnitPrice(quantity: number, tierName?: string): P
     return 0;
   }
   
-  // FIXED: Correct tier boundaries based on CSV column headers
-  // CSV shows: price48 (1-47), price144 (48-143), price576 (144-575), price1152 (576-1151), price2880 (1152-2879), price10000 (2880-9999)
+  // 🚨 CRITICAL FIX: Correct tier boundaries based on CSV column headers
+  // CORRECTED: price48 (48+), price144 (144+), price576 (576+), price1152 (1152+), price2880 (2880+), price10000 (10000+)
   if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price10000;
-  if (quantity >= 1152) return pricing.price2880;
-  if (quantity >= 576) return pricing.price1152;
-  if (quantity >= 144) return pricing.price576;
-  if (quantity >= 48) return pricing.price144;
+  if (quantity >= 2880) return pricing.price2880;
+  if (quantity >= 1152) return pricing.price1152;
+  if (quantity >= 576) return pricing.price576;
+  if (quantity >= 144) return pricing.price144;  // 🎯 144 caps = $3.75!
+  if (quantity >= 48) return pricing.price48;
   return pricing.price48;
 }
 
@@ -248,15 +248,15 @@ export async function calculateDeliveryUnitPrice(quantity: number, deliveryMetho
 
 // Helper function to get price for quantity from CSV pricing data
 export function getPriceForQuantityFromCSV(pricing: any, quantity: number): number {
-  // FIXED: Correct tier boundaries based on CSV column headers  
-  // CSV shows: price48 (1-47), price144 (48-143), price576 (144-575), price1152 (576-1151), price2880 (1152-2879), price10000 (2880-9999), price20000 (10000+)
+  // 🚨 CRITICAL FIX: Correct tier boundaries based on CSV column headers  
+  // CORRECTED: price48 (48+), price144 (144+), price576 (576+), price1152 (1152+), price2880 (2880+), price10000 (10000+), price20000 (20000+)
   if (quantity >= 20000 && pricing.price20000) return pricing.price20000;
   if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price10000;
-  if (quantity >= 1152) return pricing.price2880;
-  if (quantity >= 576) return pricing.price1152;
-  if (quantity >= 144) return pricing.price576;
-  if (quantity >= 48) return pricing.price144;
+  if (quantity >= 2880) return pricing.price2880;
+  if (quantity >= 1152) return pricing.price1152;
+  if (quantity >= 576) return pricing.price576;
+  if (quantity >= 144) return pricing.price144;  // 🎯 144 caps = $3.75!
+  if (quantity >= 48) return pricing.price48;
   return pricing.price48;
 }
 

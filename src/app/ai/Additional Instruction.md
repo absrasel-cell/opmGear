@@ -27,12 +27,7 @@
 - Screen Print = ALWAYS "Direct" application (NEVER "Patch")
 - Refer to CSV files for current pricing on all embroidery and closure options
 
-🚨 **CRITICAL CLOSURE PRICING RULE**:
-**ALWAYS USE CSV DATA FOR QUANTITY-BASED CLOSURE PRICING:**
-- Buckle at 144 pieces = $0.88 per piece (NOT $0.30)
-- Fitted at 576 pieces = $0.75 per piece (NOT $0.30)
-- Flexfit at 144 pieces = $1.00 per piece (NOT $0.30)
-- NEVER use hardcoded $0.30 - Always reference CSV pricing tiers
+
 
 ### Delivery
 - Default: Regular UPS, 6–10 days
@@ -93,7 +88,7 @@
 
 ### Order Type Recommendations:
 **Budget Orders**: Default to Tier 1 caps with standard embroidery
-**Corporate/Professional**: Suggest Tier 2-3 with leather patches, hangtags
+**Corporate/Professional**: Suggest Tier 2-3 with leather patches, hang tags
 **Premium/No Budget Limit**: Recommend Tier 3, premium fabrics, multiple patches, accessories
 
 ### Fabric Response Guidelines:

@@ -411,14 +411,16 @@ PRICING TIERS FROM CSV (VOLUME DISCOUNTS):
 PRICING STRUCTURE:
 • Base cap costs vary by quantity (volume discounts available)
 • Fabric upgrades: Some fabrics are FREE (Chino Twill, Trucker Mesh), others add premium charges
-• Premium fabrics (Air Mesh, Acrylic) add $0.50-$2.50 per cap depending on quantity
+• Premium fabrics add additional costs to the base cap price (varies by fabric and quantity)
 • Logo setup costs depend on type (3D Embroidery, patches, etc.)
 • Delivery costs are separate from cap costs
 • CRITICAL: Never estimate costs manually - always use ORDER ANALYSIS calculations
 
 FABRIC PRICING (IMPORTANT):
 • FREE Fabrics (no additional cost): Chino Twill, Trucker Mesh, Micro Mesh
-• PREMIUM Fabrics (additional cost): Air Mesh (+$0.88@144qty), Acrylic (+$2.50@144qty), Suede Cotton, Genuine Leather
+• PREMIUM Fabrics (additional cost above base cap price): Air Mesh (+$0.88@144qty), Acrylic (+$2.50@144qty), Suede Cotton (+$2.50@144qty), Genuine Leather (+$4.50@144qty)
+• TOTAL CAP COST = Base Cap Price (from tier system) + Premium Fabric Cost (if applicable)
+• Example: 144 Acrylic caps = $3.75 base + $2.50 premium = $6.25 per cap
 • Dual fabric caps: Base cap + any premium fabric upgrades for specific panels`;
   }
 
@@ -2527,7 +2529,7 @@ async function generateBudgetOptimizedResponse(message: string, context: LocalCo
   const { costBreakdown, orderEstimate } = await calculatePreciseOrderEstimate({
    ...requirements,
    quantity: optimization.optimizedQuantity
-  });
+  }, message);
   
   let response = `**🎯 Optimized Quote for Your $${budget.toLocaleString()} Budget**\n\n`;
   
@@ -2678,7 +2680,7 @@ async function generateFollowUpResponse(message: string, context: LocalConversat
   const adjustedRequirements = parseOrderRequirements(`${newQuantity} caps with 3D embroidery`);
   
   try {
-   const { costBreakdown, orderEstimate } = await calculatePreciseOrderEstimate(adjustedRequirements);
+   const { costBreakdown, orderEstimate } = await calculatePreciseOrderEstimate(adjustedRequirements, message);
    
    let response = `**✅ Perfect! Updated quote for ${newQuantity} caps**\n\n`;
    response += `**Your Adjusted Order:**\n`;

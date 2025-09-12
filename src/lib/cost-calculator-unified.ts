@@ -163,15 +163,15 @@ export async function calculateUnifiedCosts(input: UnifiedCostInput): Promise<Un
       throw new Error(`Unable to load CSV pricing for tier: ${priceTier}`);
     }
     
-    // CRITICAL FIX: Calculate base product unit price using correct tier boundaries
+    // 🚨 CRITICAL FIX: Calculate base product unit price using CORRECT tier boundaries
     let baseUnitPrice = baseProductPricing.price48; // Default to lowest tier
-    // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
+    // CORRECTED Tier boundaries: 48-143→price48, 144-575→price144, 576-1151→price576, 1152-2879→price1152, 2880-9999→price2880, 10000+→price10000
     if (totalUnits >= 10000) baseUnitPrice = baseProductPricing.price10000;
-    else if (totalUnits >= 2880) baseUnitPrice = baseProductPricing.price10000;
-    else if (totalUnits >= 1152) baseUnitPrice = baseProductPricing.price2880;
-    else if (totalUnits >= 576) baseUnitPrice = baseProductPricing.price1152;
-    else if (totalUnits >= 144) baseUnitPrice = baseProductPricing.price576;
-    else if (totalUnits >= 48) baseUnitPrice = baseProductPricing.price144;
+    else if (totalUnits >= 2880) baseUnitPrice = baseProductPricing.price2880;
+    else if (totalUnits >= 1152) baseUnitPrice = baseProductPricing.price1152;
+    else if (totalUnits >= 576) baseUnitPrice = baseProductPricing.price576;
+    else if (totalUnits >= 144) baseUnitPrice = baseProductPricing.price144;  // 🎯 144 caps = $3.75!
+    else if (totalUnits >= 48) baseUnitPrice = baseProductPricing.price48;
     
     const baseProductCost = baseUnitPrice * totalUnits;
     
