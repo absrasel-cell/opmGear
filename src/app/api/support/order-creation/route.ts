@@ -149,6 +149,7 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
   // Initialize correction arrays for message updates
   const accessoryCorrections = [];
   const logoCorrections = [];
+  const fabricCorrections = [];
   let oldUnitPrice = 0; // Track original unit price for message updates
   let correctUnitPrice = 0; // Track corrected unit price for message updates
 
@@ -176,6 +177,9 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     } else {
       tierName = 'Tier 2';
     }
+  } else if (capDetails?.productName?.includes('7-Panel') || capDetails?.productName?.includes('7P')) {
+    // 7-Panel caps: Always Tier 3
+    tierName = 'Tier 3';
   }
 
   console.log(`🧢 [POST-PROCESSING] CRITICAL BASE CAP FIX - Product: "${capDetails?.productName}", Bill Shape: "${capDetails?.billShape}" → Tier: "${tierName}" for quantity: ${quantity}`);
@@ -312,6 +316,16 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
           totalCost: fabricCost
         });
 
+        // Track fabric correction for message replacement 
+        // AI often generates wrong prices like $1.25 for Polyester (should be $0.00) or wrong Laser Cut prices
+        fabricCorrections.push({
+          fabricName: trimmedFabricName,
+          oldPrice: '1.25', // AI commonly uses $1.25 for all fabrics
+          newPrice: correctFabricUnitPrice.toFixed(2),
+          oldTotal: (1.25 * quantity).toFixed(2),
+          newTotal: fabricCost.toFixed(2)
+        });
+
         console.log(`🧵 [POST-PROCESSING] Fabric ${index + 1} (${trimmedFabricName}) cost: $${correctFabricUnitPrice.toFixed(2)} × ${quantity} = $${fabricCost.toFixed(2)}`);
       } else if (fabricOption) {
         console.log(`🧵 [POST-PROCESSING] Fabric ${index + 1} is free (no premium cost):`, trimmedFabricName);
@@ -319,6 +333,16 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
           name: trimmedFabricName,
           unitPrice: 0,
           totalCost: 0
+        });
+
+        // Track free fabric correction for message replacement
+        // AI often charges for free fabrics like Polyester
+        fabricCorrections.push({
+          fabricName: trimmedFabricName,
+          oldPrice: '1.25', // AI commonly charges $1.25 for free fabrics
+          newPrice: '0.00',
+          oldTotal: (1.25 * quantity).toFixed(2),
+          newTotal: '0.00'
         });
       } else {
         console.log(`🧵 [POST-PROCESSING] ⚠️ WARNING: Fabric ${index + 1} "${trimmedFabricName}" not found in CSV data`);
@@ -790,8 +814,9 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
       }
     });
     
+    // DISABLED: Logo pricing corrections to prevent message corruption
     // Fix logo pricing with safe patterns  
-    if (logoCorrections.length > 0) {
+    if (false && logoCorrections.length > 0) {
       logoCorrections.forEach(({ logoType, oldPrice, newPrice, oldTotal, newTotal }) => {
         const logoPattern = new RegExp(`(${logoType}[^:]*:\\s*\\d+\\s*pieces\\s*×\\s*)\\$${oldPrice}(\\s*=\\s*)\\$[\\d,]+\\.\\d+`, 'g');
         if (logoPattern.test(orderResponse.message)) {
@@ -799,6 +824,26 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
           console.log(`✅ [POST-PROCESSING] ${logoType} pricing updated in message: $${oldPrice} → $${newPrice}`);
         }
       });
+    }
+    
+    // Fix fabric pricing with safe patterns - CRITICAL FIX for wrong AI fabric prices
+    if (fabricCorrections && fabricCorrections.length > 0) {
+      fabricCorrections.forEach(({ fabricName, oldPrice, newPrice, oldTotal, newTotal }) => {
+        // Fix individual fabric line: •Polyester: 4500 pieces × $1.25 = $5625.00
+        const fabricLinePattern = new RegExp(`(•${fabricName}:\\s*\\d+\\s*pieces\\s*×\\s*)\\$[\\d\\.]+\\s*(=\\s*)\\$[\\d,]+\\.\\d+`, 'g');
+        if (fabricLinePattern.test(orderResponse.message)) {
+          orderResponse.message = orderResponse.message.replace(fabricLinePattern, `$1$${newPrice}$2$${newTotal}`);
+          console.log(`✅ [POST-PROCESSING] ${fabricName} fabric pricing updated in message: $${oldPrice} → $${newPrice}`);
+        }
+      });
+      
+      // Update fabric subtotal line: Subtotal Premium Fabric: $11250.00 
+      const correctFabricSubtotal = (quoteData.pricing?.premiumFabricCost || 0).toFixed(2);
+      const fabricSubtotalPattern = /(\*\*Subtotal Premium Fabric:\s*\$)[\d,]+\.?\d*(\*\*)/g;
+      if (fabricSubtotalPattern.test(orderResponse.message)) {
+        orderResponse.message = orderResponse.message.replace(fabricSubtotalPattern, `$1${correctFabricSubtotal}$2`);
+        console.log(`✅ [POST-PROCESSING] Premium fabric subtotal updated to: $${correctFabricSubtotal}`);
+      }
     }
     
     console.log('✅ [POST-PROCESSING] Critical pricing corrections applied with safe patterns');
