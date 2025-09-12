@@ -1,20 +1,20 @@
-Name,costType,Color Note,price48,price144,price576,price1152,price2880,price10000,price20000
-Chino Twill,Free,All,0,0,0,0,0,0,0
-Trucker Mesh,Free,All,0,0,0,0,0,0,0
-Micro Mesh,Free,All,0,0,0,0,0,0,0
-Cotton Polyester Mix,Free,All,0,0,0,0,0,0,0
-Polyester,Free,All,0,0,0,0,0,0,0
-Ripstop,Free,All,0,0,0,0,0,0,0
-Suede Cotton,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5,1.5
-Acrylic,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5,1.5
-Air Mesh,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",1.25,0.88,0.75,0.7,0.63,0.63,0.5
-Camo,Premium Fabric,Camo Colors Only,1.25,1,0.88,0.75,0.63,0.5,0.5
-Genuine Leather,Premium Fabric,"Brown, Grey, Charcoal, Light Brown, Maroon, Green, Navy",5,4.5,4.25,4.13,4,3.88,3.88
-Laser Cut,Premium Fabric,All,1.25,1,0.88,0.75,0.7,0.63,0.63
-PU Leather,Premium Fabric,All,3.75,3.38,3.25,3.13,3,2.88,2.88
-Spandex,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",1.25,1,0.88,0.75,0.63,0.5,0.5
-Cotton Corduroy,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5,1.5
-Ribbed Corduroy,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5,1.5
-Polyester 97% Spandex 3%,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5,1.5
-100% Polyester Jersey,Premium Fabric,All,1.25,1,0.88,0.75,0.63,0.5,0.5
-Canvas,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",1.25,1,0.88,0.75,0.63,0.5,0.5
+Name,costType,Color Note,price48,price144,price576,price1152,price2880,price10000
+Chino Twill,Free,All,0,0,0,0,0,0
+Trucker Mesh,Free,All,0,0,0,0,0,0
+Micro Mesh,Free,All,0,0,0,0,0,0
+Cotton Polyester Mix,Free,All,0,0,0,0,0,0
+Polyester,Free,All,0,0,0,0,0,0
+Ripstop,Free,All,0,0,0,0,0,0
+Suede Cotton,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5
+Acrylic,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5
+Air Mesh,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",1.25,0.88,0.75,0.7,0.63,0.63
+Camo,Premium Fabric,Camo Colors Only,1.25,1,0.88,0.75,0.63,0.5
+Genuine Leather,Premium Fabric,"Brown, Grey, Charcoal, Light Brown, Maroon, Green, Navy",5,4.5,4.25,4.13,4,3.88
+Laser Cut,Premium Fabric,All,1.25,1,0.88,0.75,0.7,0.63
+PU Leather,Premium Fabric,All,3.75,3.38,3.25,3.13,3,2.88
+Spandex,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",1.25,1,0.88,0.75,0.63,0.5
+Cotton Corduroy,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5
+Ribbed Corduroy,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5
+Polyester 97% Spandex 3%,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",3,2.5,2,1.75,1.63,1.5
+100% Polyester Jersey,Premium Fabric,All,1.25,1,0.88,0.75,0.63,0.5
+Canvas,Premium Fabric,"Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange",1.25,1,0.88,0.75,0.63,0.5

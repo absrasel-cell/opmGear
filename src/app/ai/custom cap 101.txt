@@ -1,25 +1,283 @@
-create me a quote for 144 piece Acrylic fabric cap, Red/White, Large size. which has 3d embroidery on the front.
-AI Support Powered by OpenAI07:31 AM
-Here's your detailed quote for the 144 piece Acrylic fabric cap:
+## 🎯 Product Structure & Default Options
 
-📊 Blank Cap Costs by Color:
-•Red/White: 144 pieces × $2.50 = $360.00  
+### Factory vs Resale Products:
+- **Factory Products**: Custom manufactured caps with full customization
+- **Resale Products**: Pre-made caps with limited customization, references factory products for color options
 
-Subtotal Blank Caps: $360.00
+### Default Product Options (Budget-Friendly):
+If user doesn't specify, use these defaults:
 
-🧵 Premium Fabric:
-•Acrylic: 144 pieces × $2.50 = $360.00  
+**Cap Construction:**
+- **Panel Count**: "6-Panel" 
+- **Profile**: "High" 
+- **Structure**: "Structured" 
+- **Closure**: "Snapback" 
+- **Bill Shape**: "Slight Curved" (free option)
+- **Stitching**: "Matching" (same as fabric color, free)
 
-Subtotal Premium Fabric: $360.00
+**Fabric Options:**
+- **Solid Fabric**: "Chino Twill" (16×12 construction - default weight)
+- **Split Fabric**: "Chino Twill/Trucker Mesh" 
+- **Fabric Constructions Available**: 
+  - 16×12 (default, balanced weight)
+  - 20×20 (thin, lighter weight)
+  - 10×10 (thick, heavy weight)
 
-✨ Customization:
-•3D Embroidery on Front: 144 pieces × $1.50 = $216.00  
+**Default Logo Setup (Budget-Optimized):**
+- Front - 3D Embroidery - Large - Direct
+- Right - Embroidery - Small - Direct  
+- Left - Embroidery - Small - Direct
+- Back - Embroidery - Small - Direct
+- Upper Bill - Embroidery - Medium - Direct
+- Under Bill - Sublimated Print - Large - Direct
 
-Subtotal Customization: $216.00
+**For Premium Orders (No Budget Limit):**
+When users request "best quality" or "premium" with no budget constraints, recommend:
+- Tier 3 caps (highest quality - refer to CSV for current pricing)
+- Large Rubber Patches for premium feel
+- Large Leather Patches for elegant touch
+- 3D Embroidery for distinctive look
+- Hangtags, Stickers, Polybags for professional finish
+- Premium fabric upgrades (Suede Cotton, Genuine Leather)
 
-🚚 Delivery:
-•Regular Delivery: 144 pieces × $3.29 = $473.76  
+**Accessories & Others**: Optional, but suggest based on order type and budget
 
-Subtotal Delivery: $473.76
+## 🚚 Delivery & Shipping Options
 
-💰 Total Order: $1,420.52
+### Delivery Methods:
+**CRITICAL: Always verify against src/app/ai/Options/Delivery.csv for exact current pricing**
+
+**Express Shipping (All Quantities):**
+- **Regular Delivery**: Refer to CSV for current pricing - 4-6 days
+- **Priority Delivery**: Refer to CSV for current pricing - 6-10 days
+
+**Freight Shipping (Large Quantities Only):**
+- **Air Freight**: Refer to CSV for current pricing - 15-30 days
+- **Sea Freight**: Refer to CSV for current pricing - 45-60 days
+
+### Cost-Saving Recommendations:
+- For large orders (3168+): Use Air Freight to save significant shipping costs
+- For budget-conscious customers: Regular Delivery is already cost-optimized
+- For urgent orders: Priority Delivery available for all quantities
+
+## 💰 Pricing System & Tiers
+
+### Base Product Pricing (3 Tiers) - ALWAYS REFERENCE CSV FILES FOR CURRENT PRICING:
+**CRITICAL: All pricing must reference CSV files for accuracy**
+
+**Tier 1** (Most Affordable - 4-Panel, 5-Panel):
+- Refer to: src/app/ai/Blank Cap/priceTier.csv for current pricing
+
+**Tier 2** (Mid-Range - 6-Panel Flat):
+- Refer to: src/app/ai/Blank Cap/priceTier.csv for current pricing
+
+**Tier 3** (Premium Quality - 7-Panel, Best Materials):
+- Refer to: src/app/ai/Blank Cap/priceTier.csv for current pricing
+
+### Customization Pricing (Per Cap): **ALWAYS REFERENCE CSV FILES**
+**CRITICAL: All logo pricing must reference src/app/ai/Options/Logo.csv for current pricing**
+
+**Logo Setup Options:**
+- **3D Embroidery Small Direct**: Refer to CSV for current pricing
+- **Flat Embroidery Small Direct**: Refer to CSV for current pricing
+- **Flat Embroidery Medium Direct**: Refer to CSV for current pricing
+- **Flat Embroidery Large Direct**: Refer to CSV for current pricing
+
+🚨 **CRITICAL APPLICATION RULE - NEVER IGNORE**:
+**ALWAYS USE "DIRECT" APPLICATION FOR ALL EMBROIDERY TYPES (3D Embroidery, Flat Embroidery)**
+- 3D Embroidery = ALWAYS "Direct" application (never "Patch")
+- Flat Embroidery = ALWAYS "Direct" application (never "Patch")  
+- Print Patch = Map to "Screen Print" with "Direct" application (use Screen Print CSV pricing)
+- Screen Print = ALWAYS "Direct" application (never "Patch")
+- ONLY use "Patch" application for: Rubber Patches, Leather Patches, Woven Patches
+- This ensures correct pricing: refer to CSV for accurate Direct vs Patch pricing
+
+**Premium Patches:**
+**CRITICAL: Verify against src/app/ai/Options/Logo.csv for exact current pricing**
+- **Small Rubber Patch**: Refer to CSV for current pricing + Small Mold Charge
+- **Medium Rubber Patch**: Refer to CSV for current pricing + Medium Mold Charge  
+- **Large Rubber Patch**: Refer to CSV for current pricing + Large Mold Charge
+- **Small Leather Patch**: Refer to CSV for current pricing + Medium Mold Charge
+- **Medium Leather Patch**: Refer to CSV for current pricing + Small Mold Charge
+- **Large Leather Patch**: Refer to CSV for current pricing + Large Mold Charge
+
+**Accessories:**
+**CRITICAL: Verify against src/app/ai/Options/Accessories.csv for exact current pricing**
+- **Hang Tag**: Refer to CSV for current pricing
+- **Inside Label**: Refer to CSV for current pricing
+- **B-Tape Print**: Refer to CSV for current pricing
+- **Sticker**: Refer to CSV for current pricing
+
+**Premium Fabric Upgrades:**
+**CRITICAL: Always verify against src/app/ai/Options/Fabric.csv for exact current pricing**
+- **Suede Cotton**: Refer to CSV for current pricing
+- **Acrylic**: Refer to CSV for current pricing
+- **Air Mesh**: Refer to CSV for current pricing
+- **Camo**: Refer to CSV for current pricing
+- **Genuine Leather**: Refer to CSV for current pricing
+- **Laser Cut**: Refer to CSV for current pricing
+
+**Services:**
+- **Graphics Design**: Refer to pricing structure for current rates
+- **Physical Sampling**: Refer to pricing structure for current rates
+
+**Premium Closures:**
+**CRITICAL: Always verify against src/app/ai/Options/Closure.csv for exact current pricing**
+- **Snapback**: Free
+- **Velcro**: Free
+- **Buckle**: Refer to CSV for current pricing
+- **Fitted**: Refer to CSV for current pricing
+- **Flexfit**: Refer to CSV for current pricing
+- **Stretched**: Refer to CSV for current pricing
+
+🚨 **CRITICAL CLOSURE PRICING RULE - NEVER IGNORE**:
+**ALWAYS USE CSV DATA FOR QUANTITY-BASED CLOSURE PRICING:**
+- Buckle at 144 pieces = $0.88 per piece (NOT $0.30)
+- Fitted at 576 pieces = $0.75 per piece (NOT $0.30)
+- Flexfit at 144 pieces = $1.00 per piece (NOT $0.30)
+- NEVER use hardcoded $0.30 - Always reference CSV pricing tiers
+- Always use CSV data for accurate closure pricing calculations
+
+**Mold Charges (One-time fees for Patches):**
+- **Small Mold**: Refer to CSV for current rates | **Medium Mold**: Refer to CSV for current rates | **Large Mold**: Refer to CSV for current rates
+
+### Fabric Information Reference:
+**When asked about fabrics, provide these details:**
+- **Default Fabric**: Chino Twill (durable, comfortable cotton-poly blend)
+- **Fabric Weight Options**: 16×12 (standard), 20×20 (lightweight), 10×10 (heavy)
+- **Premium Fabrics**: Suede Cotton, Genuine Leather, Acrylic available
+- **Custom Fabric Dyeing**: Available for orders 2880+ units at textile mills
+- **Split Options**: Chino Twill/Trucker Mesh combination available
+
+🎨 Customization Categories
+
+Cap Style Setup
+
+Extra Cost: Premium Fabric, Premium Closure
+
+Free:
+
+Bill Shape → Flat, Slight Curved, Curved
+
+Profile → High, Mid, Low
+
+Logo Setup
+
+Types: 3D Embroidery, Flat Embroidery, Leather Patch, Rubber Patch, Direct Print, Printed Patch, Sublimated Patch, Woven Patch.
+
+Mold Charge: Rubber Patch, Leather Patch.
+
+Positions: Front, Left, Right, Back, Under Bill, Upper Bill.
+
+Sub-positions: Left, Center (default), Right.
+
+Delivery Options
+
+Express: Priority (4–6 days, FedEx), Regular (6–10 days, UPS).
+
+Freight (3168+ units): Air (10–20 days), Sea (45–60 days).
+
+Accessories
+
+Hang Tag, Sticker, B-Tape Print, Brand Label, Custom Packaging.
+
+Services
+
+Graphics: Refer to pricing structure
+
+Sampling: Refer to pricing structure
+
+Color Options
+
+Solid: Full cap single color.
+
+Split: Two-color layout (front/bill vs sides/back).
+
+Tri-Color: Three defined parts.
+
+Stitching
+
+Matching (default, same as fabric color).
+
+Contrast (e.g., White stitch on Black).
+
+## ⏱️ Lead Time & Production Schedule
+
+### Production Timeline:
+**Standard Production**: 7 working days (manufacturing + quality control)
+**Total Lead Time**:
+- **Regular Delivery**: 15 working days total (7 production + 8 shipping)
+- **Priority Delivery**: 11 working days total (7 production + 4 express shipping)
+- **Air Freight**: 17-27 working days (7 production + 10-20 shipping)
+- **Sea Freight**: 52-67 working days (7 production + 45-60 shipping)
+
+### Date Selection Logic:
+- **Minimum Notice**: 7 working days from order date
+- **Custom Date Picker**: Maps to closest available delivery method
+- **Rush Orders**: Contact for expedited production (additional fees may apply)
+
+## 📦 Packaging & Shipping Specs
+
+### Box Dimensions & Weight Calculation:
+**Standard Formula**: Height × Width × Length ÷ 5000 = Dimensional Weight
+**Example**: 70cm × 44cm × 38cm ÷ 5000 = 23.408kg ≈ 25kg (+1kg safety margin)
+
+### Packaging Options:
+- **Standard Boxing**: Included in shipping cost
+- **Polybags**: Refer to CSV for current pricing - individual cap protection
+- **Custom Packaging**: Available for premium orders (contact for pricing)
+
+### International Shipping:
+- **Air Freight**: Suitable for international orders 3168+ units
+- **Sea Freight**: Most economical for large international orders 3168+ units
+- **Documentation**: Customs forms and commercial invoices included
+
+## ⚠️ AI Support Instructions & Order Handling
+
+### Always Collect Customer Information:
+**Required Details**: Full Name, Complete Address, Phone Number, Email Address
+**Order Confirmation**: Bill Shape, Profile, Closure Type, Structure, Fabric Type
+**Additional Services**: Ask about Graphics Design and Physical Sampling (refer to pricing structure for current rates)
+
+### Logo Recommendation Logic:
+**Simple Logos (≤6 colors)**: Use Embroidery (most cost-effective)
+**Complex Multi-Color Logos**: Recommend Sublimation, Screen Print, or Woven Patch
+**Premium/Corporate Logos**: Suggest Rubber or Leather Patches for professional appearance
+**3D Effect**: Add 3D Embroidery for raised, dimensional look (refer to CSV for current pricing)
+
+### Order Type Recommendations:
+**Budget Orders**: Default to Tier 1 caps with standard embroidery
+**Corporate/Professional**: Suggest Tier 2-3 with leather patches, hangtags
+**Premium/No Budget Limit**: Recommend Tier 3, premium fabrics, multiple patches, accessories
+
+### Fabric Response Guidelines:
+**When asked about fabric**: Always reference specific fabric types (Chino Twill, Suede Cotton, etc.)
+**Never say**: "Fabric details not specified" or "Information not available"
+**Always mention**: Default Chino Twill, construction options (16×12, 20×20, 10×10), premium upgrades
+**Large Orders (2880+)**: Mention custom fabric dyeing possibilities
+
+### Cost Optimization Suggestions:
+- **Small Orders (48-144)**: Focus on standard options to keep per-unit costs reasonable
+- **Medium Orders (576-1152)**: Highlight volume discounts, suggest premium options
+- **Large Orders (2880+)**: Recommend freight shipping, custom fabric dyeing, bulk accessories
+
+🎨 Fabric Colors
+Solid Colors
+
+White, Black, Red, Cardinal, Maroon, Amber Gold, Khaki, Light Khaki, Stone, Light Grey, Dark Grey, Charcoal Grey, Navy, Light Blue, Royal, Carolina Blue, Purple, Pink, Green, Kelly Green, Dark Green, Gold, Orange, Burnt Orange, Brown, Olive, Neon Green, Neon Orange, Neon Yellow, Neon Pink, Neon Blue, Realtree, MossyOak, Kryptek Brown (Regular), Kryptek Brown (Skull Face), Kryptek Black/Grey, Prym 1, Bottomland Camo, Duck Camo (White BG + Khaki + Dark Green + Chocolate), Army Camo (Generic Green/Black), Digital Camo Grey.
+
+Split Colors
+
+Black/Charcoal, Black/Gold, Black/White, Black/Yellow, Brown/Stone, Burnt Orange/Black, Cardinal/Black, Cardinal/White, Charcoal/Black, Charcoal/Carolina Blue, Charcoal/Kelly, Charcoal/Light Grey, Charcoal/Navy, Charcoal/Neon Blue, Charcoal/Neon Green, Charcoal/Neon Orange, Charcoal/Neon Pink, Charcoal/Neon Yellow, Charcoal/Orange, Charcoal/Red, Charcoal/Royal, Charcoal/White, Columbia Blue/White, Cyan/White, Dark Green/White, Dark Green/Yellow, Light Grey/Black, Heather Grey/Black, Heather Grey/Dark Green, Heather Grey/Navy, Heather Grey/Royal, Heather Grey/White, Hot Pink/Black, Hot Pink/White, Kelly Green/White, Kelly/White, Khaki/Brown, Khaki/Navy, Khaki/White, Light Grey/Light Blue, Olive/Black, Maroon/White, Navy/Charcoal, Navy/Stone, Navy/Khaki, Navy/Orange, Navy/White, Olive/Khaki, Orange/Black, Orange/White, Purple/White, Red/Black, Red/White, Royal/Black, Royal/White.
+
+Tri-Colors
+
+Amber Gold/Heather Grey/Stone, Amber Gold/Stone/Navy, Black/Light Grey/Charcoal, Black/Orange/White, Black/Red/White, Black/White/Light Grey, Heather Grey/Navy/White, Heather Grey/Red/White, Heather Grey/Royal/White, Maroon/Heather Grey/Charcoal, Navy/Carolina Blue/White, Navy/Heather Grey/Red, Navy/Red/White, Olive/Heather Grey/Stone, Olive/White/Black, Red/Black/White, Red/Navy/White, Red/Royal/White, Light Grey/Black/White, Gold/White/Carolina Blue.
+
+🧵 Large Orders & Fabric Dyeing
+
+Orders 2880+ → Custom dyed fabrics at textile mills.
+
+Process: Lab Dip swatches → Approval → Production.
+
+Example: Chino Twill constructions 16×12 (default), 20×20 (thin), 10×10 (thick).

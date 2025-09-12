@@ -256,8 +256,17 @@ export function parseOrderRequirements(message: string): OrderRequirements {
         quantity = parseInt(quantityStr);
         console.log('🎯 [ORDER-AI-CORE] Loose quantity detected:', quantity);
       }
-      // 4. MULTI-COLOR ORDERS: Only check if no direct pattern found
+      // 4. Fourth priority: Standalone numbers in context (e.g., "how much for 3500?")
       else {
+        const standaloneNumberMatch = message.match(/(?:for|is)\s+(\d+,?\d*)[\s\?]*$/i);
+        if (standaloneNumberMatch) {
+          const quantityStr = standaloneNumberMatch[1].replace(/,/g, '');
+          quantity = parseInt(quantityStr);
+          console.log('🎯 [ORDER-AI-CORE] Standalone number detected:', quantity);
+        }
+      }
+      // 5. MULTI-COLOR ORDERS: Only check if no direct pattern found
+      if (quantity === 150) {
         const multiColorMatches = message.match(/\b(\d+)\b/g);
         if (multiColorMatches && multiColorMatches.length > 1) {
           // Check if this looks like a multi-color order (has color names and multiple numbers)
@@ -765,19 +774,24 @@ export async function calculatePreciseOrderEstimate(requirements: OrderRequireme
     
     // Build product description for Customer Products.csv matching
     let productDescription = '';
-    if (originalMessage) {
-      // Use the original message for best product matching
-      productDescription = originalMessage;
-    } else {
-      // Build description from requirements
-      const parts = [];
-      if (requirements.fabricType) parts.push(requirements.fabricType);
-      if (requirements.profile) parts.push(`${requirements.profile} Profile`);
-      if (requirements.billStyle) parts.push(requirements.billStyle);
-      if (requirements.panelCount) parts.push(`${requirements.panelCount}-Panel`);
-      if (requirements.structure) parts.push(requirements.structure);
-      if (requirements.closureType) parts.push(requirements.closureType);
+    
+    // Build description from requirements if we have fabric information
+    const parts = [];
+    if (requirements.fabricType) parts.push(requirements.fabricType);
+    if (requirements.profile) parts.push(`${requirements.profile} Profile`);
+    if (requirements.billStyle) parts.push(requirements.billStyle);
+    if (requirements.panelCount) parts.push(`${requirements.panelCount}-Panel`);
+    if (requirements.structure) parts.push(requirements.structure);
+    if (requirements.closureType) parts.push(requirements.closureType);
+    
+    if (parts.length > 0) {
+      // Use built description when we have parsed requirements (better for tier matching)
       productDescription = parts.join(' ');
+      console.log(`🎯 [AI-PRICING] Using built description: "${productDescription}"`);
+    } else if (originalMessage) {
+      // Fall back to original message only if no requirements were parsed
+      productDescription = originalMessage;
+      console.log(`🎯 [AI-PRICING] Using original message: "${productDescription}"`);
     }
     
     console.log(`🔍 [AI-PRICING] Using product description for tier lookup: "${productDescription}"`);
@@ -1242,12 +1256,34 @@ async function getClosurePriceFromCSV(closureType: string, quantity: number): Pr
  */
 async function getMoldChargeFromCSV(logoType: string, size: string): Promise<number> {
   try {
-    // For now, we'll check the logo type and size to determine if mold charge applies
-    // This should be loaded from a mold charges CSV or included in customization CSV
+    // Check if the logo type requires mold charge
     if (logoType.includes('Rubber Patch') || logoType.includes('Leather Patch')) {
-      // For now, return 0 and log a warning - this needs to be implemented with proper CSV
-      console.warn(`⚠️ [ORDER-AI-CORE] Mold charge calculation needs CSV implementation for ${logoType} ${size}`);
-      return 0;
+      // Import the CSV data loader to get mold charge pricing
+      const { CSVDataLoader } = await import('@/lib/ai/csv-data-loader');
+      
+      // Determine mold charge type based on size
+      const moldChargeType = `${size} Mold Charge`;
+      
+      try {
+        const moldCharge = await CSVDataLoader.getLogoPrice(moldChargeType, 'None', 48); // Mold charge is fixed regardless of quantity
+        if (moldCharge && moldCharge.unitCost > 0) {
+          console.log(`🔧 [ORDER-AI-CORE] ${moldChargeType} for ${logoType}: $${moldCharge.unitCost}`);
+          return moldCharge.unitCost;
+        }
+      } catch (csvError) {
+        console.warn(`⚠️ [ORDER-AI-CORE] Could not load mold charge from CSV, using fallback pricing for ${moldChargeType}`);
+      }
+      
+      // Fallback to hardcoded values that match CSV
+      const moldChargeFallback = {
+        'Small': 50,
+        'Medium': 80, 
+        'Large': 120
+      };
+      
+      const charge = moldChargeFallback[size as keyof typeof moldChargeFallback] || 80;
+      console.log(`🔧 [ORDER-AI-CORE] Using fallback mold charge for ${logoType} ${size}: $${charge}`);
+      return charge;
     }
     return 0;
   } catch (error) {

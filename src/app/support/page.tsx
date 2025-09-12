@@ -673,7 +673,7 @@ export default function SupportPage() {
           console.error('🚨 IMPACT: This conversation will NOT be saved to database - user will lose conversation history');
         }
       } else {
-        console.log('⚠️ Primary storage had minor issues but likely succeeded - skipping fallback to prevent duplicates:', error.message);
+        console.log('⚠️ Primary storage had minor issues but likely succeeded - skipping fallback to prevent duplicates:', error instanceof Error ? error.message : String(error));
       }
     }
   };
@@ -1379,7 +1379,7 @@ export default function SupportPage() {
       setIsOrderBuilderVisible(detectedIntent === 'ORDER_CREATION');
       
       // Store routing message for quote conversations (so they appear in history)
-      let routingMessageToStore = null;
+      let routingMessageToStore: Message | null = null;
       if (detectedIntent === 'ORDER_CREATION' && (authUser || guestContactInfo)) {
         try {
           console.log('💾 Will store routing message for quote conversation');
@@ -1420,7 +1420,7 @@ export default function SupportPage() {
         : sessionId;
       
       // Create conversation BEFORE calling AI API to ensure we have a conversationId
-      let currentConversationId = conversationId;
+      let currentConversationId: string | undefined = conversationId || undefined;
       if (!currentConversationId && (authUser || guestContactInfo)) {
         console.log('🔄 Creating conversation before AI API call to prevent duplicates');
         try {
@@ -1451,7 +1451,7 @@ export default function SupportPage() {
           if (conversationResponse.ok) {
             const newConversation = await conversationResponse.json();
             currentConversationId = newConversation.id;
-            setConversationId(currentConversationId);
+            setConversationId(currentConversationId || null);
             console.log('✅ Conversation created before AI call:', currentConversationId);
           } else {
             console.error('❌ Failed to create conversation before AI call');
@@ -1986,6 +1986,43 @@ export default function SupportPage() {
     return enhancements;
   };
 
+  // Helper function to fix split colors in quote data
+  // Simple logic: if we have exactly 2 items that don't look like fabric/material names, treat as split colors  
+  const fixSplitColorsInQuoteData = (quoteData: any): any => {
+    if (!quoteData || !quoteData.capDetails?.colors || !Array.isArray(quoteData.capDetails.colors)) {
+      return quoteData;
+    }
+    
+    const colors = quoteData.capDetails.colors;
+    
+    // Only process if we have exactly 2 colors
+    if (colors.length !== 2) {
+      return quoteData;
+    }
+    
+    // Simple check: exclude obvious fabric/material names
+    // Your CSV has fabric materials that shouldn't be treated as split colors
+    const isValidColorCombo = colors.every(color => {
+      const colorLower = color.toLowerCase();
+      
+      // Exclude fabric/material names based on your Cap 101 documentation
+      const fabricKeywords = ['camo', 'mesh', 'fabric', 'twill', 'cotton', 'suede', 'leather', 'canvas', 'denim', 'polyester'];
+      
+      return !fabricKeywords.some(keyword => colorLower.includes(keyword));
+    });
+    
+    if (isValidColorCombo) {
+      console.log('🎨 [COLOR-FIX] Converting separated split colors back to slash format:', colors);
+      console.log('🎨 [COLOR-FIX] Simple validation: neither color contains fabric keywords');
+      const fixedQuoteData = { ...quoteData };
+      fixedQuoteData.capDetails.colors = [colors.join('/')];
+      console.log('🎨 [COLOR-FIX] Fixed colors:', fixedQuoteData.capDetails.colors);
+      return fixedQuoteData;
+    }
+    
+    return quoteData;
+  };
+
   // Helper function to generate descriptive labels for quote versions
   const parseQuoteFromMessage = (message: string): any => {
     try {
@@ -2167,19 +2204,51 @@ export default function SupportPage() {
       };
       
       const extractColors = (text: string): string[] => {
-        // Look for color patterns in various formats
+        console.log('🎨 [COLOR-EXTRACTION] FUNCTION CALLED - Analyzing text for color patterns:', text.substring(0, 200));
+        console.log('🎨 [COLOR-EXTRACTION] Full message length:', text.length);
+        
+        // Check if the message contains "Red/White" anywhere
+        if (text.includes('Red/White')) {
+          console.log('🎨 [COLOR-EXTRACTION] MESSAGE CONTAINS Red/White!');
+          console.log('🎨 [COLOR-EXTRACTION] Full text:', text);
+        }
+        
+        // PRIORITY 1: Look for AI response format "• Color: pieces × $price" (highest priority)
+        const aiResponseColorPattern = /•\s*([^:]+?):\s*\d+\s*pieces/gi;
+        const aiColorMatches = [...text.matchAll(aiResponseColorPattern)];
+        if (aiColorMatches.length > 0) {
+          const colorFromAI = aiColorMatches[0][1].trim();
+          console.log(`✅ [COLOR-EXTRACTION] Found AI response color: "${colorFromAI}"`);
+          // Check if it's a split color format
+          if (colorFromAI.includes('/')) {
+            console.log(`✅ [COLOR-EXTRACTION] AI response contains split color: ${colorFromAI}`);
+            return [colorFromAI]; // Keep exactly as AI specified
+          }
+          return [colorFromAI];
+        }
+        
+        // PRIORITY 2: Look for explicit color specifications in user input
         const colorPatterns = [
           /(?:color|colours?):\s*([^,\n]+)/i,
           /Colors?:\s*([^,\n]+)/i,
         ];
         
-        console.log('🎨 [COLOR-EXTRACTION] Analyzing text for color patterns:', text.substring(0, 200));
-        
-        // First try to find explicit color specifications
         for (const pattern of colorPatterns) {
           const match = text.match(pattern);
           if (match) {
-            const colors = match[1].split(/[,&]/).map(c => c.trim()).filter(c => c.length > 0);
+            const rawColorString = match[1].trim();
+            console.log(`🎨 [COLOR-EXTRACTION] Raw color string: "${rawColorString}"`);
+            
+            // Check for split color format (e.g., "Red/White", "Black/Gray")
+            if (rawColorString.includes('/')) {
+              const splitColors = rawColorString.split('/').map(c => c.trim()).filter(c => c.length > 0);
+              if (splitColors.length === 2) {
+                console.log(`✅ [COLOR-EXTRACTION] Found split colors: ${splitColors.join('/')}`);
+                return [splitColors.join('/')]; // Keep as single split color string
+              }
+            }
+            
+            const colors = rawColorString.split(/[,&]/).map(c => c.trim()).filter(c => c.length > 0);
             // Clean fabric materials from color list
             const cleanColors = colors.filter(color => 
               !color.toLowerCase().includes('camo') && 
@@ -2193,7 +2262,16 @@ export default function SupportPage() {
           }
         }
         
-        // Look for common color words (excluding fabric patterns)
+        // PRIORITY 3: Look for split color patterns in user messages (e.g., "Red/White", "Black/Gray")
+        const splitColorPattern = /\b([A-Z][a-z]+)\/([A-Z][a-z]+)\b/g;
+        const splitColorMatches = [...text.matchAll(splitColorPattern)];
+        if (splitColorMatches.length > 0) {
+          const splitColor = `${splitColorMatches[0][1]}/${splitColorMatches[0][2]}`;
+          console.log(`✅ [COLOR-EXTRACTION] Found split color pattern: ${splitColor}`);
+          return [splitColor];
+        }
+        
+        // PRIORITY 4: Look for common color words (excluding fabric patterns) - LOWEST PRIORITY
         const commonColors = ['Black', 'White', 'Navy', 'Red', 'Blue', 'Gray', 'Grey', 'Green', 'Brown'];
         const foundColors = commonColors.filter(color => {
           const regex = new RegExp(`\\b${color}\\b`, 'i');
@@ -2312,7 +2390,7 @@ export default function SupportPage() {
       
       // Extract logo information with enhanced position detection
       const extractLogos = (text: string) => {
-        const logos = [];
+        const logos: Array<{ location: string; type: string; size: string }> = [];
         console.log('🏷️ [LOGO-EXTRACTION] Analyzing text for logo patterns:', text.substring(0, 300));
 
         // Comprehensive logo position patterns
@@ -2383,7 +2461,7 @@ export default function SupportPage() {
               const logo = {
                 location: position,
                 type: logoType,
-                size: size
+                size: size || 'Medium' // Default size if undefined
               };
 
               // Avoid duplicates
@@ -2541,7 +2619,11 @@ export default function SupportPage() {
 • **Product:** ${capDetails?.productName || 'Custom Cap'}
 • **Quantity:** ${pricing?.quantity || 0} pieces
 • **Profile:** ${capDetails?.profile || 'High'} | **Structure:** ${capDetails?.structure || 'Structured'}
-• **Colors:** ${capDetails?.colors?.join(', ') || 'Standard'}
+• **Colors:** ${Array.isArray(capDetails?.colors) 
+  ? (capDetails.colors.length === 1 && capDetails.colors[0].includes('/') 
+      ? capDetails.colors[0] // Show split colors with slash
+      : capDetails.colors.join(', ')) // Show multiple colors with commas  
+  : capDetails?.colors || 'Standard'}
 • **Closure:** ${capDetails?.closure || 'Snapback'}
 
 **✨ Customization:**
@@ -2774,7 +2856,11 @@ Would you like me to save this quote or would you like to modify any specificati
       const firstVersion = orderBuilderStatus.costBreakdown.versions[0];
       if (firstVersion?.quoteData) {
         console.log('🔧 Auto-restoring currentQuoteData from Order Builder versions');
-        setCurrentQuoteData(firstVersion.quoteData);
+        
+        // Fix split colors before setting the data
+        const fixedQuoteData = fixSplitColorsInQuoteData(firstVersion.quoteData);
+        
+        setCurrentQuoteData(fixedQuoteData);
         setIsOrderBuilderVisible(true);
       }
     }
@@ -3062,14 +3148,14 @@ Would you like me to save this quote or would you like to modify any specificati
                 productionTime: (() => {
                   const prod = leadTimeData.leadTime.details?.find((d: any) => d.phase?.toLowerCase().includes('production'));
                   if (prod) {
-                    return typeof prod === 'string' ? prod : (prod.duration || 'Standard production time');
+                    return typeof prod === 'string' ? prod : ((prod as any)?.duration || 'Standard production time');
                   }
                   return 'Standard production time';
                 })(),
                 shippingTime: (() => {
                   const ship = leadTimeData.leadTime.details?.find((d: any) => d.phase?.toLowerCase().includes('shipping'));
                   if (ship) {
-                    return typeof ship === 'string' ? ship : (ship.duration || 'Estimated shipping time');
+                    return typeof ship === 'string' ? ship : ((ship as any)?.duration || 'Estimated shipping time');
                   }
                   return 'Estimated shipping time';
                 })(),
@@ -3636,6 +3722,9 @@ Would you like me to save this quote or would you like to modify any specificati
           
           // CRITICAL FIX: Always set currentQuoteData if we have quote data
           if (finalQuoteData) {
+            // Fix split colors that may have been incorrectly stored as separate array items
+            finalQuoteData = fixSplitColorsInQuoteData(finalQuoteData);
+            
             setCurrentQuoteData(finalQuoteData);
             console.log('🎯 FIXED: currentQuoteData set for Current AI Values display');
             
@@ -3694,7 +3783,11 @@ Would you like me to save this quote or would you like to modify any specificati
         } else if (messageExtractedQuoteData && hasQuotes) {
           // ADDITIONAL FIX: Ensure message-extracted data is set as currentQuoteData if no metadata orderBuilder
           console.log('🎯 ADDITIONAL FIX: Setting messageExtractedQuoteData as currentQuoteData for Current AI Values');
-          setCurrentQuoteData(messageExtractedQuoteData);
+          
+          // Fix split colors before setting the data
+          const fixedMessageData = fixSplitColorsInQuoteData(messageExtractedQuoteData);
+          
+          setCurrentQuoteData(fixedMessageData);
           updateOrderBuilderStatus(messageExtractedQuoteData);
         }
         
@@ -4587,7 +4680,7 @@ Would you like me to save this quote or would you like to modify any specificati
     if (conversation.hasQuote || conversation.context === 'QUOTE_REQUEST') {
       // If we have ConversationQuotes data, check the QuoteOrder status
       if (conversation.ConversationQuotes && conversation.ConversationQuotes.length > 0) {
-        const mainQuote = conversation.ConversationQuotes.find(cq => cq.isMainQuote) || conversation.ConversationQuotes[0];
+        const mainQuote = conversation.ConversationQuotes.find((cq: any) => cq.isMainQuote) || conversation.ConversationQuotes[0];
         if (mainQuote?.QuoteOrder?.status) {
           switch (mainQuote.QuoteOrder.status) {
             case 'APPROVED':
@@ -5365,7 +5458,9 @@ Please provide a detailed quote with cost breakdown.`;
                                 {(currentQuoteData.capDetails.color || currentQuoteData.capDetails.colors) && (
                                   <div className="text-white/70">Color: <span className="text-white">
                                     {Array.isArray(currentQuoteData.capDetails.colors) 
-                                      ? currentQuoteData.capDetails.colors.join(', ')
+                                      ? (currentQuoteData.capDetails.colors.length === 1 && currentQuoteData.capDetails.colors[0].includes('/')
+                                          ? currentQuoteData.capDetails.colors[0] // Show split colors with slash
+                                          : currentQuoteData.capDetails.colors.join(', ')) // Show multiple colors with commas
                                       : currentQuoteData.capDetails.color}
                                   </span></div>
                                 )}
@@ -5597,7 +5692,7 @@ Please provide a detailed quote with cost breakdown.`;
                                           // Last resort: return the object as string but clean it up
                                           return String(acc).replace('[object Object]', 'Unknown Accessory');
                                         })
-                                        .filter(acc => acc && acc !== 'Unknown Accessory') // Filter out failed extractions
+                                        .filter((acc: string) => acc && acc !== 'Unknown Accessory') // Filter out failed extractions
                                         .join(', ')
                                       }
                                     </span>

@@ -272,9 +272,9 @@ async function loadAIBlankCaps(): Promise<any> {
 function getPriceForQuantity(pricingData: any, quantity: number): number {
   if (!pricingData) return 0;
   
-  // 🚨 CRITICAL FIX: Enhanced logging for all large quantity debugging
-  const isLargeQuantity = quantity >= 1000;
-  if (isLargeQuantity) {
+  // 🚨 PRODUCTION CRITICAL: Log pricing for ALL quantities to debug issues
+  const isTestQuantity = [150, 288, 576, 1152, 2500].includes(quantity);
+  if (isTestQuantity || quantity >= 1000) {
     console.log(`🔍 [AI-PRICING] TIER DETECTION - getPriceForQuantity:`, {
       quantity,
       itemName: pricingData.Name,
@@ -293,25 +293,25 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
   let selectedPrice = 0;
   let selectedTier = '';
   
-  // 🚨 CRITICAL FIX: Corrected tier boundaries based on volume pricing ranges
-  // BUSINESS CRITICAL: Quantity 2500 should use price2880 tier, not price1152
-  // Fixed boundary logic to use appropriate pricing tiers for mid-range quantities
+  // 🚨 PRODUCTION CRITICAL FIX: Correct tier boundaries for accurate pricing
+  // FIXED: Use EXACT tier boundaries matching CSV price column names
+  // 150 pieces MUST use price144 ($4.25 for Tier 2), NOT price48 ($5.50)
   if (quantity >= 20000) {
     selectedPrice = pricingData.price20000 || pricingData.price10000 || 0;
     selectedTier = 'price20000';
   } else if (quantity >= 10000) {
     selectedPrice = pricingData.price10000 || 0;
     selectedTier = 'price10000';
-  } else if (quantity >= 2016) {  // 🚨 FIXED: Use 70% of 2880 as boundary for price2880 tier
+  } else if (quantity >= 2880) {  // 🚨 PRODUCTION CRITICAL: Exact boundary for price2880 tier
     selectedPrice = pricingData.price2880 || 0;
     selectedTier = 'price2880';
-  } else if (quantity >= 864) {   // 🚨 FIXED: Use 75% of 1152 as boundary for price1152 tier
+  } else if (quantity >= 1152) {  // 🚨 PRODUCTION CRITICAL: Exact boundary for price1152 tier
     selectedPrice = pricingData.price1152 || 0;
     selectedTier = 'price1152';
-  } else if (quantity >= 432) {  // 🚨 FIXED: Use 75% of 576 as boundary for price576 tier
+  } else if (quantity >= 576) {   // 🚨 PRODUCTION CRITICAL: Exact boundary for price576 tier
     selectedPrice = pricingData.price576 || 0;
     selectedTier = 'price576';
-  } else if (quantity >= 108) {  // 🚨 FIXED: Use 75% of 144 as boundary for price144 tier
+  } else if (quantity >= 144) {   // 🚨 PRODUCTION CRITICAL: 150 pieces uses price144 tier ($4.25)
     selectedPrice = pricingData.price144 || 0;
     selectedTier = 'price144';
   } else if (quantity >= 48) {
@@ -323,13 +323,15 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
     selectedTier = 'price48';
   }
   
-  // 🚨 CRITICAL FIX: Log the selected tier for large quantities
-  if (isLargeQuantity) {
+  // 🚨 PRODUCTION CRITICAL: Log tier selection for debugging
+  if (isTestQuantity || quantity >= 1000) {
     console.log(`💰 [AI-PRICING] TIER SELECTION for ${pricingData.Name}:`, {
       quantity,
       selectedTier,
       selectedPrice,
-      correctFor3500: quantity === 3500 ? selectedTier === 'price10000' : 'N/A'
+      expectedFor150: quantity === 150 ? 'Should use price144 ($4.25 for Tier 2)' : 'N/A',
+      expectedFor288: quantity === 288 ? 'Should use price144 ($4.25 for Tier 2)' : 'N/A',
+      expectedFor2500: quantity === 2500 ? 'Should use price2880 ($3.50 for Tier 2)' : 'N/A'
     });
   }
   
@@ -625,8 +627,18 @@ export async function getAIFabricPrice(fabricName: string, quantity: number): Pr
     throw new Error(`❌ [AI-PRICING] Fabric not found in AI CSV: ${fabricName}`);
   }
   
-  const unitPrice = getPriceForQuantity(fabric, quantity);
-  console.log(`🧵 [AI-PRICING] ${fabric.Name}: $${unitPrice} per unit at ${quantity} qty`);
+  let unitPrice = getPriceForQuantity(fabric, quantity);
+  
+  // 🚨 PRODUCTION CRITICAL: Enforce Free fabric pricing (must be $0.00)
+  if (fabric.costType === 'Free') {
+    if (unitPrice !== 0) {
+      console.error(`🚨 [AI-PRICING] CRITICAL BUG FIXED: Free fabric "${fabric.Name}" was returning $${unitPrice}, forcing to $0.00`);
+      unitPrice = 0; // Force free fabrics to $0.00
+    }
+    console.log(`🧵 [AI-PRICING] FREE FABRIC CONFIRMED: ${fabric.Name}: $0.00 per unit (Free fabric)`);
+  } else {
+    console.log(`🧵 [AI-PRICING] ${fabric.Name}: $${unitPrice} per unit at ${quantity} qty (${fabric.costType})`);
+  }
   
   // CSV-based pricing validation successful
   
@@ -701,3 +713,6 @@ export function clearAIPricingCache(): void {
   cachedCustomerProducts = null;
   console.log('✅ [AI-PRICING] All caches cleared - fresh data will be loaded on next request');
 }
+
+// 🚨 PRODUCTION CRITICAL: Clear cache immediately when this module loads to apply fixes
+clearAIPricingCache();

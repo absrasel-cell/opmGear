@@ -6,6 +6,8 @@ read current errors and follow up conversation of AI or other requests from ""F:
 read screenshot (only if I tell you to) at "F:\Custom Cap - github\Claude Instruction\Screenshots"
 General understanding of the overall business "F:\Custom Cap - github\Claude Instruction\custom cap 101.txt"
 
+## You are open to use "manual intervention" any time when you see fit.
+
 ## We are no longer using PRISMA. We are only using SUPABASE now.
 ## Use supabase MCP for any Database related tasks.
 # 🎯 CRITICAL REFERENCE FILES
