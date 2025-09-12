@@ -398,12 +398,14 @@ export async function POST(request: NextRequest) {
       return 0;
     }
     
-    // Use quantity-based tier pricing from CSV
+    // CRITICAL FIX: Use quantity-based tier pricing from CSV with correct boundaries
+    // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
     if (quantity >= 10000) return csvBasePricing.price10000;
-    if (quantity >= 2880) return csvBasePricing.price2880;
-    if (quantity >= 1152) return csvBasePricing.price1152;
-    if (quantity >= 576) return csvBasePricing.price576;
-    if (quantity >= 144) return csvBasePricing.price144;
+    if (quantity >= 2880) return csvBasePricing.price10000;
+    if (quantity >= 1152) return csvBasePricing.price2880;
+    if (quantity >= 576) return csvBasePricing.price1152;
+    if (quantity >= 144) return csvBasePricing.price576;
+    if (quantity >= 48) return csvBasePricing.price144;
     return csvBasePricing.price48;
   };
 

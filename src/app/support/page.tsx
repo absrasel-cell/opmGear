@@ -1332,12 +1332,21 @@ export default function SupportPage() {
         recommendedModel = 'gpt-4o';
       } else {
         // Regular intent detection for text-only messages
+        // 🔧 CRITICAL FIX: Format conversation history for intent detection too
+        const intentConversationHistory = messages
+          .slice(-5) // Last 5 messages for context
+          .filter(msg => msg.role !== 'system') // Exclude system routing messages
+          .map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }));
+
         const intentResponse = await fetch('/api/support/intent', {
           method: 'POST',
           headers: authHeaders,
           body: JSON.stringify({ 
             message: inputMessage,
-            conversationHistory: messages.slice(-5), // Last 5 messages for context
+            conversationHistory: intentConversationHistory, // ✅ FIXED: Properly formatted history
             userId: authUser?.id
           })
         });
@@ -1452,13 +1461,28 @@ export default function SupportPage() {
         }
       }
       
+      // 🔧 CRITICAL FIX: Format conversation history properly for AI APIs
+      // The AI APIs expect only role + content, not the full message structure
+      const formattedConversationHistory = messages
+        .filter(msg => msg.role !== 'system') // Exclude system routing messages
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+
+      console.log('📋 Formatted conversation history for AI:', {
+        originalLength: messages.length,
+        filteredLength: formattedConversationHistory.length,
+        lastMessage: formattedConversationHistory[formattedConversationHistory.length - 1]?.content?.substring(0, 100)
+      });
+
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({
           message: inputMessage,
           intent: detectedIntent,
-          conversationHistory: messages,
+          conversationHistory: formattedConversationHistory, // ✅ FIXED: Properly formatted history
           userProfile: userProfile || (guestContactInfo ? {
             name: guestContactInfo.name,
             email: guestContactInfo.email,

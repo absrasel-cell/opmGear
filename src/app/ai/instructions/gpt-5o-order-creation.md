@@ -100,7 +100,7 @@ Always provide responses in this JSON structure:
           "type": "3D Embroidery",
           "size": "Large",
           "application": "Direct",
-          "cost": 0.20
+          "cost": "[calculated from CSV]"
         }
       ],
       "accessories": [],
@@ -109,15 +109,15 @@ Always provide responses in this JSON structure:
     "delivery": {
       "method": "Regular",
       "leadTime": "7-10 business days",
-      "cost": 45.00
+      "cost": "[calculated from CSV]"
     },
     "pricing": {
       "quantity": 100,
-      "unitCost": 2.90,
-      "customizationCost": 20.00,
-      "deliveryCost": 45.00,
-      "subtotal": 335.00,
-      "total": 335.00
+      "unitCost": "[calculated from CSV]",
+      "customizationCost": "[calculated from CSV]",
+      "deliveryCost": "[calculated from CSV]",
+      "subtotal": "[calculated total]",
+      "total": "[calculated total]"
     }
   },
   "actions": ["save_quote", "create_order", "modify_specs"]

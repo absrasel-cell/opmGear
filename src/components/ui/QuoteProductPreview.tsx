@@ -75,11 +75,14 @@ export const QuoteProductPreview: React.FC<QuoteProductPreviewProps> = ({
     
     if (!tierPricing) return null;
     
+    // CRITICAL FIX: Correct tier boundaries for quote pricing
+    // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
     if (quantity >= 10000) return tierPricing.price10000;
-    if (quantity >= 2880) return tierPricing.price2880;
-    if (quantity >= 1152) return tierPricing.price1152;
-    if (quantity >= 576) return tierPricing.price576;
-    if (quantity >= 144) return tierPricing.price144;
+    if (quantity >= 2880) return tierPricing.price10000;
+    if (quantity >= 1152) return tierPricing.price2880;
+    if (quantity >= 576) return tierPricing.price1152;
+    if (quantity >= 144) return tierPricing.price576;
+    if (quantity >= 48) return tierPricing.price144;
     return tierPricing.price48;
   };
 

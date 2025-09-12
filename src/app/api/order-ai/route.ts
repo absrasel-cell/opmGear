@@ -36,6 +36,7 @@ import {
  type OrderRequirements
 } from '@/lib/order-ai-core';
 import { parseComplexOrder, convertToApiFormat } from '@/lib/enhanced-order-parser';
+import { validateAndCorrectAIPricing } from '@/lib/ai-pricing-validator';
 
 // Initialize OpenAI client lazily to handle missing env vars during build
 let openai: OpenAI | null = null;
@@ -260,8 +261,11 @@ In the meantime, I can tell you that for that quantity you're definitely in grea
    // Don't fail the request if saving fails
   }
   
+  // 🚨 CRITICAL FIX: Post-process response to validate and correct pricing
+  const validatedResponse = await validateAndCorrectAIPricing(response, localConversationContext);
+
   return NextResponse.json({
-   response,
+   response: validatedResponse,
    conversationId: conversation.id, // Return actual conversation ID
    processingTime,
    context: localConversationContext, // FIXED: Return the actual conversation context
@@ -395,7 +399,9 @@ PRICING TIERS FROM CSV (VOLUME DISCOUNTS):
 • Tier 1 Volume Pricing:
  - 144-575 caps: $${productData.pricing?.['Tier 1']?.price144 || 3.00}/cap
  - 576-1151 caps: $${productData.pricing?.['Tier 1']?.price576 || 2.90}/cap 
- - 1152+ caps: $${productData.pricing?.['Tier 1']?.price1152 || 2.84}/cap (BEST VALUE)
+ - 1152-2879 caps: $${productData.pricing?.['Tier 1']?.price1152 || 2.84}/cap
+ - 2880-9999 caps: $${productData.pricing?.['Tier 1']?.price2880 || 2.75}/cap
+ - 10000+ caps: $${productData.pricing?.['Tier 1']?.price10000 || 2.65}/cap (BEST VALUE)
 • Tier 2: $${productData.pricing?.['Tier 2']?.price144 || 3.20}/cap at 144+ (Premium options) 
 • Tier 3: $${productData.pricing?.['Tier 3']?.price144 || 3.40}/cap at 144+ (Specialty caps)`;
    }
@@ -489,14 +495,10 @@ DETAILED COST BREAKDOWN:
 - Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.baseProductTotal || 0) / context.lastQuote.quantity).toFixed(2)} per cap)
 - Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.logoSetupTotal || 0) / context.lastQuote.quantity).toFixed(2)} per cap)`;
 
-    // Add premium fabric cost if exists
-    if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
+    // Add premium fabric cost using NEW structure
+    if (costBreakdown.detailedBreakdown?.premiumFabric && costBreakdown.premiumFabricTotal > 0) {
      orderAnalysis += `
-- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)}`;
-     costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
-      orderAnalysis += `
- • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
-     });
+- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${costBreakdown.detailedBreakdown.premiumFabric.unitPrice.toFixed(2)} per cap)`;
     } else if (costBreakdown.premiumFabricTotal > 0) {
      orderAnalysis += `
 - Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / context.lastQuote.quantity).toFixed(2)} per cap)`;
@@ -545,14 +547,10 @@ COMPLETE COST BREAKDOWN:
 - Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.baseProductTotal || 0) / requirements.quantity).toFixed(2)} per cap)
 - Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.logoSetupTotal || 0) / requirements.quantity).toFixed(2)} per cap)`;
 
-      // Add premium fabric cost if exists
-      if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
+      // Add premium fabric cost using NEW structure
+      if (costBreakdown.detailedBreakdown?.premiumFabric && costBreakdown.premiumFabricTotal > 0) {
        orderAnalysis += `
-- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)}`;
-       costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
-        orderAnalysis += `
- • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
-       });
+- Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${costBreakdown.detailedBreakdown.premiumFabric.unitPrice.toFixed(2)} per cap)`;
       } else if (costBreakdown.premiumFabricTotal > 0) {
        orderAnalysis += `
 - Premium Fabric: $${costBreakdown.premiumFabricTotal.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / requirements.quantity).toFixed(2)} per cap)`;
@@ -586,9 +584,33 @@ COMPLETE COST BREAKDOWN:
      }
     }
    } else {
+    // 🔧 CRITICAL FIX: Enhanced quantity variation detection
+    // Check if this is a simple quantity variation request like "how much for 144?"
+    const quantityOnlyPattern = /(?:how much|what.*cost|price|pricing).*?for.*?(\d+)|(\d+).*?(?:piece|cap|unit)/i;
+    const simpleQuantityMatch = message.match(quantityOnlyPattern);
+    const isQuantityOnlyRequest = simpleQuantityMatch && message.length < 50; // Short messages likely quantity variations
+    
     // Parse requirements for non-transparency requests
-    const requirements = parseOrderRequirements(message);
+    let requirements = parseOrderRequirements(message);
     const budget = extractBudget(message);
+    
+    // 🔧 QUANTITY VARIATION ENHANCEMENT: If this looks like quantity-only and we have previous context
+    if (isQuantityOnlyRequest && context.lastQuote && simpleQuantityMatch) {
+      const newQuantity = parseInt(simpleQuantityMatch[1] || simpleQuantityMatch[2]);
+      console.log('🔄 [QUANTITY-VARIATION] Detected quantity-only request:', {
+        message: message,
+        newQuantity: newQuantity,
+        hasLastQuote: !!context.lastQuote,
+        previousQuantity: context.lastQuote.quantity
+      });
+      
+      // Use previous requirements but update quantity
+      requirements = {
+        ...context.lastQuote.requirements,
+        quantity: newQuantity
+      };
+      console.log('✅ [QUANTITY-VARIATION] Applied previous specs with new quantity:', requirements);
+    }
     
     if (requirements.quantity > 0 || budget > 0) {
      try {
@@ -635,19 +657,17 @@ CURRENT ORDER CALCULATION:
 - Cost Per Cap: $${(orderQuote.totalCost / orderQuote.quantity).toFixed(2)}
 
 DETAILED COST BREAKDOWN:
-- Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.baseProductTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
+- Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${costBreakdown.detailedBreakdown?.blankCaps ? costBreakdown.detailedBreakdown.blankCaps.unitPrice.toFixed(2) : ((costBreakdown.baseProductTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
 
-       // Add detailed logo setup breakdown with specific logo info
-       if (costBreakdown.detailedBreakdown?.logoSetupCosts?.length > 0) {
+       // Add logo setup breakdown using NEW structure
+       if (costBreakdown.detailedBreakdown?.logos?.length > 0) {
         orderAnalysis += `
 - Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'}`;
-        costBreakdown.detailedBreakdown.logoSetupCosts.forEach((logo: any) => {
+        costBreakdown.detailedBreakdown.logos.forEach((logo: any) => {
          orderAnalysis += `
- • ${logo.name}: $${logo.cost.toFixed(2)} ($${logo.unitPrice.toFixed(2)} per cap)`;
-         if (logo.baseUnitPrice && logo.baseUnitPrice !== logo.unitPrice) {
-          const savings = (logo.baseUnitPrice - logo.unitPrice) * orderQuote.quantity;
-          const percentSavings = Math.round(((logo.baseUnitPrice - logo.unitPrice) / logo.baseUnitPrice) * 100);
-          orderAnalysis += ` - 💰Save $${savings.toFixed(2)} (${percentSavings}% volume discount)`;
+ • ${logo.type} on ${logo.position}: $${logo.totalCost.toFixed(2)} ($${logo.unitPrice.toFixed(2)} per cap)`;
+         if (logo.moldCharge > 0) {
+          orderAnalysis += ` + $${logo.moldCharge} mold charge`;
          }
         });
        } else if (costBreakdown.logoSetupTotal > 0) {
@@ -655,27 +675,33 @@ DETAILED COST BREAKDOWN:
 - Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.logoSetupTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
        }
 
-       // Add premium fabric breakdown
-       if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
+       // Add premium fabric breakdown using NEW structure
+       if (costBreakdown.detailedBreakdown?.premiumFabric && costBreakdown.premiumFabricTotal > 0) {
         orderAnalysis += `
-- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)}`;
-        costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
-         orderAnalysis += `
- • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
-        });
+- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${costBreakdown.detailedBreakdown.premiumFabric.unitPrice.toFixed(2)} per cap)`;
        } else if (costBreakdown.premiumFabricTotal > 0) {
         orderAnalysis += `
 - Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${((costBreakdown.premiumFabricTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
        }
 
-       // Add accessories
-       if (costBreakdown.accessoriesTotal > 0) {
+       // Add accessories using NEW structure  
+       if (costBreakdown.detailedBreakdown?.accessories?.length > 0) {
+        orderAnalysis += `
+- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)}`;
+        costBreakdown.detailedBreakdown.accessories.forEach((accessory: any) => {
+         orderAnalysis += `
+ • ${accessory.name}: $${accessory.totalCost.toFixed(2)} ($${accessory.unitPrice.toFixed(2)} per cap)`;
+        });
+       } else if (costBreakdown.accessoriesTotal > 0) {
         orderAnalysis += `
 - Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)} ($${((costBreakdown.accessoriesTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
        }
 
-       // Add closure costs
-       if (costBreakdown.closureTotal > 0) {
+       // Add closure costs using NEW structure
+       if (costBreakdown.detailedBreakdown?.premiumClosure && costBreakdown.closureTotal > 0) {
+        orderAnalysis += `
+- Premium Closures: $${costBreakdown.closureTotal?.toFixed(2)} ($${costBreakdown.detailedBreakdown.premiumClosure.unitPrice.toFixed(2)} per cap)`;
+       } else if (costBreakdown.closureTotal > 0) {
         orderAnalysis += `
 - Premium Closures: $${costBreakdown.closureTotal?.toFixed(2)} ($${((costBreakdown.closureTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
        }
@@ -702,14 +728,10 @@ DETAILED COST BREAKDOWN:
 - Services: $${costBreakdown.servicesTotal?.toFixed(2)} ($${((costBreakdown.servicesTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
        }
 
-       // Add delivery
-       if (costBreakdown.detailedBreakdown?.deliveryCosts?.length > 0) {
+       // Add delivery using NEW structure
+       if (costBreakdown.detailedBreakdown?.delivery && costBreakdown.deliveryTotal > 0) {
         orderAnalysis += `
-- Delivery: $${costBreakdown.deliveryTotal?.toFixed(2)}`;
-        costBreakdown.detailedBreakdown.deliveryCosts.forEach((delivery: any) => {
-         orderAnalysis += `
- • ${delivery.name}: $${delivery.cost.toFixed(2)} ($${delivery.unitPrice.toFixed(2)} per cap)`;
-        });
+- Delivery: $${costBreakdown.deliveryTotal?.toFixed(2)} ($${costBreakdown.detailedBreakdown.delivery.unitPrice.toFixed(2)} per cap)`;
        } else {
         orderAnalysis += `
 - Delivery: $${costBreakdown.deliveryTotal?.toFixed(2) || '0.00'} ($${((costBreakdown.deliveryTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
@@ -792,6 +814,23 @@ MEMORY AND UNDERSTANDING:
 - When they say "cheapest" or "go with that" - you understand, just give them the full solution
 - Pick up on their intent even if they don't spell everything out perfectly
 
+🚨 CRITICAL: QUANTITY VARIATION DETECTION
+When customer asks for different quantities (like "how much for 144?" after discussing 576), YOU MUST:
+1. **RECOGNIZE**: This is a quantity variation, NOT a new order
+2. **REMEMBER**: Keep ALL previous specifications (style, colors, logos, accessories, etc.)
+3. **APPLY**: Use the new quantity with SAME specs from conversation
+4. **CALCULATE**: Generate quote with new quantity but identical specifications
+5. **NEVER ASK**: "What style/color/logo?" - you already know from conversation
+6. **RESPOND**: "For 144 pieces with the same 7-Panel caps, Black/Grey colors, 3D embroidery specs we discussed, here's the pricing..."
+
+QUANTITY VARIATION PHRASES TO DETECT:
+- "how much for 144?"
+- "what about 48 pieces?"
+- "price for 576?"
+- "if I do 1000 instead?"
+- "what would 288 cost?"
+- "144 piece pricing?"
+
 YOUR APPROACH:
 - First time talking: Get to know their project, what they're trying to accomplish
 - Give quotes: Explain pricing clearly, show them the value they're getting
@@ -801,11 +840,13 @@ YOUR APPROACH:
 ${csvProductContext}
 
 PRICING INSTRUCTIONS:
-*** CRITICAL: DO NOT CALCULATE PRICES MANUALLY ***
-- ALL pricing has been calculated by our unified cost system
-- The calculated cost breakdown is provided in the ORDER ANALYSIS section below
-- Use ONLY the calculated values from the ORDER ANALYSIS
-- Never perform manual calculations using generic pricing
+*** ABSOLUTE CRITICAL: ZERO MANUAL PRICING CALCULATIONS ALLOWED ***
+- You are FORBIDDEN from doing ANY price calculations yourself
+- You MUST use ONLY the exact numbers provided in the ORDER ANALYSIS section below
+- The ORDER ANALYSIS contains pre-calculated accurate pricing from our unified cost system
+- If you see pricing in ORDER ANALYSIS, those are the ONLY numbers you can use
+- DO NOT calculate quantity × price manually - use the exact totals provided
+- DO NOT estimate or guess pricing - use only calculated values
 - If no ORDER ANALYSIS is present, request customer specifications first
 
 VOLUME DISCOUNT INFORMATION (for context only - DO NOT calculate manually):
@@ -814,7 +855,33 @@ VOLUME DISCOUNT INFORMATION (for context only - DO NOT calculate manually):
 - Logo setup includes all application methods (embroidery, patches, etc.)
 - Multiple logo positions can be combined for optimal pricing
 
+======== CALCULATED PRICING DATA (USE ONLY THESE NUMBERS) ========
 ${orderAnalysis}
+======== END CALCULATED PRICING DATA ========
+
+🚨🚨🚨 ABSOLUTELY CRITICAL - PRICING VALIDATION RULES 🚨🚨🚨
+⛔ **FORBIDDEN**: You are COMPLETELY PROHIBITED from calculating or generating ANY prices
+⛔ **FORBIDDEN**: You cannot use mathematical operations on prices (no multiplication, division, rounding)
+⛔ **FORBIDDEN**: You cannot estimate, approximate, or guess any pricing values
+✅ **REQUIRED**: Copy EXACT unit prices and totals from CALCULATED PRICING DATA above
+✅ **REQUIRED**: When showing "144 pieces × $3.68 = $529.92", both $3.68 and $529.92 MUST come from data above
+✅ **REQUIRED**: Every number you show must have an exact match in the CALCULATED PRICING DATA section
+⚠️  **QUANTITY-TIER VALIDATION**: Different quantities have different unit prices:
+   - 144 pieces: Use ONLY the unit price shown for 144-piece tier
+   - 1200 pieces: Use ONLY the unit price shown for 1200-piece tier  
+   - 3200 pieces: Use ONLY the unit price shown for 3200-piece tier
+❌ **NEVER DO THIS**: Use the same unit price ($4.25) for different quantities
+✅ **ALWAYS DO THIS**: Use the specific unit price calculated for each quantity tier
+
+🔍 **EXAMPLE OF CORRECT USAGE**:
+If the data shows "Base Product: $529.92 ($3.68 per cap)" for 144 pieces, you MUST write:
+"Base Product: 144 pieces × $3.68 = $529.92"
+DO NOT write: "Base Product: 144 pieces × $4.25 = $612.00" (wrong tier price)
+
+❌ WRONG: "Fitted Closure: 576 pieces × $0.63 = $362.88" (using wrong tier price)
+✅ CORRECT: "Fitted Closure: 576 pieces × $1.00 = $576.00" (using provided data)
+
+VALIDATION CHECKPOINT: Before showing ANY price, confirm the unit price matches the provided data for that exact quantity.
 
 ORDER CREATION CAPABILITY:
 When customer confirms they want to proceed (ANY variation like "yes create order", "let's do it", "proceed", "confirm", "all good submit order" etc.), you WILL:
@@ -832,17 +899,17 @@ HOW TO RESPOND:
 - Use **bold** for key numbers they care about, but don't overdo formatting
 - Be genuinely helpful - if you see a better option for them, mention it
 
-COST PRESENTATION RULES:
-- ALWAYS use the exact totalCost from ORDER ANALYSIS (e.g., $11,997.72)
-- NEVER calculate costs manually or use generic per-cap rates
-- MANDATORY: Show COMPLETE detailed breakdown including ALL cost components with individual line items and per-cap costs
-- When premium fabric is included (e.g., Laser Cut, Acrylic), mention specific fabric type and per-cap cost
-- When logo setup costs exist, show SPECIFIC logo types and per-cap costs (e.g., "Large Leather Patch + Run: $331.20 ($1.15 each)")
-- When mold charges exist, show specific mold types and costs
-- ALWAYS show per-cap breakdown for Base Product, Logo Setup, Premium Fabric, and Delivery
-- If volume discounts apply, mention savings amount and percentage
-- Present costs in this order: Base Product → Logo Setup (detailed) → Premium Fabric (detailed) → Delivery (detailed) → Mold Charges (if any) → Total
-- Present all costs exactly as calculated by the unified system with full transparency
+COST PRESENTATION RULES - MANDATORY FORMAT:
+*** YOU MUST COPY THE EXACT PRICING FROM ORDER ANALYSIS BELOW ***
+- COPY the exact "Total Cost" number from ORDER ANALYSIS (e.g., $11,997.72)
+- COPY the exact per-component costs from the detailed breakdown
+- COPY the exact per-cap costs already calculated
+- USE ONLY the specific numbers provided - DO NOT recalculate anything
+- If ORDER ANALYSIS shows "Base Product: $9,000.00 ($3.60 per cap)" then you say exactly that
+- If ORDER ANALYSIS shows "Logo Setup: $5,950.00 ($2.38 per cap)" then you say exactly that
+- NEVER modify, round, or recalculate the provided numbers
+- Present in this exact format: "📊 [Component]: [Exact Total] • [Exact Per-Cap Rate]"
+- Example: "📊 Base Product: $9,000.00 • $3.60 per cap"
 
 CRITICAL FABRIC COST RULES:
 - FREE fabrics (Chino Twill, Trucker Mesh): Show NO separate fabric line item, fabric cost included in base product
@@ -1410,10 +1477,12 @@ BUDGET OPTIMIZATION ANALYSIS:
 DETAILED COST BREAKDOWN:
 - Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${(costBreakdown.baseProductTotal / optimization.optimizedQuantity).toFixed(2)} per cap)`;
 
-   // Add detailed logo costs if any
-   if (costBreakdown.detailedBreakdown?.logoSetupCosts?.length > 0) {
-    orderAnalysis += `\n- Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${costBreakdown.detailedBreakdown.logoSetupCosts[0].unitPrice.toFixed(2)} per cap)
- • ${costBreakdown.detailedBreakdown.logoSetupCosts[0].details}`;
+   // Add logo costs using NEW structure
+   if (costBreakdown.detailedBreakdown?.logos?.length > 0) {
+    orderAnalysis += `\n- Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'}`;
+    costBreakdown.detailedBreakdown.logos.forEach((logo: any) => {
+      orderAnalysis += `\n • ${logo.type} on ${logo.position}: $${logo.totalCost.toFixed(2)} ($${logo.unitPrice.toFixed(2)} per cap)`;
+    });
    }
 
    // Add other cost components if they exist
@@ -1423,11 +1492,8 @@ DETAILED COST BREAKDOWN:
    if (costBreakdown.accessoriesTotal > 0) {
     orderAnalysis += `\n- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)} ($${(costBreakdown.accessoriesTotal / optimization.optimizedQuantity).toFixed(2)} per cap)`;
    }
-   if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
-    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)}`;
-    costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
-     orderAnalysis += `\n • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
-    });
+   if (costBreakdown.detailedBreakdown?.premiumFabric && costBreakdown.premiumFabricTotal > 0) {
+    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${costBreakdown.detailedBreakdown.premiumFabric.unitPrice.toFixed(2)} per cap)`;
    } else if (costBreakdown.premiumFabricTotal > 0) {
     orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / optimization.optimizedQuantity).toFixed(2)} per cap)`;
    }
@@ -1455,10 +1521,12 @@ COMPREHENSIVE ORDER ANALYSIS:
 DETAILED COST BREAKDOWN:
 - Base Product: $${costBreakdown.baseProductTotal?.toFixed(2) || '0.00'} ($${(costBreakdown.baseProductTotal / requirements.quantity).toFixed(2)} per cap)`;
 
-   // Add detailed logo costs if any
-   if (costBreakdown.detailedBreakdown?.logoSetupCosts?.length > 0) {
-    orderAnalysis += `\n- Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'} ($${costBreakdown.detailedBreakdown.logoSetupCosts[0].unitPrice.toFixed(2)} per cap)
- • ${costBreakdown.detailedBreakdown.logoSetupCosts[0].details}`;
+   // Add logo costs using NEW structure
+   if (costBreakdown.detailedBreakdown?.logos?.length > 0) {
+    orderAnalysis += `\n- Logo Setup: $${costBreakdown.logoSetupTotal?.toFixed(2) || '0.00'}`;
+    costBreakdown.detailedBreakdown.logos.forEach((logo: any) => {
+      orderAnalysis += `\n • ${logo.type} on ${logo.position}: $${logo.totalCost.toFixed(2)} ($${logo.unitPrice.toFixed(2)} per cap)`;
+    });
    }
 
    // Add other detailed cost components
@@ -1468,11 +1536,8 @@ DETAILED COST BREAKDOWN:
    if (costBreakdown.accessoriesTotal > 0) {
     orderAnalysis += `\n- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)} ($${(costBreakdown.accessoriesTotal / requirements.quantity).toFixed(2)} per cap)`;
    }
-   if (costBreakdown.detailedBreakdown?.premiumFabricCosts?.length > 0) {
-    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)}`;
-    costBreakdown.detailedBreakdown.premiumFabricCosts.forEach((fabric: any) => {
-     orderAnalysis += `\n • ${fabric.name}: $${fabric.cost.toFixed(2)} ($${fabric.unitPrice.toFixed(2)} per cap)`;
-    });
+   if (costBreakdown.detailedBreakdown?.premiumFabric && costBreakdown.premiumFabricTotal > 0) {
+    orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${costBreakdown.detailedBreakdown.premiumFabric.unitPrice.toFixed(2)} per cap)`;
    } else if (costBreakdown.premiumFabricTotal > 0) {
     orderAnalysis += `\n- Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${(costBreakdown.premiumFabricTotal / requirements.quantity).toFixed(2)} per cap)`;
    }
@@ -1543,9 +1608,31 @@ ${productData ? `
 - Tier 1: $${productData.pricing?.['Tier 1']?.price144}/cap at 144+ quantity (Most affordable)
 - Tier 2: $${productData.pricing?.['Tier 2']?.price144}/cap at 144+ quantity (Premium options)
 - Tier 3: $${productData.pricing?.['Tier 3']?.price144}/cap at 144+ quantity (Specialty caps)
-- Volume pricing: 48 ($${productData.pricing?.['Tier 1']?.price48}/cap) → 144 ($${productData.pricing?.['Tier 1']?.price144}/cap) → 576 ($${productData.pricing?.['Tier 1']?.price576}/cap) → 1152+ ($${productData.pricing?.['Tier 1']?.price1152}/cap)` : 
+- Volume pricing: 48 ($${productData.pricing?.['Tier 1']?.price48}/cap) → 144 ($${productData.pricing?.['Tier 1']?.price144}/cap) → 576 ($${productData.pricing?.['Tier 1']?.price576}/cap) → 1152 ($${productData.pricing?.['Tier 1']?.price1152}/cap) → 2880 ($${productData.pricing?.['Tier 1']?.price2880}/cap) → 10000+ ($${productData.pricing?.['Tier 1']?.price10000}/cap)` : 
 `- Tier 1 pricing: $3.00-$3.60 per blank cap (fallback pricing)
-- Volume tiers: 48, 144, 576, 1152, 2880+ caps`}
+- Volume tiers: 48, 144, 576, 1152, 2880, 10000+ caps`}
+
+CRITICAL QUANTITY TIER DETECTION (FOLLOW EXACTLY):
+**QUANTITY TIER LOGIC FOR ALL PRICING:**
+- 1-47 pieces: Use price48 tier pricing
+- 48-143 pieces: Use price144 tier pricing  
+- 144-575 pieces: Use price576 tier pricing
+- 576-1151 pieces: Use price1152 tier pricing
+- 1152-2879 pieces: Use price2880 tier pricing
+- 2880-9999 pieces: Use price10000 tier pricing (NOT price2880)
+- 10000+ pieces: Use price10000 tier pricing
+
+**CRITICAL: For 5,000 pieces = price10000 tier for ALL components:**
+- Blank Cap (Tier 2): $3.38/cap (price10000)
+- Acrylic: $1.50/cap (price10000) 
+- Air Mesh: $0.50/cap (price10000)
+- Buckle: $0.38/cap (price10000)
+- 3D Embroidery: $0.70/cap (price10000)
+- Large Size Embroidery: $0.60/cap (price10000)
+- Small Size Embroidery: $0.35/cap (price10000)
+- Regular Delivery: $2.43/cap (price10000)
+
+**This applies to ALL pricing references - never use outdated 144+ qty fallback pricing for high-volume orders**
 
 CUSTOMIZATION COSTS (ACCURATE CSV PRICING - ADD TO BASE PRICE):
 
@@ -1556,16 +1643,16 @@ CAP SIZE DEFAULTS (CRITICAL - FOLLOW EXACTLY):
 - Only use different sizes when customer explicitly specifies a size
 
 LOGO SIZE DEFAULTS (CRITICAL - FOLLOW EXACTLY):
-- Front Position: ALWAYS Large Size (Large Size Embroidery = $0.80/cap at 144+ qty)
-- Left/Right/Back Position: ALWAYS Small Size (Small Size Embroidery = $0.45/cap at 144+ qty)
+- Front Position: ALWAYS Large Size (Large Size Embroidery = use quantity tier pricing from above)
+- Left/Right/Back Position: ALWAYS Small Size (Small Size Embroidery = use quantity tier pricing from above)
 
-LOGO TYPE PRICING AT 144+ QUANTITY:
-- Flat Embroidery: Use Size Embroidery pricing based on position
- • Front = Large Size Embroidery ($0.80/cap) 
- • Back/Sides = Small Size Embroidery ($0.45/cap)
-- 3D Embroidery: Size Embroidery + 3D Base ($0.15/cap)
- • Front = $0.80 + $0.15 = $0.95/cap
- • Back/Sides = $0.45 + $0.15 = $0.60/cap
+LOGO TYPE PRICING (USE QUANTITY TIER FROM ABOVE):
+- Flat Embroidery: Use Size Embroidery pricing based on position and quantity tier
+ • Front = Large Size Embroidery (price varies by quantity tier) 
+ • Back/Sides = Small Size Embroidery (price varies by quantity tier)
+- 3D Embroidery: Size Embroidery + 3D Base (use quantity tier pricing from above)
+ • Front = Large Size Embroidery + 3D Base (both use quantity tier pricing)
+ • Back/Sides = Small Size Embroidery + 3D Base (both use quantity tier pricing)
 - Rubber Patches: Small ($0.70/cap), Medium ($0.90/cap), Large ($1.20/cap)
 - Leather Patches: Small ($0.60/cap), Medium ($0.75/cap), Large ($0.90/cap)
 - Woven Patches: Small ($0.55/cap), Medium ($0.70/cap), Large ($0.90/cap)
@@ -2508,7 +2595,7 @@ async function generateBudgetOptimizedResponse(message: string, context: LocalCo
   console.error('❌ [ORDER-AI] Unified calculation failed, using fallback:', error);
   
   // Fallback to original logic if unified calculation fails
-  const optimization = optimizeQuantityForBudget(budget, requirements.logoType);
+  const optimization = await optimizeQuantityForBudget(budget, requirements.logoType);
   const costEstimate = calculateQuickEstimate({
    ...requirements,
    quantity: optimization.optimizedQuantity

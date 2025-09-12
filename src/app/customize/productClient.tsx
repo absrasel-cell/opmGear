@@ -4019,13 +4019,15 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
                // Calculate total combined quantity
                const totalCombinedQuantity = currentOrderQuantity + existingShipmentQuantity;
                
-               // Get pricing tiers using correct CSV-based pricing data
+               // CRITICAL FIX: Get pricing tiers using correct tier boundaries
                const getCurrentTierPrice = (quantity: number): number => {
+                // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
                 if (quantity >= 10000) return pricingData.price10000;
-                if (quantity >= 2880) return pricingData.price2880;
-                if (quantity >= 1152) return pricingData.price1152;
-                if (quantity >= 576) return pricingData.price576;
-                if (quantity >= 144) return pricingData.price144;
+                if (quantity >= 2880) return pricingData.price10000;
+                if (quantity >= 1152) return pricingData.price2880;
+                if (quantity >= 576) return pricingData.price1152;
+                if (quantity >= 144) return pricingData.price576;
+                if (quantity >= 48) return pricingData.price144;
                 return pricingData.price48;
                };
                

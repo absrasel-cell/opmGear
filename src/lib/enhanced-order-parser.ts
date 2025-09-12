@@ -47,9 +47,25 @@ export interface EnhancedOrderRequirements {
 export function parseComplexOrder(message: string): EnhancedOrderRequirements {
   const lowerMessage = message.toLowerCase();
   
-  // Extract quantity
-  const quantityMatch = message.match(/(\d+)\s*(?:caps?|pieces?|units?)/i);
-  const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 576;
+  // Extract quantity - CRITICAL FIX: Exclude cap construction types (7-Panel, 6-Panel, etc.)
+  // First check if message contains construction patterns and exclude those numbers
+  const constructionPattern = /(\d+)-panel/i;
+  const isConstructionType = constructionPattern.test(message);
+  
+  let quantityMatch;
+  if (isConstructionType) {
+    // More careful parsing - avoid construction numbers
+    const constructionMatch = message.match(/(\d+)-panel/i);
+    const constructionNumber = constructionMatch ? constructionMatch[1] : null;
+    
+    // Find quantity matches, excluding the construction number
+    const allQuantityMatches = Array.from(message.matchAll(/(\d+)\s*(?:caps?|pieces?|units?)/gi));
+    quantityMatch = allQuantityMatches.find(match => match[1] !== constructionNumber);
+  } else {
+    quantityMatch = message.match(/(\d+)\s*(?:caps?|pieces?|units?)/i);
+  }
+  
+  const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 48; // Default to minimum quantity when no quantity specified
   
   // Extract color - first try multi-color parsing
   let color = 'Black'; // Default based on query
@@ -67,10 +83,17 @@ export function parseComplexOrder(message: string): EnhancedOrderRequirements {
   }
   
   // Parse cap specifications from "highest end cap" + "flat bill" + "Fitted"
+  // CRITICAL FIX: Parse panel count correctly from construction types
+  let panelCount = 6; // Default premium
+  const panelMatch = message.match(/(\d+)-panel/i);
+  if (panelMatch) {
+    panelCount = parseInt(panelMatch[1]);
+  }
+  
   const capSpecs = {
     profile: lowerMessage.includes('highest end') ? 'High' : 'High', // Premium profile
     billStyle: lowerMessage.includes('flat bill') ? 'Flat Bill' : 'Flat Bill',
-    panelCount: 6, // Default premium
+    panelCount: panelCount, // Use parsed panel count
     closureType: lowerMessage.includes('fitted') ? 'fitted' : 'fitted',
     structure: 'Structured', // Premium default
     fabricType: lowerMessage.includes('highest end') ? 'Premium Fabric' : 'Chino Twill',

@@ -270,15 +270,68 @@ async function loadAIBlankCaps(): Promise<any> {
 function getPriceForQuantity(pricingData: any, quantity: number): number {
   if (!pricingData) return 0;
   
-  if (quantity >= 20000) return pricingData.price20000 || pricingData.price10000 || 0;
-  if (quantity >= 10000) return pricingData.price10000 || 0;
-  if (quantity >= 2880) return pricingData.price2880 || 0;
-  if (quantity >= 1152) return pricingData.price1152 || 0;
-  if (quantity >= 576) return pricingData.price576 || 0;
-  if (quantity >= 144) return pricingData.price144 || 0;
-  if (quantity >= 48) return pricingData.price48 || 0;
+  // 🚨 CRITICAL FIX: Enhanced logging for all large quantity debugging
+  const isLargeQuantity = quantity >= 1000;
+  if (isLargeQuantity) {
+    console.log(`🔍 [AI-PRICING] TIER DETECTION - getPriceForQuantity:`, {
+      quantity,
+      itemName: pricingData.Name,
+      available_prices: {
+        price48: pricingData.price48,
+        price144: pricingData.price144,
+        price576: pricingData.price576,
+        price1152: pricingData.price1152,
+        price2880: pricingData.price2880,
+        price10000: pricingData.price10000,
+        price20000: pricingData.price20000
+      }
+    });
+  }
   
-  return pricingData.price48 || 0; // Default to lowest tier
+  let selectedPrice = 0;
+  let selectedTier = '';
+  
+  // CORRECTED: Tier boundaries based on CSV column names representing MINIMUM quantities for that price
+  // price48 = 48+ pieces, price144 = 144+ pieces, price576 = 576+ pieces, etc.
+  // The tier pricing applies when you reach that minimum quantity threshold
+  if (quantity >= 20000) {
+    selectedPrice = pricingData.price20000 || pricingData.price10000 || 0;
+    selectedTier = 'price20000';
+  } else if (quantity >= 10000) {
+    selectedPrice = pricingData.price10000 || 0;
+    selectedTier = 'price10000';
+  } else if (quantity >= 2880) {
+    selectedPrice = pricingData.price2880 || 0;
+    selectedTier = 'price2880';
+  } else if (quantity >= 1152) {
+    selectedPrice = pricingData.price1152 || 0;
+    selectedTier = 'price1152';
+  } else if (quantity >= 576) {
+    selectedPrice = pricingData.price576 || 0;
+    selectedTier = 'price576';
+  } else if (quantity >= 144) {
+    selectedPrice = pricingData.price144 || 0;
+    selectedTier = 'price144';
+  } else if (quantity >= 48) {
+    selectedPrice = pricingData.price48 || 0;
+    selectedTier = 'price48';
+  } else {
+    // For quantities less than 48, we still use price48 tier as the base price
+    selectedPrice = pricingData.price48 || 0;
+    selectedTier = 'price48';
+  }
+  
+  // 🚨 CRITICAL FIX: Log the selected tier for large quantities
+  if (isLargeQuantity) {
+    console.log(`💰 [AI-PRICING] TIER SELECTION for ${pricingData.Name}:`, {
+      quantity,
+      selectedTier,
+      selectedPrice,
+      correctFor3500: quantity === 3500 ? selectedTier === 'price10000' : 'N/A'
+    });
+  }
+  
+  return selectedPrice;
 }
 
 // PUBLIC API FUNCTIONS
@@ -356,9 +409,37 @@ export async function getAIClosurePrice(closureName: string, quantity: number): 
  */
 export async function getAIFabricPrice(fabricName: string, quantity: number): Promise<number> {
   const fabrics = await loadAIFabric();
-  const fabric = fabrics.find(item => 
+  
+  // Try exact match first
+  let fabric = fabrics.find(item => 
     item.Name.toLowerCase() === fabricName.toLowerCase()
   );
+  
+  // If no exact match, handle dual fabric formats like "polyester/Laser Cut"
+  if (!fabric && fabricName.includes('/')) {
+    const fabricNames = fabricName.split('/').map(f => f.trim());
+    console.log(`🧵 [AI-PRICING] Dual fabric detected: ${fabricNames.join(', ')}`);
+    
+    // Find the premium fabric from the dual fabric setup
+    // Premium fabrics: Acrylic, Suede Cotton, Genuine Leather, Air Mesh, Camo, Laser Cut, etc.
+    const premiumFabrics = ['Acrylic', 'Suede Cotton', 'Genuine Leather', 'Air Mesh', 'Camo', 'Laser Cut', 'PU Leather', 'Spandex', 'Cotton Corduroy', 'Ribbed Corduroy', 'Polyester 97% Spandex 3%', '100% Polyester Jersey', 'Canvas'];
+    
+    for (const name of fabricNames) {
+      const matchingPremium = premiumFabrics.find(premium => 
+        premium.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (matchingPremium) {
+        fabric = fabrics.find(item => 
+          item.Name.toLowerCase() === matchingPremium.toLowerCase()
+        );
+        if (fabric) {
+          console.log(`🧵 [AI-PRICING] Using premium fabric: ${matchingPremium} from dual fabric setup`);
+          break;
+        }
+      }
+    }
+  }
   
   if (!fabric) {
     console.warn(`⚠️ [AI-PRICING] Fabric not found in AI CSV: ${fabricName}`);
@@ -366,7 +447,7 @@ export async function getAIFabricPrice(fabricName: string, quantity: number): Pr
   }
   
   const unitPrice = getPriceForQuantity(fabric, quantity);
-  console.log(`🧵 [AI-PRICING] ${fabricName}: $${unitPrice} per unit at ${quantity} qty`);
+  console.log(`🧵 [AI-PRICING] ${fabric.Name}: $${unitPrice} per unit at ${quantity} qty`);
   return unitPrice;
 }
 
@@ -397,8 +478,8 @@ export async function getAIBlankCapPrice(tier: string, quantity: number): Promis
   const tierData = blankCaps[tier];
   
   if (!tierData) {
-    console.warn(`⚠️ [AI-PRICING] Tier not found: ${tier}`);
-    return 4.0; // Default fallback
+    console.error(`❌ [AI-PRICING] Tier not found: ${tier}. Available tiers:`, Object.keys(blankCaps));
+    return 0; // Return 0 to indicate error instead of using incorrect fallback
   }
   
   const unitPrice = getPriceForQuantity(tierData, quantity);

@@ -1,5 +1,5 @@
-Name,type,Delivery Days,price48,price144,price576,price1152,price2880,price10000,price20000,margin %
-Regular Delivery,Express,4-6 days,4.29,3.29,2.71,2.64,2.57,2.43,2.43,30
-Priority Delivery,Express,6-10 days,4.57,3.57,3,2.93,3,2.86,2.86,30
-Air Freight,Freight,15-30 days,Not Applicable,Not Applicable,Not Applicable,Not Applicable,1.71,1.43,1.43,30
-Sea Freight,Freight,45 -60 days,Not Applicable,Not Applicable,Not Applicable,Not Applicable,1,0.5,0.43,30
+Name,type,Delivery Days,price48,price144,price576,price1152,price2880,price10000,price20000
+Regular Delivery,Express,4-6 days,4.29,3.29,2.71,2.64,2.57,2.43,2.43
+Priority Delivery,Express,6-10 days,4.57,3.57,3,2.93,3,2.86,2.86
+Air Freight,Freight,15-30 days,Not Applicable,Not Applicable,Not Applicable,Not Applicable,1.71,1.43,1.43
+Sea Freight,Freight,45 -60 days,Not Applicable,Not Applicable,Not Applicable,Not Applicable,1,0.5,0.43

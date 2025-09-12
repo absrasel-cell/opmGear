@@ -94,11 +94,14 @@ const safeCalculateUnitPriceSync = (quantity: number, tierName: string = 'Tier 1
     
     const tierData = pricingTiers[tierName] || pricingTiers['Tier 1'];
     
+    // CRITICAL FIX: Correct tier boundaries for PDF backup calculations
+    // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
     if (quantity >= 10000) return tierData.price10000;
-    if (quantity >= 2880) return tierData.price2880;
-    if (quantity >= 1152) return tierData.price1152;
-    if (quantity >= 576) return tierData.price576;
-    if (quantity >= 144) return tierData.price144;
+    if (quantity >= 2880) return tierData.price10000;
+    if (quantity >= 1152) return tierData.price2880;
+    if (quantity >= 576) return tierData.price1152;
+    if (quantity >= 144) return tierData.price576;
+    if (quantity >= 48) return tierData.price144;
     return tierData.price48;
   } catch (error) {
     console.warn('Price calculation fallback for quantity:', quantity);

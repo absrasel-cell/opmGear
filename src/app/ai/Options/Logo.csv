@@ -1,37 +1,37 @@
-Name,Application,Size,Size Example,price48,price144,price576,price1152,price2880,price10000,price20000,Mold Charge,margin %
-3D Embroidery,Direct,Small,2 x 1.5,2.25,1.5,1.18,1,0.88,0.7,0.7,,60
-3D Embroidery,Patch,Small,2 x 1.5,3.75,2.75,2.18,1.9,1.63,1.3,1.3,,60
-3D Embroidery,Direct,Medium,3 x 2,2.75,2,1.68,1.55,1.5,1.33,1.33,,60
-3D Embroidery,Patch,Medium,3 x 2,4.25,3.25,2.68,2.45,2.25,1.93,1.93,,60
-3D Embroidery,Direct,Large,4 x 2.25,3.5,2.38,2.05,1.88,1.75,1.58,1.58,,60
-3D Embroidery,Patch,Large,4 x 2.25,5,3.63,3.05,2.78,2.5,2.18,2.18,,60
-Flat Embroidery,Direct,Small,2 x 1.5,1.75,1.13,0.88,0.75,0.63,0.5,0.5,,60
-Flat Embroidery,Patch,Small,2 x 1.5,2.5,1.75,1.38,1.2,1,0.8,0.8,,60
-Flat Embroidery,Direct,Medium,3 x 2,2.25,1.63,1.38,1.3,1.25,1.13,1.13,,60
-Flat Embroidery,Patch,Medium,3 x 2,3,2.25,1.88,1.75,1.63,1.43,1.43,,60
-Flat Embroidery,Direct,Large,4 x 2.25,3,2,1.75,1.63,1.5,1.38,1.38,,60
-Flat Embroidery,Patch,Large,4 x 2.25,3.75,2.63,2.25,2.08,1.88,1.68,1.68,,60
-Screen Print,Direct,Small,2 x 1.5,1.75,1.13,0.88,0.75,0.63,0.5,0.5,,60
-Screen Print,Patch,Small,2 x 1.5,2.5,1.75,1.38,1.2,1,0.8,0.8,,60
-Screen Print,Direct,Medium,3 x 2,2.25,1.63,1.38,1.3,1.25,1.13,1.13,,60
-Screen Print,Patch,Medium,3 x 2,3,2.25,1.88,1.75,1.63,1.43,1.43,,60
-Screen Print,Direct,Large,4 x 2.25,3,2,1.75,1.63,1.5,1.38,1.38,,60
-Screen Print,Patch,Large,4 x 2.25,3.75,2.63,2.25,2.08,1.88,1.68,1.68,,60
-Sublimation,Direct,Small,2 x 1.5,1.75,1.13,0.88,0.75,0.63,0.5,0.5,,60
-Sublimation,Patch,Small,2 x 1.5,2.5,1.75,1.38,1.2,1,0.8,0.8,,60
-Sublimation,Direct,Medium,3 x 2,2.25,1.63,1.38,1.3,1.25,1.13,1.13,,60
-Sublimation,Patch,Medium,3 x 2,3,2.25,1.88,1.75,1.63,1.43,1.43,,60
-Sublimation,Direct,Large,4 x 2.25,3,2,1.75,1.63,1.5,1.38,1.38,,60
-Sublimation,Patch,Large,4 x 2.25,3.75,2.63,2.25,2.08,1.88,1.68,1.68,,60
-Woven,Patch,Small,2 x 1.5,2.75,2,1.5,1.33,1.13,0.93,0.93,,60
-Woven,Patch,Medium,3 x 2,3.25,2.38,2,1.83,1.63,1.43,1.43,,60
-Woven,Patch,Large,4 x 2.25,3.75,2.88,2.5,2.33,2.13,1.93,1.93,,60
-Rubber,Patch,Small,2 x 1.5,3.25,2.38,2.13,1.95,1.75,1.55,1.55,Small Mold Charge,60
-Rubber,Patch,Medium,3 x 2,3.88,2.88,2.63,2.45,2.25,2.05,2.05,Medium Mold Charge,60
-Rubber,Patch,Large,4 x 2.25,4.5,3.63,3,2.7,2.5,2.3,2.3,Large Mold Charge,60
-Leather,Patch,Small,2 x 1.5,3.25,2.13,1.75,1.58,1.38,1.18,1.18,Medium Mold Charge,60
-Leather,Patch,Medium,3 x 2,3.75,2.5,2.25,2.08,1.88,1.68,1.68,Small Mold Charge,60
-Leather,Patch,Large,4 x 2.25,4.13,2.88,2.63,2.45,2.25,2.05,2.05,Large Mold Charge,60
-Mold Charge,None,Small,2 x 1.5,100,100,100,100,100,100,100,,60
-Mold Charge,None,Medium,3 x 2,150,150,150,150,150,150,150,,60
-Mold Charge,None,Large,4 x 2.25,200,200,200,200,200,200,200,,60
+Name,Application,Size,Size Example,price48,price144,price576,price1152,price2880,price10000,price20000,Mold Charge
+3D Embroidery,Direct,Small,2 x 1.5,2.25,1.5,1.18,1,0.88,0.7,0.7,
+3D Embroidery,Patch,Small,2 x 1.5,3.75,2.75,2.18,1.9,1.63,1.3,1.3,
+3D Embroidery,Direct,Medium,3 x 2,2.75,2,1.68,1.55,1.5,1.33,1.33,
+3D Embroidery,Patch,Medium,3 x 2,4.25,3.25,2.68,2.45,2.25,1.93,1.93,
+3D Embroidery,Direct,Large,4 x 2.25,3.5,2.38,2.05,1.88,1.75,1.58,1.58,
+3D Embroidery,Patch,Large,4 x 2.25,5,3.63,3.05,2.78,2.5,2.18,2.18,
+Flat Embroidery,Direct,Small,2 x 1.5,1.75,1.13,0.88,0.75,0.63,0.5,0.5,
+Flat Embroidery,Patch,Small,2 x 1.5,2.5,1.75,1.38,1.2,1,0.8,0.8,
+Flat Embroidery,Direct,Medium,3 x 2,2.25,1.63,1.38,1.3,1.25,1.13,1.13,
+Flat Embroidery,Patch,Medium,3 x 2,3,2.25,1.88,1.75,1.63,1.43,1.43,
+Flat Embroidery,Direct,Large,4 x 2.25,3,2,1.75,1.63,1.5,1.38,1.38,
+Flat Embroidery,Patch,Large,4 x 2.25,3.75,2.63,2.25,2.08,1.88,1.68,1.68,
+Screen Print,Direct,Small,2 x 1.5,1.75,1.13,0.88,0.75,0.63,0.5,0.5,
+Screen Print,Patch,Small,2 x 1.5,2.5,1.75,1.38,1.2,1,0.8,0.8,
+Screen Print,Direct,Medium,3 x 2,2.25,1.63,1.38,1.3,1.25,1.13,1.13,
+Screen Print,Patch,Medium,3 x 2,3,2.25,1.88,1.75,1.63,1.43,1.43,
+Screen Print,Direct,Large,4 x 2.25,3,2,1.75,1.63,1.5,1.38,1.38,
+Screen Print,Patch,Large,4 x 2.25,3.75,2.63,2.25,2.08,1.88,1.68,1.68,
+Sublimation,Direct,Small,2 x 1.5,1.75,1.13,0.88,0.75,0.63,0.5,0.5,
+Sublimation,Patch,Small,2 x 1.5,2.5,1.75,1.38,1.2,1,0.8,0.8,
+Sublimation,Direct,Medium,3 x 2,2.25,1.63,1.38,1.3,1.25,1.13,1.13,
+Sublimation,Patch,Medium,3 x 2,3,2.25,1.88,1.75,1.63,1.43,1.43,
+Sublimation,Direct,Large,4 x 2.25,3,2,1.75,1.63,1.5,1.38,1.38,
+Sublimation,Patch,Large,4 x 2.25,3.75,2.63,2.25,2.08,1.88,1.68,1.68,
+Woven,Patch,Small,2 x 1.5,2.75,2,1.5,1.33,1.13,0.93,0.93,
+Woven,Patch,Medium,3 x 2,3.25,2.38,2,1.83,1.63,1.43,1.43,
+Woven,Patch,Large,4 x 2.25,3.75,2.88,2.5,2.33,2.13,1.93,1.93,
+Rubber,Patch,Small,2 x 1.5,3.25,2.38,2.13,1.95,1.75,1.55,1.55,Small Mold Charge
+Rubber,Patch,Medium,3 x 2,3.88,2.88,2.63,2.45,2.25,2.05,2.05,Medium Mold Charge
+Rubber,Patch,Large,4 x 2.25,4.5,3.63,3,2.7,2.5,2.3,2.3,Large Mold Charge
+Leather,Patch,Small,2 x 1.5,3.25,2.13,1.75,1.58,1.38,1.18,1.18,Medium Mold Charge
+Leather,Patch,Medium,3 x 2,3.75,2.5,2.25,2.08,1.88,1.68,1.68,Small Mold Charge
+Leather,Patch,Large,4 x 2.25,4.13,2.88,2.63,2.45,2.25,2.05,2.05,Large Mold Charge
+Mold Charge,None,Small,2 x 1.5,100,100,100,100,100,100,100,
+Mold Charge,None,Medium,3 x 2,150,150,150,150,150,150,150,
+Mold Charge,None,Large,4 x 2.25,200,200,200,200,200,200,200,

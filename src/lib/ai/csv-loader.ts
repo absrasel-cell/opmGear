@@ -188,7 +188,7 @@ export class AIDataLoader {
   }
 
   static async getPricingTiers(): Promise<PricingTier[]> {
-    return loadCSVData<PricingTier>('csv/Blank Cap Pricings.csv');
+    return loadCSVData<PricingTier>('ai/Blank Cap/priceTier.csv');
   }
 
   static async getLogoOptions(): Promise<LogoOption[]> {
@@ -241,11 +241,14 @@ export class AIDataLoader {
     
     if (!tier) return 0;
 
+    // CRITICAL FIX: Correct tier boundaries for base product pricing
+    // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
     if (quantity >= 10000) return tier.price10000;
-    if (quantity >= 2880) return tier.price2880;
-    if (quantity >= 1152) return tier.price1152;
-    if (quantity >= 576) return tier.price576;
-    if (quantity >= 144) return tier.price144;
+    if (quantity >= 2880) return tier.price10000;
+    if (quantity >= 1152) return tier.price2880;
+    if (quantity >= 576) return tier.price1152;
+    if (quantity >= 144) return tier.price576;
+    if (quantity >= 48) return tier.price144;
     return tier.price48;
   }
 
@@ -290,13 +293,15 @@ export class AIDataLoader {
     }
 
     // Get unit price based on quantity
+    // CRITICAL FIX: Correct tier boundaries for logo pricing
     let unitPrice = 0;
     if (quantity >= 20000) unitPrice = logo.price20000 || 0;
     else if (quantity >= 10000) unitPrice = logo.price10000 || 0;
-    else if (quantity >= 2880) unitPrice = logo.price2880 || 0;
-    else if (quantity >= 1152) unitPrice = logo.price1152 || 0;
-    else if (quantity >= 576) unitPrice = logo.price576 || 0;
-    else if (quantity >= 144) unitPrice = logo.price144 || 0;
+    else if (quantity >= 2880) unitPrice = logo.price10000 || 0;
+    else if (quantity >= 1152) unitPrice = logo.price2880 || 0;
+    else if (quantity >= 576) unitPrice = logo.price1152 || 0;
+    else if (quantity >= 144) unitPrice = logo.price576 || 0;
+    else if (quantity >= 48) unitPrice = logo.price144 || 0;
     else unitPrice = logo.price48 || 0;
 
     // Calculate mold charge for patches
@@ -399,13 +404,14 @@ export class AIDataLoader {
     const delivery = deliveryOptions.find(d => d.Name === methodName);
     if (!delivery) return 0;
 
-    // Get unit price based on quantity
+    // CRITICAL FIX: Get unit price based on quantity with correct tier boundaries
     let unitPrice = 0;
     if (quantity >= 10000) unitPrice = delivery.price10000;
-    else if (quantity >= 2880) unitPrice = delivery.price2880;
-    else if (quantity >= 1152) unitPrice = delivery.price1152;
-    else if (quantity >= 576) unitPrice = delivery.price576;
-    else if (quantity >= 144) unitPrice = delivery.price144;
+    else if (quantity >= 2880) unitPrice = delivery.price10000;
+    else if (quantity >= 1152) unitPrice = delivery.price2880;
+    else if (quantity >= 576) unitPrice = delivery.price1152;
+    else if (quantity >= 144) unitPrice = delivery.price576;
+    else if (quantity >= 48) unitPrice = delivery.price144;
     else unitPrice = delivery.price48;
 
     return unitPrice * quantity;

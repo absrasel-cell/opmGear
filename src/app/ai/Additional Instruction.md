@@ -21,6 +21,19 @@
 - Upper Bill: Medium Embroidery (Direct)
 - Under Bill: Large Sublimated Print (Direct)
 
+🚨 **CRITICAL APPLICATION RULE**:
+- ALL Embroidery types MUST use "Direct" application (NEVER "Patch")
+- Print Patch = Map to "Screen Print" with "Direct" application (use Screen Print CSV pricing)
+- Screen Print = ALWAYS "Direct" application (NEVER "Patch")
+- Refer to CSV files for current pricing on all embroidery and closure options
+
+🚨 **CRITICAL CLOSURE PRICING RULE**:
+**ALWAYS USE CSV DATA FOR QUANTITY-BASED CLOSURE PRICING:**
+- Buckle at 144 pieces = $0.88 per piece (NOT $0.30)
+- Fitted at 576 pieces = $0.75 per piece (NOT $0.30)
+- Flexfit at 144 pieces = $1.00 per piece (NOT $0.30)
+- NEVER use hardcoded $0.30 - Always reference CSV pricing tiers
+
 ### Delivery
 - Default: Regular UPS, 6–10 days
 - Freight (Air/Sea): only if ≥3168 units
@@ -57,7 +70,7 @@
 
 ### Packaging Options:
 - **Standard Boxing**: Included in shipping cost
-- **Polybags**: $0.30 (48), $0.25 (144+), $0.20 (576+) - individual cap protection
+- **Polybags**: Refer to CSV for current pricing - individual cap protection
 - **Custom Packaging**: Available for premium orders (contact for pricing)
 
 ### International Shipping:
@@ -70,13 +83,13 @@
 ### Always Collect Customer Information:
 **Required Details**: Full Name, Complete Address, Phone Number, Email Address
 **Order Confirmation**: Bill Shape, Profile, Closure Type, Structure, Fabric Type
-**Additional Services**: Ask about Graphics Design ($50) and Physical Sampling ($150)
+**Additional Services**: Ask about Graphics Design and Physical Sampling (refer to CSV for current pricing)
 
 ### Logo Recommendation Logic:
 **Simple Logos (≤6 colors)**: Use Embroidery (most cost-effective)
 **Complex Multi-Color Logos**: Recommend Sublimation, Screen Print, or Woven Patch
 **Premium/Corporate Logos**: Suggest Rubber or Leather Patches for professional appearance
-**3D Effect**: Add 3D Embroidery for raised, dimensional look (+$0.15-0.20 per cap)
+**3D Effect**: Add 3D Embroidery for raised, dimensional look (refer to CSV for current pricing)
 
 ### Order Type Recommendations:
 **Budget Orders**: Default to Tier 1 caps with standard embroidery

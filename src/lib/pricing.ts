@@ -16,22 +16,28 @@ export interface ClientPricing {
 
 // Helper function to get price for quantity from CSV pricing data (client-safe)
 export function getPriceForQuantityFromCSV(pricing: any, quantity: number): number {
+  // CRITICAL FIX: Correct tier boundaries to match business requirements
+  // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
   if (quantity >= 20000 && pricing.price20000) return pricing.price20000;
-  if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
+  if (quantity >= 10000 && pricing.price10000) return pricing.price10000;
+  if (quantity >= 2880 && pricing.price10000) return pricing.price10000;
+  if (quantity >= 1152 && pricing.price2880) return pricing.price2880;
+  if (quantity >= 576 && pricing.price1152) return pricing.price1152;
+  if (quantity >= 144 && pricing.price576) return pricing.price576;
+  if (quantity >= 48 && pricing.price144) return pricing.price144;
   return pricing.price48;
 }
 
 // Client-safe unit price calculation (requires pricing data as parameter)
 export function calculateUnitPrice(quantity: number, pricingData: ClientPricing): number {
+  // CRITICAL FIX: Correct tier boundaries to match business requirements
+  // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
   if (quantity >= 10000) return pricingData.price10000;
-  if (quantity >= 2880) return pricingData.price2880;
-  if (quantity >= 1152) return pricingData.price1152;
-  if (quantity >= 576) return pricingData.price576;
-  if (quantity >= 144) return pricingData.price144;
+  if (quantity >= 2880) return pricingData.price10000;
+  if (quantity >= 1152) return pricingData.price2880;
+  if (quantity >= 576) return pricingData.price1152;
+  if (quantity >= 144) return pricingData.price576;
+  if (quantity >= 48) return pricingData.price144;
   return pricingData.price48;
 }
 

@@ -111,15 +111,17 @@ async function loadBlankCapPricingForInvoices(): Promise<Record<string, any>> {
   }
 }
 
-// Calculate unit price from CSV data (same logic as product pages)
+// CRITICAL FIX: Calculate unit price from CSV data with correct tier boundaries
 function calculateUnitPriceFromCSV(quantity: number, tierData: any): number {
   if (!tierData) return 3.2; // Fallback
   
+  // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
   if (quantity >= 10000) return tierData.price10000;
-  if (quantity >= 2880) return tierData.price2880;
-  if (quantity >= 1152) return tierData.price1152;
-  if (quantity >= 576) return tierData.price576;
-  if (quantity >= 144) return tierData.price144;
+  if (quantity >= 2880) return tierData.price10000;
+  if (quantity >= 1152) return tierData.price2880;
+  if (quantity >= 576) return tierData.price1152;
+  if (quantity >= 144) return tierData.price576;
+  if (quantity >= 48) return tierData.price144;
   return tierData.price48;
 }
 
@@ -162,11 +164,14 @@ async function loadCustomizationPricing(): Promise<CustomizationPricing[]> {
 }
 
 function getPriceForQuantity(pricing: CustomizationPricing, quantity: number): number {
+  // CRITICAL FIX: Correct tier boundaries to match business requirements
+  // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
   if (quantity >= 10000) return pricing.price10000;
-  if (quantity >= 2880) return pricing.price2880;
-  if (quantity >= 1152) return pricing.price1152;
-  if (quantity >= 576) return pricing.price576;
-  if (quantity >= 144) return pricing.price144;
+  if (quantity >= 2880) return pricing.price10000;
+  if (quantity >= 1152) return pricing.price2880;
+  if (quantity >= 576) return pricing.price1152;
+  if (quantity >= 144) return pricing.price576;
+  if (quantity >= 48) return pricing.price144;
   return pricing.price48;
 }
 

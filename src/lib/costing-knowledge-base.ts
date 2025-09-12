@@ -388,12 +388,15 @@ export function getPriceForQuantity(pricing: any, quantity: number): number {
            parseFloat(price) > 0;
   };
 
+  // CRITICAL FIX: Correct tier boundaries to match business requirements
+  // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
   if (quantity >= 20000 && isValidPrice(pricing.price20000)) return pricing.price20000;
   if (quantity >= 10000 && isValidPrice(pricing.price10000)) return pricing.price10000;
-  if (quantity >= 2880 && isValidPrice(pricing.price2880)) return pricing.price2880;
-  if (quantity >= 1152 && isValidPrice(pricing.price1152)) return pricing.price1152;
-  if (quantity >= 576 && isValidPrice(pricing.price576)) return pricing.price576;
-  if (quantity >= 144 && isValidPrice(pricing.price144)) return pricing.price144;
+  if (quantity >= 2880 && isValidPrice(pricing.price10000)) return pricing.price10000;
+  if (quantity >= 1152 && isValidPrice(pricing.price2880)) return pricing.price2880;
+  if (quantity >= 576 && isValidPrice(pricing.price1152)) return pricing.price1152;
+  if (quantity >= 144 && isValidPrice(pricing.price576)) return pricing.price576;
+  if (quantity >= 48 && isValidPrice(pricing.price144)) return pricing.price144;
   
   // Return base price if valid, otherwise 0 (indicating service not available)
   return isValidPrice(pricing.price48) ? pricing.price48 : 0;
