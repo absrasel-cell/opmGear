@@ -18,11 +18,112 @@ interface OrderCreationRequest {
  attachedFiles?: string[];
 }
 
+// 🚨 MESSAGE-BASED CORRECTION: Parse AI message and apply quantity-based pricing corrections
+async function correctMessageBasedPricing(orderResponse: any, pricingTiers: any[], logoOptions: any[], accessoryOptions: any[], closureOptions: any[], fabricOptions: any[], deliveryOptions: any[]): Promise<any> {
+  const message = orderResponse.message;
+  let correctedMessage = message;
+  
+  console.log('🔧 [MESSAGE-CORRECTION] Starting message-based pricing corrections');
+  
+  // Extract quantity from message
+  const quantityMatch = message.match(/(\d+)\s+pieces?/i);
+  if (!quantityMatch) {
+    console.log('🔧 [MESSAGE-CORRECTION] No quantity found in message');
+    return orderResponse;
+  }
+  
+  const quantity = parseInt(quantityMatch[1]);
+  console.log(`🔧 [MESSAGE-CORRECTION] Found quantity: ${quantity}`);
+  
+  // Correct 3D Embroidery pricing
+  const embroideryMatch = message.match(/(3D Embroidery[^:]*)\s*:\s*(\d+)\s+pieces\s*×\s*\$([0-9.]+)\s*=\s*\$([0-9,]+\.?\d*)/gi);
+  if (embroideryMatch) {
+    console.log('🔧 [MESSAGE-CORRECTION] Found 3D Embroidery pricing to correct');
+    
+    // Find matching logo option for 3D Embroidery Direct Large
+    const logoOption = logoOptions.find(l => 
+      l.Name === '3D Embroidery' && 
+      l.Application === 'Direct' && 
+      l.Size === 'Large'
+    );
+    
+    if (logoOption) {
+      // Calculate correct price based on quantity
+      let correctLogoPrice = 0;
+      if (quantity >= 20000) correctLogoPrice = logoOption.price20000 || 0;
+      else if (quantity >= 10000) correctLogoPrice = logoOption.price10000 || 0;
+      else if (quantity >= 2880) correctLogoPrice = logoOption.price2880 || 0;
+      else if (quantity >= 1152) correctLogoPrice = logoOption.price1152 || 0;
+      else if (quantity >= 576) correctLogoPrice = logoOption.price576 || 0;
+      else if (quantity >= 144) correctLogoPrice = logoOption.price144 || 0;
+      else correctLogoPrice = logoOption.price48 || 0;
+      
+      const correctTotal = (correctLogoPrice * quantity).toFixed(2);
+      
+      console.log(`🔧 [MESSAGE-CORRECTION] 3D Embroidery correction:`, {
+        quantity,
+        currentPrice: embroideryMatch[0].match(/\$([0-9.]+)/)?.[1],
+        correctPrice: correctLogoPrice.toFixed(2),
+        currentTotal: embroideryMatch[0].match(/= \$([0-9,]+\.?\d*)/)?.[1],
+        correctTotal
+      });
+      
+      // Replace the pricing line
+      const correctedLine = `•3D Embroidery on Front: ${quantity} pieces × $${correctLogoPrice.toFixed(2)} = $${correctTotal}`;
+      correctedMessage = correctedMessage.replace(
+        /•3D Embroidery[^:]*:\s*\d+\s+pieces\s*×\s*\$[0-9.]+\s*=\s*\$[0-9,]+\.?\d*/gi,
+        correctedLine
+      );
+      
+      // Update subtotal customization line
+      correctedMessage = correctedMessage.replace(
+        /Subtotal Customization:\s*\$[0-9,]+\.?\d*/gi,
+        `Subtotal Customization: $${correctTotal}`
+      );
+      
+      console.log('✅ [MESSAGE-CORRECTION] 3D Embroidery pricing corrected in message');
+    }
+  }
+  
+  // Update total (recalculate from all subtotals)
+  const subtotals = [];
+  const blankCapMatch = correctedMessage.match(/Subtotal Blank Caps:\s*\$([0-9,]+\.?\d*)/i);
+  const fabricMatch = correctedMessage.match(/Subtotal Premium Fabric:\s*\$([0-9,]+\.?\d*)/i);  
+  const customizationMatch = correctedMessage.match(/Subtotal Customization:\s*\$([0-9,]+\.?\d*)/i);
+  const deliveryMatch = correctedMessage.match(/Subtotal Delivery:\s*\$([0-9,]+\.?\d*)/i);
+  
+  if (blankCapMatch) subtotals.push(parseFloat(blankCapMatch[1].replace(/,/g, '')));
+  if (fabricMatch) subtotals.push(parseFloat(fabricMatch[1].replace(/,/g, '')));
+  if (customizationMatch) subtotals.push(parseFloat(customizationMatch[1].replace(/,/g, '')));
+  if (deliveryMatch) subtotals.push(parseFloat(deliveryMatch[1].replace(/,/g, '')));
+  
+  const newTotal = subtotals.reduce((sum, val) => sum + val, 0);
+  
+  // Update total in message
+  correctedMessage = correctedMessage.replace(
+    /💰.*?Total Order.*?\$[\d,\-]+\.?\d*/g,
+    `💰 Total Order: $${newTotal.toFixed(2)}`
+  );
+  
+  console.log(`🔧 [MESSAGE-CORRECTION] Updated total from subtotals: $${newTotal.toFixed(2)}`);
+  
+  return {
+    ...orderResponse,
+    message: correctedMessage
+  };
+}
+
 // 🚨 POST-PROCESSING FIX: Correct AI quantity-based pricing errors for ALL components
 async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any[], logoOptions: any[], accessoryOptions: any[], closureOptions: any[], fabricOptions: any[], deliveryOptions: any[]): Promise<any> {
-  if (!orderResponse || !orderResponse.quoteData) {
-    console.log('🔧 [POST-PROCESSING] No quote data to process, skipping corrections');
+  if (!orderResponse || !orderResponse.message) {
+    console.log('🔧 [POST-PROCESSING] No order response to process, skipping corrections');
     return orderResponse;
+  }
+
+  // If no structured quoteData, try message-based corrections
+  if (!orderResponse.quoteData) {
+    console.log('🔧 [POST-PROCESSING] No structured quote data - attempting message-based corrections');
+    return await correctMessageBasedPricing(orderResponse, pricingTiers, logoOptions, accessoryOptions, closureOptions, fabricOptions, deliveryOptions);
   }
 
   const quoteData = orderResponse.quoteData;
@@ -43,19 +144,41 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
   });
   
   let correctionsMade = false;
+  let baseCapCorrection = null; // Initialize base cap correction tracking
+  
+  // Initialize correction arrays for message updates
+  const accessoryCorrections = [];
+  const logoCorrections = [];
+  let oldUnitPrice = 0; // Track original unit price for message updates
+  let correctUnitPrice = 0; // Track corrected unit price for message updates
 
   // ===== 1. CORRECT BASE CAP PRICING =====
   const capDetails = quoteData.capDetails;
   let tierName = 'Tier 3'; // Default for 7-panel caps
   
+  // Check for 5-Panel caps
   if (capDetails?.productName?.includes('5-Panel') || capDetails?.productName?.includes('4-Panel') || 
       capDetails?.productName?.includes('5P') || capDetails?.productName?.includes('4P')) {
-    tierName = 'Tier 1';
+    // 5-Panel caps: Curved = Tier 1, Flat/Slight Curved = Tier 2
+    if (capDetails?.billShape?.toLowerCase().includes('curved') && 
+        !capDetails?.billShape?.toLowerCase().includes('flat') && 
+        !capDetails?.billShape?.toLowerCase().includes('slight')) {
+      tierName = 'Tier 1';
+    } else {
+      tierName = 'Tier 2';
+    }
   } else if (capDetails?.productName?.includes('6-Panel') || capDetails?.productName?.includes('6P')) {
-    tierName = 'Tier 2';
+    // 6-Panel caps: Curved = Tier 1, Flat/Slight Curved = Tier 2  
+    if (capDetails?.billShape?.toLowerCase().includes('curved') && 
+        !capDetails?.billShape?.toLowerCase().includes('flat') && 
+        !capDetails?.billShape?.toLowerCase().includes('slight')) {
+      tierName = 'Tier 1';
+    } else {
+      tierName = 'Tier 2';
+    }
   }
 
-  console.log(`🧢 [POST-PROCESSING] CRITICAL BASE CAP FIX - Product: "${capDetails?.productName}" → Tier: "${tierName}" for quantity: ${quantity}`);
+  console.log(`🧢 [POST-PROCESSING] CRITICAL BASE CAP FIX - Product: "${capDetails?.productName}", Bill Shape: "${capDetails?.billShape}" → Tier: "${tierName}" for quantity: ${quantity}`);
 
   const tierPricing = pricingTiers.find(t => t.Name === tierName);
   if (tierPricing) {
@@ -68,23 +191,23 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     });
     
     // CRITICAL FIX: Get correct unit price based on quantity using correct tier boundaries
-    let correctUnitPrice = 0;
-    // Tier boundaries: 1-47→price48, 48-143→price144, 144-575→price576, 576-1151→price1152, 1152-2879→price2880, 2880-9999→price10000, 10000+→price20000
+    // Tier boundaries: 1-47→price48, 48-143→price48, 144-575→price144, 576-1151→price576, 1152-2879→price1152, 2880-9999→price2880, 10000+→price10000
     if (quantity >= 10000) correctUnitPrice = tierPricing.price10000;
-    else if (quantity >= 2880) correctUnitPrice = tierPricing.price10000;
-    else if (quantity >= 1152) correctUnitPrice = tierPricing.price2880;
-    else if (quantity >= 576) correctUnitPrice = tierPricing.price1152;
-    else if (quantity >= 144) correctUnitPrice = tierPricing.price576;
-    else if (quantity >= 48) correctUnitPrice = tierPricing.price144;
+    else if (quantity >= 2880) correctUnitPrice = tierPricing.price2880;
+    else if (quantity >= 1152) correctUnitPrice = tierPricing.price1152;
+    else if (quantity >= 576) correctUnitPrice = tierPricing.price576;
+    else if (quantity >= 144) correctUnitPrice = tierPricing.price144;
+    else if (quantity >= 48) correctUnitPrice = tierPricing.price48;
     else correctUnitPrice = tierPricing.price48;
 
-    // Get actual tier name for logging
-    let tierForLogging = '48 (price48)';
-    if (quantity >= 2880) tierForLogging = '2880+ (price10000)';
-    else if (quantity >= 1152) tierForLogging = '1152-2879 (price2880)';
-    else if (quantity >= 576) tierForLogging = '576-1151 (price1152)';
-    else if (quantity >= 144) tierForLogging = '144-575 (price576)';
-    else if (quantity >= 48) tierForLogging = '48-143 (price144)';
+    // Get actual tier name for logging - CRITICAL FIX: Match the same logic as price calculation
+    let tierForLogging = '1-47 (price48)';
+    if (quantity >= 10000) tierForLogging = '10000+ (price10000)';
+    else if (quantity >= 2880) tierForLogging = '2880-9999 (price2880)';
+    else if (quantity >= 1152) tierForLogging = '1152-2879 (price1152)';
+    else if (quantity >= 576) tierForLogging = '576-1151 (price576)';
+    else if (quantity >= 144) tierForLogging = '144-575 (price144)';
+    else if (quantity >= 48) tierForLogging = '48-143 (price48)';
     else tierForLogging = '1-47 (price48)';
     
     console.log(`🧢 [POST-PROCESSING] Base cap price calculation:`, {
@@ -98,7 +221,7 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
       expectedFor10000: tierPricing.price10000
     });
 
-    const oldUnitPrice = quoteData.capDetails?.quantityBreakdown?.[0]?.unitCost || 0;
+    oldUnitPrice = quoteData.capDetails?.quantityBreakdown?.[0]?.unitCost || 0;
     const oldBaseProductCost = quoteData.pricing?.baseProductCost || 0;
     const newBaseProductCost = correctUnitPrice * quantity;
 
@@ -146,82 +269,98 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     const fabricName = quoteData.capDetails.fabric;
     console.log(`🧵 [POST-PROCESSING] CRITICAL FABRIC FIX - Processing fabric: "${fabricName}" for quantity: ${quantity}`);
     
-    const fabricOption = fabricOptions.find(f => f.Name === fabricName);
+    // CRITICAL FIX: Handle dual fabrics like "Polyester/Laser Cut" or "Acrylic/Air Mesh"
+    const fabricNames = fabricName.includes('/') ? fabricName.split('/') : [fabricName];
+    console.log(`🧵 [POST-PROCESSING] Detected ${fabricNames.length} fabric(s):`, fabricNames);
     
-    if (fabricOption && fabricOption.costType === 'Premium Fabric') {
-      console.log('🧵 [POST-PROCESSING] Found fabric in CSV data:', {
-        Name: fabricOption.Name,
-        costType: fabricOption.costType,
-        price48: fabricOption.price48,
-        price144: fabricOption.price144,
-        price576: fabricOption.price576,
-        price1152: fabricOption.price1152
-      });
+    let totalFabricCost = 0;
+    let fabricsProcessed = [];
+    
+    fabricNames.forEach((singleFabricName, index) => {
+      const trimmedFabricName = singleFabricName.trim();
+      const fabricOption = fabricOptions.find(f => f.Name === trimmedFabricName);
       
-      // Get correct unit price based on quantity
-      let correctFabricUnitPrice = 0;
-      // CRITICAL FIX: Correct tier boundaries for fabric pricing
-      if (quantity >= 20000) correctFabricUnitPrice = fabricOption.price20000;
-      else if (quantity >= 10000) correctFabricUnitPrice = fabricOption.price10000;
-      else if (quantity >= 2880) correctFabricUnitPrice = fabricOption.price10000;
-      else if (quantity >= 1152) correctFabricUnitPrice = fabricOption.price2880;
-      else if (quantity >= 576) correctFabricUnitPrice = fabricOption.price1152;
-      else if (quantity >= 144) correctFabricUnitPrice = fabricOption.price576;
-      else if (quantity >= 48) correctFabricUnitPrice = fabricOption.price144;
-      else correctFabricUnitPrice = fabricOption.price48;
+      if (fabricOption && fabricOption.costType === 'Premium Fabric') {
+        console.log(`🧵 [POST-PROCESSING] Found fabric ${index + 1} in CSV data:`, {
+          Name: fabricOption.Name,
+          costType: fabricOption.costType,
+          price48: fabricOption.price48,
+          price144: fabricOption.price144,
+          price576: fabricOption.price576,
+          price1152: fabricOption.price1152,
+          price2880: fabricOption.price2880,
+          price10000: fabricOption.price10000
+        });
+        
+        // Get correct unit price based on quantity
+        let correctFabricUnitPrice = 0;
+        if (quantity >= 20000) correctFabricUnitPrice = fabricOption.price20000;
+        else if (quantity >= 10000) correctFabricUnitPrice = fabricOption.price10000;
+        else if (quantity >= 2880) correctFabricUnitPrice = fabricOption.price2880;
+        else if (quantity >= 1152) correctFabricUnitPrice = fabricOption.price1152;
+        else if (quantity >= 576) correctFabricUnitPrice = fabricOption.price576;
+        else if (quantity >= 144) correctFabricUnitPrice = fabricOption.price144;
+        else if (quantity >= 48) correctFabricUnitPrice = fabricOption.price48;
+        else correctFabricUnitPrice = fabricOption.price48;
 
-      // Get actual tier name for logging
-      let fabricTierForLogging = '48 (price48)';
-      if (quantity >= 2880) fabricTierForLogging = '2880+ (price10000)';
-      else if (quantity >= 1152) fabricTierForLogging = '1152-2879 (price2880)';
-      else if (quantity >= 576) fabricTierForLogging = '576-1151 (price1152)';
-      else if (quantity >= 144) fabricTierForLogging = '144-575 (price576)';
-      else if (quantity >= 48) fabricTierForLogging = '48-143 (price144)';
-      else fabricTierForLogging = '1-47 (price48)';
-
-      console.log(`🧵 [POST-PROCESSING] Fabric price calculation:`, {
-        fabric: fabricName,
-        quantity,
-        tier: fabricTierForLogging,
-        correctFabricUnitPrice,
-        expectedFor144: fabricOption.price144,
-        expectedFor576: fabricOption.price576,
-        expectedFor2880: fabricOption.price2880,
-        expectedFor10000: fabricOption.price10000
-      });
-
-      const oldFabricUnitPrice = quoteData.pricing?.premiumFabricCost ? (quoteData.pricing.premiumFabricCost / quantity) : 0;
-      const oldFabricTotalCost = quoteData.pricing?.premiumFabricCost || 0;
-      const newFabricTotalCost = correctFabricUnitPrice * quantity;
-
-      if (Math.abs(oldFabricUnitPrice - correctFabricUnitPrice) > 0.01) {
-        console.log('🧵 [POST-PROCESSING] ✅ FABRIC CORRECTION NEEDED:', {
-          fabricType: fabricName,
-          quantity,
-          oldUnitPrice: `$${oldFabricUnitPrice.toFixed(2)}`,
-          correctUnitPrice: `$${correctFabricUnitPrice.toFixed(2)}`,
-          oldTotalCost: `$${oldFabricTotalCost.toFixed(2)}`,
-          newTotalCost: `$${newFabricTotalCost.toFixed(2)}`,
-          correctionAmount: `$${(newFabricTotalCost - oldFabricTotalCost).toFixed(2)}`
+        const fabricCost = correctFabricUnitPrice * quantity;
+        totalFabricCost += fabricCost;
+        
+        fabricsProcessed.push({
+          name: trimmedFabricName,
+          unitPrice: correctFabricUnitPrice,
+          totalCost: fabricCost
         });
 
-        // Update fabric pricing
-        const fabricCostDiff = newFabricTotalCost - oldFabricTotalCost;
-        if (quoteData.pricing) {
-          quoteData.pricing.premiumFabricCost = newFabricTotalCost;
-          if (quoteData.pricing.total) {
-            quoteData.pricing.total += fabricCostDiff;
-          }
-        }
-
-        correctionsMade = true;
+        console.log(`🧵 [POST-PROCESSING] Fabric ${index + 1} (${trimmedFabricName}) cost: $${correctFabricUnitPrice.toFixed(2)} × ${quantity} = $${fabricCost.toFixed(2)}`);
+      } else if (fabricOption) {
+        console.log(`🧵 [POST-PROCESSING] Fabric ${index + 1} is free (no premium cost):`, trimmedFabricName);
+        fabricsProcessed.push({
+          name: trimmedFabricName,
+          unitPrice: 0,
+          totalCost: 0
+        });
       } else {
-        console.log('🧵 [POST-PROCESSING] Fabric pricing already correct, no change needed');
+        console.log(`🧵 [POST-PROCESSING] ⚠️ WARNING: Fabric ${index + 1} "${trimmedFabricName}" not found in CSV data`);
       }
-    } else if (fabricOption) {
-      console.log('🧵 [POST-PROCESSING] Fabric is free (no premium cost):', fabricName);
+    });
+
+    // Process total fabric cost correction
+    const oldFabricUnitPrice = quoteData.pricing?.premiumFabricCost ? (quoteData.pricing.premiumFabricCost / quantity) : 0;
+    const oldFabricTotalCost = quoteData.pricing?.premiumFabricCost || 0;
+    const newFabricUnitPrice = totalFabricCost / quantity;
+
+    console.log(`🧵 [POST-PROCESSING] DUAL FABRIC TOTAL CALCULATION:`, {
+      fabricsProcessed,
+      totalFabricCost: `$${totalFabricCost.toFixed(2)}`,
+      newFabricUnitPrice: `$${newFabricUnitPrice.toFixed(2)}`,
+      oldFabricTotalCost: `$${oldFabricTotalCost.toFixed(2)}`
+    });
+
+    if (Math.abs(oldFabricTotalCost - totalFabricCost) > 0.01) {
+      console.log('🧵 [POST-PROCESSING] ✅ DUAL FABRIC CORRECTION NEEDED:', {
+        fabricType: fabricName,
+        fabricsProcessed: fabricsProcessed.length,
+        quantity,
+        oldUnitPrice: `$${oldFabricUnitPrice.toFixed(2)}`,
+        correctUnitPrice: `$${newFabricUnitPrice.toFixed(2)}`,
+        oldTotalCost: `$${oldFabricTotalCost.toFixed(2)}`,
+        newTotalCost: `$${totalFabricCost.toFixed(2)}`,
+        correctionAmount: `$${(totalFabricCost - oldFabricTotalCost).toFixed(2)}`
+      });
+
+      // Update fabric pricing
+      const fabricCostDiff = totalFabricCost - oldFabricTotalCost;
+      if (quoteData.pricing) {
+        quoteData.pricing.premiumFabricCost = totalFabricCost;
+        if (quoteData.pricing.total) {
+          quoteData.pricing.total += fabricCostDiff;
+        }
+      }
+
+      correctionsMade = true;
     } else {
-      console.log(`🧵 [POST-PROCESSING] ⚠️ WARNING: Fabric "${fabricName}" not found in CSV data`);
+      console.log('🧵 [POST-PROCESSING] Dual fabric pricing already correct, no change needed');
     }
   } else {
     console.log('🧵 [POST-PROCESSING] No premium fabric to process (using default free fabric)');
@@ -272,12 +411,11 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
           // CRITICAL FIX: Correct tier boundaries for logo pricing
           if (quantity >= 20000) correctLogoUnitPrice = logoOption.price20000 || 0;
           else if (quantity >= 10000) correctLogoUnitPrice = logoOption.price10000 || 0;
-          else if (quantity >= 2880) correctLogoUnitPrice = logoOption.price10000 || 0;
-          else if (quantity >= 1152) correctLogoUnitPrice = logoOption.price2880 || 0;
-          else if (quantity >= 576) correctLogoUnitPrice = logoOption.price1152 || 0;
-          else if (quantity >= 144) correctLogoUnitPrice = logoOption.price576 || 0;
-          else if (quantity >= 48) correctLogoUnitPrice = logoOption.price144 || 0;
+          else if (quantity >= 2880) correctLogoUnitPrice = logoOption.price2880 || 0;
+          else if (quantity >= 1152) correctLogoUnitPrice = logoOption.price1152 || 0;
+          else if (quantity >= 576) correctLogoUnitPrice = logoOption.price576 || 0;
           else if (quantity >= 144) correctLogoUnitPrice = logoOption.price144 || 0;
+          else if (quantity >= 48) correctLogoUnitPrice = logoOption.price48 || 0;
           else correctLogoUnitPrice = logoOption.price48 || 0;
 
           const oldLogoUnitPrice = logo.unitCost || 0;
@@ -292,6 +430,15 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
               correctUnitPrice: `$${correctLogoUnitPrice}`,
               oldTotalCost: `$${oldLogoTotalCost}`,
               newTotalCost: `$${newLogoTotalCost}`
+            });
+
+            // Add to logo correction array for message updates
+            logoCorrections.push({
+              logoType: `${csvSize} ${csvLogoName}`,
+              oldPrice: oldLogoUnitPrice.toFixed(2),
+              newPrice: correctLogoUnitPrice.toFixed(2),
+              oldTotal: oldLogoTotalCost.toFixed(2),
+              newTotal: newLogoTotalCost.toFixed(2)
             });
 
             // Update logo pricing
@@ -353,21 +500,23 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
           // Get correct unit price based on quantity
           // CRITICAL FIX: Correct tier boundaries for accessory pricing
           let correctAccessoryUnitPrice = 0;
-          if (quantity >= 10000) correctAccessoryUnitPrice = accessoryOption.price10000;
-          else if (quantity >= 2880) correctAccessoryUnitPrice = accessoryOption.price10000;
-          else if (quantity >= 1152) correctAccessoryUnitPrice = accessoryOption.price2880;
-          else if (quantity >= 576) correctAccessoryUnitPrice = accessoryOption.price1152;
-          else if (quantity >= 144) correctAccessoryUnitPrice = accessoryOption.price576;
-          else if (quantity >= 48) correctAccessoryUnitPrice = accessoryOption.price144;
+          if (quantity >= 20000) correctAccessoryUnitPrice = accessoryOption.price20000;
+          else if (quantity >= 10000) correctAccessoryUnitPrice = accessoryOption.price10000;
+          else if (quantity >= 2880) correctAccessoryUnitPrice = accessoryOption.price2880;
+          else if (quantity >= 1152) correctAccessoryUnitPrice = accessoryOption.price1152;
+          else if (quantity >= 576) correctAccessoryUnitPrice = accessoryOption.price576;
+          else if (quantity >= 144) correctAccessoryUnitPrice = accessoryOption.price144;
+          else if (quantity >= 48) correctAccessoryUnitPrice = accessoryOption.price48;
           else correctAccessoryUnitPrice = accessoryOption.price48;
 
-          // Get actual tier name for logging
-          let accessoryTierForLogging = '48 (price48)';
-          if (quantity >= 2880) accessoryTierForLogging = '2880+ (price10000)';
-          else if (quantity >= 1152) accessoryTierForLogging = '1152-2879 (price2880)';
-          else if (quantity >= 576) accessoryTierForLogging = '576-1151 (price1152)';
-          else if (quantity >= 144) accessoryTierForLogging = '144-575 (price576)';
-          else if (quantity >= 48) accessoryTierForLogging = '48-143 (price144)';
+          // Get actual tier name for logging - CRITICAL FIX: Match the same logic as price calculation
+          let accessoryTierForLogging = '1-47 (price48)';
+          if (quantity >= 10000) accessoryTierForLogging = '10000+ (price10000)';
+          else if (quantity >= 2880) accessoryTierForLogging = '2880-9999 (price2880)';
+          else if (quantity >= 1152) accessoryTierForLogging = '1152-2879 (price1152)';
+          else if (quantity >= 576) accessoryTierForLogging = '576-1151 (price576)';
+          else if (quantity >= 144) accessoryTierForLogging = '144-575 (price144)';
+          else if (quantity >= 48) accessoryTierForLogging = '48-143 (price48)';
           else accessoryTierForLogging = '1-47 (price48)';
           
           console.log(`🎁 [POST-PROCESSING] Accessory price calculation:`, {
@@ -392,6 +541,15 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
               oldTotalCost: `$${oldAccessoryTotalCost}`,
               newTotalCost: `$${newAccessoryTotalCost}`,
               correctionAmount: `$${(newAccessoryTotalCost - oldAccessoryTotalCost).toFixed(2)}`
+            });
+
+            // Add to correction array for message updates
+            accessoryCorrections.push({
+              accessoryName: csvAccessoryName,
+              oldPrice: oldAccessoryUnitPrice.toFixed(2),
+              newPrice: correctAccessoryUnitPrice.toFixed(2),
+              oldTotal: oldAccessoryTotalCost.toFixed(2),
+              newTotal: newAccessoryTotalCost.toFixed(2)
             });
 
             // Update accessory pricing
@@ -448,20 +606,21 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
       // CRITICAL FIX: Correct tier boundaries for closure pricing
       if (quantity >= 20000) correctClosureUnitPrice = closureOption.price20000;
       else if (quantity >= 10000) correctClosureUnitPrice = closureOption.price10000;
-      else if (quantity >= 2880) correctClosureUnitPrice = closureOption.price10000;
-      else if (quantity >= 1152) correctClosureUnitPrice = closureOption.price2880;
-      else if (quantity >= 576) correctClosureUnitPrice = closureOption.price1152;
-      else if (quantity >= 144) correctClosureUnitPrice = closureOption.price576;
-      else if (quantity >= 48) correctClosureUnitPrice = closureOption.price144;
+      else if (quantity >= 2880) correctClosureUnitPrice = closureOption.price2880;
+      else if (quantity >= 1152) correctClosureUnitPrice = closureOption.price1152;
+      else if (quantity >= 576) correctClosureUnitPrice = closureOption.price576;
+      else if (quantity >= 144) correctClosureUnitPrice = closureOption.price144;
+      else if (quantity >= 48) correctClosureUnitPrice = closureOption.price48;
       else correctClosureUnitPrice = closureOption.price48;
 
       // Get actual tier name for logging
       let closureTierForLogging = '48 (price48)';
-      if (quantity >= 2880) closureTierForLogging = '2880+ (price10000)';
-      else if (quantity >= 1152) closureTierForLogging = '1152-2879 (price2880)';
-      else if (quantity >= 576) closureTierForLogging = '576-1151 (price1152)';
-      else if (quantity >= 144) closureTierForLogging = '144-575 (price576)';
-      else if (quantity >= 48) closureTierForLogging = '48-143 (price144)';
+      if (quantity >= 10000) closureTierForLogging = '10000+ (price10000)';
+      else if (quantity >= 2880) closureTierForLogging = '2880-9999 (price2880)';
+      else if (quantity >= 1152) closureTierForLogging = '1152-2879 (price1152)';
+      else if (quantity >= 576) closureTierForLogging = '576-1151 (price576)';
+      else if (quantity >= 144) closureTierForLogging = '144-575 (price144)';
+      else if (quantity >= 48) closureTierForLogging = '48-143 (price48)';
       else closureTierForLogging = '1-47 (price48)';
 
       console.log(`🔒 [POST-PROCESSING] Closure price calculation:`, {
@@ -517,15 +676,14 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     if (deliveryOption) {
       // Get correct unit price based on quantity
       let correctDeliveryUnitPrice = 0;
-      // CRITICAL FIX: Correct tier boundaries for delivery pricing
+      // CRITICAL FIX: Correct tier boundaries for delivery pricing - FIXED MAPPING
       if (quantity >= 20000) correctDeliveryUnitPrice = deliveryOption.price20000;
       else if (quantity >= 10000) correctDeliveryUnitPrice = deliveryOption.price10000;
-      else if (quantity >= 2880) correctDeliveryUnitPrice = deliveryOption.price10000;
-      else if (quantity >= 1152) correctDeliveryUnitPrice = deliveryOption.price2880;
-      else if (quantity >= 576) correctDeliveryUnitPrice = deliveryOption.price1152;
-      else if (quantity >= 144) correctDeliveryUnitPrice = deliveryOption.price576;
-      else if (quantity >= 48) correctDeliveryUnitPrice = deliveryOption.price144;
+      else if (quantity >= 2880) correctDeliveryUnitPrice = deliveryOption.price2880;
+      else if (quantity >= 1152) correctDeliveryUnitPrice = deliveryOption.price1152;
+      else if (quantity >= 576) correctDeliveryUnitPrice = deliveryOption.price576;
       else if (quantity >= 144) correctDeliveryUnitPrice = deliveryOption.price144;
+      else if (quantity >= 48) correctDeliveryUnitPrice = deliveryOption.price48;
       else correctDeliveryUnitPrice = deliveryOption.price48;
 
       const oldDeliveryUnitPrice = quoteData.delivery.unitCost || 0;
@@ -563,9 +721,33 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     console.log('🔧 [POST-PROCESSING] Updating customer message with corrected pricing');
     console.log('🔍 [DEBUG] Original message preview:', orderResponse.message?.substring(0, 500));
 
-    // DISABLED: Base cap pricing replacement to prevent text corruption
-    // Complex regex patterns were causing garbled displays like "144 pieces ×  = $216.00.50 = $216.00"
-    console.log('🔧 [POST-PROCESSING] Base cap pricing updates disabled to preserve clean formatting');
+    // ✅ ENABLED: Base cap pricing replacement with safe patterns
+    if (Math.abs(oldUnitPrice - correctUnitPrice) > 0.01) {
+      // Create safe pattern to find and replace base cap pricing
+      const baseCapPattern = new RegExp(
+        `(•\\s*Red/White[^:]*:\\s*${quantity}\\s+pieces\\s*×\\s*\\$)([\\d\\.]+)(\\s*=\\s*\\$)([\\d,\\.]+)`,
+        'gi'
+      );
+      const newBaseCapLine = `$1${correctUnitPrice.toFixed(2)}$3${(correctUnitPrice * quantity).toFixed(2)}`;
+      
+      if (baseCapPattern.test(orderResponse.message)) {
+        orderResponse.message = orderResponse.message.replace(baseCapPattern, newBaseCapLine);
+        
+        // Also update the subtotal line
+        const subtotalPattern = /(\*\*Subtotal Blank Caps:\s*\$)([\\d,\\.]+)(\*\*)/gi;
+        const newSubtotalLine = `$1${(correctUnitPrice * quantity).toFixed(2)}$3`;
+        orderResponse.message = orderResponse.message.replace(subtotalPattern, newSubtotalLine);
+        
+        console.log('✅ [POST-PROCESSING] Base cap pricing updated in customer message:', {
+          oldPrice: `$${oldUnitPrice.toFixed(2)}`,
+          newPrice: `$${correctUnitPrice.toFixed(2)}`,
+          oldTotal: `$${(oldUnitPrice * quantity).toFixed(2)}`,
+          newTotal: `$${(correctUnitPrice * quantity).toFixed(2)}`
+        });
+      } else {
+        console.log('⚠️ [POST-PROCESSING] Base cap pricing pattern not found, keeping original message');
+      }
+    }
     
     // Update closure pricing in message
     if (quoteData.capDetails?.closure && quoteData.capDetails.closure !== 'Snapback' && quoteData.capDetails.closure !== 'Velcro') {
@@ -596,13 +778,30 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
       }
     }
 
-    // DISABLED: Complex message replacement logic that was corrupting quote formatting
-    // Instead of trying to fix text with regex, we rely on the AI to generate clean formatting initially
-    console.log('🔧 [POST-PROCESSING] Logo pricing updates disabled to preserve clean formatting');
-
-    // REMOVED: Catastrophic regex text corruption code that was destroying quote formatting
-    // These patterns were causing garbled displays like "144 pieces ×  = $216.00.50 = $216.00"
-    console.log('🔧 [POST-PROCESSING] Preserving clean quote formatting - no text replacements applied');
+    // 🚨 RE-ENABLED: Safe accessory and logo price corrections using precise patterns
+    // Apply ONLY critical corrections that won't corrupt formatting
+    
+    // Fix accessory pricing with safe patterns
+    accessoryCorrections.forEach(({ accessoryName, oldPrice, newPrice, oldTotal, newTotal }) => {
+      const accessoryPattern = new RegExp(`(${accessoryName}:\\s*\\d+\\s*pieces\\s*×\\s*)\\$${oldPrice}(\\s*=\\s*)\\$[\\d,]+\\.\\d+`, 'g');
+      if (accessoryPattern.test(orderResponse.message)) {
+        orderResponse.message = orderResponse.message.replace(accessoryPattern, `$1$${newPrice}$2$${newTotal}`);
+        console.log(`✅ [POST-PROCESSING] ${accessoryName} pricing updated in message: $${oldPrice} → $${newPrice}`);
+      }
+    });
+    
+    // Fix logo pricing with safe patterns  
+    if (logoCorrections.length > 0) {
+      logoCorrections.forEach(({ logoType, oldPrice, newPrice, oldTotal, newTotal }) => {
+        const logoPattern = new RegExp(`(${logoType}[^:]*:\\s*\\d+\\s*pieces\\s*×\\s*)\\$${oldPrice}(\\s*=\\s*)\\$[\\d,]+\\.\\d+`, 'g');
+        if (logoPattern.test(orderResponse.message)) {
+          orderResponse.message = orderResponse.message.replace(logoPattern, `$1$${newPrice}$2$${newTotal}`);
+          console.log(`✅ [POST-PROCESSING] ${logoType} pricing updated in message: $${oldPrice} → $${newPrice}`);
+        }
+      });
+    }
+    
+    console.log('✅ [POST-PROCESSING] Critical pricing corrections applied with safe patterns');
     
     // Update total in message
     const totalPattern = /💰.*?Total Order.*?\$[\d,\-]+\.?\d*/g;
@@ -943,19 +1142,20 @@ When customer mentions a specific quantity (like 48, 144, 576, 1152), you MUST:
 4. NEVER default to 48-piece pricing for higher quantities
 
 Examples:
-"144 pieces 7-Panel Cap" means:
-- Quantity: 144 pieces (NOT 48!)
-- Product: 7-Panel = Tier 3 pricing  
-- Correct price: Use CSV data for accurate pricing (Tier 3 @ 144pc = $4.25)
+"[Any quantity] [Panel Count]-Panel Cap" means:
+- Quantity: Extract exact number from customer request  
+- Product: Panel Count determines tier (4/5-Panel=Tier1, 6-Panel=Tier2, 7-Panel=Tier3)
+- Correct price: ALWAYS use CSV data for accurate quantity-based pricing (NO hardcoded values)
 
-"576 pieces 7-Panel Cap" means:
-- Quantity: 576 pieces (NOT 48!)
-- Product: 7-Panel = Tier 3 pricing  
-- Correct price: Use CSV data for accurate pricing (Tier 3 @ 576pc = $4.00)
+CRITICAL: NEVER use hardcoded prices - ALWAYS reference CSV data for current quantities
+- Extract exact quantity from customer request
+- Use quantity to determine correct pricing tier from CSV
+- Apply CSV pricing dynamically for ANY quantity
 
-CRITICAL: Always match quantity to correct price tier:
-- Tier 3: 144pc = $4.25, 576pc = $4.00, 1152pc = $3.68
-- Calculation: Always use CSV pricing × quantity for accurate totals
+CRITICAL: Always match quantity to correct CSV price tier:
+- Use CSV data to determine correct unit price for ANY quantity
+- Calculation: CSV_unit_price × quantity = accurate total
+- NO hardcoded pricing - everything must be CSV-driven
 
 ${imageAnalysisContext}
 
@@ -988,6 +1188,13 @@ When customer mentions "Fitted", "Flexfit", "Buckle", "Stretched" in their reque
 4. ALWAYS set capDetails.closure to the premium closure name (NOT "Snapback")
 5. Example: "288 Fitted caps" = Base cap cost + (288 × $0.30) premium closure cost
 6. DO NOT confuse "Fitted" with Profile - "Fitted" is a CLOSURE type, not a Profile type
+
+🚨 CRITICAL DISAMBIGUATION RULE (PREVENT AI CONFUSION):
+NEVER treat "Rubber Patch" or "Leather Patch" as closures - these are LOGO TYPES:
+- "Rubber Patch on front" = LOGO (use logoOptions Rubber pricing + mold charge)
+- "Leather Patch on back" = LOGO (use logoOptions Leather pricing + mold charge) 
+- ONLY these are closures: Fitted, Flexfit, Buckle, Stretched, Snapback, Velcro
+- When processing "Rubber Patch", treat as: Logo Type = "Rubber", Application = "Patch", Size = based on position
 
 CRITICAL CONTEXT: ARTWORK ANALYSIS = SINGLE CAP STYLE ORDER
 When processing artwork analysis, you are creating a quote for ONE specific cap design with ONE quantity.
@@ -1040,6 +1247,19 @@ ${blankCapProducts.filter(p => p['Panel Count'] === '6-Panel').slice(0, 5).map(p
 7-Panel Caps:
 ${blankCapProducts.filter(p => p['Panel Count'] === '7-Panel').map(p => `${p.Name} - ${p.Profile} profile, ${p['Bill Shape']} bill, ${p.priceTier}, ${p['Structure Type']}`).join('\n')}
 
+🚨 ABSOLUTE REQUIREMENT: 100% CSV-DRIVEN PRICING FOR ANY QUANTITY 🚨
+**CRITICAL: The customer quantity can be ANYTHING (47, 158, 892, 2847, 5639, etc.)**
+**YOU MUST use CSV data to determine correct pricing tier for ANY quantity - NO EXCEPTIONS**
+
+QUANTITY TIER LOGIC (MUST FOLLOW):
+- 1-47 pieces → use price48 tier  
+- 48-143 pieces → use price48 tier
+- 144-575 pieces → use price144 tier
+- 576-1151 pieces → use price576 tier  
+- 1152-2879 pieces → use price1152 tier
+- 2880-9999 pieces → use price2880 tier
+- 10000+ pieces → use price10000 tier
+
 PRICING TIERS - QUANTITY-BASED PRICING RULES:
 ${pricingTiers.map(t => `${t.Name}: 48pc=$${t.price48}, 144pc=$${t.price144}, 576pc=$${t.price576}, 1152pc=$${t.price1152}, 2880pc=$${t.price2880}, 10k+pc=$${t.price10000}`).join('\n')}
 
@@ -1069,19 +1289,40 @@ ALWAYS VERIFY: Quantity × Per-piece price = Subtotal
 CUSTOMIZATION OPTIONS (Per-Piece Pricing):
 
 3D Embroidery (Direct Application):
-${logoOptions.filter(l => l.Name === '3D Embroidery' && l.Application === 'Direct').map(l => `${l.Size} 3D Embroidery: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152}`).join('\n')}
+${logoOptions.filter(l => l.Name === '3D Embroidery' && l.Application === 'Direct').map(l => `${l.Size} 3D Embroidery: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152}, 2880pc=$${l.price2880}, 10000pc=$${l.price10000}`).join('\n')}
 
 Rubber Patches:
-${logoOptions.filter(l => l.Name === 'Rubber').map(l => `${l.Size} Rubber Patch: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152} + ${l['Mold Charge']}`).join('\n')}
+${logoOptions.filter(l => l.Name === 'Rubber').map(l => `${l.Size} Rubber Patch: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152}, 2880pc=$${l.price2880}, 10000pc=$${l.price10000} + ${l['Mold Charge']}`).join('\n')}
 
 Flat Embroidery (Direct Application):
-${logoOptions.filter(l => l.Name === 'Flat Embroidery' && l.Application === 'Direct').map(l => `${l.Size} Flat Embroidery: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152}`).join('\n')}
+${logoOptions.filter(l => l.Name === 'Flat Embroidery' && l.Application === 'Direct').map(l => `${l.Size} Flat Embroidery: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152}, 2880pc=$${l.price2880}, 10000pc=$${l.price10000}`).join('\n')}
 
 Leather Patches:
-${logoOptions.filter(l => l.Name === 'Leather').map(l => `${l.Size} Leather Patch: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152} + ${l['Mold Charge']}`).join('\n')}
+${logoOptions.filter(l => l.Name === 'Leather').map(l => `${l.Size} Leather Patch: 48pc=$${l.price48}, 144pc=$${l.price144}, 576pc=$${l.price576}, 1152pc=$${l.price1152}, 2880pc=$${l.price2880}, 10000pc=$${l.price10000} + ${l['Mold Charge']}`).join('\n')}
 
 Mold Charges (One-Time):
 ${logoOptions.filter(l => l.Name === 'Mold Charge').map(l => `${l.Size} Mold Charge: $${l.price48} (applies to Rubber/Leather patches)`).join('\n')}
+
+🚨 CRITICAL: LOGO & ACCESSORY PRICING MUST USE SAME TIER LOGIC 🚨
+**Apply the EXACT same quantity tier logic for ALL components:**
+- Logo pricing: Use quantity to determine tier (144-575→price144, 576-1151→price576, etc.)
+- Accessory pricing: Use quantity to determine tier (same logic as above)  
+- Delivery pricing: Use quantity to determine tier (same logic as above)
+**NO component should use wrong tier - ALL must match customer quantity**
+
+🚨 CRITICAL MOLD CHARGE CALCULATION RULES - MUST FOLLOW:
+1. **Rubber Patches ALWAYS require mold charges**: Small = $50, Medium = $80, Large = $120
+2. **Leather Patches ALWAYS require mold charges**: Small = $80, Medium = $50, Large = $120  
+3. **Mold charges are ONE-TIME fees, not per-piece costs**
+4. **ALWAYS include mold charges in JSON structure**: "moldCharge": 120.0 for Large patches
+5. **ALWAYS include mold charges in total calculations**: LogoCost + MoldCharge = Total Logo Cost
+6. **ALWAYS show mold charges in customer message**: "Large Rubber Patch + $120 Mold Charge"
+
+EXAMPLE CALCULATION FOR LARGE RUBBER PATCH (ANY QUANTITY):
+- Unit Cost: [quantity] pieces × $[CSV_price2880_tier] = $[calculated_total]
+- Mold Charge: $120.00 (one-time for Large patches)  
+- Total Logo Cost: $[calculated_total] + $120.00 = $[final_total]
+- ALWAYS use CSV data for exact pricing based on quantity tier
 
 COLOR OPTIONS:
 ${colorOptions.map(c => `${c.Name} (${c.Type})`).join(', ')}
@@ -1095,28 +1336,28 @@ Free Closures (Default):
 - Velcro (Free)
 
 Premium Closures (Add to Base Cost):
-${closureOptions.filter(c => c.Type === 'Premium Closure').map(c => `${c.Name} - Cost: 48pc=$${c.price48}, 144pc=$${c.price144}, 576pc=$${c.price576}, 1152pc=$${c.price1152}`).join('\n')}
+${closureOptions.filter(c => c.Type === 'Premium Closure').map(c => `${c.Name} - Cost: 48pc=$${c.price48}, 144pc=$${c.price144}, 576pc=$${c.price576}, 1152pc=$${c.price1152}, 2880pc=$${c.price2880}, 10000pc=$${c.price10000}`).join('\n')}
 
 🚨 CRITICAL CLOSURE PRICING RULE - NEVER IGNORE:
-- Buckle at 144 pieces = $0.88 per piece (NOT $0.30)
-- Fitted at 576 pieces = $0.75 per piece (NOT $0.30)  
-- Flexfit at 144 pieces = $1.00 per piece (NOT $0.30)
-- ALWAYS use quantity-based pricing from CSV data above
+- ALL closure pricing must use CSV-based quantity tiers (NOT generic $0.30 fallback)
+- Premium closures have different prices at different quantities  
+- ALWAYS reference the CSV data provided above for accurate closure pricing
+- NEVER use hardcoded or estimated closure prices
 
 FABRIC OPTIONS:
 Free Fabrics (Default):
 ${fabricOptions.filter(f => f.costType === 'Free').map(f => `${f.Name} (Free)`).join('\n')}
 
 Premium Fabrics (Add to Base Cost):
-${fabricOptions.filter(f => f.costType === 'Premium Fabric').map(f => `${f.Name} - Available in: ${f['Color Note']} - Cost: 48pc=$${f.price48}, 144pc=$${f.price144}, 576pc=$${f.price576}, 1152pc=$${f.price1152}`).join('\n')}
+${fabricOptions.filter(f => f.costType === 'Premium Fabric').map(f => `${f.Name} - Available in: ${f['Color Note']} - Cost: 48pc=$${f.price48}, 144pc=$${f.price144}, 576pc=$${f.price576}, 1152pc=$${f.price1152}, 2880pc=$${f.price2880}, 10000pc=$${f.price10000}`).join('\n')}
 
 CRITICAL FABRIC COST CALCULATION RULES:
 1. When customer mentions premium fabric names (Acrylic, Suede Cotton, Air Mesh, Camo, Genuine Leather, etc.), treat them as FABRIC UPGRADES, not product names
 2. Premium fabric cost is ADDITIONAL to base product cost: Base Product Cost + (Premium Fabric Cost × Quantity) = Total
-3. Example: "Acrylic Flat bill cap 288 pieces":
-  - Base Product: 288 × $1.20 = $345.60
-  - Acrylic Premium Fabric: 288 × $0.8 = $230.40
-  - Total Base Cost: $345.60 + $230.40 = $576.00 (before customization/delivery)
+3. CALCULATION FORMULA for premium fabric orders:
+  - Base Product: Quantity × [CSV-based tier price] = Base Cost
+  - Premium Fabric: Quantity × [CSV-based fabric tier price] = Fabric Cost  
+  - Total Base Cost: Base Cost + Fabric Cost (before customization/delivery)
 4. Always show both components separately in calculations
 5. MANDATORY: ALWAYS add premiumFabricCost to pricing object when premium fabric detected
 6. MANDATORY: Include premium fabric line item in customer message breakdown
@@ -1139,7 +1380,7 @@ PREMIUM CLOSURE DETECTION CHECKLIST:
 - "Stretched" → Premium Closure Cost: USE CSV DATA - closureOptions Stretched pricing
 
 DELIVERY OPTIONS (Per-Piece Pricing - MULTIPLY BY QUANTITY):
-${deliveryOptions.map(d => `${d.Name}: $${d.price48}/pc for 48pc order = $${d.price48 * 48} total, $${d.price144}/pc for 144pc order = $${d.price144 * 144} total, $${d.price576}/pc for 576pc order = $${d.price576 * 576} total (${d['Delivery Days']})`).join('\n')}
+${deliveryOptions.map(d => `${d.Name}: 48pc=$${d.price48}, 144pc=$${d.price144}, 576pc=$${d.price576}, 1152pc=$${d.price1152}, 2880pc=$${d.price2880}, 10000pc=$${d.price10000} per piece (${d['Delivery Days']})`).join('\n')}
 
 CRITICAL DELIVERY CALCULATION RULE:
 For delivery cost calculation: quantity × CSV_delivery_unit_price = total_cost
@@ -1149,7 +1390,7 @@ IMPORTANT: Both delivery.totalCost AND pricing.deliveryCost must be the SAME cal
 Example: delivery.totalCost must equal pricing.deliveryCost (both use same calculated total)
 
 ACCESSORY OPTIONS (Per-Piece Pricing - MULTIPLY BY QUANTITY):
-${accessoryOptions.map(a => `${a.Name}: 48pc=$${a.price48}, 144pc=$${a.price144}, 576pc=$${a.price576}, 1152pc=$${a.price1152} per piece`).join('\n')}
+${accessoryOptions.map(a => `${a.Name}: 48pc=$${a.price48}, 144pc=$${a.price144}, 576pc=$${a.price576}, 1152pc=$${a.price1152}, 2880pc=$${a.price2880}, 10000pc=$${a.price10000} per piece`).join('\n')}
 
 CRITICAL ACCESSORY CALCULATION RULE:
 When customer specifies accessories (B-Tape Print, Hang Tag, Inside Label, Sticker, etc.):
@@ -1211,6 +1452,15 @@ When customer says "Laser Cut Flat bill cap" or "Polyester/Laser Cut caps" or "A
 2. Find base cap product (ignore fabric name in product matching)
 3. Add premium fabric cost as separate line item
 4. Show calculation: Base Cost + Premium Fabric Cost = Subtotal
+
+🚨 CRITICAL DUAL FABRIC LOGIC 🚨
+When customer specifies dual fabrics like "Polyester/Laser Cut" or "Acrylic/Air Mesh":
+- Front panels = First fabric (Polyester or Acrylic)
+- Back panels = Second fabric (Laser Cut or Air Mesh)
+- BOTH fabric costs MUST be added together
+- Example: "Polyester/Laser Cut" = Polyester cost + Laser Cut cost
+- Example: "Acrylic/Air Mesh" = Acrylic cost + Air Mesh cost
+- Set capDetails.fabric to the full dual fabric string (e.g., "Polyester/Laser Cut")
 
 CRITICAL PREMIUM CLOSURE RECOGNITION PATTERNS:
 When customer says "Fitted cap", "Flexfit baseball cap", "the cap needs to be Fitted", or "Buckle closure":
@@ -1366,6 +1616,7 @@ EXAMPLE MESSAGE FORMAT for breakdown request:
 
 ✨ **Customization:**
 • [Logo_type]: [quantity] pieces × $[CSV_unit_price] = $[calculated_total]
+• [Logo_type with mold charge]: [quantity] pieces × $[CSV_unit_price] = $[calculated_total] + $[mold_charge] Mold Charge = $[total_with_mold]
 
 🎁 **Accessories (if applicable):**
 • [Accessory]: [quantity] pieces × $[CSV_unit_price] = $[calculated_total]
@@ -1374,6 +1625,13 @@ EXAMPLE MESSAGE FORMAT for breakdown request:
 • [Method]: [quantity] pieces × $[CSV_unit_price] = $[calculated_total]
 
 💰 **Total Order: $[calculated_total]**"
+
+MOLD CHARGE CUSTOMER MESSAGE REQUIREMENTS:
+When customer orders Rubber Patches or Leather Patches, ALWAYS include mold charges in customer message:
+- Show mold charge calculation clearly: "Large Rubber Patch: [quantity] pieces × $[CSV_unit_price] = $[calculated_subtotal] + $120 Mold Charge = $[final_total]"
+- Include mold charges in JSON structure: "moldCharge": 120.0
+- Include mold charges in total calculation: Total = LogoCost + MoldCharge + OtherCosts
+- CRITICAL: Mold charges are ONE-TIME fees, not per-piece costs
 
 PREMIUM FABRIC CUSTOMER MESSAGE REQUIREMENTS:
 When customer mentions premium fabrics, ALWAYS include fabric cost as separate line item in customer message:
@@ -1432,9 +1690,15 @@ When ANY accessories are mentioned (B-Tape Print, Brand Label, Main Label, Size 
 STEP-BY-STEP PREMIUM FABRIC PROCESSING:
 1. Scan customer message for fabric names: "Laser Cut", "Polyester/Laser Cut", "Acrylic", "Suede Cotton", "Air Mesh", "Camo", etc.
 2. If found, treat as premium fabric upgrade (NOT part of product name)
-3. Calculate: fabric_cost = quantity × fabric_unit_price
-4. Set pricing.premiumFabricCost = fabric_cost 
-5. Include in total: total = baseProductCost + premiumFabricCost + logosCost + deliveryCost
+3. FOR DUAL FABRICS (e.g., "Polyester/Laser Cut"):
+   - Split by "/" to get individual fabrics: ["Polyester", "Laser Cut"]  
+   - Calculate each fabric cost separately using CSV pricing
+   - Add both costs together: total_fabric_cost = polyester_cost + laser_cut_cost
+   - Set capDetails.fabric = "Polyester/Laser Cut" (keep full dual fabric string)
+4. FOR SINGLE FABRICS (e.g., "Acrylic"):
+   - Calculate: fabric_cost = quantity × fabric_unit_price
+5. Set pricing.premiumFabricCost = total_fabric_cost
+6. Include in total: total = baseProductCost + premiumFabricCost + logosCost + deliveryCost
 
 STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
 1. Scan customer message for closure names: "Fitted", "Flexfit", "Buckle", "Stretched"

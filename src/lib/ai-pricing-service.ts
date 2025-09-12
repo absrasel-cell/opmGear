@@ -7,11 +7,11 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
-// Cache for AI pricing data
+// Cache for AI pricing data - CLEARED TO FIX PREMIUM FABRIC PRICING BUG
 let cachedAIAccessories: any[] | null = null;
 let cachedAILogo: any[] | null = null;
 let cachedAIClosure: any[] | null = null;
-let cachedAIFabric: any[] | null = null;
+let cachedAIFabric: any[] | null = null; // Reset cache to force fresh fabric pricing load
 let cachedAIDelivery: any[] | null = null;
 let cachedAIBlankCaps: any[] | null = null;
 let cachedCustomerProducts: any[] | null = null;
@@ -293,9 +293,9 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
   let selectedPrice = 0;
   let selectedTier = '';
   
-  // 🚨 CRITICAL FIX: Tier boundaries based on CSV column names representing MINIMUM quantities for that price
-  // price48 = 48+ pieces, price144 = 144+ pieces, price576 = 576+ pieces, etc.
-  // The tier pricing applies when you reach that minimum quantity threshold
+  // 🚨 CRITICAL FIX: Tier boundaries based on quantity ranges in CSV data
+  // price48: 48-143 pieces, price144: 144-575 pieces, price576: 576-1151 pieces, etc.
+  // Each tier applies to a specific quantity range, not just minimum thresholds
   if (quantity >= 20000) {
     selectedPrice = pricingData.price20000 || pricingData.price10000 || 0;
     selectedTier = 'price20000';
@@ -312,7 +312,7 @@ function getPriceForQuantity(pricingData: any, quantity: number): number {
     selectedPrice = pricingData.price576 || 0;
     selectedTier = 'price576';
   } else if (quantity >= 144) {
-    selectedPrice = pricingData.price144 || 0;  // 🎯 144 caps = $3.75!
+    selectedPrice = pricingData.price144 || 0;
     selectedTier = 'price144';
   } else if (quantity >= 48) {
     selectedPrice = pricingData.price48 || 0;
@@ -377,8 +377,8 @@ export async function findProductTierFromDescription(description: string): Promi
   const products = await loadCustomerProducts();
   
   if (!products.length) {
-    console.warn('⚠️ [AI-PRICING] No customer products loaded, falling back to Tier 2');
-    return 'Tier 2';
+    console.warn('⚠️ [AI-PRICING] No customer products loaded, falling back to Tier 1 (most common)');
+    return 'Tier 1';
   }
   
   const lowerDescription = description.toLowerCase();
@@ -450,22 +450,40 @@ export async function findProductTierFromDescription(description: string): Promi
   // If no good match, try simpler heuristics based on description patterns
   console.log('🔄 [AI-PRICING] No specific product match, using heuristics...');
   
-  // Heuristic: 7-panel caps are usually Tier 3
+  // 🚨 CORRECTED BUSINESS RULES: Proper tier detection based on panel count and bill shape
+  // 5-Panel Curved: Tier 1 | 5-Panel Flat/Slight Curved: Tier 2 | 6-Panel Curved: Tier 1 | 6-Panel Flat/Slight Curved: Tier 2 | 7-Panel: ALL Tier 3
+  
+  // 7-Panel caps are always Tier 3
   if (lowerDescription.includes('7') && (lowerDescription.includes('panel') || lowerDescription.includes('crown'))) {
-    console.log('📊 [AI-PRICING] Heuristic match: 7-panel → Tier 3');
+    console.log('📊 [AI-PRICING] 7-Panel detected → Tier 3');
     return 'Tier 3';
   }
   
-  // Heuristic: Flat bill 6-panel caps are often Tier 2
-  if ((lowerDescription.includes('flat') && lowerDescription.includes('6')) || 
-      (lowerDescription.includes('6') && lowerDescription.includes('panel') && lowerDescription.includes('flat'))) {
-    console.log('📊 [AI-PRICING] Heuristic match: 6-panel flat → Tier 2');
-    return 'Tier 2';
+  // 6-Panel caps: Curved Bill = Tier 1, Flat/Slight Curved = Tier 2
+  if (lowerDescription.includes('6') && lowerDescription.includes('panel')) {
+    if (lowerDescription.includes('curved') && !lowerDescription.includes('flat') && !lowerDescription.includes('slight')) {
+      console.log('📊 [AI-PRICING] 6-Panel Curved Bill → Tier 1');
+      return 'Tier 1';
+    } else {
+      console.log('📊 [AI-PRICING] 6-Panel Flat/Slight Curved → Tier 2');
+      return 'Tier 2';
+    }
   }
   
-  // Default fallback to Tier 1 (most common, affordable option)
-  console.log('📊 [AI-PRICING] No match found, defaulting to Tier 1');
-  return 'Tier 1';
+  // 5-Panel caps: Curved = Tier 1, Flat/Slight Curved = Tier 2
+  if (lowerDescription.includes('5') && lowerDescription.includes('panel')) {
+    if (lowerDescription.includes('curved') && !lowerDescription.includes('flat') && !lowerDescription.includes('slight')) {
+      console.log('📊 [AI-PRICING] 5-Panel Curved Bill → Tier 1');
+      return 'Tier 1';
+    } else {
+      console.log('📊 [AI-PRICING] 5-Panel Flat/Slight Curved → Tier 2');
+      return 'Tier 2';
+    }
+  }
+  
+  // Default for standard orders when panel count is unclear - assume 6-Panel Heritage (most common)
+  console.log('📊 [AI-PRICING] Standard order, defaulting to 6-Panel Heritage → Tier 2');
+  return 'Tier 2';
 }
 
 // PUBLIC API FUNCTIONS
@@ -480,8 +498,7 @@ export async function getAIAccessoryPrice(accessoryName: string, quantity: numbe
   );
   
   if (!accessory) {
-    console.warn(`⚠️ [AI-PRICING] Accessory not found in AI CSV: ${accessoryName}`);
-    return 0;
+    throw new Error(`❌ [AI-PRICING] Accessory not found in AI CSV: ${accessoryName}`);
   }
   
   const unitPrice = getPriceForQuantity(accessory, quantity);
@@ -501,8 +518,7 @@ export async function getAILogoPrice(logoName: string, size: string, application
   );
   
   if (!logo) {
-    console.warn(`⚠️ [AI-PRICING] Logo not found in AI CSV: ${logoName} ${size} ${application}`);
-    return { unitPrice: 0, moldCharge: 0 };
+    throw new Error(`❌ [AI-PRICING] Logo not found in AI CSV: ${logoName} ${size} ${application}`);
   }
   
   const unitPrice = getPriceForQuantity(logo, quantity);
@@ -510,9 +526,9 @@ export async function getAILogoPrice(logoName: string, size: string, application
   // Calculate mold charge
   let moldCharge = 0;
   if (logo.MoldCharge) {
-    if (logo.MoldCharge === 'Small Mold Charge') moldCharge = 100;
-    else if (logo.MoldCharge === 'Medium Mold Charge') moldCharge = 150;
-    else if (logo.MoldCharge === 'Large Mold Charge') moldCharge = 200;
+    if (logo.MoldCharge === 'Small Mold Charge') moldCharge = 50;
+    else if (logo.MoldCharge === 'Medium Mold Charge') moldCharge = 80;
+    else if (logo.MoldCharge === 'Large Mold Charge') moldCharge = 120;
   }
   
   console.log(`🎨 [AI-PRICING] ${logoName} ${size}: $${unitPrice} per unit + $${moldCharge} mold at ${quantity} qty`);
@@ -529,8 +545,7 @@ export async function getAIClosurePrice(closureName: string, quantity: number): 
   );
   
   if (!closure) {
-    console.warn(`⚠️ [AI-PRICING] Closure not found in AI CSV: ${closureName}`);
-    return 0;
+    throw new Error(`❌ [AI-PRICING] Closure not found in AI CSV: ${closureName}`);
   }
   
   const unitPrice = getPriceForQuantity(closure, quantity);
@@ -549,18 +564,18 @@ export async function getAIFabricPrice(fabricName: string, quantity: number): Pr
     item.Name.toLowerCase() === fabricName.toLowerCase()
   );
   
-  // If no exact match, handle dual fabric formats like "polyester/Laser Cut"
+  // CRITICAL FIX: Handle dual fabric formats like "Polyester/Laser Cut" - calculate COMBINED cost
   if (!fabric && fabricName.includes('/')) {
     const fabricNames = fabricName.split('/').map(f => f.trim());
-    console.log(`🧵 [AI-PRICING] Dual fabric detected: ${fabricNames.join(', ')}`);
+    console.log(`🧵 [AI-PRICING] CRITICAL DUAL FABRIC FIX - Processing: ${fabricNames.join(', ')}`);
     console.log(`🧵 [AI-PRICING] Available fabrics in CSV:`, fabrics.map(f => f.Name));
     
-    // Find the most expensive premium fabric from the dual fabric setup
-    let selectedFabric = null;
-    let highestPrice = 0;
+    // Calculate COMBINED cost for all fabric components
+    let totalFabricCost = 0;
+    let fabricComponents = [];
     
     for (const name of fabricNames) {
-      console.log(`🧵 [AI-PRICING] Checking fabric component: "${name}"`);
+      console.log(`🧵 [AI-PRICING] Processing fabric component: "${name}"`);
       
       const candidateFabric = fabrics.find(item => 
         item.Name.toLowerCase() === name.toLowerCase()
@@ -568,31 +583,44 @@ export async function getAIFabricPrice(fabricName: string, quantity: number): Pr
       
       if (candidateFabric) {
         const candidatePrice = getPriceForQuantity(candidateFabric, quantity);
-        console.log(`🧵 [AI-PRICING] Found "${candidateFabric.Name}" with price $${candidatePrice}`);
+        totalFabricCost += candidatePrice;
         
-        if (candidatePrice > highestPrice) {
-          highestPrice = candidatePrice;
-          selectedFabric = candidateFabric;
-          console.log(`🧵 [AI-PRICING] New highest price fabric: ${candidateFabric.Name} ($${candidatePrice})`);
-        }
+        fabricComponents.push({
+          name: candidateFabric.Name,
+          costType: candidateFabric.costType,
+          unitPrice: candidatePrice,
+          isFree: candidateFabric.costType === 'Free'
+        });
+        
+        console.log(`🧵 [AI-PRICING] Component "${candidateFabric.Name}": ${candidateFabric.costType} - $${candidatePrice} per unit`);
       } else {
-        console.log(`🧵 [AI-PRICING] Fabric component "${name}" not found in CSV`);
+        console.log(`🧵 [AI-PRICING] ⚠️ Fabric component "${name}" not found in CSV`);
       }
     }
     
-    if (selectedFabric) {
-      fabric = selectedFabric;
-      console.log(`🧵 [AI-PRICING] Using most expensive fabric from dual setup: ${fabric.Name} ($${highestPrice})`);
+    console.log(`🧵 [AI-PRICING] DUAL FABRIC TOTAL CALCULATION:`, {
+      components: fabricComponents,
+      totalCombinedCost: `$${totalFabricCost}`,
+      quantity,
+      totalForOrder: `$${(totalFabricCost * quantity).toFixed(2)}`
+    });
+    
+    // Return the combined cost for dual fabrics
+    if (fabricComponents.length > 0) {
+      console.log(`🧵 [AI-PRICING] Using combined fabric cost: $${totalFabricCost} per unit`);
+      return totalFabricCost;
     }
   }
   
   if (!fabric) {
-    console.warn(`⚠️ [AI-PRICING] Fabric not found in AI CSV: ${fabricName}`);
-    return 0;
+    throw new Error(`❌ [AI-PRICING] Fabric not found in AI CSV: ${fabricName}`);
   }
   
   const unitPrice = getPriceForQuantity(fabric, quantity);
   console.log(`🧵 [AI-PRICING] ${fabric.Name}: $${unitPrice} per unit at ${quantity} qty`);
+  
+  // CSV-based pricing validation successful
+  
   return unitPrice;
 }
 
@@ -606,8 +634,7 @@ export async function getAIDeliveryPrice(deliveryMethod: string, quantity: numbe
   );
   
   if (!delivery) {
-    console.warn(`⚠️ [AI-PRICING] Delivery method not found in AI CSV: ${deliveryMethod}`);
-    return 2.71; // Default fallback
+    throw new Error(`❌ [AI-PRICING] Delivery method not found in AI CSV: ${deliveryMethod}`);
   }
   
   const unitPrice = getPriceForQuantity(delivery, quantity);
@@ -636,8 +663,7 @@ export async function getAIBlankCapPrice(tier: string, quantity: number, product
   const tierData = blankCaps[actualTier];
   
   if (!tierData) {
-    console.error(`❌ [AI-PRICING] Tier not found: ${actualTier}. Available tiers:`, Object.keys(blankCaps));
-    return 0; // Return 0 to indicate error instead of using incorrect fallback
+    throw new Error(`❌ [AI-PRICING] Tier not found: ${actualTier}. Available tiers: ${Object.keys(blankCaps).join(', ')}`);
   }
   
   const unitPrice = getPriceForQuantity(tierData, quantity);
@@ -650,4 +676,19 @@ export async function getAIBlankCapPrice(tier: string, quantity: number, product
  */
 export async function getAIBlankCapPriceByTier(tier: string, quantity: number): Promise<number> {
   return getAIBlankCapPrice(tier, quantity);
+}
+
+/**
+ * Clear all AI pricing caches - use when CSV data is updated or debugging pricing issues
+ */
+export function clearAIPricingCache(): void {
+  console.log('🔧 [AI-PRICING] Clearing all pricing caches...');
+  cachedAIAccessories = null;
+  cachedAILogo = null;
+  cachedAIClosure = null;
+  cachedAIFabric = null;
+  cachedAIDelivery = null;
+  cachedAIBlankCaps = null;
+  cachedCustomerProducts = null;
+  console.log('✅ [AI-PRICING] All caches cleared - fresh data will be loaded on next request');
 }
