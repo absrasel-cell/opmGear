@@ -36,7 +36,6 @@ import {
  type OrderRequirements
 } from '@/lib/order-ai-core';
 import { parseComplexOrder, convertToApiFormat } from '@/lib/enhanced-order-parser';
-import { validateAndCorrectAIPricing } from '@/lib/ai-pricing-validator';
 
 // Initialize OpenAI client lazily to handle missing env vars during build
 let openai: OpenAI | null = null;
@@ -261,11 +260,12 @@ In the meantime, I can tell you that for that quantity you're definitely in grea
    // Don't fail the request if saving fails
   }
   
-  // 🚨 CRITICAL FIX: Post-process response to validate and correct pricing
-  const validatedResponse = await validateAndCorrectAIPricing(response, localConversationContext);
+  // ❌ REMOVED ALL HARDCODED PRICING FIXES
+  // All pricing must come from CSV data - the system now throws errors if data is not found
+  let finalResponse = response;
 
   return NextResponse.json({
-   response: validatedResponse,
+   response: finalResponse,
    conversationId: conversation.id, // Return actual conversation ID
    processingTime,
    context: localConversationContext, // FIXED: Return the actual conversation context
@@ -418,9 +418,9 @@ PRICING STRUCTURE:
 
 FABRIC PRICING (IMPORTANT):
 • FREE Fabrics (no additional cost): Chino Twill, Trucker Mesh, Micro Mesh
-• PREMIUM Fabrics (additional cost above base cap price): Air Mesh (+$0.88@144qty), Acrylic (+$2.50@144qty), Suede Cotton (+$2.50@144qty), Genuine Leather (+$4.50@144qty)
+• PREMIUM Fabrics (additional cost above base cap price): Pricing varies by quantity tier - ALWAYS use ORDER ANALYSIS for exact costs
 • TOTAL CAP COST = Base Cap Price (from tier system) + Premium Fabric Cost (if applicable)
-• Example: 144 Acrylic caps = $3.75 base + $2.50 premium = $6.25 per cap
+• CRITICAL: DO NOT estimate costs - use only calculated values from ORDER ANALYSIS
 • Dual fabric caps: Base cap + any premium fabric upgrades for specific panels`;
   }
 
@@ -686,17 +686,17 @@ DETAILED COST BREAKDOWN:
 - Premium Fabric: $${costBreakdown.premiumFabricTotal?.toFixed(2)} ($${((costBreakdown.premiumFabricTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
        }
 
-       // Add accessories using NEW structure  
+       // Add accessories using EXACT GPT-FRIENDLY FORMAT
        if (costBreakdown.detailedBreakdown?.accessories?.length > 0) {
         orderAnalysis += `
 - Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)}`;
         costBreakdown.detailedBreakdown.accessories.forEach((accessory: any) => {
          orderAnalysis += `
- • ${accessory.name}: $${accessory.totalCost.toFixed(2)} ($${accessory.unitPrice.toFixed(2)} per cap)`;
+ • ${accessory.name}: ${orderQuote.quantity} pieces × $${accessory.unitPrice.toFixed(2)} = $${accessory.totalCost.toFixed(2)}`;
         });
        } else if (costBreakdown.accessoriesTotal > 0) {
         orderAnalysis += `
-- Accessories: $${costBreakdown.accessoriesTotal?.toFixed(2)} ($${((costBreakdown.accessoriesTotal || 0) / orderQuote.quantity).toFixed(2)} per cap)`;
+- Accessories: ${orderQuote.quantity} pieces × $${((costBreakdown.accessoriesTotal || 0) / orderQuote.quantity).toFixed(2)} = $${costBreakdown.accessoriesTotal?.toFixed(2)}`;
        }
 
        // Add closure costs using NEW structure
@@ -866,24 +866,21 @@ ${orderAnalysis}
 ⛔ **FORBIDDEN**: You cannot use mathematical operations on prices (no multiplication, division, rounding)
 ⛔ **FORBIDDEN**: You cannot estimate, approximate, or guess any pricing values
 ✅ **REQUIRED**: Copy EXACT unit prices and totals from CALCULATED PRICING DATA above
-✅ **REQUIRED**: When showing "144 pieces × $3.68 = $529.92", both $3.68 and $529.92 MUST come from data above
-✅ **REQUIRED**: Every number you show must have an exact match in the CALCULATED PRICING DATA section
-⚠️  **QUANTITY-TIER VALIDATION**: Different quantities have different unit prices:
-   - 144 pieces: Use ONLY the unit price shown for 144-piece tier
-   - 1200 pieces: Use ONLY the unit price shown for 1200-piece tier  
-   - 3200 pieces: Use ONLY the unit price shown for 3200-piece tier
-❌ **NEVER DO THIS**: Use the same unit price ($4.25) for different quantities
-✅ **ALWAYS DO THIS**: Use the specific unit price calculated for each quantity tier
+✅ **REQUIRED**: Copy EXACT pricing formats from CALCULATED PRICING DATA - never modify calculations
+✅ **REQUIRED**: Every number AND format must match CALCULATED PRICING DATA exactly  
+⚠️  **FORMATTING CORRUPTION PREVENTION**:
+❌ **NEVER SHOW**: "= = $53.44", "pieces × 81.44", or broken calculation formats
+❌ **NEVER CREATE**: Your own "pieces × price = total" calculations
+✅ **ALWAYS COPY**: The EXACT format from CALCULATED PRICING DATA
+✅ **VALIDATION**: Before showing ANY line, confirm it matches provided data EXACTLY
 
-🔍 **EXAMPLE OF CORRECT USAGE**:
-If the data shows "Base Product: $529.92 ($3.68 per cap)" for 144 pieces, you MUST write:
-"Base Product: 144 pieces × $3.68 = $529.92"
-DO NOT write: "Base Product: 144 pieces × $4.25 = $612.00" (wrong tier price)
+🔍 **PRODUCTION CRITICAL - EXACT COPY REQUIRED**:
+- If data shows: "Hang Tag: 288 pieces × $0.88 = $253.44" → Copy that EXACTLY  
+- If data shows: "Base Product: $9,000.00 ($3.60 per cap)" → Copy that EXACTLY
+- NEVER attempt to create calculation format yourself - only copy provided formats
+- ZERO TOLERANCE for formatting corruption or broken calculations
 
-❌ WRONG: "Fitted Closure: 576 pieces × $0.63 = $362.88" (using wrong tier price)
-✅ CORRECT: "Fitted Closure: 576 pieces × $1.00 = $576.00" (using provided data)
-
-VALIDATION CHECKPOINT: Before showing ANY price, confirm the unit price matches the provided data for that exact quantity.
+VALIDATION CHECKPOINT: Before showing ANY pricing line, confirm it matches CALCULATED PRICING DATA exactly.
 
 ORDER CREATION CAPABILITY:
 When customer confirms they want to proceed (ANY variation like "yes create order", "let's do it", "proceed", "confirm", "all good submit order" etc.), you WILL:
@@ -1182,14 +1179,14 @@ function generateDualCapOrderFallback(message: string): string {
 **Detailed Breakdown:**
 
 **Setup 1 - 6-Panel Black/White (144 pieces):**
-• Base Cap: 6-panel structured - $3.00/cap at 144+ quantity
-• Large Rubber Patch (Front): $1.20/cap
-• **Subtotal**: $6.20/cap × 144 = **$892.80**
+• Base Cap: 6-panel structured - pricing varies by quantity tier
+• Large Rubber Patch (Front): pricing varies by quantity tier
+• **Subtotal**: Use ORDER ANALYSIS for exact calculations
 
 **Setup 2 - 5-Panel Khaki/Red (288 pieces):**
-• Base Cap: 5-panel structured - $2.90/cap at 288+ quantity 
-• Large Rubber Patch (Front): $1.10/cap (volume discount)
-• **Subtotal**: $4.00/cap × 288 = **$1,152.00**
+• Base Cap: 5-panel structured - pricing varies by quantity tier
+• Large Rubber Patch (Front): pricing varies by quantity tier
+• **Subtotal**: Use ORDER ANALYSIS for exact calculations
 
 **Shared Costs:**
 • Large Rubber Patch mold: $80.00 (one-time charge)
@@ -1222,8 +1219,8 @@ function generateQuoteFallbackResponse(message: string): string {
 
 **Quote Summary:**
 • **Quantity**: ${quantity} caps (excellent volume for pricing)
-• **Estimated Cost**: $${(quantity * 6.5).toLocaleString()} - $${(quantity * 8.2).toLocaleString()} total
-• **Cost Per Cap**: $6.50 - $8.20 (depending on customization)
+• **Estimated Cost**: Quote based on CSV pricing data
+• **Cost Per Cap**: Pricing varies by quantity tier and customization
 
 **Included in Base Price:**
 • Premium 6-panel structured caps
@@ -1231,8 +1228,8 @@ function generateQuoteFallbackResponse(message: string): string {
 • Standard delivery (15 business days)
 
 **Popular Add-ons:**
-• **3D Embroidery**: +$0.25/cap (premium raised effect)
-• **Multiple Positions**: +$0.45/cap per additional location
+• **3D Embroidery**: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
+• **Multiple Positions**: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
 • **Premium Accessories**: Hang tags, labels, stickers available
 
 **Volume Discounts Active:**
@@ -1258,9 +1255,9 @@ function generateGenericFastResponse(message: string): string {
 I understand you're looking for custom cap solutions. Here's how I can help:
 
 **Popular Order Options:**
-• **Budget Friendly**: 144+ caps starting at $5.50/cap
-• **Premium Quality**: 288+ caps with 3D embroidery from $7.20/cap
-• **Bulk Orders**: 576+ caps with maximum volume savings
+• **Budget Friendly**: 144+ caps - pricing from CSV data
+• **Premium Quality**: 288+ caps with 3D embroidery - pricing from CSV data  
+• **Bulk Orders**: 576+ caps with maximum volume savings - pricing from CSV data
 
 **What I Need for Your Quote:**
 1. **Quantity** (144, 288, 576+ pieces)
@@ -1310,15 +1307,15 @@ ${hasColors ? `**Your Color Options:**
 • Perfect for company logos and brand recognition
 
 ` : ''}${hasAccessories ? `**Branded Accessories Available:**
-• Hang Tags: $0.35/cap (professional branding touch)
-• Inside Labels: $0.20/cap (branded interior)
-• Stickers: $0.25/cap (additional branding option)
+• Hang Tags: Pricing varies by quantity tier (professional branding touch)
+• Inside Labels: Pricing varies by quantity tier (branded interior)
+• Stickers: Pricing varies by quantity tier (additional branding option)
 • Custom packaging options available
 
 ` : ''}**Estimated Pricing (per setup):**
-• 144 caps: ~$7.50/cap total (including 3D logo + accessories)
-• 288 caps: ~$6.80/cap total (better volume pricing)
-• 576 caps: ~$6.20/cap total (best value)
+• 144 caps: Pricing varies by customization (from CSV data)
+• 288 caps: Better volume pricing (from CSV data)
+• 576 caps: Best value pricing (from CSV data)
 
 **Next Steps:**
 1. **Upload your logo** for exact sizing and positioning
@@ -1569,6 +1566,8 @@ DETAILED COST BREAKDOWN:
   // Create AI system prompt for order conversion with enhanced CSV data integration
   const systemPrompt = `You are a specialized US Custom Cap order assistant with access to real-time CSV product data. Your goal is to provide detailed quotes FIRST, then get order confirmation.
 
+🚨 CRITICAL PRICING RULE: You MUST ONLY use the exact prices from ORDER ANALYSIS calculations. NEVER use hardcoded prices, estimates, or examples from your training data. All pricing must come from the calculated cost breakdowns provided in each conversation.
+
 CRITICAL WORKFLOW RULE: 
 - ALWAYS show detailed pricing breakdown first
 - NEVER create orders without explicit customer confirmation
@@ -1624,15 +1623,7 @@ CRITICAL QUANTITY TIER DETECTION (FOLLOW EXACTLY):
 - 2880-9999 pieces: Use price10000 tier pricing (NOT price2880)
 - 10000+ pieces: Use price10000 tier pricing
 
-**CRITICAL: For 5,000 pieces = price10000 tier for ALL components:**
-- Blank Cap (Tier 2): $3.38/cap (price10000)
-- Acrylic: $1.50/cap (price10000) 
-- Air Mesh: $0.50/cap (price10000)
-- Buckle: $0.38/cap (price10000)
-- 3D Embroidery: $0.70/cap (price10000)
-- Large Size Embroidery: $0.60/cap (price10000)
-- Small Size Embroidery: $0.35/cap (price10000)
-- Regular Delivery: $2.43/cap (price10000)
+**CRITICAL: For large quantities, ALL pricing must use ORDER ANALYSIS calculations - DO NOT use hardcoded examples**
 
 **This applies to ALL pricing references - never use outdated 144+ qty fallback pricing for high-volume orders**
 
@@ -1655,38 +1646,32 @@ LOGO TYPE PRICING (USE QUANTITY TIER FROM ABOVE):
 - 3D Embroidery: Size Embroidery + 3D Base (use quantity tier pricing from above)
  • Front = Large Size Embroidery + 3D Base (both use quantity tier pricing)
  • Back/Sides = Small Size Embroidery + 3D Base (both use quantity tier pricing)
-- Rubber Patches: Small ($0.70/cap), Medium ($0.90/cap), Large ($1.20/cap)
-- Leather Patches: Small ($0.60/cap), Medium ($0.75/cap), Large ($0.90/cap)
-- Woven Patches: Small ($0.55/cap), Medium ($0.70/cap), Large ($0.90/cap)
+- Rubber Patches: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
+- Leather Patches: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs  
+- Woven Patches: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
 
 APPLICATION COSTS (ADD TO LOGO COST):
 - Direct: No additional cost
-- Run Application: +$0.25/cap (for Leather/Rubber patches)
-- Satin Application: +$0.25/cap (for Woven/Printed patches)
+- Run Application: Additional cost varies by quantity tier (for Leather/Rubber patches)
+- Satin Application: Additional cost varies by quantity tier (for Woven/Printed patches)
 
 OTHER COSTS:
 - Mold charges: Small ($40), Medium ($60), Large ($80) one-time charges
-- Premium Closures: Flexfit, Fitted, Snap, Buckle add $0.35-$0.40 per cap at 144+ qty
-- Accessories: Hang tags ($0.35/cap), Stickers ($0.25/cap), etc.
-- Regular delivery: Volume pricing - 144+ ($2.30), 576+ ($1.90), 1152+ ($1.85/cap)
+- Premium Closures: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
+- Accessories: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
+- Regular delivery: Pricing varies by quantity tier - use ORDER ANALYSIS for exact costs
 
 CRITICAL PRICING ACCURACY RULES:
 - ALWAYS use the CORRECT VOLUME TIER for pricing:
- * 1584 caps = 1152+ tier = $2.84/cap base + $1.85/cap delivery
- * 576 caps = 576-1151 tier = $2.90/cap base + $1.90/cap delivery 
- * 144 caps = 144-575 tier = $3.00/cap base + $2.30/cap delivery
+ * Use exact pricing from ORDER ANALYSIS based on quantity tier
+ * Never use hardcoded pricing values - all costs must come from CSV data
 - ALWAYS use the actual calculated cost breakdowns provided in the analysis
 - NEVER make up or estimate logo costs - use the precise calculations
 
-EXAMPLE: 144 pcs with Flat Embroidery:
-- Front Position: Large Size Embroidery = $0.80/cap × 144 = $115.20
-- Left Position: Small Size Embroidery = $0.45/cap × 144 = $64.80 
-- Right Position: Small Size Embroidery = $0.45/cap × 144 = $64.80
-- Back Position: Small Size Embroidery = $0.45/cap × 144 = $64.80
-- Application costs: Run/Satin adds $0.25/cap × 144 = $36.00 per logo
+EXAMPLE: All embroidery pricing MUST be calculated using ORDER ANALYSIS - DO NOT use fixed examples as pricing varies by quantity tier.
 
 KEY RULES:
-- For Rubber Patch: Use Medium Rubber Patch pricing ($0.90/cap at 144+ qty) unless size specified
+- For Rubber Patch: Use Medium Rubber Patch pricing (quantity-based from CSV) unless size specified
 - For 3D Embroidery: Use combined Size Embroidery + 3D base cost 
 - Never exceed customer budget
 - Always optimize for maximum quantity within budget
