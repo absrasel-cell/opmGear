@@ -372,30 +372,29 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   // Extract accessories - ENHANCED: Use advanced accessories detection from knowledge base
   let accessoriesFromDetection = detectAccessoriesFromText(message);
 
-  // Convert string array to object format for consistency with manual additions
-  let accessoriesRequirements: { type: string; location?: string }[] = accessoriesFromDetection.map(type => ({ type }));
+  // Convert string array to object format for consistency and remove duplicates
+  let accessoriesRequirements: { type: string; location?: string }[] = [];
 
-  console.log('🏷️ [ANALYZE] Advanced accessories detection:', {
+  // Use a Set to track unique accessories and prevent duplicates
+  const uniqueAccessories = new Set<string>();
+
+  // Add from detection function
+  for (const accessoryType of accessoriesFromDetection) {
+    if (!uniqueAccessories.has(accessoryType)) {
+      uniqueAccessories.add(accessoryType);
+      accessoriesRequirements.push({ type: accessoryType });
+    }
+  }
+
+  console.log('🏷️ [ANALYZE] Advanced accessories detection (deduplicated):', {
     message: message.substring(0, 100),
-    detectedAccessories: accessoriesRequirements
+    detectedAccessories: accessoriesRequirements,
+    uniqueCount: uniqueAccessories.size
   });
 
-  // REMOVED: Complex manual logo detection logic - replaced by unified system above
-  // The unified detection system handles all logo detection reliably without conflicts
-
-  // Common accessories detection
-  if (msgLower.includes('woven label') || msgLower.includes('label')) {
-    accessoriesRequirements.push({ type: 'Woven Label', location: 'Back' });
-  }
-  if (msgLower.includes('hang tag') || msgLower.includes('tag')) {
-    accessoriesRequirements.push({ type: 'Hang Tag' });
-  }
-  if (msgLower.includes('sticker') || msgLower.includes('hologram')) {
-    accessoriesRequirements.push({ type: 'Hologram Sticker' });
-  }
-  if (msgLower.includes('b-tape') || msgLower.includes('btape') || msgLower.includes('b tape')) {
-    accessoriesRequirements.push({ type: 'B-Tape Print' });
-  }
+  // REMOVED: Manual accessories detection to prevent duplicates
+  // The detectAccessoriesFromText function already handles all accessory patterns
+  // Keeping manual detection would cause duplicates since both systems detect the same accessories
 
   return {
     quantity,
@@ -921,9 +920,21 @@ export function generateStructuredResponse(
   }
 
   if (accessories.items && accessories.items.length > 0) {
-    const accessoryPerCap = accessories.totalCost / quantity;
     response += `🏷️ **Accessories** ✅\n`;
-    response += `•Total accessories: $${accessories.totalCost.toFixed(2)} ($${accessoryPerCap.toFixed(2)}/cap)\n\n`;
+
+    // Show each individual accessory
+    accessories.items.forEach((accessory: any) => {
+      const accessoryPerCap = accessory.totalCost / quantity;
+      response += `• ${accessory.name}: $${accessory.totalCost.toFixed(2)} ($${accessoryPerCap.toFixed(2)}/cap)\n`;
+    });
+
+    // Show total if more than one accessory
+    if (accessories.items.length > 1) {
+      const totalPerCap = accessories.totalCost / quantity;
+      response += `• **Total**: $${accessories.totalCost.toFixed(2)} ($${totalPerCap.toFixed(2)}/cap)\n`;
+    }
+
+    response += `\n`;
   }
 
   const deliveryPerCap = delivery.totalCost / quantity;
