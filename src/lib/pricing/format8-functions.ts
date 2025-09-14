@@ -176,6 +176,7 @@ export function extractPreviousQuoteContext(conversationHistory: Array<{ role: s
     fabric: null,
     closure: null,
     logoRequirements: [],
+    accessories: [],
     colors: null,
     size: null
   };
@@ -193,38 +194,324 @@ export function extractPreviousQuoteContext(conversationHistory: Array<{ role: s
         console.log('📋 [CONTEXT-EXTRACT] Found structured quote in message:', i);
         context.hasQuote = true;
 
-        // Extract quantity from "144 caps" or similar patterns
-        const quantityMatch = message.content.match(/for (\d+,?\d*) caps?/i);
-        if (quantityMatch) {
-          context.quantity = parseInt(quantityMatch[1].replace(/,/g, ''));
-          console.log('📋 [CONTEXT-EXTRACT] Found quantity:', context.quantity);
+        // Extract quantity from various patterns in the structured response
+        const quantityPatterns = [
+          /for (\d+,?\d*) caps?/i,
+          /(\d+,?\d*) pieces?/i,
+          /quantity[:\s]*(\d+,?\d*)/i,
+          /(\d+,?\d*) caps? for/i,
+          /\$[\d,]+\.?\d* \(\$[\d,]+\.?\d*\/cap\) for (\d+,?\d*)/i, // Match structured pricing format
+          /base cost[^$]*\$[\d,]+\.?\d*[^(]*\([\d,]+\s*×\s*\$[\d,]+\.?\d*\)[^)]*for (\d+,?\d*)/i, // Base cost line
+          /total investment[^$]*\$[\d,]+\.?\d*.*?(\d+,?\d*)/i, // Total investment line
+          /base cost:\s*\$[\d,]+\.?\d*\s*\(\$[\d,]+\.?\d*\/cap\)/i, // Extract quantity from per-cap pricing
+          /\(\$[\d,]+\.?\d*\/cap\).*?(\d+,?\d*)\s*caps?/i, // Match: ($/cap) ... 600 caps
+          /cost breakdown per cap.*?total:\s*\$[\d,]+\.?\d*\/cap.*?=.*?(\d+,?\d*)\s*caps?/i
+        ];
+
+        for (const pattern of quantityPatterns) {
+          const quantityMatch = message.content.match(pattern);
+          if (quantityMatch) {
+            const extractedQty = quantityMatch[1] || quantityMatch[2]; // Handle different capture groups
+            if (extractedQty) {
+              context.quantity = parseInt(extractedQty.replace(/,/g, ''));
+              console.log('📋 [CONTEXT-EXTRACT] Found quantity:', context.quantity);
+              break;
+            }
+          }
         }
 
-        // Extract fabric from "Fabric: Acrylic (+$360.00)" patterns
-        const fabricMatch = message.content.match(/•Fabric: ([^(]+) \(\+\$[\d,]+\.?\d*\)/i);
-        if (fabricMatch) {
-          context.fabric = fabricMatch[1].trim();
-          console.log('📋 [CONTEXT-EXTRACT] Found fabric:', context.fabric);
+        // FALLBACK 1: Calculate quantity from base cost division
+        if (!context.quantity) {
+          const baseCostMatch = message.content.match(/base cost:\s*\$(\d+,?\d*\.?\d*)\s*\(\$(\d+\.?\d*)/i);
+          if (baseCostMatch) {
+            const totalCost = parseFloat(baseCostMatch[1].replace(/,/g, ''));
+            const unitPrice = parseFloat(baseCostMatch[2]);
+            if (totalCost && unitPrice) {
+              context.quantity = Math.round(totalCost / unitPrice);
+              console.log('📋 [CONTEXT-EXTRACT] Calculated quantity from base cost:', context.quantity, '(', totalCost, '/', unitPrice, ')');
+            }
+          }
         }
 
-        // Extract closure from "Closure: Fitted (+$XX.XX)" patterns - for future use
-        const closureMatch = message.content.match(/•Closure: ([^(]+) \(\+\$[\d,]+\.?\d*\)/i);
-        if (closureMatch) {
-          context.closure = closureMatch[1].trim();
-          console.log('📋 [CONTEXT-EXTRACT] Found closure:', context.closure);
+        // FALLBACK 2: Try to extract quantity from the user request in conversation history
+        if (!context.quantity) {
+          for (let j = conversationHistory.length - 1; j >= 0; j--) {
+            const userMsg = conversationHistory[j];
+            if (userMsg.role === 'user') {
+              const userQtyMatch = userMsg.content.match(/(\d+,?\d*)\s*(?:pcs?|caps?|pieces?|units?)/i);
+              if (userQtyMatch) {
+                context.quantity = parseInt(userQtyMatch[1].replace(/,/g, ''));
+                console.log('📋 [CONTEXT-EXTRACT] Found quantity from user message:', context.quantity);
+                break;
+              }
+            }
+          }
         }
 
-        // Extract logo information from "Front: 3D Embroidery (Large) - $342.72" patterns
-        const logoMatches = message.content.matchAll(/•([^:]+): ([^(]+) \(([^)]+)\) - \$[\d,]+\.?\d*/gi);
-        for (const logoMatch of logoMatches) {
-          const logoReq = {
-            type: logoMatch[2].trim(),
-            location: logoMatch[1].trim(),
-            size: logoMatch[3].trim(),
-            hasMoldCharge: logoMatch[2].toLowerCase().includes('patch')
-          };
-          context.logoRequirements.push(logoReq);
-          console.log('📋 [CONTEXT-EXTRACT] Found logo:', logoReq);
+        // Enhanced fabric extraction - handles dual fabrics and various formats
+        const fabricPatterns = [
+          /•\s*([^:]*?)fabric[^:]*?:\s*([^(]+)\s*\(\+\$[\d,]+\.?\d*\)/gi,
+          /fabric[^:]*?:\s*([^(]+)\s*\(\+\$[\d,]+\.?\d*\)/gi,
+          /premium\s+([^:]+):\s*\(\+\$[\d,]+\.?\d*\)/gi,
+          /•([^:]*?):\s*\(\+\$[\d,]+\.?\d*\)\s*\(\$[\d,]+\.?\d*\/cap\)/gi,
+          /•\s*(acrylic|air mesh|airmesh|suede cotton|genuine leather|laser cut|polyester)[^•\n]*?\(\+\$[\d,]+\.?\d*\)/gi,
+          /•(acrylic|air mesh|airmesh|suede cotton|genuine leather|laser cut|polyester)/gi  // Simple extraction
+        ];
+
+        for (const pattern of fabricPatterns) {
+          const fabricMatches = [...message.content.matchAll(pattern)];
+          if (fabricMatches.length > 0) {
+            // Handle multiple fabrics (like Acrylic + Air Mesh)
+            const fabrics = fabricMatches.map(match => {
+              let fabricName = match[2] || match[1];
+              if (!fabricName && match[0]) {
+                // Extract fabric name from the entire match
+                fabricName = match[0].replace(/[•:()$\d,\s+\/cap\n]+/gi, '').trim();
+              }
+
+              // Clean up fabric name - simplified approach
+              if (fabricName) {
+                // Direct fabric name matching instead of complex cleanup
+                const lowerFabric = fabricName.toLowerCase();
+
+                if (lowerFabric.includes('acrylic')) {
+                  fabricName = 'Acrylic';
+                } else if (lowerFabric.includes('airmesh') || lowerFabric.includes('air mesh')) {
+                  fabricName = 'Air Mesh';
+                } else if (lowerFabric.includes('suede')) {
+                  fabricName = 'Suede Cotton';
+                } else if (lowerFabric.includes('leather')) {
+                  fabricName = 'Genuine Leather';
+                } else if (lowerFabric.includes('polyester')) {
+                  fabricName = 'Polyester';
+                } else if (lowerFabric.includes('laser') && lowerFabric.includes('cut')) {
+                  fabricName = 'Laser Cut';
+                } else {
+                  // Basic cleanup for unrecognized fabrics
+                  fabricName = fabricName.replace(/[•:()$\d,\n✅⭐*]/gi, '').trim();
+                  fabricName = fabricName.split('\n').pop()?.trim() || fabricName;
+                }
+              }
+
+              return fabricName ? fabricName.trim() : '';
+            }).filter(name => name.length > 2); // Filter out very short matches
+
+            if (fabrics.length > 0) {
+              context.fabric = fabrics.join('/');
+              console.log('📋 [CONTEXT-EXTRACT] Found fabric(s):', context.fabric);
+              break;
+            }
+          }
+        }
+
+        // Enhanced closure extraction
+        const closurePatterns = [
+          /•closure:\s*([^(]+)\s*\(\+\$[\d,]+\.?\d*\)/gi,
+          /closure[^:]*?:\s*([^(]+)\s*\(\+\$[\d,]+\.?\d*\)/gi
+        ];
+
+        for (const pattern of closurePatterns) {
+          const closureMatch = message.content.match(pattern);
+          if (closureMatch && closureMatch[1]) {
+            context.closure = closureMatch[1].trim();
+            console.log('📋 [CONTEXT-EXTRACT] Found closure:', context.closure);
+            break;
+          }
+        }
+
+        // CRITICAL FIX: Enhanced logo extraction with comprehensive patterns to match conversation-context.ts
+        const logoPatterns = [
+          // Pattern 1: Standard format - •Front: Rubber Patch (Large) - $xxx
+          /•(Front|Back|Left|Right|Bills): ([^-\n]+) - \$[\d,]+\.?\d*/gi,
+
+          // Pattern 2: Alternative format - •Position Logo: Type (Size) - $xxx
+          /•(Front|Back|Left|Right|Bills)\s*(?:Logo)?:\s*([^-\n]+)\s*\(([^)]+)\)\s*[-–]\s*\$[\d,]+\.?\d*/gi,
+
+          // Pattern 3: Embroidery specific - •Left Embroidery: (Small) - $xxx
+          /•(Front|Back|Left|Right|Bills)\s*(Embroidery|Print|Patch):\s*\(([^)]+)\)\s*[-–]\s*\$[\d,]+\.?\d*/gi,
+
+          // Pattern 4: Screen Print format - •Back Screen Print (Small) - $xxx
+          /•(Front|Back|Left|Right|Bills)\s*(Screen\s*Print|Rubber\s*Patch|Leather\s*Patch|Woven\s*Patch|3D\s*Embroidery|Flat\s*Embroidery|Sublimation)\s*\(([^)]+)\)\s*[-–]\s*\$[\d,]+\.?\d*/gi,
+
+          // Pattern 5: Generic position: type (size) format
+          /•([^:]+):\s*([^(]+)\s*\(([^)]+)\)\s*[-–]\s*\$[\d,]+\.?\d*/gi,
+
+          // Legacy patterns for backward compatibility
+          /([^:]+)\s*logo:\s*([^(]+)\s*\(([^)]+)\)\s*[-–]\s*\$[\d,]+\.?\d*/gi,
+          /•([^:]+):\s*([^-]+)[-–]\s*\$[\d,]+\.?\d*/gi
+        ];
+
+        for (const pattern of logoPatterns) {
+          const logoMatches = [...message.content.matchAll(pattern)];
+          if (logoMatches.length > 0) {
+            console.log(`🔍 [CONTEXT-EXTRACT] Logo pattern found ${logoMatches.length} matches`);
+
+            for (const logoMatch of logoMatches) {
+              let position = logoMatch[1];
+              let logoType = logoMatch[2];
+              let logoSize = logoMatch[3];
+
+              // Handle different match structures based on pattern
+              if (pattern.source.includes('Embroidery|Print|Patch')) {
+                // Pattern 3: position + type detected
+                logoType = logoMatch[2];
+                logoSize = logoMatch[3];
+              } else if (pattern.source.includes('Screen\\s*Print|Rubber')) {
+                // Pattern 4: position + specific type
+                logoType = logoMatch[2];
+                logoSize = logoMatch[3];
+              } else if (!logoSize && logoMatch[2]) {
+                // Pattern 1: extract type and size from combined string
+                const logoInfo = logoMatch[2];
+                const logoTypeMatch = logoInfo.match(/(3D\s*Embroidery|Flat\s*Embroidery|Screen\s*Print|Rubber\s*Patch|Woven\s*Patch|Leather\s*Patch|Sublimation|Embroidery|Print|Patch)\s*\(([^)]+)\)/i);
+                if (logoTypeMatch) {
+                  logoType = logoTypeMatch[1];
+                  logoSize = logoTypeMatch[2];
+                } else {
+                  // Try to extract just the type
+                  logoType = logoInfo.trim();
+                  logoSize = 'Medium'; // Default size
+                }
+              }
+
+              if (logoType && position) {
+                // Clean up extracted data
+                position = position.trim();
+                logoType = logoType.trim();
+                logoSize = logoSize ? logoSize.trim() : 'Medium';
+
+                // Normalize position names
+                if (position.toLowerCase().includes('front')) position = 'Front';
+                else if (position.toLowerCase().includes('back')) position = 'Back';
+                else if (position.toLowerCase().includes('left')) position = 'Left';
+                else if (position.toLowerCase().includes('right')) position = 'Right';
+
+                // Normalize logo types
+                if (logoType.toLowerCase().includes('rubber') && logoType.toLowerCase().includes('patch')) {
+                  logoType = 'Rubber Patch';
+                } else if (logoType.toLowerCase().includes('leather') && logoType.toLowerCase().includes('patch')) {
+                  logoType = 'Leather Patch';
+                } else if (logoType.toLowerCase().includes('screen') && logoType.toLowerCase().includes('print')) {
+                  logoType = 'Screen Print';
+                } else if (logoType.toLowerCase().includes('3d') && logoType.toLowerCase().includes('embroidery')) {
+                  logoType = '3D Embroidery';
+                } else if (logoType.toLowerCase().includes('flat') && logoType.toLowerCase().includes('embroidery')) {
+                  logoType = 'Flat Embroidery';
+                } else if (logoType.toLowerCase().includes('embroidery')) {
+                  logoType = 'Embroidery';
+                }
+
+                const logoReq = {
+                  type: logoType,
+                  location: position, // Keep as 'location' for format8 compatibility
+                  size: logoSize,
+                  hasMoldCharge: logoType.toLowerCase().includes('patch') && logoType !== 'Screen Print'
+                };
+
+                // Avoid duplicates
+                const exists = context.logoRequirements.find((l: any) =>
+                  l.location.toLowerCase() === logoReq.location.toLowerCase() &&
+                  l.type.toLowerCase() === logoReq.type.toLowerCase()
+                );
+                if (!exists) {
+                  context.logoRequirements.push(logoReq);
+                  console.log('📋 [CONTEXT-EXTRACT] Found logo:', logoReq);
+                }
+              }
+            }
+            break;
+          }
+        }
+
+        // CRITICAL FIX: Enhanced accessory extraction with comprehensive patterns to match conversation-context.ts
+        const accessoryPatterns = [
+          // Pattern 1: Direct accessory format - •Inside Label: $xxx
+          /•\s*(Hang\s*Tag|Inside\s*Label|B-Tape\s*Print|B-Tape|Sticker):\s*\$[\d,]+\.?\d*/gi,
+
+          // Pattern 2: Accessory with per-cap pricing - •Inside Label: $xxx ($x.xx/cap)
+          /•\s*(Hang\s*Tag|Inside\s*Label|B-Tape\s*Print|B-Tape|Sticker):\s*\$[\d,]+\.?\d*\s*\(\$[\d.]+\/cap\)/gi,
+
+          // Pattern 3: Generic patterns for any accessory-like items
+          /•\s*([^:]*(?:label|tape|sticker|tag)[^:]*?):\s*\$[\d,]+\.?\d*/gi,
+
+          // Pattern 4: Accessories section detection
+          /accessories[^:]*?:\s*\$[\d,]+\.?\d*/gi
+        ];
+
+        for (const pattern of accessoryPatterns) {
+          const accessoryMatches = [...message.content.matchAll(pattern)];
+          if (accessoryMatches.length > 0) {
+            console.log(`🔍 [CONTEXT-EXTRACT] Accessory pattern found ${accessoryMatches.length} matches`);
+
+            for (const accessoryMatch of accessoryMatches) {
+              let accessoryName = accessoryMatch[1]?.trim();
+
+              if (accessoryName && accessoryName.length > 0) {
+                // Normalize accessory names
+                if (accessoryName.toLowerCase().includes('inside') && accessoryName.toLowerCase().includes('label')) {
+                  accessoryName = 'Inside Label';
+                } else if (accessoryName.toLowerCase().includes('b-tape')) {
+                  accessoryName = 'B-Tape Print';
+                } else if (accessoryName.toLowerCase().includes('hang') && accessoryName.toLowerCase().includes('tag')) {
+                  accessoryName = 'Hang Tag';
+                } else if (accessoryName.toLowerCase().includes('sticker')) {
+                  accessoryName = 'Sticker';
+                }
+
+                // Check for duplicates
+                const exists = context.accessories.find((a: any) =>
+                  (typeof a === 'string' ? a : a.type).toLowerCase() === accessoryName.toLowerCase()
+                );
+
+                if (!exists) {
+                  context.accessories.push({ type: accessoryName });
+                  console.log('📋 [CONTEXT-EXTRACT] Found accessory:', accessoryName);
+                }
+              }
+            }
+          }
+        }
+
+        // Additional fallback: look for specific accessory mentions in the entire content
+        const accessoryFallbackPatterns = [
+          /Inside\s*Label/gi,
+          /B-Tape\s*Print/gi,
+          /Hang\s*Tag/gi,
+          /Sticker/gi
+        ];
+
+        for (const fallbackPattern of accessoryFallbackPatterns) {
+          const matches = [...message.content.matchAll(fallbackPattern)];
+          for (const match of matches) {
+            let accessoryName = match[0];
+
+            // Normalize name
+            if (accessoryName.toLowerCase().includes('inside') && accessoryName.toLowerCase().includes('label')) {
+              accessoryName = 'Inside Label';
+            } else if (accessoryName.toLowerCase().includes('b-tape')) {
+              accessoryName = 'B-Tape Print';
+            } else if (accessoryName.toLowerCase().includes('hang') && accessoryName.toLowerCase().includes('tag')) {
+              accessoryName = 'Hang Tag';
+            } else if (accessoryName.toLowerCase().includes('sticker')) {
+              accessoryName = 'Sticker';
+            }
+
+            // Only add if we found it in a pricing context (has $ nearby)
+            const contextStart = Math.max(0, match.index - 50);
+            const contextEnd = Math.min(message.content.length, match.index + accessoryName.length + 50);
+            const context = message.content.substring(contextStart, contextEnd);
+
+            if (context.includes('$')) {
+              const exists = context.accessories.find((a: any) =>
+                (typeof a === 'string' ? a : a.type).toLowerCase() === accessoryName.toLowerCase()
+              );
+
+              if (!exists) {
+                context.accessories.push({ type: accessoryName });
+                console.log('📋 [CONTEXT-EXTRACT] Found accessory via fallback:', accessoryName);
+              }
+            }
+          }
         }
 
         // Extract colors from original user request by looking at user messages
@@ -233,7 +520,7 @@ export function extractPreviousQuoteContext(conversationHistory: Array<{ role: s
     }
   }
 
-  // Also look for colors and size in user messages
+  // Also look for colors, size, and original specifications in user messages
   for (let i = conversationHistory.length - 1; i >= 0; i--) {
     const message = conversationHistory[i];
 
@@ -242,13 +529,13 @@ export function extractPreviousQuoteContext(conversationHistory: Array<{ role: s
 
       // Extract colors from user messages
       if (!context.colors) {
-        const colorCombinationMatch = message.content.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\s*\/\s*(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\b/gi);
+        const colorCombinationMatch = message.content.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple|Royal)\s*\/\s*(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple|Royal)\b/gi);
         if (colorCombinationMatch) {
           const colorParts = colorCombinationMatch[0].split('/').map(c => c.trim());
           context.colors = colorParts;
           console.log('📋 [CONTEXT-EXTRACT] Found colors:', context.colors);
         } else {
-          const singleColorMatch = message.content.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\b/gi);
+          const singleColorMatch = message.content.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple|Royal)\b/gi);
           if (singleColorMatch) {
             context.colors = [singleColorMatch[0]];
             console.log('📋 [CONTEXT-EXTRACT] Found single color:', context.colors);
@@ -264,8 +551,56 @@ export function extractPreviousQuoteContext(conversationHistory: Array<{ role: s
           console.log('📋 [CONTEXT-EXTRACT] Found size:', context.size);
         }
       }
+
+      // CRITICAL FIX: Extract logos from user messages if not found in assistant messages
+      if (context.logoRequirements.length === 0) {
+        // Use unified logo detection on user messages
+        const unifiedDetection = detectLogosUnified(message.content);
+        if (unifiedDetection.hasLogos) {
+          context.logoRequirements = convertToFormat8Format(unifiedDetection);
+          console.log('📋 [CONTEXT-EXTRACT] Found logos from user message:', context.logoRequirements.length);
+        }
+      }
+
+      // CRITICAL FIX: Extract accessories from user messages if not found in assistant messages
+      if (context.accessories.length === 0) {
+        const userAccessories = detectAccessoriesFromText(message.content);
+        if (userAccessories.length > 0) {
+          context.accessories = userAccessories.map(acc => ({ type: acc }));
+          console.log('📋 [CONTEXT-EXTRACT] Found accessories from user message:', context.accessories);
+        }
+      }
+
+      // Extract fabric from user messages if not found in assistant messages
+      if (!context.fabric) {
+        const userFabric = detectFabricFromText(message.content);
+        if (userFabric) {
+          context.fabric = userFabric;
+          console.log('📋 [CONTEXT-EXTRACT] Found fabric from user message:', context.fabric);
+        }
+      }
+
+      // Extract closure from user messages if not found in assistant messages
+      if (!context.closure) {
+        const userClosure = detectClosureFromText(message.content);
+        if (userClosure) {
+          context.closure = userClosure;
+          console.log('📋 [CONTEXT-EXTRACT] Found closure from user message:', context.closure);
+        }
+      }
     }
   }
+
+  console.log('📋 [CONTEXT-EXTRACT] Final extracted context:', {
+    hasQuote: context.hasQuote,
+    quantity: context.quantity,
+    fabric: context.fabric,
+    closure: context.closure,
+    logoCount: context.logoRequirements.length,
+    accessoryCount: context.accessories.length,
+    colors: context.colors,
+    size: context.size
+  });
 
   return context;
 }
@@ -275,122 +610,188 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   console.log('🔍 [ANALYZE] Parsing customer message:', message.substring(0, 100));
   console.log('🔍 [ANALYZE] Conversation history length:', conversationHistory.length);
 
-  // Extract previous quote context from conversation history
-  const previousContext = extractPreviousQuoteContext(conversationHistory);
-  console.log('📋 [CONTEXT] Previous context extracted:', previousContext);
+  // ENHANCED: Use comprehensive conversation context service
+  const { ConversationContextService } = await import('../support-ai/conversation-context');
 
-  // Extract quantity - FIXED: Use previous context as fallback
-  const quantityMatch = message.match(/(\d+,?\d*)\s*(?:pcs?|caps?|pieces?|units?)/i);
-  const quantity = quantityMatch ? parseInt(quantityMatch[1].replace(/,/g, '')) : (previousContext.quantity || 144);
+  // Build smart contextual request with comprehensive change detection
+  const contextResult = await ConversationContextService.buildSmartContextualRequest(
+    message,
+    conversationHistory
+  );
 
-  console.log('🔍 [ANALYZE] Quantity - Current message:', quantityMatch?.[1], 'Previous context:', previousContext.quantity, 'Final:', quantity);
+  console.log('🧠 [ENHANCED-CONTEXT] Smart context analysis:', {
+    hasContext: contextResult.hasContext,
+    detectedChanges: contextResult.detectedChanges.length,
+    mergedSpecs: Object.keys(contextResult.mergedSpecifications).length
+  });
 
-  // Extract colors - ENHANCED: Use advanced color detection with split color support
-  let colors = previousContext.colors || ['Black'];
-  let color = previousContext.colors ? previousContext.colors.join('/') : 'Black';
+  // Extract merged specifications from context service
+  const mergedSpecs = contextResult.mergedSpecifications;
+  const detectedChanges = contextResult.detectedChanges;
 
-  // Use enhanced color detection that properly handles "Royal/Black" patterns
-  const detectedColor = extractAdvancedColor(message);
-  if (detectedColor) {
-    // Check if it's a split color
-    if (detectedColor.includes('/')) {
-      colors = detectedColor.split('/').map(c => c.trim());
-      color = detectedColor;
-    } else {
-      colors = [detectedColor];
-      color = detectedColor;
+  // Use enhanced contextual request if available, otherwise original message
+  const effectiveMessage = contextResult.hasContext ? contextResult.contextualRequest : message;
+
+  console.log('📝 [ENHANCED-CONTEXT] Using contextual message:', effectiveMessage.substring(0, 200) + '...');
+
+  // Build requirements object with merged specifications
+  const quantity = mergedSpecs.quantity || 144;
+
+  // ENHANCED: Determine if this is a conversational update
+  const isConversationalUpdate = contextResult.hasContext && detectedChanges.length > 0;
+  const isQuantityUpdate = isConversationalUpdate &&
+                          detectedChanges.some(change => change.type === 'quantity');
+
+  console.log('🔄 [ENHANCED-ANALYZE] Conversational analysis:', {
+    hasContext: contextResult.hasContext,
+    isConversationalUpdate: isConversationalUpdate,
+    isQuantityUpdate: isQuantityUpdate,
+    detectedChangeTypes: detectedChanges.map(c => c.type)
+  });
+
+  // ENHANCED: Use merged specifications from comprehensive context service
+  let colors = mergedSpecs.colors ? mergedSpecs.colors.split('/') : ['Black'];
+  let color = mergedSpecs.colors || mergedSpecs.color || 'Black';
+
+  // Legacy detection as fallback for new specifications only
+  if (!contextResult.hasContext) {
+    const detectedColor = extractAdvancedColor(message);
+    if (detectedColor) {
+      if (detectedColor.includes('/')) {
+        colors = detectedColor.split('/').map(c => c.trim());
+        color = detectedColor;
+      } else {
+        colors = [detectedColor];
+        color = detectedColor;
+      }
     }
   }
 
-  console.log('🎨 [ANALYZE] Enhanced colors - Previous context:', previousContext.colors, 'Detected color:', detectedColor, 'Final colors:', colors);
+  console.log('🎨 [ENHANCED-ANALYZE] Colors - Merged specs:', mergedSpecs.colors, 'Final colors:', colors);
 
-  // Extract size - ENHANCED: Use advanced size detection with CM to hat size mapping
-  let size = 'Large'; // Default
-  const detectedSize = extractAdvancedSize(message);
-  if (detectedSize) {
-    size = detectedSize;
+  // ENHANCED: Use size from merged specifications
+  let size = mergedSpecs.size || 'Large';
+
+  // Legacy detection as fallback for new specifications only
+  if (!contextResult.hasContext) {
+    const detectedSize = extractAdvancedSize(message);
+    if (detectedSize) {
+      size = detectedSize;
+    }
   }
 
-  // Extract fabric - ENHANCED: Use advanced fabric detection from knowledge base
-  let fabric = detectFabricFromText(message);
-  console.log('🧵 [ANALYZE] Advanced fabric detection:', {
-    message: message.substring(0, 100),
-    detectedFabric: fabric
-  });
+  console.log('📏 [ENHANCED-ANALYZE] Size - Merged specs:', mergedSpecs.size, 'Final size:', size);
 
-  // Extract panel count and cap specifications - FIXED: Added complete logic with defaults
-  let panelCount = '6P'; // Default panel count from business rules
+  // ENHANCED: Use fabric from merged specifications with intelligent preservation
+  let fabric = mergedSpecs.fabric;
+
+  // Legacy detection as fallback for new specifications only
+  if (!contextResult.hasContext) {
+    fabric = detectFabricFromText(message);
+  }
+
+  console.log('🧵 [ENHANCED-ANALYZE] Fabric - Merged specs:', mergedSpecs.fabric, 'Final fabric:', fabric);
+
+  // ENHANCED: Use panel count from merged specifications
+  let panelCount = '6P';
   let capSpecifications: { panelCount?: string; [key: string]: any } = {};
-  const msgLower = message.toLowerCase(); // FIXED: Define missing msgLower variable
 
-  if (msgLower.includes('7-panel') || msgLower.includes('7 panel')) {
-    panelCount = '7P';
-    capSpecifications.panelCount = '7P';
-  } else if (msgLower.includes('6-panel') || msgLower.includes('6 panel')) {
-    panelCount = '6P';
-    capSpecifications.panelCount = '6P';
-  } else if (msgLower.includes('5-panel') || msgLower.includes('5 panel')) {
-    panelCount = '5P';
-    capSpecifications.panelCount = '5P';
-  } else if (msgLower.includes('4-panel') || msgLower.includes('4 panel')) {
-    panelCount = '4P';
-    capSpecifications.panelCount = '4P';
+  if (mergedSpecs.panelCount) {
+    panelCount = mergedSpecs.panelCount.includes('P') ? mergedSpecs.panelCount : `${mergedSpecs.panelCount}P`;
+    capSpecifications.panelCount = panelCount;
   } else {
-    // Set default panel count in capSpecifications
-    capSpecifications.panelCount = '6P';
+    // Legacy extraction for new specifications
+    const msgLower = effectiveMessage.toLowerCase();
+    if (msgLower.includes('7-panel') || msgLower.includes('7 panel')) {
+      panelCount = '7P';
+      capSpecifications.panelCount = '7P';
+    } else if (msgLower.includes('5-panel') || msgLower.includes('5 panel')) {
+      panelCount = '5P';
+      capSpecifications.panelCount = '5P';
+    } else if (msgLower.includes('4-panel') || msgLower.includes('4 panel')) {
+      panelCount = '4P';
+      capSpecifications.panelCount = '4P';
+    } else {
+      capSpecifications.panelCount = '6P';
+    }
   }
 
-  // Extract closure - ENHANCED: Use advanced closure detection from knowledge base
-  let closure = detectClosureFromText(message);
-  console.log('🔒 [ANALYZE] Advanced closure detection:', {
-    message: message.substring(0, 100),
-    detectedClosure: closure
-  });
+  console.log('🎯 [ENHANCED-ANALYZE] Panel count - Merged specs:', mergedSpecs.panelCount, 'Final:', panelCount);
 
-  // Use previous context as fallback if no closure detected in current message
-  if (!closure && previousContext.closure) {
-    closure = previousContext.closure;
-    console.log('🔒 [ANALYZE] Using previous context closure:', closure);
+  // ENHANCED: Use closure from merged specifications with intelligent preservation
+  let closure = mergedSpecs.closure;
+
+  // Legacy detection as fallback for new specifications only
+  if (!contextResult.hasContext) {
+    closure = detectClosureFromText(message);
   }
 
-  // CRITICAL FIX: Use unified logo detection system - eliminates duplicate/conflicting detections
-  const unifiedDetection = detectLogosUnified(message);
-  let logoRequirements = convertToFormat8Format(unifiedDetection);
+  console.log('🔒 [ENHANCED-ANALYZE] Closure - Merged specs:', mergedSpecs.closure, 'Final closure:', closure);
 
-  console.log('🎨 [ANALYZE] UNIFIED logo detection:', {
-    message: message.substring(0, 100),
-    totalCount: unifiedDetection.totalCount,
-    hasLogos: unifiedDetection.hasLogos,
-    logos: unifiedDetection.logos.map(l => ({ type: l.type, position: l.position, size: l.size })),
-    summary: unifiedDetection.summary
-  });
+  // ENHANCED: Use logo requirements from merged specifications
+  let logoRequirement = null;
+  let allLogoRequirements: any[] = [];
 
-  // Set logo requirement variables
-  let logoRequirement = logoRequirements.length > 0 ? logoRequirements[0] : null;
-  let allLogoRequirements = logoRequirements;
+  if (mergedSpecs.logos && mergedSpecs.logos.length > 0) {
+    // Convert merged specifications logos to Format #8 format
+    allLogoRequirements = mergedSpecs.logos.map(logo => ({
+      type: logo.type,
+      location: logo.position,
+      size: logo.size,
+      application: logo.application || 'Direct',
+      moldCharge: logo.moldCharge || 0
+    }));
+    logoRequirement = allLogoRequirements[0];
 
-  // Extract accessories - ENHANCED: Use advanced accessories detection from knowledge base
-  let accessoriesFromDetection = detectAccessoriesFromText(message);
+    console.log('🎨 [ENHANCED-ANALYZE] Using logos from merged specs:', {
+      logoCount: allLogoRequirements.length,
+      logos: allLogoRequirements.map(l => ({ type: l.type, location: l.location, size: l.size }))
+    });
+  } else if (!contextResult.hasContext) {
+    // Legacy detection for new specifications only
+    const unifiedDetection = detectLogosUnified(message);
+    allLogoRequirements = convertToFormat8Format(unifiedDetection);
+    logoRequirement = allLogoRequirements.length > 0 ? allLogoRequirements[0] : null;
 
-  // Convert string array to object format for consistency and remove duplicates
+    console.log('🎨 [LEGACY-ANALYZE] UNIFIED logo detection for new request:', {
+      totalCount: unifiedDetection.totalCount,
+      hasLogos: unifiedDetection.hasLogos,
+      logos: unifiedDetection.logos.map(l => ({ type: l.type, position: l.position, size: l.size }))
+    });
+  }
+
+  // ENHANCED: Use accessories from merged specifications
   let accessoriesRequirements: { type: string; location?: string }[] = [];
 
-  // Use a Set to track unique accessories and prevent duplicates
-  const uniqueAccessories = new Set<string>();
+  if (mergedSpecs.accessories && mergedSpecs.accessories.length > 0) {
+    // Convert merged specifications accessories to Format #8 format
+    accessoriesRequirements = mergedSpecs.accessories.map(accessory => ({
+      type: accessory
+    }));
 
-  // Add from detection function
-  for (const accessoryType of accessoriesFromDetection) {
-    if (!uniqueAccessories.has(accessoryType)) {
-      uniqueAccessories.add(accessoryType);
-      accessoriesRequirements.push({ type: accessoryType });
+    console.log('🏷️ [ENHANCED-ANALYZE] Using accessories from merged specs:', {
+      accessoryCount: accessoriesRequirements.length,
+      accessories: accessoriesRequirements.map(a => a.type)
+    });
+  } else if (!contextResult.hasContext) {
+    // Legacy detection for new specifications only
+    let accessoriesFromDetection = detectAccessoriesFromText(message);
+
+    // Convert string array to object format and remove duplicates
+    const uniqueAccessories = new Set<string>();
+    for (const accessoryType of accessoriesFromDetection) {
+      if (!uniqueAccessories.has(accessoryType)) {
+        uniqueAccessories.add(accessoryType);
+        accessoriesRequirements.push({ type: accessoryType });
+      }
     }
-  }
 
-  console.log('🏷️ [ANALYZE] Advanced accessories detection (deduplicated):', {
-    message: message.substring(0, 100),
-    detectedAccessories: accessoriesRequirements,
-    uniqueCount: uniqueAccessories.size
-  });
+    console.log('🏷️ [LEGACY-ANALYZE] Advanced accessories detection for new request:', {
+      message: message.substring(0, 100),
+      detectedAccessories: accessoriesRequirements,
+      uniqueCount: uniqueAccessories.size
+    });
+  }
 
   // REMOVED: Manual accessories detection to prevent duplicates
   // The detectAccessoriesFromText function already handles all accessory patterns
@@ -427,14 +828,25 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     logoRequirement,
     allLogoRequirements,
     accessoriesRequirements,
-    // CRITICAL: Add context preservation metadata
+
+    // ENHANCED: Comprehensive conversation context metadata
+    conversationalContext: {
+      hasContext: contextResult.hasContext,
+      isConversationalUpdate: isConversationalUpdate,
+      isQuantityUpdate: isQuantityUpdate,
+      detectedChanges: detectedChanges,
+      mergedSpecifications: mergedSpecs,
+      orderBuilderDelta: contextResult.orderBuilderDelta,
+      effectiveMessage: effectiveMessage
+    },
+
+    // Legacy support for existing code
     isQuantityUpdate: isQuantityUpdate,
-    previousContext: previousContext,
     contextPreservation: {
-      fabricPreserved: isQuantityUpdate && previousContext.fabric,
-      closurePreserved: isQuantityUpdate && previousContext.closure,
-      logosPreserved: isQuantityUpdate && previousContext.logoRequirements.length > 0,
-      accessoriesPreserved: isQuantityUpdate && previousContext.accessories.length > 0
+      fabricPreserved: mergedSpecs.fabric === fabric,
+      closurePreserved: mergedSpecs.closure === closure,
+      logosPreserved: mergedSpecs.logos?.length === allLogoRequirements.length,
+      accessoriesPreserved: mergedSpecs.accessories?.length === accessoriesRequirements.length
     }
   };
 }
@@ -883,6 +1295,73 @@ export async function fetchDeliveryCosts(requirements: any) {
     const errorMessage = error instanceof Error ? error.message : 'Database connection error';
     throw new Error(`Failed to fetch delivery method costs: ${errorMessage}`);
   }
+}
+
+// Generate conversational update response highlighting changes
+export function generateConversationalUpdateResponse(
+  capDetails: any,
+  premiumUpgrades: any,
+  logoSetup: any,
+  accessories: any,
+  delivery: any,
+  conversationalContext: any
+): string {
+  const { detectedChanges, mergedSpecifications, orderBuilderDelta } = conversationalContext;
+
+  let response = `I've updated your quote with the requested changes:\n\n`;
+
+  // Highlight what was changed
+  if (detectedChanges.length > 0) {
+    response += `🔄 **Changes Applied:**\n`;
+    for (const change of detectedChanges) {
+      response += `• ${change.changeDescription}\n`;
+    }
+    response += `\n`;
+  }
+
+  // Show cost impact if significant
+  const total = capDetails.totalCost + (premiumUpgrades.totalCost || 0) + (logoSetup.totalCost || 0) + (accessories.totalCost || 0) + delivery.totalCost;
+
+  if (orderBuilderDelta?.costImpact && mergedSpecifications.totalCost) {
+    const previousTotal = mergedSpecifications.totalCost;
+    const difference = total - previousTotal;
+
+    if (Math.abs(difference) > 1) { // Only show if difference is significant
+      const changeType = difference > 0 ? 'increase' : 'decrease';
+      const changeSymbol = difference > 0 ? '+' : '';
+
+      response += `💰 **Cost Impact:** ${changeSymbol}$${Math.abs(difference).toFixed(2)} ${changeType} (from $${previousTotal.toFixed(2)} to $${total.toFixed(2)})\n\n`;
+    }
+  }
+
+  // Generate standard response with "Updated" prefix for changed sections
+  const standardResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+
+  // Mark changed sections with visual indicators
+  let enhancedResponse = standardResponse;
+  if (orderBuilderDelta?.visualIndicators) {
+    const indicators = orderBuilderDelta.visualIndicators;
+
+    if (indicators.capStyle === 'updated') {
+      enhancedResponse = enhancedResponse.replace('📊 Cap Style Setup', '📊 Cap Style Setup 🔄 **UPDATED**');
+    }
+    if (indicators.customization === 'updated') {
+      enhancedResponse = enhancedResponse.replace('🎨 Logo Setup', '🎨 Logo Setup 🔄 **UPDATED**');
+    }
+    if (indicators.accessories === 'updated') {
+      enhancedResponse = enhancedResponse.replace('🏷️ Accessories', '🏷️ Accessories 🔄 **UPDATED**');
+    }
+    if (indicators.delivery === 'updated') {
+      enhancedResponse = enhancedResponse.replace('🚚 Delivery', '🚚 Delivery 🔄 **UPDATED**');
+    }
+  }
+
+  response += enhancedResponse;
+
+  // Add conversational closing
+  response += `\n\n✅ Your specifications have been updated. Need any other changes?`;
+
+  return response;
 }
 
 // Generate structured AI response
