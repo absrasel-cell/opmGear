@@ -160,13 +160,16 @@ export async function POST(request: NextRequest) {
   
   // 🤖 AI APPROACH: Try AI with aggressive timeout
   console.log('✅ [ORDER-AI] Attempting AI response with 15s total timeout');
+  let extractedQuoteData = null;
   try {
    const aiPromise = generateUnifiedAIResponse(message, localConversationContext, uploadedFiles, conversationHistory, userProfile, user);
    const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => reject(new Error('Total AI timeout after 15 seconds')), 15000);
    });
-   
-   response = await Promise.race([aiPromise, timeoutPromise]) as string;
+
+   const aiResult = await Promise.race([aiPromise, timeoutPromise]) as any;
+   response = typeof aiResult === 'string' ? aiResult : aiResult.response;
+   extractedQuoteData = typeof aiResult === 'object' ? aiResult.quoteData : null;
    
    // Force order creation if explicitly requested
    if (forceOrderCreation && !response.includes('Order Created Successfully') && !response.includes('Order Reference:')) {
@@ -269,7 +272,9 @@ In the meantime, I can tell you that for that quantity you're definitely in grea
    conversationId: conversation.id, // Return actual conversation ID
    processingTime,
    context: localConversationContext, // FIXED: Return the actual conversation context
-   conversationContext: localConversationContext // Include context for next request (backward compatibility)
+   conversationContext: localConversationContext, // Include context for next request (backward compatibility)
+   quoteData: extractedQuoteData, // CRITICAL FIX: Include structured quote data for Order Builder
+   message: finalResponse // Alias for response to match MessagingService expectations
   });
   
  } catch (error) {
@@ -1077,12 +1082,49 @@ EXAMPLE CONVERSATION STYLE:
      errorResponse += `There was a technical issue. Please try again in a moment, or contact support@uscustomcap.com if the problem persists.`;
     }
     
-    return errorResponse;
+    return {
+      response: errorResponse,
+      quoteData: null
+    };
    }
   }
   
   console.log(`🤖 [UNIFIED-AI] Response generated (${completion.usage?.total_tokens || 0} tokens)`);
-  return aiResponse;
+
+  // Extract structured quote data for Order Builder
+  const structuredQuoteData = orderQuote ? {
+    capDetails: {
+      productName: orderQuote.requirements?.productName || '7-Panel Cap',
+      panelCount: orderQuote.requirements?.panelCount || '7-Panel',
+      unitPrice: orderQuote.costBreakdown?.detailedBreakdown?.blankCaps?.unitPrice || 3.50,
+      quantity: orderQuote.quantity,
+      size: orderQuote.requirements?.size || 'One Size',
+      color: orderQuote.color || orderQuote.requirements?.color || 'Black/Grey',
+      profile: orderQuote.requirements?.profile || 'High',
+      shape: orderQuote.requirements?.shape || 'Flat',
+      structure: orderQuote.requirements?.structure || 'Structured',
+      fabric: orderQuote.requirements?.fabric || 'Polyester',
+      closure: orderQuote.requirements?.closure || 'Fitted',
+      stitching: orderQuote.requirements?.stitching || 'Standard'
+    },
+    customization: {
+      logos: orderQuote.costBreakdown?.detailedBreakdown?.logos || [],
+      accessories: orderQuote.costBreakdown?.detailedBreakdown?.accessories || []
+    },
+    delivery: {
+      method: orderQuote.requirements?.delivery || 'Regular Delivery'
+    },
+    pricing: {
+      total: orderQuote.totalCost,
+      breakdown: orderQuote.costBreakdown
+    }
+  } : null;
+
+  // Return both AI response and structured data for Order Builder
+  return {
+    response: aiResponse,
+    quoteData: structuredQuoteData
+  };
   
  } catch (error) {
   console.error('❌ [UNIFIED-AI] Response generation failed:', error);

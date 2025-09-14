@@ -120,7 +120,6 @@ export class ArtworkAnalysisService {
         
         const pdfData = await pdfParse.default(pdfBuffer, {
           // Ensure we're using the buffer directly without file system access
-          normalizeWhitespace: true,
           max: 0 // No limit on pages
         });
         
@@ -417,7 +416,7 @@ Be systematic and comprehensive - don't miss secondary logos, side elements, or 
     cleanText = cleanText.replace(/\s+/g, ' ').trim();
     
     // Extract key sections with improved color-preserving patterns
-    const sections = [];
+    const sections: string[] = [];
     
     // Enhanced cap specification patterns for comprehensive extraction
     const capSpecPatterns = [
@@ -1153,13 +1152,14 @@ Return JSON with COMPREHENSIVE detection results. Include ALL logos/assets and a
   private static getDefaultCapSpec(): CapSpecification {
     return {
       shape: 'Semi Pro Slight Curve Bill',
+      billShape: 'Slight Curved',
       fabric: 'Polyester Cotton Mix',
       closure: 'Snapback',
       panelCount: 6,
       frontCrown: 'Black',
       backCrown: 'Black',
       bill: 'Black',
-      sandwich: null,
+      sandwich: undefined,
       underbill: 'Black',
       stitching: 'Matching'
     };

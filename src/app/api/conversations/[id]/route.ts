@@ -114,6 +114,19 @@ export async function GET(
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
+    // Debug logging for conversation data
+    console.log('🗂️ Raw conversation data from DB:', {
+      id: conversation.id,
+      title: conversation.title,
+      hasMetadata: !!conversation.metadata,
+      metadataKeys: conversation.metadata ? Object.keys(conversation.metadata) : [],
+      messageCount: sortedMessages.length
+    });
+
+    if (conversation.metadata?.orderBuilder) {
+      console.log('📋 Order Builder metadata found:', conversation.metadata.orderBuilder);
+    }
+
     // Transform the data for frontend consumption
     const transformedConversation = {
       id: conversation.id,

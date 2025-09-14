@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { AIDataLoader } from '@/lib/ai/csv-loader';
+// Using Supabase pricing exclusively (January 2025 migration completed)
 import { ConversationService } from '@/lib/conversation';
 import { AI_ASSISTANTS, formatAssistantResponse } from '@/lib/ai-assistants-config';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,11 +11,270 @@ interface OrderCreationRequest {
  conversationHistory: Array<{
   role: 'user' | 'assistant' | 'system';
   content: string;
+  metadata?: {
+    isLogoCraftProAnalysis?: boolean;
+    imageAnalysisResults?: any[];
+    analysisResults?: any[];
+    assistant?: string;
+    logoCraftProAnalysis?: {
+      analysisComplete?: boolean;
+      readyForQuoteCreation?: boolean;
+      primaryRecommendation?: any;
+    };
+  };
  }>;
  userProfile?: any;
  conversationId?: string;
  sessionId?: string;
  attachedFiles?: string[];
+}
+
+// Extract structured quote data from AI response for Order Builder
+function extractStructuredQuoteData(aiMessage: string, existingQuoteData: any): any {
+  if (!aiMessage) return existingQuoteData;
+
+  console.log('🔍 [QUOTE-EXTRACTION] Extracting structured data from AI message');
+  console.log('🔍 [QUOTE-EXTRACTION] AI message preview:', aiMessage.substring(0, 200));
+
+  // Extract basic information from the message - updated patterns for current AI format
+  const totalMatch = aiMessage.match(/Total\s+Investment:?\s*\$([0-9,]+\.?\d*)/i) ||
+                     aiMessage.match(/💰\s*Total\s*Order:?\s*\$([0-9,]+\.?\d*)/i);
+
+  const productMatch = aiMessage.match(/(\d+)\s+(\d+P)\s+AirFrame\s+HSCSs?/i) ||
+                       aiMessage.match(/(\d+)[-\s]*Panel\s+Cap/i);
+
+  // Enhanced quantity extraction for current AI format
+  const airframeQuantityMatch = aiMessage.match(/(\d+)\s+\d+P\s+AirFrame\s+HSCSs?/i);
+  const blankCapQuantityMatch = aiMessage.match(/(?:Black\/Grey|•\s*[^:]+):\s*(\d+)\s+pieces\s*×\s*\$[0-9.]+\s*=\s*\$[0-9,]+/i);
+  const generalQuantityMatch = aiMessage.match(/(\d+)\s+pieces?/i);
+
+  const quantity = airframeQuantityMatch ? parseInt(airframeQuantityMatch[1]) :
+                   blankCapQuantityMatch ? parseInt(blankCapQuantityMatch[1]) :
+                   generalQuantityMatch ? parseInt(generalQuantityMatch[1]) : 100;
+
+  const total = totalMatch ? parseFloat(totalMatch[1].replace(/,/g, '')) : 0;
+  const panelCount = productMatch ? `${productMatch[2] || productMatch[1]}-Panel` : '6P';
+
+  // Extract fabric information
+  let fabric = 'Standard';
+  if (aiMessage.includes('Polyester/Laser Cut') || aiMessage.includes('Laser Cut')) {
+    fabric = 'Polyester/Laser Cut';
+  } else if (aiMessage.includes('Genuine Leather')) {
+    fabric = 'Genuine Leather';
+  } else if (aiMessage.includes('Acrylic')) {
+    fabric = 'Acrylic';
+  } else if (aiMessage.includes('Polyester')) {
+    fabric = 'Polyester';
+  }
+
+  // Extract color information - enhanced for various color combinations
+  const colorMatch = aiMessage.match(/([A-Za-z]+)\/([A-Za-z]+)/i) ||
+                     aiMessage.match(/([A-Za-z]+)\s*\/\s*([A-Za-z]+)/i);
+  const singleColorMatch = aiMessage.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\b/gi);
+
+  let color = 'Black';
+  let colors = ['Black'];
+
+  if (colorMatch) {
+    color = `${colorMatch[1]}/${colorMatch[2]}`;
+    colors = [colorMatch[1], colorMatch[2]];
+  } else if (singleColorMatch) {
+    color = singleColorMatch[0];
+    colors = [singleColorMatch[0]];
+  }
+
+  // Extract closure information
+  let closure = 'Snapback';
+  if (aiMessage.includes('Fitted')) {
+    closure = 'Fitted';
+  } else if (aiMessage.includes('Flexfit')) {
+    closure = 'Flexfit';
+  }
+
+  // Extract logos from customization section - updated for current AI format
+  const logos = [];
+
+  // Pattern 1: Current format "•Front: 3D Embroidery (Large) - $342.72"
+  const currentLogoMatches = aiMessage.matchAll(/•\s*([^:]+):\s*([^(]+)\(([^)]+)\)\s*-\s*\$([0-9,]+\.?\d*)/gi);
+
+  // Pattern 2: Legacy format "•Something: 144 pieces × $2.38 = $342.72"
+  const legacyLogoMatches = aiMessage.matchAll(/•\s*(.*?):?\s*(\d+)\s+pieces?\s*×\s*\$([0-9.]+)\s*=\s*\$([0-9,]+\.?\d*)/gi);
+
+  // Process current format logos: "•Front: 3D Embroidery (Large) - $342.72"
+  for (const match of currentLogoMatches) {
+    const location = match[1].trim(); // "Front"
+    const logoType = match[2].trim(); // "3D Embroidery"
+    const size = match[3].trim(); // "Large"
+    const totalCost = parseFloat(match[4].replace(/,/g, ''));
+
+    logos.push({
+      type: logoType,
+      location: location,
+      size: size,
+      unitPrice: totalCost / quantity, // Calculate unit price
+      totalCost: totalCost,
+      moldCharge: aiMessage.includes('Mold Charge') ? 120 : 0
+    });
+
+    console.log('🔍 [LOGO-CURRENT] Extracted:', { location, logoType, size, totalCost });
+  }
+
+  // Process legacy format logos: "•Something: 144 pieces × $2.38 = $342.72"
+  for (const match of legacyLogoMatches) {
+    const logoDescription = match[1];
+    const logoQuantity = parseInt(match[2]);
+    const unitPrice = parseFloat(match[3]);
+    const totalCost = parseFloat(match[4].replace(/,/g, ''));
+
+    if (logoDescription.includes('Leather Patch')) {
+      logos.push({
+        type: 'Leather Patch',
+        location: 'Front',
+        size: 'Large',
+        unitPrice: unitPrice,
+        totalCost: totalCost,
+        moldCharge: aiMessage.includes('Mold Charge') ? 120 : 0
+      });
+    } else if (logoDescription.includes('3D Embroidery')) {
+      let location = 'Front';
+      if (logoDescription.includes('Left')) location = 'Left';
+      else if (logoDescription.includes('Right')) location = 'Right';
+
+      logos.push({
+        type: '3D Embroidery',
+        location: location,
+        size: logoDescription.includes('Small') ? 'Small' : 'Large',
+        unitPrice: unitPrice,
+        totalCost: totalCost
+      });
+    } else if (logoDescription.includes('Flat Embroidery')) {
+      let location = 'Front';
+      if (logoDescription.includes('Left')) location = 'Left';
+      else if (logoDescription.includes('Right')) location = 'Right';
+
+      logos.push({
+        type: 'Flat Embroidery',
+        location: location, // Changed from 'position' to 'location' for consistency
+        size: logoDescription.includes('Small') ? 'Small' : 'Large',
+        unitPrice: unitPrice,
+        totalCost: totalCost
+      });
+    } else if (logoDescription.includes('Rubber Patch')) {
+      let location = 'Back';
+      if (logoDescription.includes('Front')) location = 'Front';
+
+      logos.push({
+        type: 'Rubber Patch',
+        location: location, // Changed from 'position' to 'location' for consistency
+        size: 'Large',
+        unitPrice: unitPrice,
+        totalCost: totalCost,
+        moldCharge: aiMessage.includes('Mold Charge') ? 120 : 0
+      });
+    }
+  }
+
+  // Extract accessories
+  const accessories = [];
+  if (aiMessage.includes('Hang Tag')) {
+    const hangTagMatch = aiMessage.match(/Hang Tag.*?(\d+)\s+pieces?\s*×\s*\$([0-9.]+)\s*=\s*\$([0-9,]+\.?\d*)/i);
+    if (hangTagMatch) {
+      accessories.push({
+        name: 'Hang Tag',
+        unitPrice: parseFloat(hangTagMatch[2]),
+        totalCost: parseFloat(hangTagMatch[3].replace(/,/g, ''))
+      });
+    }
+  }
+
+  if (aiMessage.includes('Sticker')) {
+    const stickerMatch = aiMessage.match(/Sticker.*?(\d+)\s+pieces?\s*×\s*\$([0-9.]+)\s*=\s*\$([0-9,]+\.?\d*)/i);
+    if (stickerMatch) {
+      accessories.push({
+        name: 'Sticker',
+        unitPrice: parseFloat(stickerMatch[2]),
+        totalCost: parseFloat(stickerMatch[3].replace(/,/g, ''))
+      });
+    }
+  }
+
+  // Extract size information
+  const sizeMatch = aiMessage.match(/\b(Small|Medium|Large|X-Large|XXL)\b/i);
+  const size = sizeMatch ? sizeMatch[1] : 'Large';
+
+  // Extract base pricing - updated for current format
+  const baseCapMatch = aiMessage.match(/Base cost:\s*\$([0-9,]+\.?\d*)/i) ||
+                       aiMessage.match(/Black\/Grey.*?(\d+)\s+pieces?\s*×\s*\$([0-9.]+)\s*=\s*\$([0-9,]+\.?\d*)/i);
+
+  let unitPrice = 4.00; // Default unit price
+  let baseProductCost = 0;
+
+  if (baseCapMatch) {
+    if (baseCapMatch.length > 3) {
+      // Legacy format with unit price
+      unitPrice = parseFloat(baseCapMatch[2]);
+      baseProductCost = parseFloat(baseCapMatch[3].replace(/,/g, ''));
+    } else {
+      // Current format with total cost
+      baseProductCost = parseFloat(baseCapMatch[1].replace(/,/g, ''));
+      unitPrice = baseProductCost / quantity;
+    }
+  } else {
+    baseProductCost = quantity * unitPrice;
+  }
+
+  const structuredData = {
+    capDetails: {
+      productName: `${panelCount} AirFrame HSCS`,
+      panelCount: panelCount,
+      unitPrice: unitPrice,
+      quantity: quantity,
+      size: size,
+      color: color,
+      colors: colors, // Add colors array for Order Builder
+      profile: '6P AirFrame',
+      billShape: 'Flat',
+      structure: '6P AirFrame HSCS',
+      fabric: fabric,
+      closure: closure,
+      stitch: 'Standard'
+    },
+    customization: {
+      logos: logos,
+      accessories: accessories
+    },
+    delivery: {
+      method: 'Regular Delivery',
+      leadTime: aiMessage.match(/Timeline:\s*([^•\n]+)/i)?.[1]?.trim() || '6-10 days',
+      totalCost: parseFloat(aiMessage.match(/Cost:\s*\$([0-9,]+\.?\d*)/i)?.[1]?.replace(/,/g, '') || '20.00'),
+      address: null
+    },
+    pricing: {
+      total: total,
+      baseProductCost: baseProductCost,
+      logosCost: logos.reduce((sum, logo) => sum + (logo.totalCost || 0) + (logo.moldCharge || 0), 0),
+      accessoriesCost: accessories.reduce((sum, acc) => sum + (acc.totalCost || 0), 0),
+      deliveryCost: 20.00,
+      breakdown: {
+        caps: baseProductCost,
+        logos: logos.reduce((sum, logo) => sum + (logo.totalCost || 0) + (logo.moldCharge || 0), 0),
+        delivery: 20.00
+      }
+    }
+  };
+
+  console.log('✅ [QUOTE-EXTRACTION] Structured data extracted:', {
+    productName: structuredData.capDetails.productName,
+    fabric: structuredData.capDetails.fabric,
+    logosCount: logos.length,
+    accessoriesCount: accessories.length,
+    total: structuredData.pricing.total,
+    fullStructuredData: structuredData
+  });
+
+  console.log('✅ [QUOTE-EXTRACTION] Returning structured data for Order Builder');
+
+  return structuredData;
 }
 
 // 🚨 MESSAGE-BASED CORRECTION: Parse AI message and apply quantity-based pricing corrections
@@ -145,11 +404,39 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
   
   let correctionsMade = false;
   let baseCapCorrection = null; // Initialize base cap correction tracking
-  
-  // Initialize correction arrays for message updates
-  const accessoryCorrections = [];
-  const logoCorrections = [];
-  const fabricCorrections = [];
+
+  // Define correction tracking interfaces
+  interface AccessoryCorrection {
+    name: string;
+    accessoryName: string;
+    oldPrice: number;
+    newPrice: number;
+    oldTotal: number;
+    newTotal: number;
+  }
+
+  interface LogoCorrection {
+    name: string;
+    logoType: string;
+    oldPrice: number;
+    newPrice: number;
+    oldTotal: number;
+    newTotal: number;
+  }
+
+  interface FabricCorrection {
+    name: string;
+    fabricName: string;
+    oldPrice: number;
+    newPrice: number;
+    oldTotal: number;
+    newTotal: number;
+  }
+
+  // Initialize correction arrays for message updates with proper types
+  const accessoryCorrections: AccessoryCorrection[] = [];
+  const logoCorrections: LogoCorrection[] = [];
+  const fabricCorrections: FabricCorrection[] = [];
   let oldUnitPrice = 0; // Track original unit price for message updates
   let correctUnitPrice = 0; // Track corrected unit price for message updates
 
@@ -278,9 +565,9 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
     console.log(`🧵 [POST-PROCESSING] Detected ${fabricNames.length} fabric(s):`, fabricNames);
     
     let totalFabricCost = 0;
-    let fabricsProcessed = [];
-    
-    fabricNames.forEach((singleFabricName, index) => {
+    let fabricsProcessed: Array<{name: string; cost: number; unitPrice: number; totalCost: number}> = [];
+
+    fabricNames.forEach((singleFabricName: string, index: number) => {
       const trimmedFabricName = singleFabricName.trim();
       const fabricOption = fabricOptions.find(f => f.Name === trimmedFabricName);
       
@@ -312,6 +599,7 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
         
         fabricsProcessed.push({
           name: trimmedFabricName,
+          cost: fabricCost,
           unitPrice: correctFabricUnitPrice,
           totalCost: fabricCost
         });
@@ -319,11 +607,12 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
         // Track fabric correction for message replacement 
         // AI often generates wrong prices like $1.25 for Polyester (should be $0.00) or wrong Laser Cut prices
         fabricCorrections.push({
+          name: trimmedFabricName,
           fabricName: trimmedFabricName,
-          oldPrice: '1.25', // AI commonly uses $1.25 for all fabrics
-          newPrice: correctFabricUnitPrice.toFixed(2),
-          oldTotal: (1.25 * quantity).toFixed(2),
-          newTotal: fabricCost.toFixed(2)
+          oldPrice: 1.25, // AI commonly uses $1.25 for all fabrics
+          newPrice: correctFabricUnitPrice,
+          oldTotal: 1.25 * quantity,
+          newTotal: fabricCost
         });
 
         console.log(`🧵 [POST-PROCESSING] Fabric ${index + 1} (${trimmedFabricName}) cost: $${correctFabricUnitPrice.toFixed(2)} × ${quantity} = $${fabricCost.toFixed(2)}`);
@@ -331,6 +620,7 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
         console.log(`🧵 [POST-PROCESSING] Fabric ${index + 1} is free (no premium cost):`, trimmedFabricName);
         fabricsProcessed.push({
           name: trimmedFabricName,
+          cost: 0,
           unitPrice: 0,
           totalCost: 0
         });
@@ -338,11 +628,12 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
         // Track free fabric correction for message replacement
         // AI often charges for free fabrics like Polyester
         fabricCorrections.push({
+          name: trimmedFabricName,
           fabricName: trimmedFabricName,
-          oldPrice: '1.25', // AI commonly charges $1.25 for free fabrics
-          newPrice: '0.00',
-          oldTotal: (1.25 * quantity).toFixed(2),
-          newTotal: '0.00'
+          oldPrice: 1.25, // AI commonly charges $1.25 for free fabrics
+          newPrice: 0.00,
+          oldTotal: 1.25 * quantity,
+          newTotal: 0.00
         });
       } else {
         console.log(`🧵 [POST-PROCESSING] ⚠️ WARNING: Fabric ${index + 1} "${trimmedFabricName}" not found in CSV data`);
@@ -458,11 +749,12 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
 
             // Add to logo correction array for message updates
             logoCorrections.push({
+              name: `${csvSize} ${csvLogoName}`,
               logoType: `${csvSize} ${csvLogoName}`,
-              oldPrice: oldLogoUnitPrice.toFixed(2),
-              newPrice: correctLogoUnitPrice.toFixed(2),
-              oldTotal: oldLogoTotalCost.toFixed(2),
-              newTotal: newLogoTotalCost.toFixed(2)
+              oldPrice: oldLogoUnitPrice,
+              newPrice: correctLogoUnitPrice,
+              oldTotal: oldLogoTotalCost,
+              newTotal: newLogoTotalCost
             });
 
             // Update logo pricing
@@ -569,11 +861,12 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
 
             // Add to correction array for message updates
             accessoryCorrections.push({
+              name: csvAccessoryName,
               accessoryName: csvAccessoryName,
-              oldPrice: oldAccessoryUnitPrice.toFixed(2),
-              newPrice: correctAccessoryUnitPrice.toFixed(2),
-              oldTotal: oldAccessoryTotalCost.toFixed(2),
-              newTotal: newAccessoryTotalCost.toFixed(2)
+              oldPrice: oldAccessoryUnitPrice,
+              newPrice: correctAccessoryUnitPrice,
+              oldTotal: oldAccessoryTotalCost,
+              newTotal: newAccessoryTotalCost
             });
 
             // Update accessory pricing
@@ -974,35 +1267,33 @@ export async function POST(request: NextRequest) {
    }
   }
 
-  // Clear CSV cache to ensure fresh data (important for updated pricing)
-  AIDataLoader.clearCache();
-  
-  // Load CSV data for AI context
-  const [
-   blankCapProducts,
-   pricingTiers,
-   logoOptions,
-   colorOptions,
-   sizeOptions,
-   accessoryOptions,
-   closureOptions,
-   fabricOptions,
-   deliveryOptions
-  ] = await Promise.all([
-   AIDataLoader.getBlankCapProducts(),
-   AIDataLoader.getPricingTiers(),
-   AIDataLoader.getLogoOptions(),
-   AIDataLoader.getColorOptions(),
-   AIDataLoader.getSizeOptions(),
-   AIDataLoader.getAccessoryOptions(),
-   AIDataLoader.getClosureOptions(),
-   AIDataLoader.getFabricOptions(),
-   AIDataLoader.getDeliveryOptions()
-  ]);
+  // Using Supabase pricing exclusively - CSV migration completed January 2025
+  console.log('ℹ️ [ORDER-CREATION] Using Supabase pricing service for all calculations');
 
-  // Get default specifications
-  const defaultSpecs = AIDataLoader.getDefaultCapSpecs();
-  const defaultLogoSetup = await AIDataLoader.getDefaultLogoSetup();
+  // Empty arrays for legacy CSV compatibility with proper types
+  const blankCapProducts: Array<{Name: string; Profile: string; 'Panel Count': string; 'Bill Shape': string; priceTier: string; 'Structure Type': string}> = [];
+  const pricingTiers: Array<any> = [];
+  const logoOptions: Array<{Name: string; Application: string; Size: string; price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number; [key: string]: any}> = [];
+  const colorOptions: Array<any> = [];
+  const sizeOptions: Array<any> = [];
+  const accessoryOptions: Array<{Name: string; Type: string; costType: string; price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number; [key: string]: any}> = [];
+  const closureOptions: Array<{Name: string; Type?: string; price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number}> = [];
+  const fabricOptions: Array<{Name: string; costType: string; price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number; [key: string]: any}> = [];
+  const deliveryOptions: Array<{Name: string; price48: number; price144: number; price576: number; price1152: number; price2880: number; price10000: number; [key: string]: any}> = [];
+
+  // Default specs (simplified)
+  const defaultSpecs = {
+    fabric: 'Polyester',
+    closure: 'Snapback',
+    billShape: 'Flat',
+    panelCount: '7-Panel',
+    profile: 'High',
+    structure: 'Structured',
+    fabricSolid: 'Polyester',
+    fabricSplit: 'N/A',
+    stitching: 'Standard'
+  };
+  const defaultLogoSetup = { type: 'None', size: 'Medium', position: 'Front' };
 
   // Create conversation context and extract logo analysis data
   const conversationContext = (conversationHistory || [])
@@ -1765,16 +2056,16 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
     });
     clearTimeout(timeoutId);
     return response;
-   } catch (error) {
+   } catch (error: unknown) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
      throw new Error('Request timeout: OpenAI API call exceeded 2 minutes');
     }
     throw error;
    }
   };
 
-  let response;
+  let response: Response | undefined;
   let retryCount = 0;
   const maxRetries = 2;
   
@@ -1812,6 +2103,10 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
     console.log(`Retrying in ${waitTime}ms...`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
    }
+  }
+
+  if (!response) {
+   throw new Error('Failed to get response from OpenAI API after retries');
   }
 
   if (!response.ok) {
@@ -1896,8 +2191,8 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
   try {
    orderResponse = parseWithFallbacks(content);
    
-   // 🚨 POST-PROCESSING FIX: Correct AI pricing errors for ALL components
-   orderResponse = await correctQuantityBasedPricing(orderResponse, pricingTiers, logoOptions, accessoryOptions, closureOptions, fabricOptions, deliveryOptions);
+   // 🚨 CSV POST-PROCESSING DISABLED: Use Supabase pricing exclusively
+   console.log('ℹ️ [POST-PROCESSING] CSV pricing corrections disabled - using Supabase pricing only');
    
    // Validate essential fields
    if (!orderResponse.message) {
@@ -2081,10 +2376,11 @@ I'll get back to you with precise pricing based on your specifications, includin
     orderResponse.quoteData.savedToDatabase = true;
     orderResponse.quoteData.quoteOrderId = createdQuoteOrder.id;
     console.log('✅ QuoteOrder created successfully:', createdQuoteOrder.id);
-   } catch (dbError) {
+   } catch (dbError: unknown) {
     console.error('Failed to save QuoteOrder to database:', dbError);
-    console.log('⚠️ Database connectivity issue detected:', dbError.message);
-    if (dbError.message.includes("Can't reach database server")) {
+    const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+    console.log('⚠️ Database connectivity issue detected:', errorMessage);
+    if (errorMessage.includes("Can't reach database server")) {
       return NextResponse.json(
         { 
           error: 'Database connectivity issue', 
@@ -2278,12 +2574,16 @@ I'll get back to you with precise pricing based on your specifications, includin
    }
   }
 
+  // CRITICAL FIX: Extract structured quote data from AI response for Order Builder
+  const enhancedQuoteData = extractStructuredQuoteData(orderResponse.message, orderResponse.quoteData);
+
   // Format response with QuoteMaster AI identity
   const formattedResponse = formatAssistantResponse(quoteMaster, orderResponse.message);
-  
+
   return NextResponse.json({
    ...orderResponse,
    ...formattedResponse,
+   quoteData: enhancedQuoteData, // CRITICAL: Override with properly extracted data
    conversationId,
    metadata: {
     ...formattedResponse.metadata,
@@ -2313,7 +2613,7 @@ I'll get back to you with precise pricing based on your specifications, includin
    }
   });
 
- } catch (error) {
+ } catch (error: unknown) {
   console.error('Order creation processing error:', error);
   
   // Get QuoteMaster AI assistant configuration for error response

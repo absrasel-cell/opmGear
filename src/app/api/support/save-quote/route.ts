@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
         totalAccessoriesCost: accessoriesCost,
         // ENHANCED: Extract complete Delivery data from Current AI Values  
         delivery: {
-          method: delivery?.method || 'Standard Delivery',
+          method: delivery?.method || 'Regular Delivery',
           leadTime: delivery?.leadTime || delivery?.timeframe,
           cost: deliveryCost,
           urgency: delivery?.urgency || 'standard',

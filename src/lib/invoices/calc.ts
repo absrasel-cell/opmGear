@@ -484,11 +484,11 @@ function convertCostBreakdownToInvoice(order: OrderWithDetails, costBreakdown: a
         'Air': 'Air Freight Delivery',
         'Sea': 'Sea Freight Delivery',
         'Express': 'Express Delivery',
-        'Standard': 'Standard Delivery'
+        'Standard': 'Regular Delivery'
       };
       
       const fullDeliveryDescription = deliveryDescriptionMapping[delivery.name] || 
-                                    (delivery.name && delivery.name.includes('Delivery') ? delivery.name : `${delivery.name || 'Standard'} Delivery`);
+                                    (delivery.name && delivery.name.includes('Delivery') ? delivery.name : `${delivery.name || 'Regular'} Delivery`);
       
       items.push({
         name: 'Delivery Charges',
@@ -544,7 +544,7 @@ function convertCostBreakdownToInvoice(order: OrderWithDetails, costBreakdown: a
   if (!hasDeliveryItem) {
     items.push({
       name: 'Delivery Charges',
-      description: 'Standard Shipping',
+      description: 'Regular Delivery',
       quantity: 1,
       unitPrice: 0,
       total: 0,
@@ -671,7 +671,7 @@ function convertOrderCostBreakdownToInvoice(order: OrderWithDetails, costBreakdo
         'Air': 'Air Freight Delivery',
         'Sea': 'Sea Freight Delivery',
         'Express': 'Express Delivery',
-        'Standard': 'Standard Delivery'
+        'Standard': 'Regular Delivery'
       };
       
       const fullDeliveryDescription = deliveryDescriptionMapping[delivery.name] || 
@@ -711,7 +711,7 @@ function convertOrderCostBreakdownToInvoice(order: OrderWithDetails, costBreakdo
   if (!hasDeliveryItem) {
     items.push({
       name: 'Delivery Charges',
-      description: 'Standard Shipping',
+      description: 'Regular Delivery',
       quantity: 1,
       unitPrice: 0,
       total: 0,
@@ -1073,8 +1073,8 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
             'sea': 'Sea Freight Delivery',
             'Express': 'Express Delivery',
             'express': 'Express Delivery',
-            'Standard': 'Standard Delivery',
-            'standard': 'Standard Delivery'
+            'Standard': 'Regular Delivery',
+            'standard': 'Regular Delivery'
           };
           
           const fullDeliveryDescription = deliveryDescriptionMapping[delivery] || 
@@ -1100,12 +1100,12 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
             'regular': 'Regular Delivery',
             'Priority': 'Priority Delivery', 
             'priority': 'Priority Delivery',
-            'Standard': 'Standard Delivery',
-            'standard': 'Standard Delivery'
+            'Standard': 'Regular Delivery',
+            'standard': 'Regular Delivery'
           };
           
           const fullDeliveryDescription = deliveryDescriptionMapping[delivery] || 
-                                        (delivery && delivery.includes('Delivery') ? delivery : `${delivery || 'Standard'} Delivery`);
+                                        (delivery && delivery.includes('Delivery') ? delivery : `${delivery || 'Regular'} Delivery`);
           
           items.push({
             name: 'Delivery Charges',
@@ -1305,8 +1305,8 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
           'sea': 'Sea Freight Delivery',
           'Express': 'Express Delivery',
           'express': 'Express Delivery',
-          'Standard': 'Standard Delivery',
-          'standard': 'Standard Delivery'
+          'Standard': 'Regular Delivery',
+          'standard': 'Regular Delivery'
         };
         
         const fullDeliveryDescription = deliveryDescriptionMapping[deliveryType] || 
@@ -1333,12 +1333,12 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
           'regular': 'Regular Delivery',
           'Priority': 'Priority Delivery',
           'priority': 'Priority Delivery',
-          'Standard': 'Standard Delivery',
-          'standard': 'Standard Delivery'
+          'Standard': 'Regular Delivery',
+          'standard': 'Regular Delivery'
         };
         
         const fullDeliveryDescription = deliveryDescriptionMapping[deliveryType] || 
-                                      (deliveryType && deliveryType.includes('Delivery') ? deliveryType : `${deliveryType || 'Standard'} Delivery`);
+                                      (deliveryType && deliveryType.includes('Delivery') ? deliveryType : `${deliveryType || 'Regular'} Delivery`);
         
         items.push({
           name: 'Delivery Charges',
@@ -1495,8 +1495,8 @@ async function calculateInvoiceFromOrderLegacy(order: OrderWithDetails): Promise
       'regular': 'Regular Delivery',
       'Priority': 'Priority Delivery',
       'priority': 'Priority Delivery',
-      'Standard': 'Standard Delivery',
-      'standard': 'Standard Delivery'
+      'Standard': 'Regular Delivery',
+      'standard': 'Regular Delivery'
     };
     
     const deliveryDescription = deliveryDescriptionMapping[rawDeliveryType] || 

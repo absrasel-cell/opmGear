@@ -12,7 +12,7 @@
  */
 
 import { QuoteProduct, QuoteColorOption, QuoteLogoOption, QuoteDataService } from './quote-data-service';
-import { calculateUnitPrice } from './pricing';
+import { calculateUnitPrice } from './pricing-server';
 
 export interface QuoteConfiguration {
   productId: string;
@@ -101,7 +101,7 @@ export class QuoteProductAdapter {
       
       // Use fallback pricing based on productId or default tier pricing
       const fallbackTier = 'Tier 1'; // Default tier
-      const unitPrice = calculateUnitPrice(config.quantity, fallbackTier);
+      const unitPrice = await calculateUnitPrice(config.quantity, fallbackTier);
       const baseProductCost = unitPrice * config.quantity;
       
       // Calculate logo cost using fallback pricing
@@ -124,7 +124,7 @@ export class QuoteProductAdapter {
     }
     
     // Calculate base product cost using tier pricing
-    const unitPrice = calculateUnitPrice(config.quantity, product.priceTier);
+    const unitPrice = await calculateUnitPrice(config.quantity, product.priceTier);
     const baseProductCost = unitPrice * config.quantity;
     
     // Calculate logo cost
@@ -160,7 +160,7 @@ export class QuoteProductAdapter {
       console.error('Error calculating quote pricing:', error);
       
       // Fallback to simple calculation
-      return this.calculateSimplePricing(config);
+      return await this.calculateSimplePricing(config);
     }
   }
   
@@ -216,7 +216,7 @@ export class QuoteProductAdapter {
   /**
    * Simple pricing calculation (fallback)
    */
-  private static calculateSimplePricing(config: QuoteConfiguration): QuotePricing {
+  private static async calculateSimplePricing(config: QuoteConfiguration): Promise<QuotePricing> {
     const product = config.product;
     
     // 🔧 CRITICAL FIX: Provide fallback calculation when product is missing
@@ -225,7 +225,7 @@ export class QuoteProductAdapter {
       
       // Use fallback pricing
       const fallbackTier = 'Tier 1'; // Default tier
-      const unitPrice = calculateUnitPrice(config.quantity, fallbackTier);
+      const unitPrice = await calculateUnitPrice(config.quantity, fallbackTier);
       const baseProductCost = unitPrice * config.quantity;
       
       // Calculate logo cost
@@ -276,7 +276,7 @@ export class QuoteProductAdapter {
     }
     
     // Calculate base product cost using tier pricing
-    const unitPrice = calculateUnitPrice(config.quantity, product.priceTier);
+    const unitPrice = await calculateUnitPrice(config.quantity, product.priceTier);
     const baseProductCost = unitPrice * config.quantity;
     
     // Calculate logo cost
@@ -329,30 +329,34 @@ export class QuoteProductAdapter {
   /**
    * Get available quantities with pricing tiers
    */
-  static getQuantityTiers(product: QuoteProduct): Array<{
+  static async getQuantityTiers(product: QuoteProduct): Promise<Array<{
     quantity: number;
     unitPrice: number;
     totalPrice: number;
     savings?: number;
     label: string;
-  }> {
+  }>> {
     const quantities = [48, 144, 576, 1152, 2880, 10000];
     const baseUnitPrice = product.pricing.price48;
     
-    return quantities.map(qty => {
-      const unitPrice = calculateUnitPrice(qty, product.priceTier);
-      const totalPrice = unitPrice * qty;
-      const baseTotalPrice = baseUnitPrice * qty;
-      const savings = qty > 48 ? baseTotalPrice - totalPrice : 0;
-      
-      return {
-        quantity: qty,
-        unitPrice,
-        totalPrice,
-        savings,
-        label: `${qty.toLocaleString()} units - $${unitPrice.toFixed(2)}/unit`,
-      };
-    });
+    const tierResults = await Promise.all(
+      quantities.map(async qty => {
+        const unitPrice = await calculateUnitPrice(qty, product.priceTier);
+        const totalPrice = unitPrice * qty;
+        const baseTotalPrice = baseUnitPrice * qty;
+        const savings = qty > 48 ? baseTotalPrice - totalPrice : 0;
+
+        return {
+          quantity: qty,
+          unitPrice,
+          totalPrice,
+          savings,
+          label: `${qty.toLocaleString()} units - $${unitPrice.toFixed(2)}/unit`,
+        };
+      })
+    );
+
+    return tierResults;
   }
   
   /**
@@ -461,10 +465,16 @@ export class QuoteProductAdapter {
       // Filter by budget if specified
       if (budget) {
         const maxUnitPrice = budget / quantity;
-        recommendations = recommendations.filter(product => {
-          const unitPrice = calculateUnitPrice(quantity, product.priceTier);
-          return unitPrice <= maxUnitPrice;
-        });
+        const budgetFilteredRecommendations = [];
+
+        for (const product of recommendations) {
+          const unitPrice = await calculateUnitPrice(quantity, product.priceTier);
+          if (unitPrice <= maxUnitPrice) {
+            budgetFilteredRecommendations.push(product);
+          }
+        }
+
+        recommendations = budgetFilteredRecommendations;
       }
       
       // Filter by tier preference
@@ -475,11 +485,14 @@ export class QuoteProductAdapter {
       }
       
       // Sort by price (ascending) and popularity
-      recommendations.sort((a, b) => {
-        const priceA = calculateUnitPrice(quantity, a.priceTier);
-        const priceB = calculateUnitPrice(quantity, b.priceTier);
-        return priceA - priceB;
-      });
+      const sortedRecommendations = [];
+      for (const product of recommendations) {
+        const unitPrice = await calculateUnitPrice(quantity, product.priceTier);
+        sortedRecommendations.push({ ...product, sortPrice: unitPrice });
+      }
+
+      sortedRecommendations.sort((a, b) => a.sortPrice - b.sortPrice);
+      recommendations = sortedRecommendations.map(({ sortPrice, ...product }) => product);
       
       return recommendations.slice(0, 5); // Return top 5 recommendations
       

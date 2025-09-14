@@ -10,34 +10,53 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Authentication using EXACT same approach as /api/auth/session
+    // Debug request headers
+    console.log('📋 Request headers:', {
+      authorization: request.headers.get('Authorization') ? 'Present' : 'Missing',
+      contentType: request.headers.get('Content-Type'),
+      origin: request.headers.get('Origin'),
+      userAgent: request.headers.get('User-Agent')?.substring(0, 50) || 'Unknown'
+    });
+
+    // Authentication using Authorization header first, then cookies
     let userId: string | null = null;
     try {
-      const cookieStore = await cookies();
-      
-      // Try the correct Supabase cookie name first
-      let accessToken = cookieStore.get('sb-nowxzkdkaegjwfhhqoez-auth-token')?.value;
-      
-      // Fallback to the shorter name if not found
-      if (!accessToken) {
-        accessToken = cookieStore.get('sb-access-token')?.value;
-      }
+      let token: string | null = null;
 
-      if (!accessToken) {
-        console.log('❌ No access token found in cookies');
-        console.log('🔄 Returning empty conversations array');
-        return NextResponse.json([]);
-      }
+      // First try Authorization header (for API calls from frontend)
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+        console.log('✅ Using Authorization header for authentication');
+      } else {
+        // Fallback to cookies (for direct browser requests)
+        const cookieStore = await cookies();
 
-      // Parse the access token from the JSON if it's stored as JSON
-      let token = accessToken;
-      try {
-        const parsedToken = JSON.parse(accessToken);
-        if (parsedToken.access_token) {
-          token = parsedToken.access_token;
+        // Try the correct Supabase cookie name first
+        let accessToken = cookieStore.get('sb-nowxzkdkaegjwfhhqoez-auth-token')?.value;
+
+        // Fallback to the shorter name if not found
+        if (!accessToken) {
+          accessToken = cookieStore.get('sb-access-token')?.value;
         }
-      } catch (e) {
-        // If it's not JSON, use as is
+
+        if (!accessToken) {
+          console.log('❌ No access token found in cookies or Authorization header');
+          console.log('🔄 Returning empty conversations array');
+          return NextResponse.json([]);
+        }
+
+        // Parse the access token from the JSON if it's stored as JSON
+        token = accessToken;
+        try {
+          const parsedToken = JSON.parse(accessToken);
+          if (parsedToken.access_token) {
+            token = parsedToken.access_token;
+          }
+        } catch (e) {
+          // If it's not JSON, use as is
+        }
+        console.log('✅ Using cookie authentication');
       }
 
       // Create a Supabase client with the access token (EXACT match to session API)
@@ -85,7 +104,7 @@ export async function GET(request: NextRequest) {
     
     console.log('📊 Total conversations for user (including archived):', totalUserConversations);
 
-    // Get all conversations (both support and quote requests) - don't filter by context
+    // Get basic conversation data first, then join messages separately
     const { data: conversations, error: conversationsError } = await supabaseAdmin
       .from('Conversation')
       .select(`
@@ -98,101 +117,73 @@ export async function GET(request: NextRequest) {
         tags,
         createdAt,
         metadata,
-        ConversationMessage (
-          id,
-          content,
-          createdAt,
-          role
-        ),
-        ConversationQuotes (
-          id,
-          quoteOrderId,
-          isMainQuote,
-          createdAt,
-          QuoteOrder (
-            id,
-            status,
-            estimatedCosts,
-            customerName,
-            customerCompany,
-            completedAt
-          )
-        ),
-        OrderBuilderState (
-          totalCost,
-          totalUnits,
-          currentStep,
-          isCompleted,
-          completedAt
-        )
+        isArchived
       `)
       .eq('userId', userId)
       .eq('isArchived', false)
       .order('lastActivity', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    console.log('📊 Basic conversation query result:', {
+      conversationCount: conversations?.length || 0,
+      error: conversationsError?.message || 'none',
+      firstConv: conversations?.[0]?.id || 'none'
+    });
+
     if (conversationsError) {
       throw conversationsError;
     }
 
-    // Transform the data for frontend with quote information
-    const transformedConversations = (conversations || []).map(conv => {
-      const mainQuote = conv.ConversationQuotes?.[0];
-      const orderBuilderState = conv.OrderBuilderState?.[0];
-      const latestMessage = conv.ConversationMessage?.[conv.ConversationMessage?.length - 1]; // Get the most recent message
-      
+    // Now get message counts and last messages for each conversation
+    const transformedConversations = await Promise.all((conversations || []).map(async (conv) => {
+      // Get message count for this conversation
+      const { count: messageCount } = await supabaseAdmin
+        .from('ConversationMessage')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversationId', conv.id);
+
+      // Get latest message for this conversation
+      const { data: latestMessages } = await supabaseAdmin
+        .from('ConversationMessage')
+        .select('content, createdAt, role')
+        .eq('conversationId', conv.id)
+        .order('createdAt', { ascending: false })
+        .limit(1);
+
+      const latestMessage = latestMessages?.[0];
+
       // Extract quote data from metadata if available
       const metadata = conv.metadata || {};
       const hasQuoteData = metadata.hasQuoteData || false;
       const intent = metadata.intent;
-      
+
       return {
         id: conv.id,
         title: conv.title || (conv.context === 'SUPPORT' ? 'Support Conversation' : 'Quote Conversation'),
         context: conv.context,
         status: conv.status,
         lastActivity: conv.lastActivity,
-        messageCount: conv.ConversationMessage?.length || 0,
+        messageCount: messageCount || 0,
         lastMessage: latestMessage ? {
-          content: latestMessage.content.length > 100 
-            ? latestMessage.content.substring(0, 100) + '...' 
+          content: latestMessage.content.length > 100
+            ? latestMessage.content.substring(0, 100) + '...'
             : latestMessage.content,
           timestamp: latestMessage.createdAt,
           role: latestMessage.role,
         } : null,
         tags: conv.tags,
         createdAt: conv.createdAt,
-        
-        // Quote-specific data from metadata and relations
+
+        // Quote-specific data from metadata
         hasQuote: hasQuoteData,
         intent: intent,
-        quoteData: mainQuote ? {
-          quoteId: mainQuote.id,
-          quoteOrderId: mainQuote.quoteOrderId,
-          isMainQuote: mainQuote.isMainQuote,
-          quoteOrder: mainQuote.QuoteOrder ? {
-            id: mainQuote.QuoteOrder.id,
-            status: mainQuote.QuoteOrder.status,
-            estimatedCosts: mainQuote.QuoteOrder.estimatedCosts,
-            customerName: mainQuote.QuoteOrder.customerName,
-            customerCompany: mainQuote.QuoteOrder.customerCompany,
-            completedAt: mainQuote.QuoteOrder.completedAt
-          } : null
-        } : null,
-        
-        // Order Builder state summary
-        orderBuilderSummary: orderBuilderState ? {
-          totalCost: orderBuilderState.totalCost ? parseFloat(orderBuilderState.totalCost.toString()) : null,
-          totalUnits: orderBuilderState.totalUnits,
-          currentStep: orderBuilderState.currentStep,
-          isCompleted: orderBuilderState.isCompleted,
-          completedAt: orderBuilderState.completedAt
-        } : null,
-        
+        quoteData: null, // Will be populated later when needed
+        orderBuilderSummary: null, // Will be populated later when needed
+
         // Add metadata for debugging and additional context
         metadata: metadata
       };
-    });
+    }));
 
     return NextResponse.json(transformedConversations);
   } catch (error) {

@@ -1,283 +1,210 @@
-## 🎯 Product Structure & Default Options
-
-### Factory vs Resale Products:
-- **Factory Products**: Custom manufactured caps with full customization
-- **Resale Products**: Pre-made caps with limited customization, references factory products for color options
-
-### Default Product Options (Budget-Friendly):
-If user doesn't specify, use these defaults:
-
-**Cap Construction:**
-- **Panel Count**: "6-Panel" 
-- **Profile**: "High" 
-- **Structure**: "Structured" 
-- **Closure**: "Snapback" 
-- **Bill Shape**: "Slight Curved" (free option)
-- **Stitching**: "Matching" (same as fabric color, free)
-
-**Fabric Options:**
-- **Solid Fabric**: "Chino Twill" (16×12 construction - default weight)
-- **Split Fabric**: "Chino Twill/Trucker Mesh" 
-- **Fabric Constructions Available**: 
-  - 16×12 (default, balanced weight)
-  - 20×20 (thin, lighter weight)
-  - 10×10 (thick, heavy weight)
-
-**Default Logo Setup (Budget-Optimized):**
-- Front - 3D Embroidery - Large - Direct
-- Right - Embroidery - Small - Direct  
-- Left - Embroidery - Small - Direct
-- Back - Embroidery - Small - Direct
-- Upper Bill - Embroidery - Medium - Direct
-- Under Bill - Sublimated Print - Large - Direct
-
-**For Premium Orders (No Budget Limit):**
-When users request "best quality" or "premium" with no budget constraints, recommend:
-- Tier 3 caps (highest quality - refer to CSV for current pricing)
-- Large Rubber Patches for premium feel
-- Large Leather Patches for elegant touch
-- 3D Embroidery for distinctive look
-- Hangtags, Stickers, Polybags for professional finish
-- Premium fabric upgrades (Suede Cotton, Genuine Leather)
-
-**Accessories & Others**: Optional, but suggest based on order type and budget
-
-## 🚚 Delivery & Shipping Options
-
-### Delivery Methods:
-**CRITICAL: Always verify against src/app/ai/Options/Delivery.csv for exact current pricing**
-
-**Express Shipping (All Quantities):**
-- **Regular Delivery**: Refer to CSV for current pricing - 4-6 days
-- **Priority Delivery**: Refer to CSV for current pricing - 6-10 days
-
-**Freight Shipping (Large Quantities Only):**
-- **Air Freight**: Refer to CSV for current pricing - 15-30 days
-- **Sea Freight**: Refer to CSV for current pricing - 45-60 days
-
-### Cost-Saving Recommendations:
-- For large orders (3168+): Use Air Freight to save significant shipping costs
-- For budget-conscious customers: Regular Delivery is already cost-optimized
-- For urgent orders: Priority Delivery available for all quantities
-
-## 💰 Pricing System & Tiers
-
-### Base Product Pricing (3 Tiers) - ALWAYS REFERENCE CSV FILES FOR CURRENT PRICING:
-**CRITICAL: All pricing must reference CSV files for accuracy**
-
-**Tier 1** (Most Affordable - 4-Panel, 5-Panel):
-- Refer to: src/app/ai/Blank Cap/priceTier.csv for current pricing
-
-**Tier 2** (Mid-Range - 6-Panel Flat):
-- Refer to: src/app/ai/Blank Cap/priceTier.csv for current pricing
-
-**Tier 3** (Premium Quality - 7-Panel, Best Materials):
-- Refer to: src/app/ai/Blank Cap/priceTier.csv for current pricing
-
-### Customization Pricing (Per Cap): **ALWAYS REFERENCE CSV FILES**
-**CRITICAL: All logo pricing must reference src/app/ai/Options/Logo.csv for current pricing**
-
-**Logo Setup Options:**
-- **3D Embroidery Small Direct**: Refer to CSV for current pricing
-- **Flat Embroidery Small Direct**: Refer to CSV for current pricing
-- **Flat Embroidery Medium Direct**: Refer to CSV for current pricing
-- **Flat Embroidery Large Direct**: Refer to CSV for current pricing
-
-🚨 **CRITICAL APPLICATION RULE - NEVER IGNORE**:
-**ALWAYS USE "DIRECT" APPLICATION FOR ALL EMBROIDERY TYPES (3D Embroidery, Flat Embroidery)**
-- 3D Embroidery = ALWAYS "Direct" application (never "Patch")
-- Flat Embroidery = ALWAYS "Direct" application (never "Patch")  
-- Print Patch = Map to "Screen Print" with "Direct" application (use Screen Print CSV pricing)
-- Screen Print = ALWAYS "Direct" application (never "Patch")
-- ONLY use "Patch" application for: Rubber Patches, Leather Patches, Woven Patches
-- This ensures correct pricing: refer to CSV for accurate Direct vs Patch pricing
-
-**Premium Patches:**
-**CRITICAL: Verify against src/app/ai/Options/Logo.csv for exact current pricing**
-- **Small Rubber Patch**: Refer to CSV for current pricing + Small Mold Charge
-- **Medium Rubber Patch**: Refer to CSV for current pricing + Medium Mold Charge  
-- **Large Rubber Patch**: Refer to CSV for current pricing + Large Mold Charge
-- **Small Leather Patch**: Refer to CSV for current pricing + Medium Mold Charge
-- **Medium Leather Patch**: Refer to CSV for current pricing + Small Mold Charge
-- **Large Leather Patch**: Refer to CSV for current pricing + Large Mold Charge
-
-**Accessories:**
-**CRITICAL: Verify against src/app/ai/Options/Accessories.csv for exact current pricing**
-- **Hang Tag**: Refer to CSV for current pricing
-- **Inside Label**: Refer to CSV for current pricing
-- **B-Tape Print**: Refer to CSV for current pricing
-- **Sticker**: Refer to CSV for current pricing
-
-**Premium Fabric Upgrades:**
-**CRITICAL: Always verify against src/app/ai/Options/Fabric.csv for exact current pricing**
-- **Suede Cotton**: Refer to CSV for current pricing
-- **Acrylic**: Refer to CSV for current pricing
-- **Air Mesh**: Refer to CSV for current pricing
-- **Camo**: Refer to CSV for current pricing
-- **Genuine Leather**: Refer to CSV for current pricing
-- **Laser Cut**: Refer to CSV for current pricing
-
-**Services:**
-- **Graphics Design**: Refer to pricing structure for current rates
-- **Physical Sampling**: Refer to pricing structure for current rates
-
-**Premium Closures:**
-**CRITICAL: Always verify against src/app/ai/Options/Closure.csv for exact current pricing**
-- **Snapback**: Free
-- **Velcro**: Free
-- **Buckle**: Refer to CSV for current pricing
-- **Fitted**: Refer to CSV for current pricing
-- **Flexfit**: Refer to CSV for current pricing
-- **Stretched**: Refer to CSV for current pricing
-
-🚨 **CRITICAL CLOSURE PRICING RULE - NEVER IGNORE**:
-**ALWAYS USE CSV DATA FOR QUANTITY-BASED CLOSURE PRICING:**
-- Buckle at 144 pieces = $0.88 per piece (NOT $0.30)
-- Fitted at 576 pieces = $0.75 per piece (NOT $0.30)
-- Flexfit at 144 pieces = $1.00 per piece (NOT $0.30)
-- NEVER use hardcoded $0.30 - Always reference CSV pricing tiers
-- Always use CSV data for accurate closure pricing calculations
-
-**Mold Charges (One-time fees for Patches):**
-- **Small Mold**: Refer to CSV for current rates | **Medium Mold**: Refer to CSV for current rates | **Large Mold**: Refer to CSV for current rates
-
-### Fabric Information Reference:
-**When asked about fabrics, provide these details:**
-- **Default Fabric**: Chino Twill (durable, comfortable cotton-poly blend)
-- **Fabric Weight Options**: 16×12 (standard), 20×20 (lightweight), 10×10 (heavy)
-- **Premium Fabrics**: Suede Cotton, Genuine Leather, Acrylic available
-- **Custom Fabric Dyeing**: Available for orders 2880+ units at textile mills
-- **Split Options**: Chino Twill/Trucker Mesh combination available
-
-🎨 Customization Categories
-
-Cap Style Setup
-
-Extra Cost: Premium Fabric, Premium Closure
-
-Free:
-
-Bill Shape → Flat, Slight Curved, Curved
-
-Profile → High, Mid, Low
-
-Logo Setup
-
-Types: 3D Embroidery, Flat Embroidery, Leather Patch, Rubber Patch, Direct Print, Printed Patch, Sublimated Patch, Woven Patch.
-
-Mold Charge: Rubber Patch, Leather Patch.
-
-Positions: Front, Left, Right, Back, Under Bill, Upper Bill.
-
-Sub-positions: Left, Center (default), Right.
-
-Delivery Options
-
-Express: Priority (4–6 days, FedEx), Regular (6–10 days, UPS).
-
-Freight (3168+ units): Air (10–20 days), Sea (45–60 days).
-
-Accessories
-
-Hang Tag, Sticker, B-Tape Print, Brand Label, Custom Packaging.
-
-Services
-
-Graphics: Refer to pricing structure
-
-Sampling: Refer to pricing structure
-
-Color Options
-
-Solid: Full cap single color.
-
-Split: Two-color layout (front/bill vs sides/back).
-
-Tri-Color: Three defined parts.
-
-Stitching
-
-Matching (default, same as fabric color).
-
-Contrast (e.g., White stitch on Black).
-
-## ⏱️ Lead Time & Production Schedule
-
-### Production Timeline:
-**Standard Production**: 7 working days (manufacturing + quality control)
-**Total Lead Time**:
-- **Regular Delivery**: 15 working days total (7 production + 8 shipping)
-- **Priority Delivery**: 11 working days total (7 production + 4 express shipping)
-- **Air Freight**: 17-27 working days (7 production + 10-20 shipping)
-- **Sea Freight**: 52-67 working days (7 production + 45-60 shipping)
-
-### Date Selection Logic:
-- **Minimum Notice**: 7 working days from order date
-- **Custom Date Picker**: Maps to closest available delivery method
-- **Rush Orders**: Contact for expedited production (additional fees may apply)
-
-## 📦 Packaging & Shipping Specs
-
-### Box Dimensions & Weight Calculation:
-**Standard Formula**: Height × Width × Length ÷ 5000 = Dimensional Weight
-**Example**: 70cm × 44cm × 38cm ÷ 5000 = 23.408kg ≈ 25kg (+1kg safety margin)
-
-### Packaging Options:
-- **Standard Boxing**: Included in shipping cost
-- **Polybags**: Refer to CSV for current pricing - individual cap protection
-- **Custom Packaging**: Available for premium orders (contact for pricing)
-
-### International Shipping:
-- **Air Freight**: Suitable for international orders 3168+ units
-- **Sea Freight**: Most economical for large international orders 3168+ units
-- **Documentation**: Customs forms and commercial invoices included
-
-## ⚠️ AI Support Instructions & Order Handling
-
-### Always Collect Customer Information:
-**Required Details**: Full Name, Complete Address, Phone Number, Email Address
-**Order Confirmation**: Bill Shape, Profile, Closure Type, Structure, Fabric Type
-**Additional Services**: Ask about Graphics Design and Physical Sampling (refer to pricing structure for current rates)
-
-### Logo Recommendation Logic:
-**Simple Logos (≤6 colors)**: Use Embroidery (most cost-effective)
-**Complex Multi-Color Logos**: Recommend Sublimation, Screen Print, or Woven Patch
-**Premium/Corporate Logos**: Suggest Rubber or Leather Patches for professional appearance
-**3D Effect**: Add 3D Embroidery for raised, dimensional look (refer to CSV for current pricing)
-
-### Order Type Recommendations:
-**Budget Orders**: Default to Tier 1 caps with standard embroidery
-**Corporate/Professional**: Suggest Tier 2-3 with leather patches, hangtags
-**Premium/No Budget Limit**: Recommend Tier 3, premium fabrics, multiple patches, accessories
-
-### Fabric Response Guidelines:
-**When asked about fabric**: Always reference specific fabric types (Chino Twill, Suede Cotton, etc.)
-**Never say**: "Fabric details not specified" or "Information not available"
-**Always mention**: Default Chino Twill, construction options (16×12, 20×20, 10×10), premium upgrades
-**Large Orders (2880+)**: Mention custom fabric dyeing possibilities
-
-### Cost Optimization Suggestions:
-- **Small Orders (48-144)**: Focus on standard options to keep per-unit costs reasonable
-- **Medium Orders (576-1152)**: Highlight volume discounts, suggest premium options
-- **Large Orders (2880+)**: Recommend freight shipping, custom fabric dyeing, bulk accessories
-
-🎨 Fabric Colors
-Solid Colors
-
-White, Black, Red, Cardinal, Maroon, Amber Gold, Khaki, Light Khaki, Stone, Light Grey, Dark Grey, Charcoal Grey, Navy, Light Blue, Royal, Carolina Blue, Purple, Pink, Green, Kelly Green, Dark Green, Gold, Orange, Burnt Orange, Brown, Olive, Neon Green, Neon Orange, Neon Yellow, Neon Pink, Neon Blue, Realtree, MossyOak, Kryptek Brown (Regular), Kryptek Brown (Skull Face), Kryptek Black/Grey, Prym 1, Bottomland Camo, Duck Camo (White BG + Khaki + Dark Green + Chocolate), Army Camo (Generic Green/Black), Digital Camo Grey.
-
-Split Colors
-
-Black/Charcoal, Black/Gold, Black/White, Black/Yellow, Brown/Stone, Burnt Orange/Black, Cardinal/Black, Cardinal/White, Charcoal/Black, Charcoal/Carolina Blue, Charcoal/Kelly, Charcoal/Light Grey, Charcoal/Navy, Charcoal/Neon Blue, Charcoal/Neon Green, Charcoal/Neon Orange, Charcoal/Neon Pink, Charcoal/Neon Yellow, Charcoal/Orange, Charcoal/Red, Charcoal/Royal, Charcoal/White, Columbia Blue/White, Cyan/White, Dark Green/White, Dark Green/Yellow, Light Grey/Black, Heather Grey/Black, Heather Grey/Dark Green, Heather Grey/Navy, Heather Grey/Royal, Heather Grey/White, Hot Pink/Black, Hot Pink/White, Kelly Green/White, Kelly/White, Khaki/Brown, Khaki/Navy, Khaki/White, Light Grey/Light Blue, Olive/Black, Maroon/White, Navy/Charcoal, Navy/Stone, Navy/Khaki, Navy/Orange, Navy/White, Olive/Khaki, Orange/Black, Orange/White, Purple/White, Red/Black, Red/White, Royal/Black, Royal/White.
-
-Tri-Colors
-
-Amber Gold/Heather Grey/Stone, Amber Gold/Stone/Navy, Black/Light Grey/Charcoal, Black/Orange/White, Black/Red/White, Black/White/Light Grey, Heather Grey/Navy/White, Heather Grey/Red/White, Heather Grey/Royal/White, Maroon/Heather Grey/Charcoal, Navy/Carolina Blue/White, Navy/Heather Grey/Red, Navy/Red/White, Olive/Heather Grey/Stone, Olive/White/Black, Red/Black/White, Red/Navy/White, Red/Royal/White, Light Grey/Black/White, Gold/White/Carolina Blue.
-
-🧵 Large Orders & Fabric Dyeing
-
-Orders 2880+ → Custom dyed fabrics at textile mills.
-
-Process: Lab Dip swatches → Approval → Production.
-
-Example: Chino Twill constructions 16×12 (default), 20×20 (thin), 10×10 (thick).
+cap business 101:
+
+minimum order 48, maximum order = no limit.
+There are 3 main category of product pricing:
+ 1) Blank Cap, 
+ 2) Customization, 
+ 3) Delivery,
+ 
+Blank cap pricing has it's tier based pricing, each products are currently on the website are primarily presented first as Blank Cap products, has "Price Tier" field to match with product CMS data, to match their pricing from SUPABASE DB
+
+Customization (including Delivery) costs are added with the Blank cap products. Custom can pick their options as per their choices as per below categories:
+
+	1) Cap Style Setup, current costing options; Premium Fabric, Premium Closure. Cap style by shape is originally defined by the shape of Bill (does not add cost); Flat, Slight Curved, Curved. and Cap can have any Profile type (does not add cost); "High", "Mid", "Low".
+	2) Logo Setup: 3D Embroidery, Flat Embroidery, Leather Patch, Rubber Patch, Direct Print, Printed Patch, Sublimated Patch, Woven Patch. each of these pricing varies by their Size. Mold charge added for Rubber patch and Leather Patch. These decorations are applied by the Cap Position with default Logo size that reflects cost: Front (Large), Left (Small), Right (Small), Back (Small), Under Bill (Large), Upper Bill (Medium). and each of these can have sub position; Left, Center, Right. example: Front Left, or Front Right, Front Center (Center is default, and simply call it "Front", etc.
+	3) There are 2 main categories of Delivery: Express method, Freight method. Express methods are performed by express shipping companies like: Fedex, UPS, DHL, etc. Freights are performed by Logistics companies, both Air Freight and Sea Ship freight methods are available. Freight methods activates from quantity above 3168, costs very less than express shipments. Express methods are faster take 4-6 days to ship. 1) Priority, takes 4-6 days, performed by Fedex, 2) Regular (default), takes 6-10 days, performed by UPS. 3) Air Freights takes 10-20 days, 4) Sea Ship takes, 45-60 days. 
+	4) Accessories: Hang Tag, Sticker, B-Tape Print, Brand Label, etc are the current options, additionally,. they can design their own packaging however they like. any possible Accessories that goes with Caps are available.
+	5)Services: Graphics, costs $50, Sampling costs $100
+	
+	6) Cap Color options logic: for Solid colors (1-color), means full cap is a certain color. if Split color,example (Red/Black) means, cap is combined of Two colors, usually Front, Upper Bill, Under Bill will be Red, and Sides, Back, Button, Closure color will be Black . if Tri color, (example: Light Grey, Black, Gold), in this case, Upper Bill, Under Bill, Button will be Light Grey, Front Color Black, then Sides and back will be Gold, Closure color can match with Button color.
+	
+	7) Fabric: same mapping logic as Cap Color. Can be Solid, Split, Tri Fabric setup. example split fabric setup: Acrylic/Airmesh, Acrylic/Laser Cut, Realtree Camo/Chino Twill/Trucker Mesh
+	
+	
+	7) Stitching color scheme: Follows same mapping as Cap Color (6). usual options: 1) Matching (default options, uses same stitching color for assembly as Fabric color), 2) COntrast (example: White stitch on a Black cap, probably to match with customer's Logo color...) 
+	
+	
+Lead Time Calculation:
+
+Core Delivery Types
+
+Regular Delivery - 15 working days total
+Base Lead Time: 7 days (Blank)
+Regular Delivery: +8 days
+Priority Delivery - 11 working days total
+Base Lead Time: 7 days (Blank)
+Priority Delivery: +4 days
+Pick a Date - Custom date selection
+Minimum 7 days from today
+Calculates working days between today and selected date
+
+Key Features to Implement
+Working Days Calculation - Excludes weekends
+Minimum Date Validation - 7 days minimum from order date
+Dynamic Lead Time Updates - Real-time calculation for Pick a Date
+Delivery Type Mapping - Automatic mapping of custom dates to standard types
+Fallback Logic - Default to Regular delivery if calculations fail
+Integration Points
+The system integrates with:
+Product customization data (colors, quantities, logo setup)
+Cost calculation system (delivery costs based on type)
+Order management (delivery dates for fulfillment)
+Customer communication (delivery expectations)
+
+Box Dimension:
+
+inner > 94x21x18cm 4 inner box
+200pcs  96x44x38cm
+
+inner > 68x21x18cm 4 inner box
+150pcs 70x44x38cm
+
+Chargable weight cost calculation logic: HxWxL/5000. example; for 70x44x38cm, chargable weight is 23.408, or 25 kgs, add +1 kg for safety (sometimes it gets a bit bigger).
+
+
+Issues and Attempted Fixes/Features:
+when an order is placed via /support page, it send email to ai-assistant@uscustomcap.com, make sure support assitance asks for important information like: Full Name, Address, Phone, Email and update order accordingly.
+
+Support ai misses cap style setup information provided into sanity cms for each products, Bill Shape (Free: Flat, Slight Curved, Curved), Profile (Free; High, Mid, Low), Closure Type (chargable for some options like Fitted, FlexFit, Metal Buckle, etc), Structure (free; Structured, Unstructured, Foam), Fabric Type (Ask about fabric setup, default is same as the set Fabric Setup option from the Product Management stored at Sanity. Chino Twill, Acrylic, Laser Cut, Camo, Trucker Mesh, Polyester, Spandex, Cotton Polyester Mix)
+
+Split fabric options example: Chino Twill/Trucker Mesh, where Chino Twill is used in Front and Trucker Mesh is used in Back Part.
+
+Ask customer if they require Additional Graphics/Mock up/Sketch/Logo correction service for Graphics, and If Customer needs a Physical Sample to review physically to finalize or approve a Bulk production order. we will make the sample and directly send to their door in a package. Sampling cost updated to $150 in csv now.
+
+set default Logo setup option, in case of budget but stand out decoration, 3D or Flat embroidery everywhere is the first choice, as long as the uploaded logo has maximum 6 colors.
+
+for the logo that have complex colors, Sublimated or Screen Printing (Budget choice), Woven Patch (medium Cost, Detailed, Embedded Threads) and Rubber Patch (Expensive Choice, Raised, Detailed, Premium)
+
+For Leather Patches, (Available Leather Patch colors are Brown, Dark Red, Black, Grey, Olive, Khaki), Logo has to be Simple enough to be Debossed, if the Logo is colorful, then we will print on on Leather Patch, costs same all across.
+
+
+Fabric Color availability based on Fabric types:
+Chino Twill, Polyester, Trucker Mesh are available in All the colors as below:
+Solid:
+White
+Black
+Red
+Cardinal
+Maroon
+Amber Gold
+Khaki
+Light Khaki
+Stone
+Light Grey
+Dark Grey
+Charcoal Grey
+Navy
+Light Blue
+Royal
+Carolina Blue
+Purple
+Pink
+Green
+Kelly Green
+Dark Green
+Gold
+Orange
+Burnt Orange
+Brown
+Olive
+Neon Green
+Neon Orange
+Neon Yellow
+Neon Pink
+Neon Blue
+Realtree
+MossyOak
+Kryptek Brown (Regular)
+Kryptek Brown (Skull Face version)
+Kryptek Black/Grey
+Prym 1
+Bottomland Camo
+Duck Camo (White BG + Khaki + Dark Green + Chocolate)
+Army Camo (Generic Green/Black Comb)
+Digital Camo Grey
+
+Split color options:
+Black/Charcoal
+Black/Gold
+Black/White
+Black/Yellow
+Brown/Stone
+Burnt Orange/Black
+Cardinal/Black
+Cardinal/White
+Charcoal/Black
+Charcoal/Carolina Blue
+Charcoal/Kelly
+Charcoal/Light Grey
+Charcoal/Navy
+Charcoal/Neon Blue
+Charcoal/Neon Green
+Charcoal/Neon Orange
+Charcoal/Neon Pink
+Charcoal/Neon Yellow
+Charcoal/Orange
+Charcoal/Red
+Charcoal/Royal
+Charcoal/White
+Columbia Blue/White
+Cyan/White
+Dark Green/White
+Dark Green/Yellow
+Light Grey/Black
+Heather Grey/Black
+Heather Grey/Dark Green
+Heather Grey/Navy
+Heather Grey/Royal
+Heather Grey/White
+Hot Pink/Black
+Hot Pink/White
+Kelly Green/White
+Kelly/White
+Khaki/Brown
+Khaki/Navy
+Khaki/White
+Light Grey/Light Blue
+Olive/Black
+Maroon/White
+Navy/Charcoal
+Navy/Stone
+Navy/Khaki
+Navy/Orange
+Navy/White
+Olive/Khaki
+Orange/Black
+Orange/White
+Purple/White
+Red/Black
+Red/White
+Royal/Black
+Royal/White
+
+
+Tri Color option:
+Amber Gold/Heather Grey/Stone
+Amber Gold/Stone/Navy
+Black/Light Grey/Charcoal
+Black/Orange/White
+Black/Red/White
+Black/White/Light Grey
+Heather Grey/Navy/White
+Heather Grey/Red/White
+Heather Grey/Royal/White
+Maroon/Heather Grey/Charcoal
+Navy/Carolina Blue/White
+Navy/Heather Grey/Red
+Navy/Red/White
+Olive/Heather Grey/Stone
+Olive/White/Black
+Red/Black/White
+Red/Navy/White
+Red/Royal/White
+Light Grey/Black/White
+Gold/White/Carolina Blue
+
+
+for all the other Fabric types:
+Limit to Regular Colors like: Red, White, Black, Light Grey, Charcoal, Green, Maroon, Gold, Yellow, Purple, Khaki, Brown, Navy, Royal, Orange.
+
+Fabric Sourcing and Arrangements of Fabric: For order above 2880+, we dye the whole Fabric or certain order as fresh from Fabric textile Factories. In that case, we do Lab Dib, as Sampling first where Textile factories shows Sample Fabric swatch with multiple color shade to match up with a specific color code/Fabric construction. Chino Twill itself has various constructions, like 16x12 (default), 20x20 (thin), 10x10 (thick).

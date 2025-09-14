@@ -40,22 +40,34 @@ export async function POST(request: NextRequest) {
    );
   }
 
-  // Special handling for artwork analysis messages - force ORDER_CREATION intent
-  if (message.includes('artwork analysis') || message.includes('Cap Specifications')) {
+  // Special handling for explicit quote requests and artwork analysis - force ORDER_CREATION intent
+  const explicitQuotePatterns = [
+    /artwork analysis/i,
+    /cap specifications/i,
+    /create\s+(me\s+)?a?\s*quote\s+for/i,
+    /\d+\s+pieces?\s*[,.]?\s*\w+\s+fabric/i,  // "144 piece, Acrylic fabric"
+    /quote\s+for\s+\d+/i,
+    /\d+\s+piece.*with.*embroidery/i,
+    /\d+\s+caps?\s*[,.]?\s*\w+\s*\/\s*\w+/i,  // "144 caps, Red/White"
+  ];
+
+  const hasExplicitQuotePattern = explicitQuotePatterns.some(pattern => pattern.test(message));
+
+  if (hasExplicitQuotePattern) {
    return NextResponse.json({
     intent: 'ORDER_CREATION',
     assistant: {
      id: 'quote-master',
      name: 'CapCraft AI',
-     displayName: 'CapCraft AI 🧢',
-     color: 'orange',
-     colorHex: '#f97316',
-     icon: '🧢',
-     specialty: 'Custom Cap Quote & Order Expert'
+     displayName: 'CapCraft AI 💎',
+     color: 'emerald',
+     colorHex: '#10b981',
+     icon: '💎',
+     specialty: 'Order Creation Specialist'
     },
-    model: 'gpt-4o',
+    model: 'gpt-4o-mini',
     confidence: 0.95,
-    reasoning: 'Artwork analysis detected - routing to CapCraft AI for quote generation'
+    reasoning: 'Explicit quote request pattern detected - routing to CapCraft AI for quote generation'
    });
   }
 
@@ -95,10 +107,17 @@ Your job is to analyze customer messages and route them to the appropriate speci
 
 📋 INTENT CLASSIFICATION:
 - ORDER_CREATION → Route to CapCraft AI 💎
- * "I need a quote for..." 
+ * "I need a quote for..."
  * "Create order for..."
  * "Price for X caps with..."
  * "Custom caps with logo..."
+ * "create me a quote for..."
+ * "[Number] piece[s]" with specifications
+ * Any message specifying quantities (144 piece, 500 caps, etc.)
+ * Fabric specifications (Acrylic, Chino Twill, etc.)
+ * Size specifications (Large, Medium, Small)
+ * Color combinations (Red/White, Black/Gold, etc.)
+ * Embroidery details (3D embroidery, screen print, etc.)
  * Complex product specifications
  * Quantity and pricing requests
  * Quote modifications: "how much for different quantity?"

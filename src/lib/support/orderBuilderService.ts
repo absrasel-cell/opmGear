@@ -1,4 +1,72 @@
-import { OrderBuilderStatus, LeadTimeData, QuoteVersion } from '@/app/support2/types/orderBuilder';
+export interface OrderBuilderStatus {
+  capStyle: {
+    completed: boolean;
+    items: {
+      size: boolean;
+      color: boolean;
+      profile: boolean;
+      shape: boolean;
+      structure: boolean;
+      fabric: boolean;
+      stitch: boolean;
+    };
+    status: 'red' | 'yellow' | 'green';
+  };
+  customization: {
+    completed: boolean;
+    items: {
+      logoSetup: boolean;
+      accessories: boolean;
+      moldCharges: boolean;
+    };
+    logoPositions: string[];
+    status: 'empty' | 'red' | 'yellow' | 'green';
+  };
+  delivery: {
+    completed: boolean;
+    status: 'red' | 'yellow' | 'green';
+  };
+  costBreakdown: {
+    available: boolean;
+    versions: QuoteVersion[];
+    selectedVersionId: string | null;
+  };
+}
+
+export interface LeadTimeData {
+  leadTime?: {
+    totalDays: number;
+    deliveryDate: string;
+    details: string[];
+  };
+  boxes?: {
+    lines: Array<{
+      label: string;
+      count: number;
+      pieces: number;
+      dimensions: string;
+      volume: number;
+    }>;
+    totalBoxes: number;
+    netWeightKg: number;
+    chargeableWeightKg: number;
+  };
+}
+
+export interface QuoteVersion {
+  id: string;
+  version: number;
+  timestamp: Date;
+  pricing: {
+    baseProductCost: number;
+    logosCost: number;
+    deliveryCost: number;
+    total: number;
+    quantity: number;
+  };
+  quoteData: any;
+  label: string;
+}
 
 export class OrderBuilderService {
   private static instance: OrderBuilderService;
@@ -12,6 +80,19 @@ export class OrderBuilderService {
 
   parseQuoteDataToOrderBuilder(quoteData: any): Partial<OrderBuilderStatus> {
     if (!quoteData) return {};
+
+    // Utility function to ensure structure values are never undefined
+    const sanitizeStructure = (structure: any): string => {
+      if (!structure || structure === 'undefined' || structure === undefined || structure === null) {
+        return 'Structured';
+      }
+      return String(structure);
+    };
+
+    // Sanitize structure in capDetails if it exists
+    if (quoteData.capDetails && 'structure' in quoteData.capDetails) {
+      quoteData.capDetails.structure = sanitizeStructure(quoteData.capDetails.structure);
+    }
 
     const updates: Partial<OrderBuilderStatus> = {};
 
@@ -178,6 +259,8 @@ export class OrderBuilderService {
         if (cap.closure) requirements.closureType = cap.closure;
         if (cap.fabric) requirements.fabricType = cap.fabric;
         if (cap.structure) requirements.structure = cap.structure;
+        // Ensure structure has a default fallback if not provided
+        if (!requirements.structure) requirements.structure = 'Structured';
         if (cap.size) requirements.capSize = cap.size;
       }
 
@@ -206,6 +289,11 @@ export class OrderBuilderService {
       // Extract accessories
       if (quoteData.customization?.accessories) {
         requirements.accessories = quoteData.customization.accessories;
+      }
+
+      // Final sanitization check for structure
+      if (!requirements.structure || requirements.structure === 'undefined') {
+        requirements.structure = 'Structured';
       }
 
       console.log('📝 Extracted requirements:', requirements);

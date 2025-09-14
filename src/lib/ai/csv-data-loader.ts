@@ -221,11 +221,11 @@ export class CSVDataLoader {
       
       for (let j = 0; j < headers.length; j++) {
         const header = headers[j];
-        let value = values[j] || '';
-        
+        let value: string | number = values[j] || '';
+
         // Convert number fields
         if (numberFields[header] === 'number') {
-          value = parseFloat(value) || 0;
+          value = parseFloat(value as string) || 0;
         }
         
         row[header] = value;

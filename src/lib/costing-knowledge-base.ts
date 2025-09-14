@@ -130,6 +130,7 @@ export const BUSINESS_RULES = {
   
   // Default specifications (budget-friendly)
   DEFAULTS: {
+    quantity: 144, // Standard minimum order quantity
     panelCount: 6,
     profile: 'High',
     structure: 'Structured',
@@ -141,7 +142,17 @@ export const BUSINESS_RULES = {
     productTier: 'Tier 1'
   } as const,
   
-  // Default logo setup (budget-friendly but comprehensive)
+  // Position-based size defaults (works with any decoration type)
+  POSITION_SIZE_DEFAULTS: {
+    front: 'Large',      // Most prominent position
+    back: 'Small',       // Secondary position
+    left: 'Small',       // Side positions
+    right: 'Small',      // Side positions
+    upperBill: 'Medium', // Bill positions
+    underBill: 'Large'   // Under bill has more space
+  } as const,
+
+  // Default logo setup (budget-friendly but comprehensive) - LEGACY
   DEFAULT_LOGO_SETUP: {
     front: { type: '3D Embroidery', size: 'Large', application: 'Direct' },
     right: { type: 'Embroidery', size: 'Small', application: 'Direct' },
@@ -163,7 +174,130 @@ export const BUSINESS_RULES = {
     PREVIOUS_ORDER: true,
     // Waive for quantities above certain thresholds (future rule)
     HIGH_QUANTITY_THRESHOLD: 10000
+  } as const,
+
+  // Stitching Color Scheme Mapping Rules
+  STITCHING_COLOR_MAPPING: {
+    // Cap area definitions for stitching color mapping
+    CAP_AREAS: {
+      upperBill: 'upperBill',
+      underBill: 'underBill',
+      frontCrown: 'front',
+      sideCrowns: 'sides',
+      backCrown: 'back',
+      button: 'button',
+      closure: 'closure'
+    } as const,
+
+    // Stitching scheme types
+    SCHEMES: {
+      MATCHING: 'Matching',        // Default - uses same color as fabric/cap area
+      CONTRAST: 'Contrast',        // Single contrasting color throughout
+      COLOR_BASED: 'ColorBased'    // Follows cap color mapping logic
+    } as const,
+
+    // Color-based stitching mapping logic
+    COLOR_MAPPING: {
+      // Solid Color: Single stitching color throughout
+      SOLID: {
+        pattern: 'single',
+        mapping: {
+          all: 'primary'  // All areas use primary color
+        }
+      },
+
+      // Split Color: Red/Black example - Red covers Bill+Front, Black covers Back
+      SPLIT: {
+        pattern: 'dual',
+        mapping: {
+          upperBill: 'primary',     // First color
+          underBill: 'primary',     // First color
+          frontCrown: 'primary',    // First color
+          sideCrowns: 'secondary',  // Second color
+          backCrown: 'secondary',   // Second color
+          button: 'secondary',      // Second color
+          closure: 'secondary'      // Second color
+        }
+      },
+
+      // Tri-Color: Red/White/Black example
+      // Red: Upper Bill, Under Bill
+      // White: Front Crown
+      // Black: Side Crowns, Back Crown
+      TRI: {
+        pattern: 'triple',
+        mapping: {
+          upperBill: 'primary',     // Color 1 (Red)
+          underBill: 'primary',     // Color 1 (Red)
+          button: 'primary',        // Color 1 (Red)
+          closure: 'primary',       // Color 1 (Red) - matches button
+          frontCrown: 'secondary',  // Color 2 (White)
+          sideCrowns: 'tertiary',   // Color 3 (Black)
+          backCrown: 'tertiary'     // Color 3 (Black)
+        }
+      }
+    } as const
   } as const
+} as const;
+
+// Fabric Color Availability Matrix - Production Business Rules
+export const FABRIC_COLOR_AVAILABILITY = {
+  // High-availability fabrics (all colors supported)
+  PREMIUM_FABRICS: ['Chino Twill', 'Polyester', 'Trucker Mesh'],
+
+  // All available solid colors for premium fabrics
+  SOLID_COLORS: [
+    'White', 'Black', 'Red', 'Cardinal', 'Maroon', 'Amber Gold', 'Khaki', 'Light Khaki',
+    'Stone', 'Light Grey', 'Dark Grey', 'Charcoal Grey', 'Navy', 'Light Blue', 'Royal',
+    'Carolina Blue', 'Purple', 'Pink', 'Green', 'Kelly Green', 'Dark Green', 'Gold',
+    'Orange', 'Burnt Orange', 'Brown', 'Olive', 'Neon Green', 'Neon Orange', 'Neon Yellow',
+    'Neon Pink', 'Neon Blue', 'Realtree', 'MossyOak', 'Kryptek Brown (Regular)',
+    'Kryptek Brown (Skull Face version)', 'Kryptek Black/Grey', 'Prym 1', 'Bottomland Camo',
+    'Duck Camo (White BG + Khaki + Dark Green + Chocolate)', 'Army Camo (Generic Green/Black Comb)',
+    'Digital Camo Grey'
+  ],
+
+  // Split color combinations for premium fabrics
+  SPLIT_COLORS: [
+    'Black/Charcoal', 'Black/Gold', 'Black/White', 'Black/Yellow', 'Brown/Stone',
+    'Burnt Orange/Black', 'Cardinal/Black', 'Cardinal/White', 'Charcoal/Black',
+    'Charcoal/Carolina Blue', 'Charcoal/Kelly', 'Charcoal/Light Grey', 'Charcoal/Navy',
+    'Charcoal/Neon Blue', 'Charcoal/Neon Green', 'Charcoal/Neon Orange', 'Charcoal/Neon Pink',
+    'Charcoal/Neon Yellow', 'Charcoal/Orange', 'Charcoal/Red', 'Charcoal/Royal',
+    'Charcoal/White', 'Columbia Blue/White', 'Cyan/White', 'Dark Green/White',
+    'Dark Green/Yellow', 'Light Grey/Black', 'Heather Grey/Black', 'Heather Grey/Dark Green',
+    'Heather Grey/Navy', 'Heather Grey/Royal', 'Heather Grey/White', 'Hot Pink/Black',
+    'Hot Pink/White', 'Kelly Green/White', 'Kelly/White', 'Khaki/Brown', 'Khaki/Navy',
+    'Khaki/White', 'Light Grey/Light Blue', 'Olive/Black', 'Maroon/White',
+    'Navy/Charcoal', 'Navy/Stone', 'Navy/Khaki', 'Navy/Orange', 'Navy/White',
+    'Olive/Khaki', 'Orange/Black', 'Orange/White', 'Purple/White', 'Red/Black',
+    'Red/White', 'Royal/Black', 'Royal/White'
+  ],
+
+  // Tri-color combinations for premium fabrics
+  TRI_COLORS: [
+    'Amber Gold/Heather Grey/Stone', 'Amber Gold/Stone/Navy', 'Black/Light Grey/Charcoal',
+    'Black/Orange/White', 'Black/Red/White', 'Black/White/Light Grey', 'Heather Grey/Navy/White',
+    'Heather Grey/Red/White', 'Heather Grey/Royal/White', 'Maroon/Heather Grey/Charcoal',
+    'Navy/Carolina Blue/White', 'Navy/Heather Grey/Red', 'Navy/Red/White',
+    'Olive/Heather Grey/Stone', 'Olive/White/Black', 'Red/Black/White', 'Red/Navy/White',
+    'Red/Royal/White', 'Light Grey/Black/White', 'Gold/White/Carolina Blue'
+  ],
+
+  // Limited colors for specialty fabrics
+  STANDARD_COLORS: ['Red', 'White', 'Black', 'Light Grey', 'Charcoal', 'Green', 'Maroon', 'Gold', 'Yellow', 'Purple', 'Khaki', 'Brown', 'Navy', 'Royal', 'Orange'],
+
+  // Fabric construction options
+  FABRIC_CONSTRUCTIONS: {
+    'Chino Twill': {
+      'default': '16x12',
+      'thin': '20x20',
+      'thick': '10x10'
+    }
+  },
+
+  // Lab Dip sampling threshold
+  LAB_DIP_THRESHOLD: 2880
 } as const;
 
 // AI System specific rules for parsing natural language
@@ -176,19 +310,21 @@ export const AI_DETECTION_RULES = {
     'air mesh': ['air mesh', 'mesh'],
     'duck camo': ['duck camo'], // FIXED: Separate duck camo for specific detection
     'camo': ['army camo', 'digital camo', 'bottomland camo', 'camo', 'camouflage'], // Generic camo
+    'polyester': ['polyester'], // ADDED: Missing polyester pattern
     'laser cut': ['laser cut', 'laser'],
     'chino twill': ['chino twill', 'twill'],
     'trucker mesh': ['trucker mesh', 'trucker', 'split', 'mesh back'],
-    'black trucker mesh': ['black trucker mesh'] // FIXED: Add specific pattern
+    'black trucker mesh': ['black trucker mesh'], // FIXED: Add specific pattern
+    'cotton polyester mix': ['cotton polyester mix', 'cotton polyester'] // ADDED: Existing pattern
   } as const,
   
   // Logo type detection patterns - FIXED: More specific patterns to avoid conflicts
   LOGO_PATTERNS: {
+    'Rubber Patch': ['rubber patch', 'rubber'],  // ENHANCED: Match both "rubber patch" and just "rubber"
+    'Leather Patch': ['leather patch', 'leather'],  // ENHANCED: Match both "leather patch" and just "leather"
     '3D Embroidery': ['3d embroidery', '3d', 'raised embroidery', 'embroidery 3d'],
     'Flat Embroidery': ['flat embroidery', 'embroidery flat'],
     'Embroidery': ['embroidery', 'embroidered'], // Generic embroidery - lower priority
-    'Rubber Patch': ['rubber patch'],  // FIXED: Remove generic 'rubber' to avoid conflicts
-    'Leather Patch': ['leather patch'],  // FIXED: Remove generic 'leather' to avoid conflicts  
     'Print Woven Patch': ['woven patch', 'printed patch', 'print patch'],
     'Sublimated Print': ['sublimated', 'sublimated print'],
     'None': ['no logo', 'no decoration', 'without logo', 'plain cap', 'blank cap']
@@ -493,17 +629,21 @@ export function detectFabricFromText(text: string): string | null {
     // Check if front fabric matches known patterns
     for (const [fabric, patterns] of Object.entries(AI_DETECTION_RULES.FABRIC_PATTERNS)) {
       if (patterns.some(pattern => frontFabric.includes(pattern))) {
-        normalizedFront = fabric === 'duck camo' ? 'Duck Camo' : 
+        normalizedFront = fabric === 'duck camo' ? 'Duck Camo' :
+                         fabric === 'polyester' ? 'Polyester' :
+                         fabric === 'laser cut' ? 'Laser Cut' :
                          fabric.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         break;
       }
     }
-    
+
     // Check if back fabric matches known patterns
     for (const [fabric, patterns] of Object.entries(AI_DETECTION_RULES.FABRIC_PATTERNS)) {
       if (patterns.some(pattern => backFabric.includes(pattern))) {
         normalizedBack = fabric === 'black trucker mesh' ? 'Black Trucker Mesh' :
                         fabric === 'trucker mesh' ? 'Trucker Mesh' :
+                        fabric === 'polyester' ? 'Polyester' :
+                        fabric === 'laser cut' ? 'Laser Cut' :
                         fabric.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         break;
       }
@@ -515,17 +655,107 @@ export function detectFabricFromText(text: string): string | null {
   // Standard single fabric detection
   for (const [fabric, patterns] of Object.entries(AI_DETECTION_RULES.FABRIC_PATTERNS)) {
     if (patterns.some(pattern => lowerText.includes(pattern))) {
-      return fabric === 'chino twill' ? 'Chino Twill' : 
+      return fabric === 'chino twill' ? 'Chino Twill' :
              fabric === 'trucker mesh' ? 'Chino Twill/Trucker Mesh' :
              fabric === 'duck camo' ? 'Duck Camo' :
              fabric === 'black trucker mesh' ? 'Black Trucker Mesh' :
-             fabric.split(' ').map(word => 
+             fabric === 'polyester' ? 'Polyester' :
+             fabric === 'laser cut' ? 'Laser Cut' :
+             fabric === 'cotton polyester mix' ? 'Cotton Polyester Mix' :
+             fabric.split(' ').map(word =>
                word.charAt(0).toUpperCase() + word.slice(1)
              ).join(' ');
     }
   }
   
   return null;
+}
+
+/**
+ * Validate if a color/fabric combination is available
+ */
+export function validateFabricColorCompatibility(fabric: string, color: string): {
+  isValid: boolean;
+  message: string;
+  suggestedColors?: string[];
+} {
+  // Normalize fabric name
+  const normalizedFabric = fabric.trim();
+
+  // Check if fabric is premium (supports all colors)
+  if (FABRIC_COLOR_AVAILABILITY.PREMIUM_FABRICS.includes(normalizedFabric)) {
+    // For premium fabrics, check if color exists in available options
+    const normalizedColor = color.trim();
+
+    // Check solid colors
+    if (FABRIC_COLOR_AVAILABILITY.SOLID_COLORS.includes(normalizedColor)) {
+      return { isValid: true, message: `${normalizedColor} is available for ${normalizedFabric}` };
+    }
+
+    // Check split colors
+    if (FABRIC_COLOR_AVAILABILITY.SPLIT_COLORS.includes(normalizedColor)) {
+      return { isValid: true, message: `${normalizedColor} split-color is available for ${normalizedFabric}` };
+    }
+
+    // Check tri-colors
+    if (FABRIC_COLOR_AVAILABILITY.TRI_COLORS.includes(normalizedColor)) {
+      return { isValid: true, message: `${normalizedColor} tri-color is available for ${normalizedFabric}` };
+    }
+
+    return {
+      isValid: false,
+      message: `${normalizedColor} is not available for ${normalizedFabric}`,
+      suggestedColors: FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS
+    };
+  }
+
+  // For specialty fabrics, only standard colors available
+  if (FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS.includes(color.trim())) {
+    return { isValid: true, message: `${color} is available for ${normalizedFabric}` };
+  }
+
+  return {
+    isValid: false,
+    message: `${color} is not available for ${normalizedFabric}. Specialty fabrics support limited colors only.`,
+    suggestedColors: FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS
+  };
+}
+
+/**
+ * Check if order qualifies for Lab Dip sampling
+ */
+export function checkLabDipEligibility(quantity: number, fabric?: string): {
+  eligible: boolean;
+  message: string;
+  details?: string;
+} {
+  if (quantity >= FABRIC_COLOR_AVAILABILITY.LAB_DIP_THRESHOLD) {
+    return {
+      eligible: true,
+      message: `Order quantity ${quantity} qualifies for Lab Dip sampling`,
+      details: `For orders above ${FABRIC_COLOR_AVAILABILITY.LAB_DIP_THRESHOLD}, we offer custom fabric dyeing with Lab Dip color matching process. This includes fabric construction options for Chino Twill (16x12 default, 20x20 thin, 10x10 thick).`
+    };
+  }
+
+  return {
+    eligible: false,
+    message: `Order quantity ${quantity} uses standard fabric inventory`,
+    details: `Lab Dip sampling available for orders ${FABRIC_COLOR_AVAILABILITY.LAB_DIP_THRESHOLD}+ pieces with custom color matching and fabric construction options.`
+  };
+}
+
+/**
+ * Get available fabric construction options
+ */
+export function getFabricConstructionOptions(fabric: string): string[] {
+  const normalizedFabric = fabric.trim();
+
+  if (FABRIC_COLOR_AVAILABILITY.FABRIC_CONSTRUCTIONS[normalizedFabric]) {
+    return Object.entries(FABRIC_COLOR_AVAILABILITY.FABRIC_CONSTRUCTIONS[normalizedFabric])
+      .map(([type, value]) => `${value} (${type})`);
+  }
+
+  return [];
 }
 
 export function detectLogoTypeFromText(text: string): string | null {
@@ -653,7 +883,7 @@ export function detectAllLogosFromText(text: string): {
           
           // Try to determine position and size from context using proximity matching
           let position = 'front'; // Default position
-          let size = 'Medium'; // Default size
+          let size = 'Large'; // Default size
           
           // Find the logo pattern in the text and check nearby words for position context
           const patternIndex = lowerText.indexOf(pattern);
@@ -683,12 +913,25 @@ export function detectAllLogosFromText(text: string): {
             // ENHANCED: Special case handling for common patterns using FULL text
             if (logoType === 'Rubber Patch') {
               // Use full original text for position detection
-              if (lowerText.includes('rubber patch on front') || lowerText.includes('rubber patch on fro')) {
+              if (lowerText.includes('rubber patch front') || lowerText.includes('rubber patch on front') || lowerText.includes('rubber patch on front')) {
                 position = 'front';
-              } else if (lowerText.includes('rubber patch on back')) {
+              } else if (lowerText.includes('rubber patch back') || lowerText.includes('rubber patch on back')) {
                 position = 'back';
               } else if (lowerText.includes('rubber patch') && lowerText.includes('front')) {
                 position = 'front'; // Default for rubber patch + front mention
+              } else if (lowerText.includes('rubber patch') && lowerText.includes('back')) {
+                position = 'back'; // Default for rubber patch + back mention
+              }
+            } else if (logoType === 'Leather Patch') {
+              // Use full original text for position detection
+              if (lowerText.includes('leather patch front') || lowerText.includes('leather patch on front') || lowerText.includes('leather patch on fro')) {
+                position = 'front';
+              } else if (lowerText.includes('leather patch back') || lowerText.includes('leather patch on back')) {
+                position = 'back';
+              } else if (lowerText.includes('leather patch') && lowerText.includes('front')) {
+                position = 'front'; // Default for leather patch + front mention
+              } else if (lowerText.includes('leather patch') && lowerText.includes('back')) {
+                position = 'back'; // Default for leather patch + back mention
               }
             } else if (logoType === '3D Embroidery') {
               // Use full original text for position detection
@@ -854,8 +1097,8 @@ export function getDefaultApplicationMethod(logoType: string): string {
     'Flat Embroidery': 'Direct',
     'Embroidery': 'Direct',
     'Sublimated Print': 'Direct',
-    'Leather Patch': 'Run',
-    'Rubber Patch': 'Run',
+    'Leather Patch': 'Patch',
+    'Rubber Patch': 'Patch',
     'Printed Patch': 'Satin',
     'Sublimated Patch': 'Satin',
     'Woven Patch': 'Satin',
@@ -916,6 +1159,276 @@ export function validateDeliveryMethod(deliveryMethod: string, quantity: number)
   }
   
   return { valid: true };
+}
+
+/**
+ * Get default size for any decoration type based on position
+ * This replaces the hardcoded DEFAULT_LOGO_SETUP for more flexible logo configuration
+ */
+export function getDefaultSizeForPosition(position: string, decorationType?: string): string {
+  // Normalize position key to match our constants
+  const normalizedPosition = position.toLowerCase().replace(/\s+/g, '');
+  const positionKey = normalizedPosition as keyof typeof BUSINESS_RULES.POSITION_SIZE_DEFAULTS;
+
+  // Get position-based default
+  const defaultSize = BUSINESS_RULES.POSITION_SIZE_DEFAULTS[positionKey];
+
+  if (defaultSize) {
+    return defaultSize;
+  }
+
+  // Fallback logic for any position not explicitly defined
+  switch (normalizedPosition) {
+    case 'front':
+    case 'center':
+      return 'Large';  // Most prominent positions
+    case 'back':
+    case 'left':
+    case 'right':
+    case 'side':
+      return 'Small';  // Secondary positions
+    case 'upperbill':
+    case 'underbill':
+    case 'bill':
+      return 'Medium'; // Bill positions
+    default:
+      return 'Medium'; // Safe default
+  }
+}
+
+/**
+ * Get default application method for any decoration type
+ * This provides consistent application logic across the system
+ */
+export function getDefaultApplicationForDecoration(decorationType: string): string {
+  const typeMap: Record<string, string> = {
+    // EMBROIDERY TYPES - Direct Application
+    '3D Embroidery': 'Direct',
+    'Flat Embroidery': 'Direct',
+    'Embroidery': 'Direct',        // Generic embroidery
+
+    // PATCH TYPES - Run Application
+    'Leather Patch': 'Run',
+    'Rubber Patch': 'Run',
+    'Leather': 'Run',              // Short form
+    'Rubber': 'Run',               // Short form
+
+    // PRINTED/WOVEN PATCHES - Satin Application
+    'Printed Patch': 'Satin',
+    'Sublimated Patch': 'Satin',
+    'Woven Patch': 'Satin',
+    'Print Woven Patch': 'Satin',
+
+    // OTHER PRINT TYPES - Direct Application (fallback)
+    'Sublimated Print': 'Direct',
+    'Screen Print': 'Direct',
+    'Heat Transfer': 'Direct'
+  };
+
+  return typeMap[decorationType] || 'Direct'; // Default to Direct application
+}
+
+// =====================================================
+// STITCHING COLOR SCHEME LOGIC IMPLEMENTATION
+// =====================================================
+
+/**
+ * Detect stitching color scheme from user text
+ * Supports: Matching, Contrast, and Color-Based stitching
+ */
+export function detectStitchingSchemeFromText(text: string): {
+  scheme: string;
+  contrastColor?: string;
+  colors?: string[];
+} {
+  const lowerText = text.toLowerCase();
+
+  // Check for explicit contrast stitching
+  if (lowerText.includes('contrast stitch') ||
+      lowerText.includes('contrasting stitch') ||
+      lowerText.includes('different stitch color')) {
+
+    // Try to extract contrast color
+    const contrastMatch = lowerText.match(/(?:contrast|contrasting|different)\s+(?:stitch|stitching)?\s*(?:in\s+)?([a-zA-Z\s]+?)(?:\s+stitch|\s+thread|,|$)/i);
+    const contrastColor = contrastMatch ? contrastMatch[1].trim() : null;
+
+    return {
+      scheme: BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.CONTRAST,
+      contrastColor: contrastColor || 'White' // Default contrast color
+    };
+  }
+
+  // Check for color-based stitching (multi-color setup)
+  const colorPattern = /(?:red|blue|white|black|green|yellow|orange|purple|pink|brown|gray|grey|navy)/gi;
+  const colorMatches = text.match(colorPattern) || [];
+  const uniqueColors = [...new Set(colorMatches.map(c => c.toLowerCase()))];
+
+  if (uniqueColors.length >= 2) {
+    // Multi-color setup - use color-based stitching
+    return {
+      scheme: BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.COLOR_BASED,
+      colors: uniqueColors.map(color => color.charAt(0).toUpperCase() + color.slice(1))
+    };
+  }
+
+  // Default to matching stitching
+  return {
+    scheme: BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.MATCHING
+  };
+}
+
+/**
+ * Generate area-specific stitching colors based on cap colors
+ * Follows the same mapping logic as cap colors
+ */
+export function generateStitchingColorMapping(
+  capColors: string[],
+  stitchingScheme: string,
+  contrastColor?: string
+): { [area: string]: string } {
+
+  const stitchingColors: { [area: string]: string } = {};
+
+  // Handle different stitching schemes
+  switch (stitchingScheme) {
+    case BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.MATCHING:
+      // Matching - use same colors as cap areas
+      stitchingColors.upperBill = capColors[0] || 'Black';
+      stitchingColors.underBill = capColors[0] || 'Black';
+      stitchingColors.frontCrown = capColors[0] || 'Black';
+      stitchingColors.sideCrowns = capColors[0] || 'Black';
+      stitchingColors.backCrown = capColors[0] || 'Black';
+      stitchingColors.button = capColors[0] || 'Black';
+      stitchingColors.closure = capColors[0] || 'Black';
+      break;
+
+    case BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.CONTRAST:
+      // Contrast - single contrasting color throughout
+      const contrastStitchColor = contrastColor || 'White';
+      stitchingColors.upperBill = contrastStitchColor;
+      stitchingColors.underBill = contrastStitchColor;
+      stitchingColors.frontCrown = contrastStitchColor;
+      stitchingColors.sideCrowns = contrastStitchColor;
+      stitchingColors.backCrown = contrastStitchColor;
+      stitchingColors.button = contrastStitchColor;
+      stitchingColors.closure = contrastStitchColor;
+      break;
+
+    case BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.COLOR_BASED:
+      // Color-based stitching following cap color mapping
+      if (capColors.length === 1) {
+        // Solid color
+        const mapping = BUSINESS_RULES.STITCHING_COLOR_MAPPING.COLOR_MAPPING.SOLID.mapping;
+        const primaryColor = capColors[0];
+        Object.keys(BUSINESS_RULES.STITCHING_COLOR_MAPPING.CAP_AREAS).forEach(area => {
+          stitchingColors[area] = primaryColor;
+        });
+      } else if (capColors.length === 2) {
+        // Split color: Red/Black - Red covers Bill+Front, Black covers Back
+        const mapping = BUSINESS_RULES.STITCHING_COLOR_MAPPING.COLOR_MAPPING.SPLIT.mapping;
+        const primaryColor = capColors[0];   // First color
+        const secondaryColor = capColors[1]; // Second color
+
+        stitchingColors.upperBill = primaryColor;    // First color
+        stitchingColors.underBill = primaryColor;    // First color
+        stitchingColors.frontCrown = primaryColor;   // First color
+        stitchingColors.sideCrowns = secondaryColor; // Second color
+        stitchingColors.backCrown = secondaryColor;  // Second color
+        stitchingColors.button = secondaryColor;     // Second color
+        stitchingColors.closure = secondaryColor;    // Second color
+      } else if (capColors.length >= 3) {
+        // Tri-color: Red/White/Black
+        // Red: Upper Bill, Under Bill, Button, Closure
+        // White: Front Crown
+        // Black: Side Crowns, Back Crown
+        const mapping = BUSINESS_RULES.STITCHING_COLOR_MAPPING.COLOR_MAPPING.TRI.mapping;
+        const color1 = capColors[0]; // Red
+        const color2 = capColors[1]; // White
+        const color3 = capColors[2]; // Black
+
+        stitchingColors.upperBill = color1;   // Color 1 (Red)
+        stitchingColors.underBill = color1;   // Color 1 (Red)
+        stitchingColors.button = color1;      // Color 1 (Red)
+        stitchingColors.closure = color1;     // Color 1 (Red) - matches button
+        stitchingColors.frontCrown = color2;  // Color 2 (White)
+        stitchingColors.sideCrowns = color3;  // Color 3 (Black)
+        stitchingColors.backCrown = color3;   // Color 3 (Black)
+      }
+      break;
+
+    default:
+      // Default to matching
+      const defaultColor = capColors[0] || 'Black';
+      Object.keys(BUSINESS_RULES.STITCHING_COLOR_MAPPING.CAP_AREAS).forEach(area => {
+        stitchingColors[area] = defaultColor;
+      });
+  }
+
+  return stitchingColors;
+}
+
+/**
+ * Parse stitching specifications from order text
+ * Returns complete stitching configuration
+ */
+export function parseStitchingFromText(text: string, capColors?: string[]): {
+  scheme: string;
+  description: string;
+  stitchingColors: { [area: string]: string };
+  summary: string;
+} {
+
+  // Detect stitching scheme
+  const stitchingDetection = detectStitchingSchemeFromText(text);
+  const colors = capColors || stitchingDetection.colors || ['Black'];
+
+  // Generate area-specific stitching colors
+  const stitchingColors = generateStitchingColorMapping(
+    colors,
+    stitchingDetection.scheme,
+    stitchingDetection.contrastColor
+  );
+
+  // Create descriptions
+  let description = '';
+  let summary = '';
+
+  switch (stitchingDetection.scheme) {
+    case BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.MATCHING:
+      description = `Matching stitching using ${colors[0] || 'cap'} color throughout all areas`;
+      summary = `Matching (${colors[0] || 'Standard'})`;
+      break;
+
+    case BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.CONTRAST:
+      const contrastColor = stitchingDetection.contrastColor || 'White';
+      description = `Contrast stitching using ${contrastColor} thread throughout all areas`;
+      summary = `Contrast (${contrastColor})`;
+      break;
+
+    case BUSINESS_RULES.STITCHING_COLOR_MAPPING.SCHEMES.COLOR_BASED:
+      if (colors.length === 2) {
+        description = `Split-color stitching: ${colors[0]} on bill and front areas, ${colors[1]} on back and side areas`;
+        summary = `Split-Color (${colors[0]}/${colors[1]})`;
+      } else if (colors.length >= 3) {
+        description = `Tri-color stitching: ${colors[0]} on bill/button areas, ${colors[1]} on front, ${colors[2]} on back/sides`;
+        summary = `Tri-Color (${colors[0]}/${colors[1]}/${colors[2]})`;
+      } else {
+        description = `Color-based stitching using ${colors[0]}`;
+        summary = `Color-Based (${colors[0]})`;
+      }
+      break;
+
+    default:
+      description = `Standard matching stitching`;
+      summary = 'Matching';
+  }
+
+  return {
+    scheme: stitchingDetection.scheme,
+    description,
+    stitchingColors,
+    summary
+  };
 }
 
 // Export the main calculation functions that will be used by the unified service

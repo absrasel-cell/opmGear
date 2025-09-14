@@ -7,6 +7,31 @@
 import fs from 'fs';
 import path from 'path';
 
+// Type declaration for pdf2pic module
+declare module 'pdf2pic' {
+  interface ConvertOptions {
+    density?: number;
+    format?: string;
+    quality?: number;
+    width?: number;
+    height?: number;
+  }
+
+  interface ConvertResult {
+    page: number;
+    name: string;
+    path: string;
+    buffer: Buffer;
+  }
+
+  interface PDF2PicInstance {
+    convertBulk: (pages: number[], options?: ConvertOptions) => Promise<ConvertResult[]>;
+    convert: (page?: number, options?: ConvertOptions) => Promise<ConvertResult>;
+  }
+
+  function fromBuffer(buffer: Buffer, options?: ConvertOptions): PDF2PicInstance;
+}
+
 interface PDFProcessingResult {
   success: boolean;
   images: {
@@ -230,25 +255,24 @@ export class PDFProcessor {
       // Convert specified number of pages
       for (let pageNum = 1; pageNum <= options.maxPages; pageNum++) {
         try {
-          const result = await convert(pageNum, { 
-            responseType: "base64",
-            // Add timeout for serverless environments
-            timeout: 30000 
+          const result = await convert(pageNum, {
+            responseType: "buffer"
           });
-          
-          if (result && result.base64) {
-            // Create data URL for OpenAI Vision API
+
+          if (result && result.buffer) {
+            // Convert buffer to base64 for OpenAI Vision API
+            const base64Data = result.buffer.toString('base64');
             const mimeType = options.outputFormat === 'png' ? 'image/png' : 'image/jpeg';
-            const dataUrl = `data:${mimeType};base64,${result.base64}`;
-            
+            const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
             images.push({
               url: dataUrl,
-              base64: result.base64,
+              base64: base64Data,
               pageNumber: pageNum,
-              width: result.width || 800,
-              height: result.height || 1000
+              width: 800, // Default width since convert result may not have dimensions
+              height: 1000 // Default height since convert result may not have dimensions
             });
-            
+
             console.log(`📄 Converted page ${pageNum} to ${options.outputFormat.toUpperCase()}`);
           }
         } catch (pageError) {

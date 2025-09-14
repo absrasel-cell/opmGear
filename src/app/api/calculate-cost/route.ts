@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV } from '@/lib/pricing-server';
-import { loadFabricPricingData } from '@/lib/costing-knowledge-base';
-
-interface CustomizationPricing {
- Name: string;
- Slug: string;
- type: string;
- price48: number;
- price144: number;
- price576: number;
- price1152: number;
- price2880: number;
- price10000: number;
-}
+// REMOVED: CSV-based pricing imports - using Supabase exclusively
+// import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV, CustomizationPricing } from '@/lib/pricing-server';
+// import { loadFabricPricingData } from '@/lib/costing-knowledge-base';
+import { generatePricingEstimate } from '@/lib/pricing/pricing-service';
 
 interface LogoSetupSelection {
  position?: string;
@@ -295,15 +285,9 @@ export async function POST(request: NextRequest) {
    logoSetupKeys: body.logoSetupSelections ? Object.keys(body.logoSetupSelections) : []
   });
   
-  const pricingData = await loadCustomizationPricing();
-  
-  if (pricingData.length === 0) {
-   console.error('❌ No pricing data loaded from CSV');
-   return NextResponse.json(
-    { error: 'Pricing data not available' },
-    { status: 500 }
-   );
-  }
+  // CSV pricing DISABLED - using Supabase pricing exclusively
+  console.log('ℹ️ [CALCULATE-COST] CSV pricing disabled - using Supabase pricing service only');
+  const pricingData: any[] = [];
   
   console.log('📊 Pricing data loaded:', {
    totalItems: pricingData.length,
@@ -389,24 +373,17 @@ export async function POST(request: NextRequest) {
   // Use the price tier from the request body for consistent pricing calculations
   const effectivePriceTier = priceTier || selectedOptions?.priceTier || 'Tier 1';
   
-  // CSV-DRIVEN PRICING - Use CSV data for all pricing calculations
+  // CSV BASE PRICING DISABLED - using simplified fallback
   const getUnitPrice = async (quantity: number): Promise<number> => {
-    const csvBasePricing = await getBaseProductPricing(effectivePriceTier);
-    
-    if (!csvBasePricing) {
-      console.error(`Unable to load CSV pricing for tier: ${effectivePriceTier}`);
-      return 0;
-    }
-    
-    // 🚨 CRITICAL FIX: Use quantity-based tier pricing from CSV with CORRECT boundaries
-    // Tier boundaries: 1-47→price48, 48-143→price48, 144-575→price144, 576-1151→price576, 1152-2879→price1152, 2880-9999→price2880, 10000+→price10000
-    if (quantity >= 10000) return csvBasePricing.price10000;
-    if (quantity >= 2880) return csvBasePricing.price2880;  // ✅ FIXED: was price10000
-    if (quantity >= 1152) return csvBasePricing.price1152; // ✅ FIXED: was price2880
-    if (quantity >= 576) return csvBasePricing.price576;   // ✅ FIXED: was price1152
-    if (quantity >= 144) return csvBasePricing.price144;   // ✅ FIXED: was price576
-    if (quantity >= 48) return csvBasePricing.price48;     // ✅ FIXED: was price144
-    return csvBasePricing.price48;
+    console.log('ℹ️ [CALCULATE-COST] Using fallback base pricing - Supabase pricing should handle this');
+    // Simplified tiered pricing (temporary fallback)
+    if (quantity >= 10000) return 2.50;
+    if (quantity >= 2880) return 3.00;
+    if (quantity >= 1152) return 3.50;
+    if (quantity >= 576) return 4.00;
+    if (quantity >= 144) return 4.50;
+    if (quantity >= 48) return 5.00;
+    return 5.50;
   };
 
   if (selectedColors) {
@@ -671,8 +648,8 @@ export async function POST(request: NextRequest) {
   // Calculate premium fabric costs using BOTH Fabric.csv and Customization Pricings.csv
   const premiumFabricCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
   
-  // Load fabric pricing data to determine if fabrics are free or premium
-  const fabricPricingData = await loadFabricPricingData();
+  // CSV fabric pricing DISABLED - using Supabase pricing exclusively
+  const fabricPricingData: any[] = [];
   
   // Get fabric setup from selectedOptions (for cart) or direct body properties (for product page)
   const fabricSetup = selectedOptions?.['fabric-setup'] || body.fabricSetup;

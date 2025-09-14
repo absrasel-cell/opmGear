@@ -30,7 +30,7 @@ export const AI_ASSISTANTS: Record<string, AIAssistant> = {
     description: 'Expert in quote generation, order crafting, and pricing mastery',
     model: 'gpt-4o-mini',
     temperature: 0.3,
-    maxTokens: 2000
+    maxTokens: 5000
   },
 
   // Customer Support & Order Status Specialist  

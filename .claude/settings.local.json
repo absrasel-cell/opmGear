@@ -537,7 +537,11 @@
       "Bash(awk:*)",
       "Bash(mkdir:*)",
       "Bash(PORT=3005 npm run dev)",
-      "Bash(PORT=3006 npm run dev)"
+      "Bash(PORT=3006 npm run dev)",
+      "Bash(npm i:*)",
+      "Bash(set NODE_ENV=development)",
+      "Bash(set NEXT_PUBLIC_SUPABASE_URL=https://tfiemrpfsvxvzgbqisdp.supabase.co)",
+      "Bash(set SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmaWVtcnBmc3Z4dnpnYnFpc2RwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjE4MTU4OSwiZXhwIjoyMDcxNzU3NTg5fQ.B8aZ4hts8DtVPMaRwBS5LZ2mlrP3hYWtMG3qRRdHAL8)"
     ],
     "deny": [],
     "ask": [],

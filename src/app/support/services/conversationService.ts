@@ -89,7 +89,8 @@ export class ConversationService {
     setOrderBuilderStatus: (status: any) => void,
     setLeadTimeData: (data: any) => void,
     setConversationId: (id: string) => void,
-    OrderBuilderService: any
+    OrderBuilderService: any,
+    setIsOrderBuilderVisible?: (visible: boolean) => void
   ): Promise<void> {
     try {
       console.log('🔄 Loading conversation:', conversationId);
@@ -114,26 +115,33 @@ export class ConversationService {
         // Set the conversation ID
         setConversationId(conversationId);
 
-        // Load messages
-        const messages = conversation.messages?.map((msg: any) => ({
+        // Load messages - API returns ConversationMessage array
+        const messages = (conversation.ConversationMessage || conversation.messages || []).map((msg: any) => ({
           id: msg.id,
           content: msg.content,
           role: msg.role?.toLowerCase() === 'user' ? 'user' : 'assistant',
           timestamp: new Date(msg.createdAt),
           model: msg.model
-        })) || [];
+        }));
 
         setMessages(() => messages);
 
-        // Restore Order Builder state if available
-        if (conversation.orderBuilderState) {
+        // Restore Order Builder state if available - check both orderBuilderState and metadata.orderBuilder
+        const orderBuilderData = conversation.orderBuilderState || conversation.metadata?.orderBuilder;
+        if (orderBuilderData) {
           await this.restoreOrderBuilderState(
-            conversation,
+            { ...conversation, orderBuilderState: orderBuilderData },
             setCurrentQuoteData,
             setOrderBuilderStatus,
             setLeadTimeData,
             OrderBuilderService
           );
+
+          // Show Order Builder if we restored data and the setter is available
+          if (setIsOrderBuilderVisible) {
+            setIsOrderBuilderVisible(true);
+            console.log('🔧 Order Builder made visible due to restored state');
+          }
         }
 
         console.log('✅ Conversation fully loaded and restored');
@@ -166,79 +174,65 @@ export class ConversationService {
         return;
       }
 
-      // Restore currentQuoteData from the saved state
+      console.log('📋 Order Builder state structure:', {
+        hasCapDetails: !!orderBuilderState.capDetails,
+        hasCustomization: !!orderBuilderState.customization,
+        hasDelivery: !!orderBuilderState.delivery,
+        hasPricing: !!orderBuilderState.pricing,
+        hasOrderBuilderStatus: !!orderBuilderState.orderBuilderStatus,
+        hasLeadTimeData: !!orderBuilderState.leadTimeData,
+        hasQuoteVersions: !!(orderBuilderState.quoteVersions && orderBuilderState.quoteVersions.length > 0),
+        keys: Object.keys(orderBuilderState)
+      });
+
+      // Restore currentQuoteData - using the stored structure
       const restoredQuoteData = {
-        capDetails: {
-          productName: orderBuilderState.capStyleSetup?.style,
-          profile: orderBuilderState.capStyleSetup?.profile,
-          color: orderBuilderState.capStyleSetup?.color,
-          size: orderBuilderState.capStyleSetup?.size,
-          quantity: orderBuilderState.capStyleSetup?.quantity,
-          basePrice: orderBuilderState.capStyleSetup?.basePrice,
-          ...orderBuilderState.capStyleSetup?.selectedOptions
-        },
-        customization: {
-          logos: orderBuilderState.customization?.logoDetails || [],
-          logoSetup: orderBuilderState.customization?.logoDetails?.length > 0 ? 'Custom Logo Setup' : null,
-          totalCustomizationCost: orderBuilderState.customization?.totalCustomizationCost
-        },
-        delivery: {
-          method: orderBuilderState.delivery?.method,
-          leadTime: orderBuilderState.delivery?.timeframe,
-          cost: orderBuilderState.delivery?.cost,
-          urgency: orderBuilderState.delivery?.urgency
-        },
-        pricing: {
-          baseProductCost: orderBuilderState.costBreakdown?.baseCost,
-          logosCost: orderBuilderState.costBreakdown?.logoUnitCosts,
-          deliveryCost: orderBuilderState.costBreakdown?.deliveryCost,
-          total: orderBuilderState.costBreakdown?.total,
-          quantity: orderBuilderState.capStyleSetup?.quantity
-        }
+        capDetails: orderBuilderState.capDetails || {},
+        customization: orderBuilderState.customization || {},
+        delivery: orderBuilderState.delivery || {},
+        pricing: orderBuilderState.pricing || {}
       };
 
       // Restore leadTimeData if available
-      const restoredLeadTimeData = orderBuilderState.productionTimeline ? {
-        leadTime: {
-          totalDays: parseInt(orderBuilderState.productionTimeline.totalTime?.replace(' days', '') || '10'),
-          deliveryDate: orderBuilderState.productionTimeline.estimatedDelivery,
-          details: [
-            orderBuilderState.productionTimeline.setupTime,
-            orderBuilderState.productionTimeline.productionTime,
-            orderBuilderState.productionTimeline.shippingTime
-          ].filter(Boolean)
-        },
-        boxes: orderBuilderState.packaging ? {
-          totalBoxes: 1,
-          lines: [{
-            label: 'Standard Packaging',
-            count: 1,
-            pieces: orderBuilderState.capStyleSetup?.quantity || 1,
-            dimensions: '40x30x25'
-          }],
-          netWeightKg: parseFloat(orderBuilderState.packaging.additionalInstructions?.match(/Net weight: ([\d.]+)kg/)?.[1] || '2.5'),
-          chargeableWeightKg: parseFloat(orderBuilderState.packaging.additionalInstructions?.match(/Chargeable weight: ([\d.]+)kg/)?.[1] || '3.0')
-        } : null
-      } : null;
+      const restoredLeadTimeData = orderBuilderState.leadTimeData || null;
 
-      // Set the restored data
-      setCurrentQuoteData(restoredQuoteData);
-      if (restoredLeadTimeData) {
-        setLeadTimeData(restoredLeadTimeData);
+      // Restore orderBuilderStatus with quote versions if available
+      let restoredOrderBuilderStatus = orderBuilderState.orderBuilderStatus || {
+        capStyle: { completed: false, status: 'red', items: {} },
+        customization: { completed: false, status: 'empty', items: {}, logoPositions: [] },
+        delivery: { completed: false, status: 'red', items: {} },
+        costBreakdown: { completed: false, status: 'red', selectedVersionId: null, versions: [] }
+      };
+
+      // CRITICAL FIX: Restore quote versions from saved data
+      if (orderBuilderState.quoteVersions && orderBuilderState.quoteVersions.length > 0) {
+        console.log('✅ Restoring quote versions:', orderBuilderState.quoteVersions.length, 'versions');
+        restoredOrderBuilderStatus = {
+          ...restoredOrderBuilderStatus,
+          costBreakdown: {
+            ...restoredOrderBuilderStatus.costBreakdown,
+            available: true,
+            completed: true,
+            status: 'green',
+            versions: orderBuilderState.quoteVersions,
+            selectedVersionId: orderBuilderState.quoteVersions[orderBuilderState.quoteVersions.length - 1]?.id || null
+          }
+        };
       }
 
-      // Use OrderBuilderService to calculate the status based on restored data
-      if (OrderBuilderService?.updateOrderBuilderStatus) {
-        OrderBuilderService.updateOrderBuilderStatus(
-          restoredQuoteData,
-          {
-            capStyle: { completed: false, status: 'red', items: {} },
-            customization: { completed: false, status: 'empty', items: {}, logoPositions: [] },
-            delivery: { completed: false, status: 'red', items: {} },
-            costBreakdown: { completed: false, status: 'red', selectedVersionId: null, versions: [] }
-          },
-          setOrderBuilderStatus
-        );
+      console.log('✨ Restoring data:', {
+        quoteData: restoredQuoteData,
+        leadTimeData: restoredLeadTimeData,
+        orderBuilderStatus: restoredOrderBuilderStatus,
+        quoteVersionsCount: restoredOrderBuilderStatus.costBreakdown.versions.length
+      });
+
+      // Set the restored data in the correct order
+      setCurrentQuoteData(restoredQuoteData);
+      setOrderBuilderStatus(restoredOrderBuilderStatus);
+
+      if (restoredLeadTimeData) {
+        setLeadTimeData(restoredLeadTimeData);
       }
 
       console.log('✅ Order Builder state restored successfully');
@@ -680,6 +674,12 @@ export class ConversationService {
         hasLeadTimeData: !!leadTimeData
       });
 
+      console.log('💾 Data being saved:', {
+        currentQuoteData,
+        orderBuilderStatus,
+        leadTimeData
+      });
+
       const updatedMetadata = {
         orderBuilder: {
           capDetails: currentQuoteData?.capDetails,
@@ -734,14 +734,28 @@ export class ConversationService {
           return;
         }
 
+        // Check for authentication errors and handle gracefully
+        if (response.status === 401 || response.status === 403) {
+          console.log('⚠️ Authentication required for metadata update, skipping (not critical for guest users)');
+          return;
+        }
+
         console.error('❌ Failed to update conversation metadata:', {
-          status: response.status,
-          statusText: response.statusText,
-          responseText: responseText.substring(0, 500)
+          status: response.status || 'unknown',
+          statusText: response.statusText || 'unknown',
+          responseText: responseText ? responseText.substring(0, 500) : 'empty response',
+          conversationId: conversationId
         });
       }
     } catch (error) {
+      // Handle network errors and other exceptions gracefully
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.log('⚠️ Network error during metadata update, skipping (not critical)');
+        return;
+      }
+
       console.error('Error updating conversation metadata:', error);
+      // Don't throw error - metadata updates are not critical for core functionality
     }
   }
 

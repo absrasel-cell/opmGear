@@ -9,12 +9,18 @@ export async function POST(request: NextRequest) {
     // Supabase supports raw SQL queries through the REST API
     const query = `ALTER TYPE "QuoteOrderStatus" ADD VALUE IF NOT EXISTS 'ACCEPTED';`;
     
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!serviceRoleKey) {
+      return NextResponse.json({ error: 'Missing Supabase service role key' }, { status: 500 });
+    }
+
     const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'apikey': serviceRoleKey
       },
       body: JSON.stringify({
         query: query
@@ -57,9 +63,9 @@ export async function POST(request: NextRequest) {
     console.error('❌ Error adding enum value:', error);
     
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to add enum value',
-        details: error.message,
+        details: error instanceof Error ? error.message : String(error),
         suggestion: 'Please run the following SQL manually in your Supabase dashboard: ALTER TYPE "QuoteOrderStatus" ADD VALUE \'ACCEPTED\';'
       },
       { status: 500 }

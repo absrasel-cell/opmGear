@@ -596,16 +596,34 @@ Use these LogoCraft specifications for precise quote generation.
 ` : 'No logo analysis available. Use standard defaults for logo customization.'}
 
 ${orderEstimate ? `
-💰 COST CALCULATION:
-- Quantity: ${requirements.quantity} pieces
-- Unit Cost: $${orderEstimate.unitCost || 0}
-- Total Cost: $${orderEstimate.totalCost || 0}
+🔢 ===== EXACT PRICING DATA - USE THESE NUMBERS ONLY ===== 🔢
+QUANTITY: ${requirements.quantity} pieces
+TOTAL ORDER COST: $${orderEstimate.orderEstimate?.totalCost || orderEstimate.totalCost || 0}
+
+📊 COMPONENT BREAKDOWN (use exact amounts):
+${orderEstimate.costBreakdown ? `
+• Blank Caps: $${orderEstimate.costBreakdown.baseProductTotal || 0} ($${((orderEstimate.costBreakdown.baseProductTotal || 0) / requirements.quantity).toFixed(2)}/piece)
+• Premium Fabric: $${orderEstimate.costBreakdown.premiumFabricTotal || 0} ($${((orderEstimate.costBreakdown.premiumFabricTotal || 0) / requirements.quantity).toFixed(2)}/piece)
+• Logo Setup: $${orderEstimate.costBreakdown.logoSetupTotal || 0} ($${((orderEstimate.costBreakdown.logoSetupTotal || 0) / requirements.quantity).toFixed(2)}/piece)
+• Premium Closure: $${orderEstimate.costBreakdown.closureTotal || 0} ($${((orderEstimate.costBreakdown.closureTotal || 0) / requirements.quantity).toFixed(2)}/piece)
+• Accessories: $${orderEstimate.costBreakdown.accessoriesTotal || 0} ($${((orderEstimate.costBreakdown.accessoriesTotal || 0) / requirements.quantity).toFixed(2)}/piece)
+• Mold Charges: $${orderEstimate.costBreakdown.moldChargeTotal || 0} (one-time)
+• Delivery: $${orderEstimate.costBreakdown.deliveryTotal || 0} ($${((orderEstimate.costBreakdown.deliveryTotal || 0) / requirements.quantity).toFixed(2)}/piece)
+
+SUBTOTAL (before delivery): $${(orderEstimate.costBreakdown.totalCost || 0) - (orderEstimate.costBreakdown.deliveryTotal || 0)}
+FINAL TOTAL: $${orderEstimate.costBreakdown.totalCost || 0}
+` : '❌ NO COST DATA - Request pricing calculation'}
+
 ${orderEstimate.logoBreakdown ? `
-- Logo Details: ${orderEstimate.logoBreakdown.method} ($${orderEstimate.logoBreakdown.unitCost}/piece)
+🎨 LOGO SPECIFIC BREAKDOWN:
+- Method: ${orderEstimate.logoBreakdown.method}
+- Unit Cost: $${orderEstimate.logoBreakdown.unitCost}/piece
+- Total Logo Cost: $${orderEstimate.logoBreakdown.totalCost || (orderEstimate.logoBreakdown.unitCost * requirements.quantity)}
 - Mold Charge: $${orderEstimate.logoBreakdown.moldCharge || 0}
 ` : ''}
-- Breakdown: ${JSON.stringify(orderEstimate.breakdown || {})}
-` : ''}
+
+⚠️  CRITICAL: Present these exact dollar amounts in your quote. Do not change, round, or recalculate.
+` : '❌ NO PRICING DATA AVAILABLE - Cannot generate quote without cost calculation'}
 
 ${pricingCheck?.discrepancyFound ? `
 ⚠️ PRICING VALIDATION:
@@ -613,15 +631,23 @@ Discrepancy detected between logo analysis ($${pricingCheck.logoAnalysisCost}) a
 Using resolved cost: $${pricingCheck.resolvedCost}
 ` : ''}
 
+CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
+🚨 MANDATORY: Use ONLY the calculated pricing data provided above. DO NOT create or modify any prices.
+🚨 MANDATORY: Copy exact dollar amounts from the cost breakdown - do not recalculate or round
+🚨 MANDATORY: If no cost breakdown is provided, respond "Please wait while I calculate accurate pricing"
+
 Guidelines:
 - Acknowledge LogoCraft Pro's previous analysis when available
-- Create detailed, accurate quotes based on logo specifications
-- Explain cost breakdowns clearly with logo-specific details
+- Create detailed, accurate quotes using ONLY the provided cost calculations
+- Explain cost breakdowns using the exact numbers from DETAILED COST BREAKDOWN section
+- NEVER invent, estimate, or modify pricing - use provided data exactly
 - Highlight the value of LogoCraft Pro's recommendations
-- Provide quantity-based pricing tiers
-- Offer optimization suggestions while respecting logo analysis
-- Generate professional quote documents that reference logo analysis
+- Generate professional quote documents using only verified pricing
 - Show continuity between logo analysis and quote pricing
+- ALWAYS include delivery costs using exact amounts from cost breakdown
+- Follow the expected quote structure: Blank Caps → Premium Fabric → Customization → Delivery → Total Order
+- Use delivery method "${requirements.deliveryMethod || 'Regular Delivery'}" in delivery cost formatting
+- When presenting unit prices, divide total costs by quantity to show per-piece pricing
 
 Customer: ${userProfile?.name || 'Valued Customer'}
 Customer Role: ${userProfile?.customerRole || 'RETAIL'}
@@ -645,7 +671,13 @@ Focus on converting inquiries into orders with comprehensive, accurate quotes th
    ...formatAssistantResponse(AI_ASSISTANTS.QUOTE_MASTER, aiResponse),
    quoteData: orderEstimate,
    logoContext: logoContext,
-   pricingValidation: pricingCheck
+   pricingValidation: pricingCheck,
+   metadata: {
+     hasDetailedQuote: true,
+     costBreakdown: orderEstimate?.costBreakdown,
+     deliveryCost: orderEstimate?.costBreakdown?.deliveryTotal || 0,
+     logoSpecs: logoContext?.recommendedMethods?.[0]
+   }
   };
   
  } catch (error) {

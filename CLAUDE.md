@@ -6,10 +6,14 @@ read current errors and follow up conversation of AI or other requests from ""F:
 read screenshot (only if I tell you to) at "F:\Custom Cap - github\Claude Instruction\Screenshots"
 General understanding of the overall business "F:\Custom Cap - github\Claude Instruction\custom cap 101.txt"
 
+## Maintain utmost Modulized and efficient coding Architecture into the current project, specially at /support Page.
+
 ## You are open to use "manual intervention" any time when you see fit.
 
 ## We are no longer using PRISMA. We are only using SUPABASE now.
 ## Use supabase MCP for any Database related tasks.
+## PRICING SYSTEM: Completely migrated to Supabase database (January 2025)
+## All CSV-based pricing deprecated - use PricingService class for all pricing operations.
 # 🎯 CRITICAL REFERENCE FILES
 
 ## Support Page cost and knowledgebase "F:\Custom Cap - github\USCC\src\app\ai"
@@ -20,9 +24,6 @@ General understanding of the overall business "F:\Custom Cap - github\Claude Ins
 - Contains complete Order Builder integration, AI routing, and conversation persistence logic
 - Critical for any support page related issues or modifications
 
-## Legacy Support Instructions  
-"F:\Custom Cap - github\USCC\src\app\ai\instruction.txt" - Original support page instructions
-
 # Dashboard Admin product page "src\app\dashboard\admin\products\create\page.tsx"
 
 # do not touch unless I tell explicitly, "Advanced Product Page"  "\src\app\customize\[slug]"
@@ -32,8 +33,9 @@ General understanding of the overall business "F:\Custom Cap - github\Claude Ins
 ## 🎯 Project Overview
 US Custom Cap is a comprehensive Next.js 15 e-commerce platform for custom baseball cap customization and ordering. This is a production-ready application with advanced user management, real-time messaging, sophisticated order management, and modern UI with volume-based pricing systems.
 
-**Status**: Production Ready (Version 3.3.0)  
-**Completion**: 96% - Core platform complete, marketplace expansion phase initiated
+**Status**: Production Ready (Version 3.4.0)
+**Completion**: 97% - Core platform complete, Supabase pricing migration completed, marketplace expansion phase initiated
+**Latest Update**: Complete pricing system migration to Supabase database (January 2025)
 
 ## 🛠️ Tech Stack & Architecture
 
@@ -44,10 +46,16 @@ US Custom Cap is a comprehensive Next.js 15 e-commerce platform for custom baseb
 - **Heroicons** and **Lucide React** for icons
 
 ### Backend & Database
-- **Supabase PostgreSQL** with Prisma ORM 6.14.0
+- **Supabase PostgreSQL** with comprehensive pricing schema (MIGRATED ✅)
+- **Pricing System**: Complete Supabase migration from CSV files (January 2025)
 - **NextAuth.js 4.24.11** for authentication
 - **bcryptjs** for password hashing
 - **Row Level Security** for data protection
+- **Database Migration Status**:
+  - 7 core pricing tables populated and indexed
+  - Foreign key relationships established
+  - JSONB tags for advanced product search
+  - 76 products, 33 logo methods, 19 fabrics migrated
 
 ### External Services
 - **Sanity.io** - Headless CMS for product management
@@ -113,9 +121,26 @@ src/
 
 ## 💰 Pricing System
 
-### Tier-Based Pricing (CSV Integration), cost updated to the actual csv file.
-- "F:\Custom Cap - github\USCC\src\app\csv\Blank Cap Pricings.csv"
-- "F:\Custom Cap - github\USCC\src\app\csv\Customer Products.csv"
+### Tier-Based Pricing (SUPABASE MIGRATION COMPLETED ✅ January 2025)
+**CRITICAL UPDATE**: Complete migration from CSV files to Supabase database
+
+#### Database Tables:
+- **`pricing_tiers`** - 3-tier pricing system with volume breakpoints
+- **`products`** - 76 cap styles with pricing tier relationships
+- **`logo_methods`** - 33 logo methods with size/application variants
+- **`premium_fabrics`** - 19 fabrics with volume pricing
+- **`closures`** - 8 premium closures with quantity tiers
+- **`accessories`** - 10 accessories with volume pricing
+- **`delivery_methods`** - 4 methods with quantity-based rates
+
+#### Pricing Service:
+- **File**: `F:\Custom Cap - github\USCC\src\lib\pricing\pricing-service.ts`
+- **AI Integration**: `F:\Custom Cap - github\USCC\src\lib\order-ai-core.ts` (UPDATED for Supabase)
+- **Benefits**: Enhanced reliability, performance, data integrity
+
+#### Legacy CSV Files (DEPRECATED):
+- ~~"F:\Custom Cap - github\USCC\src\app\csv\Blank Cap Pricings.csv"~~ → `pricing_tiers` table
+- ~~"F:\Custom Cap - github\USCC\src\app\csv\Customer Products.csv"~~ → `products` table
 
 
 ### Volume Discount Display

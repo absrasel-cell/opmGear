@@ -196,7 +196,7 @@ export class OrderRecordingSystem {
           if (orderData.tempLogoFiles && orderData.tempLogoFiles.length > 0) {
             console.log(`📤 Processing ${orderData.tempLogoFiles.length} temp files for temporary order ${result.orderId}...`);
             try {
-              const uploadResult = await this.processFileUploads(orderData.tempLogoFiles, result.orderId, orderData.userId);
+              const uploadResult = await this.processFileUploads(orderData.tempLogoFiles, result.orderId, orderData.userId || undefined);
               if (uploadResult.success) {
                 console.log(`✅ Successfully processed ${uploadResult.uploadedFiles.length} files for temporary order`);
               }
@@ -217,7 +217,7 @@ export class OrderRecordingSystem {
       if (orderData.tempLogoFiles && orderData.tempLogoFiles.length > 0) {
         console.log(`📤 Processing ${orderData.tempLogoFiles.length} temp files for order ${result.orderId}...`);
         try {
-          const uploadResult = await this.processFileUploads(orderData.tempLogoFiles, result.orderId, orderData.userId);
+          const uploadResult = await this.processFileUploads(orderData.tempLogoFiles, result.orderId, orderData.userId || undefined);
           if (uploadResult.success) {
             orderData.uploadedLogoFiles = [
               ...(orderData.uploadedLogoFiles || []),
@@ -406,7 +406,7 @@ export class OrderRecordingSystem {
       for (const logoValue of selectedLogoValues) {
         const logoConfig = orderData.logoSetupSelections?.[logoValue];
         if (logoConfig) {
-          const pricingItem = pricingData.find(item => item.name === logoValue);
+          const pricingItem = pricingData.find(item => item.Name === logoValue);
           if (pricingItem) {
             let unitPrice = pricingItem.price48;
             if (totalUnits >= 10000) unitPrice = pricingItem.price10000;
@@ -437,7 +437,7 @@ export class OrderRecordingSystem {
       for (const optionType of optionTypes) {
         const selectedValues = orderData.multiSelectOptions?.[optionType.key] || [];
         for (const value of selectedValues) {
-          const pricingItem = pricingData.find(item => item.name === value);
+          const pricingItem = pricingData.find(item => item.Name === value);
           if (pricingItem) {
             let unitPrice = pricingItem.price48;
             if (totalUnits >= 10000) unitPrice = pricingItem.price10000;

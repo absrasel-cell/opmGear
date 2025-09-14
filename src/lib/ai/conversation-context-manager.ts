@@ -295,16 +295,20 @@ export class ConversationContextManager {
     context: EnhancedConversationContext
   ): Promise<void> {
     try {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: {
+      const { error } = await supabaseAdmin
+        .from('Conversation')
+        .update({
           metadata: {
             enhancedContext: context,
             lastContextUpdate: new Date().toISOString()
           },
-          updatedAt: new Date()
-        }
-      });
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', conversationId);
+
+      if (error) {
+        throw error;
+      }
     } catch (error) {
       console.error('Failed to store context in conversation:', error);
       // Continue execution - context will be lost but conversation can continue
@@ -318,9 +322,16 @@ export class ConversationContextManager {
     conversationId: string
   ): Promise<EnhancedConversationContext | null> {
     try {
-      const conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId }
-      });
+      const { data: conversation, error } = await supabaseAdmin
+        .from('Conversation')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
+
+      if (error) {
+        console.error('Failed to get conversation:', error);
+        return null;
+      }
       
       if (conversation?.metadata && typeof conversation.metadata === 'object') {
         const metadata = conversation.metadata as any;
@@ -339,13 +350,17 @@ export class ConversationContextManager {
    */
   static async clearContext(conversationId: string): Promise<void> {
     try {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: {
+      const { error } = await supabaseAdmin
+        .from('Conversation')
+        .update({
           metadata: {},
-          updatedAt: new Date()
-        }
-      });
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', conversationId);
+
+      if (error) {
+        throw error;
+      }
       
       console.log('🧹 Context cleared for conversation:', conversationId);
     } catch (error) {

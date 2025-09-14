@@ -2,7 +2,7 @@
 // This file contains only interfaces and utility functions that work on both client and server
 
 // Re-export server-side functions for server-only usage
-export type { BaseProductPricing, CustomizationPricing } from './pricing-server';
+export type { BaseProductPricing } from './pricing-server';
 
 // Client-safe pricing interface
 export interface ClientPricing {
@@ -41,18 +41,6 @@ export function calculateUnitPrice(quantity: number, pricingData: ClientPricing)
   return pricingData.price48;
 }
 
-// Export the interface for use in other files
-export interface CustomizationPricing {
-  Name: string;
-  type: string;
-  price48: number;
-  price144: number;
-  price576: number;
-  price1152: number;
-  price2880: number;
-  price10000: number;
-  price20000: number;
-}
 
 // REMOVED: All hardcoded pricing fallbacks have been eliminated.
 // The system now exclusively uses live CSV data for accurate pricing.

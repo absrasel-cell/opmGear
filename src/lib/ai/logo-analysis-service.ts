@@ -91,6 +91,8 @@ export class LogoAnalysisService {
       
       // Update metadata to reflect PDF origin
       analysisResult.metadata = {
+        analysisModel: analysisResult.metadata?.analysisModel || 'gpt-4o',
+        processingTime: analysisResult.metadata?.processingTime || Date.now(),
         ...analysisResult.metadata,
         originalFileType: 'PDF',
         pdfProcessing: {
@@ -118,6 +120,8 @@ export class LogoAnalysisService {
       // Return fallback analysis with PDF context
       const fallbackAnalysis = this.createFallbackAnalysis(analysisId, pdfUrl);
       fallbackAnalysis.metadata = {
+        analysisModel: fallbackAnalysis.metadata?.analysisModel || 'pdf-fallback',
+        processingTime: fallbackAnalysis.metadata?.processingTime || Date.now(),
         ...fallbackAnalysis.metadata,
         originalFileType: 'PDF',
         processingError: error instanceof Error ? error.message : 'Unknown PDF processing error',

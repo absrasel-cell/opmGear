@@ -44,6 +44,14 @@ export interface LogoAnalysisResult {
     processingTime: number;
     revisedAt?: string;
     notes?: string;
+    originalFileType?: string;
+    processingError?: string;
+    pdfProcessing?: {
+      pageCount: number;
+      extractedImages: number;
+      processingTime: number;
+      sourcePage?: number;
+    };
   };
 }
 

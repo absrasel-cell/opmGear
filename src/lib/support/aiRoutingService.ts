@@ -1,4 +1,13 @@
-import { IntentType, AI_ASSISTANTS, INTENT_MODEL_MAPPING } from '@/app/support2/types/aiAssistant';
+import { AI_ASSISTANTS } from '@/lib/ai-assistants-config';
+
+export type IntentType = 'ORDER_CREATION' | 'LOGO_ANALYSIS' | 'SUPPORT' | 'GENERAL';
+
+export const INTENT_MODEL_MAPPING: Record<IntentType, string> = {
+  ORDER_CREATION: 'CapCraft AI 💎',
+  LOGO_ANALYSIS: 'LogoCraft Pro 🎨',
+  SUPPORT: 'SupportSage 🌟',
+  GENERAL: 'SupportSage 🌟'
+};
 
 export class AIRoutingService {
   private static instance: AIRoutingService;
@@ -31,19 +40,34 @@ export class AIRoutingService {
 
   private fallbackIntentDetection(message: string): IntentType {
     const lowerMessage = message.toLowerCase();
-    
+
+    // More aggressive pattern matching for order creation
+    const explicitQuotePatterns = [
+      /create\s+(me\s+)?a?\s*quote\s+for/i,
+      /\d+\s+pieces?\s*[,.]?\s*\w+\s+fabric/i,  // "144 piece, Acrylic fabric"
+      /quote\s+for\s+\d+/i,
+      /\d+\s+piece.*with.*embroidery/i,
+      /\d+\s+caps?\s*[,.]?\s*\w+\s*\/\s*\w+/i,  // "144 caps, Red/White"
+    ];
+
+    // Check explicit patterns first
+    if (explicitQuotePatterns.some(pattern => pattern.test(message))) {
+      return 'ORDER_CREATION';
+    }
+
     // Keywords for order creation
-    const orderKeywords = ['quote', 'order', 'price', 'pricing', 'cost', 'buy', 'purchase', 'caps', 'quantity'];
+    const orderKeywords = ['quote', 'order', 'price', 'pricing', 'cost', 'buy', 'purchase', 'caps', 'quantity', 'fabric', 'embroidery', 'piece', 'custom cap'];
     if (orderKeywords.some(keyword => lowerMessage.includes(keyword))) {
       return 'ORDER_CREATION';
     }
-    
-    // Keywords for logo analysis
-    const logoKeywords = ['logo', 'design', 'image', 'artwork', 'graphics', 'embroidery'];
-    if (logoKeywords.some(keyword => lowerMessage.includes(keyword))) {
+
+    // Keywords for logo analysis (but not if it also has order keywords)
+    const logoKeywords = ['logo', 'design', 'image', 'artwork', 'graphics'];
+    if (logoKeywords.some(keyword => lowerMessage.includes(keyword)) &&
+        !orderKeywords.some(keyword => lowerMessage.includes(keyword))) {
       return 'LOGO_ANALYSIS';
     }
-    
+
     // Default to support
     return 'SUPPORT';
   }
@@ -124,7 +148,7 @@ export class AIRoutingService {
     }
   }
 
-  getAssistantInfo(intent: IntentType) {
+  getAssistantInfo(intent: IntentType): typeof AI_ASSISTANTS[keyof typeof AI_ASSISTANTS] | undefined {
     const modelName = INTENT_MODEL_MAPPING[intent];
     return Object.values(AI_ASSISTANTS).find(assistant => assistant.name === modelName);
   }

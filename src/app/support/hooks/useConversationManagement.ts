@@ -14,6 +14,7 @@ interface UseConversationManagementProps {
   setCurrentQuoteData: (data: any) => void;
   setOrderBuilderStatus: (status: any) => void;
   setLeadTimeData: (data: any) => void;
+  setIsOrderBuilderVisible: (visible: boolean) => void;
   currentQuoteData: any;
   orderBuilderStatus: any;
   leadTimeData: any;
@@ -33,6 +34,7 @@ export function useConversationManagement({
   setCurrentQuoteData,
   setOrderBuilderStatus,
   setLeadTimeData,
+  setIsOrderBuilderVisible,
   currentQuoteData,
   orderBuilderStatus,
   leadTimeData,
@@ -154,7 +156,8 @@ export function useConversationManagement({
       setOrderBuilderStatus,
       setLeadTimeData,
       setConversationId,
-      OrderBuilderService
+      OrderBuilderService,
+      setIsOrderBuilderVisible
     );
   };
 

@@ -1,4 +1,23 @@
-import { Message, UserProfile } from '@/app/support2/types/conversation';
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  model?: string;
+  timestamp: Date;
+  metadata?: any;
+}
+
+export interface UserProfile {
+  id?: string;
+  name?: string;
+  email?: string;
+  businessInfo?: {
+    companyName?: string;
+    businessType?: string;
+    volume?: string;
+  };
+  preferences?: any;
+}
 
 export class ConversationManager {
   private static instance: ConversationManager;
