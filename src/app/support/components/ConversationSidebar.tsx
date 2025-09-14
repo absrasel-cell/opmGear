@@ -31,6 +31,7 @@ interface ConversationSidebarProps {
   onRejectQuote: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
   onClearAllConversations: () => void;
+  onShowOrderBuilder?: (conversationId: string) => void;
   formatConversationTime: (time: string | Date) => string;
   getConversationStatus: (conversation: any) => any;
 }
@@ -56,6 +57,7 @@ const ConversationSidebar = ({
   onRejectQuote,
   onDeleteConversation,
   onClearAllConversations,
+  onShowOrderBuilder,
   formatConversationTime,
   getConversationStatus
 }: ConversationSidebarProps) => {
@@ -151,6 +153,7 @@ const ConversationSidebar = ({
           onAcceptQuote={onAcceptQuote}
           onRejectQuote={onRejectQuote}
           onDeleteConversation={onDeleteConversation}
+          onShowOrderBuilder={onShowOrderBuilder}
           formatConversationTime={formatConversationTime}
           getConversationStatus={getConversationStatus}
         />

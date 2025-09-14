@@ -996,8 +996,16 @@ export function generateStructuredResponse(
   if (logoSetup.logos.length > 0) {
     response += `🎨 **Logo Setup** ✅\n`;
     logoSetup.logos.forEach((logo: any) => {
-      const logoPerCap = logo.totalCost / quantity;
-      response += `•${logo.location}: ${logo.type} (${logo.size}) - $${logo.totalCost.toFixed(2)} ($${logoPerCap.toFixed(2)}/cap)\n`;
+      // CRITICAL FIX: Show integrated logo + mold cost, not just base logo cost
+      const totalWithMoldCharge = logo.totalWithMold || logo.totalCost;
+      const logoPerCapWithMold = totalWithMoldCharge / quantity;
+
+      // Show detailed breakdown if mold charge exists
+      if (logo.moldCharge && logo.moldCharge > 0) {
+        response += `•${logo.location}: ${logo.type} (${logo.size}) - $${totalWithMoldCharge.toFixed(2)} ($${logoPerCapWithMold.toFixed(2)}/cap)\n`;
+      } else {
+        response += `•${logo.location}: ${logo.type} (${logo.size}) - $${logo.totalCost.toFixed(2)} ($${logoPerCapWithMold.toFixed(2)}/cap)\n`;
+      }
     });
     response += `\n`;
   }
@@ -1028,7 +1036,10 @@ export function generateStructuredResponse(
   }
   if (logoSetup.logos.length > 0) {
     logoSetup.logos.forEach((logo: any) => {
-      response += `• ${logo.location} Logo: $${(logo.totalCost / quantity).toFixed(2)}\n`;
+      // CRITICAL FIX: Show integrated logo + mold cost in per-cap breakdown
+      const totalWithMoldCharge = logo.totalWithMold || logo.totalCost;
+      const logoPerCapWithMold = totalWithMoldCharge / quantity;
+      response += `• ${logo.location} Logo: $${logoPerCapWithMold.toFixed(2)}\n`;
     });
   }
   if (accessories.items && accessories.items.length > 0) {

@@ -86,9 +86,8 @@ export async function getAIFabricPrice(fabricName: string, quantity: number): Pr
  * Get AI delivery price - simplified fallback
  */
 export async function getAIDeliveryPrice(deliveryMethod: string, quantity: number): Promise<number> {
-  console.log(`🚚 [AI-PRICING] Using fallback delivery pricing: ${deliveryMethod} x ${quantity}`);
-  // Simplified delivery pricing - should be handled by Supabase service
-  return 2.50; // Fixed rate fallback
+  console.error(`❌ [AI-PRICING] Delivery pricing should use Supabase service: ${deliveryMethod} x ${quantity}`);
+  throw new Error(`AI delivery pricing is deprecated - use Supabase delivery pricing service instead`);
 }
 
 /**
@@ -101,15 +100,9 @@ export async function getAIBlankCapPrice(tier: string, quantity: number, product
     const result = await getProductPrice('New Era 59FIFTY', quantity);
     return result.unitPrice;
   } catch (error) {
-    console.log(`ℹ️ [AI-PRICING] Using fallback blank cap pricing for tier: ${tier}`);
-    // Fallback tiered pricing
-    if (quantity >= 10000) return 2.50;
-    if (quantity >= 2880) return 3.00;
-    if (quantity >= 1152) return 3.50;
-    if (quantity >= 576) return 4.00;
-    if (quantity >= 144) return 4.50;
-    if (quantity >= 48) return 5.00;
-    return 5.50;
+    console.error(`❌ [AI-PRICING] Failed to get blank cap pricing for tier: ${tier}`);
+    const errorMessage = error instanceof Error ? error.message : 'Database connection error';
+    throw new Error(`Failed to get blank cap pricing from database: ${errorMessage}`);
   }
 }
 

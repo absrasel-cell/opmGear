@@ -302,26 +302,26 @@ export const FABRIC_COLOR_AVAILABILITY = {
 
 // AI System specific rules for parsing natural language
 export const AI_DETECTION_RULES = {
-  // Fabric detection patterns
+  // Fabric detection patterns - FIXED: More specific patterns to avoid logo conflicts
   FABRIC_PATTERNS: {
-    'acrylic': ['acrylic'],
-    'suede cotton': ['suede cotton', 'suede'],
-    'genuine leather': ['genuine leather', 'leather'],
-    'air mesh': ['air mesh', 'airmesh', 'mesh'],
-    'duck camo': ['duck camo'], // FIXED: Separate duck camo for specific detection
-    'camo': ['army camo', 'digital camo', 'bottomland camo', 'camo', 'camouflage'], // Generic camo
-    'polyester': ['polyester'], // ADDED: Missing polyester pattern
-    'laser cut': ['laser cut', 'laser'],
-    'chino twill': ['chino twill', 'twill'],
-    'trucker mesh': ['trucker mesh', 'trucker', 'split', 'mesh back'],
+    'acrylic': ['acrylic fabric', 'acrylic material', 'acrylic'],
+    'suede cotton': ['suede cotton fabric', 'suede cotton material', 'suede cotton', 'suede'],
+    'genuine leather': ['genuine leather fabric', 'genuine leather material', 'leather fabric', 'leather material'],  // FIXED: Only match when fabric/material context
+    'air mesh': ['air mesh fabric', 'air mesh material', 'air mesh', 'airmesh', 'mesh'],
+    'duck camo': ['duck camo fabric', 'duck camo material', 'duck camo'], // FIXED: Separate duck camo for specific detection
+    'camo': ['army camo', 'digital camo', 'bottomland camo', 'camo fabric', 'camo material', 'camo', 'camouflage'], // Generic camo
+    'polyester': ['polyester fabric', 'polyester material', 'polyester'], // ADDED: Missing polyester pattern
+    'laser cut': ['laser cut fabric', 'laser cut material', 'laser cut', 'laser'],
+    'chino twill': ['chino twill fabric', 'chino twill material', 'chino twill', 'twill'],
+    'trucker mesh': ['trucker mesh fabric', 'trucker mesh material', 'trucker mesh', 'trucker', 'split', 'mesh back'],
     'black trucker mesh': ['black trucker mesh'], // FIXED: Add specific pattern
     'cotton polyester mix': ['cotton polyester mix', 'cotton polyester'] // ADDED: Existing pattern
   } as const,
   
   // Logo type detection patterns - FIXED: More specific patterns to avoid conflicts
   LOGO_PATTERNS: {
-    'Rubber Patch': ['rubber patch', 'rubber'],  // ENHANCED: Match both "rubber patch" and just "rubber"
-    'Leather Patch': ['leather patch', 'leather'],  // ENHANCED: Match both "leather patch" and just "leather"
+    'Rubber Patch': ['rubber patch'],  // FIXED: Only match full "rubber patch" to avoid conflicts
+    'Leather Patch': ['leather patch'],  // FIXED: Only match full "leather patch" to avoid conflicts
     '3D Embroidery': ['3d embroidery', '3d', 'raised embroidery', 'embroidery 3d'],
     'Flat Embroidery': ['flat embroidery', 'embroidery flat'],
     'Embroidery': ['embroidery', 'embroidered'], // Generic embroidery - lower priority
@@ -585,28 +585,41 @@ export function shouldWaiveMoldCharge(context: CostingContext, logoType: string)
 // AI detection functions
 export function detectFabricFromText(text: string): string | null {
   const lowerText = text.toLowerCase();
-  
+
+  // CRITICAL FIX: Skip fabric detection if text contains logo-related terms
+  // This prevents "Leather Patch" from being detected as "Genuine Leather" fabric
+  const logoTerms = ['logo', 'patch', 'embroidery', 'embroidered', 'print', 'printed', 'decoration'];
+  const hasLogoContext = logoTerms.some(term => lowerText.includes(term));
+
+  if (hasLogoContext) {
+    // Only detect fabric if it's explicitly mentioned as "fabric" or "material"
+    if (!lowerText.includes(' fabric') && !lowerText.includes(' material')) {
+      console.log('🚫 [FABRIC-DETECTION] Skipping fabric detection due to logo context without explicit fabric mention');
+      return null;
+    }
+  }
+
   // ENHANCED: Check for dual fabric patterns first - multiple patterns for better detection
   let dualFabricMatch = null;
-  
+
   // Pattern 1: "Camo front and Laser Cut back fabric" or "Camo front and Laser Cut back"
   dualFabricMatch = lowerText.match(/([\w\s]+?)\s+front\s+and\s+([\w\s]+?)\s+back(?:\s+fabric)?/i);
-  
+
   if (!dualFabricMatch) {
     // Pattern 2: "front Camo, back Laser Cut" or "front Camo back Laser Cut"
     dualFabricMatch = lowerText.match(/front\s+([\w\s]+?)(?:\s*[,.]?\s*|\s+)back\s+([\w\s]+?)(?:\s*fabric)?(?:\s*[.,]|$)/i);
   }
-  
+
   if (!dualFabricMatch) {
     // Pattern 3: "Camo/Laser Cut" (slash separated) - but NOT colors like "Red/White"
     const slashMatch = lowerText.match(/([\w\s]+?)\/([\w\s]+?)(?:\s+fabric)?(?:\s*[.,]|$)/i);
     if (slashMatch) {
       const part1 = slashMatch[1].trim();
       const part2 = slashMatch[2].trim();
-      
+
       // Common colors that should NOT be treated as fabric
       const colors = ['red', 'white', 'black', 'blue', 'green', 'yellow', 'orange', 'purple', 'grey', 'gray', 'brown', 'pink', 'navy', 'royal', 'maroon', 'gold', 'charcoal', 'khaki'];
-      
+
       // If both parts are colors, skip this as fabric detection
       if (colors.includes(part1) && colors.includes(part2)) {
         console.log(`🚫 [FABRIC-DETECTION] Skipping color pattern: ${part1}/${part2}`);
@@ -804,18 +817,23 @@ export function detectAllLogosFromText(text: string): {
     textMatch: string;
   }> = [];
   
-  // Enhanced pattern matching with position and size context
+  // Enhanced pattern matching with position and size context - FIXED for multi-logo detection
   const logoSegments = [
+    // ENHANCED: Multi-logo parsing patterns that can detect complex setups
+    // Pattern: "Leather Patch on Front Large Logo. Left side has Embroidery Small"
+    { pattern: /(\w+\s+\w+)\s+on\s+(front|back|left|right)\s+(large|medium|small)/i, positionFromMatch: true, sizeFromMatch: true, typeFromMatch: true },
+    { pattern: /(front|back|left|right)\s+(?:side\s+)?(?:has\s+)?(\w+\s*\w*)\s+(large|medium|small)/i, positionFromMatch: true, sizeFromMatch: true, typeFromMatch: true },
+
     // Front logo patterns
     { pattern: /(?:big|large|main)\s+logo\s+on\s+front.*?(?:as\s+)?(\w+\s*\w*)/i, position: 'front', size: 'Large' },
     { pattern: /front.*?logo.*?(?:as\s+)?(\w+\s*\w*)/i, position: 'front', size: 'Large' },
     { pattern: /logo\s+on\s+front.*?(?:as\s+)?(\w+\s*\w*)/i, position: 'front', size: 'Large' },
-    
+
     // Back logo patterns
     { pattern: /(small|medium|large)\s+(.+?)\s+(?:back\s+logo|logo.*?back)/i, position: 'back', sizeFromMatch: true },
     { pattern: /back.*?logo.*?(.+?)(?:\.|$|,)/i, position: 'back', size: 'Small' },
     { pattern: /logo.*?on\s+back.*?(.+?)(?:\.|$|,)/i, position: 'back', size: 'Small' },
-    
+
     // General logo patterns
     { pattern: /(\w+\s*\w*)\s+logo/i, position: 'front', size: 'Large' }
   ];
@@ -824,11 +842,30 @@ export function detectAllLogosFromText(text: string): {
   logoSegments.forEach(segment => {
     const match = text.match(segment.pattern);
     if (match) {
-      const logoTypeText = match[1] || match[2] || '';
-      const detectedSize = segment.sizeFromMatch && match[1] ? 
-        (match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase()) : 
-        segment.size;
-      
+      let logoTypeText = '';
+      let detectedPosition = '';
+      let detectedSize = '';
+
+      // Handle different pattern types
+      if (segment.typeFromMatch && segment.positionFromMatch && segment.sizeFromMatch) {
+        // Pattern: "Leather Patch on Front Large"
+        logoTypeText = match[1] || '';
+        detectedPosition = (match[2] || '').toLowerCase();
+        detectedSize = (match[3] || '').charAt(0).toUpperCase() + (match[3] || '').slice(1).toLowerCase();
+      } else if (segment.positionFromMatch && segment.typeFromMatch && segment.sizeFromMatch) {
+        // Pattern: "Left side has Embroidery Small"
+        detectedPosition = (match[1] || '').toLowerCase();
+        logoTypeText = match[2] || '';
+        detectedSize = (match[3] || '').charAt(0).toUpperCase() + (match[3] || '').slice(1).toLowerCase();
+      } else {
+        // Standard patterns
+        logoTypeText = match[1] || match[2] || '';
+        detectedPosition = segment.position || 'front';
+        detectedSize = segment.sizeFromMatch && match[1] ?
+          (match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase()) :
+          segment.size || 'Medium';
+      }
+
       // Try to match the detected text to known logo types
       for (const [logoType, patterns] of Object.entries(AI_DETECTION_RULES.LOGO_PATTERNS)) {
         if (logoType !== 'None') {
@@ -836,7 +873,7 @@ export function detectAllLogosFromText(text: string): {
           if (confidence > 0) {
             foundLogos.push({
               type: logoType,
-              position: segment.position,
+              position: detectedPosition || 'front',
               size: detectedSize || 'Medium',
               confidence,
               textMatch: logoTypeText
@@ -847,7 +884,55 @@ export function detectAllLogosFromText(text: string): {
     }
   });
   
-  // FIXED: Check for direct logo type mentions with BETTER priority system  
+  // CRITICAL FIX: Parse complex multi-logo sentences like "Leather Patch on Front Large Logo. Left side has Embroidery Small"
+  const complexLogoPattern = /(.+?)\s+on\s+(front|back|left|right|upper\s+bill|under\s+bill)\s+(large|medium|small)\s+logo\.?\s*(.+?)(?:side\s+has\s+|has\s+)(.+?)\s+(large|medium|small)/i;
+  const complexMatch = text.match(complexLogoPattern);
+
+  if (complexMatch) {
+    console.log('🎯 [MULTI-LOGO] Complex pattern detected:', complexMatch);
+
+    // First logo: e.g., "Leather Patch on Front Large"
+    const firstLogoType = complexMatch[1].trim();
+    const firstPosition = complexMatch[2].toLowerCase();
+    const firstSize = complexMatch[3].charAt(0).toUpperCase() + complexMatch[3].slice(1).toLowerCase();
+
+    // Second logo: e.g., "Left side has Embroidery Small"
+    const secondLogoType = complexMatch[5].trim();
+    const secondPosition = complexMatch[4].toLowerCase().includes('left') ? 'left' :
+                           complexMatch[4].toLowerCase().includes('right') ? 'right' :
+                           complexMatch[4].toLowerCase().includes('back') ? 'back' : 'left';
+    const secondSize = complexMatch[6].charAt(0).toUpperCase() + complexMatch[6].slice(1).toLowerCase();
+
+    // Match first logo type
+    for (const [logoType, patterns] of Object.entries(AI_DETECTION_RULES.LOGO_PATTERNS)) {
+      if (logoType !== 'None' && patterns.some(pattern => firstLogoType.toLowerCase().includes(pattern))) {
+        foundLogos.push({
+          type: logoType,
+          position: firstPosition,
+          size: firstSize,
+          confidence: 0.95, // High confidence for pattern match
+          textMatch: firstLogoType
+        });
+        break;
+      }
+    }
+
+    // Match second logo type
+    for (const [logoType, patterns] of Object.entries(AI_DETECTION_RULES.LOGO_PATTERNS)) {
+      if (logoType !== 'None' && patterns.some(pattern => secondLogoType.toLowerCase().includes(pattern))) {
+        foundLogos.push({
+          type: logoType,
+          position: secondPosition,
+          size: secondSize,
+          confidence: 0.95, // High confidence for pattern match
+          textMatch: secondLogoType
+        });
+        break;
+      }
+    }
+  }
+
+  // FIXED: Check for direct logo type mentions with BETTER priority system
   // Process in order of specificity - most specific patterns first
   const logoTypeEntries = Object.entries(AI_DETECTION_RULES.LOGO_PATTERNS);
   

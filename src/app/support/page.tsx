@@ -70,6 +70,7 @@ export default function SupportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOrderBuilderVisible, setIsOrderBuilderVisible] = useState(false);
   const [currentQuoteData, setCurrentQuoteData] = useState(null);
+  const [hasNewQuoteInSession, setHasNewQuoteInSession] = useState(false);
   const [orderBuilderStatus, setOrderBuilderStatus] = useState<OrderBuilderStatus>({
     capStyle: {
       completed: false,
@@ -211,6 +212,7 @@ export default function SupportPage() {
         });
         setCurrentQuoteData(quoteData);
         setIsOrderBuilderVisible(true);
+        setHasNewQuoteInSession(true); // Mark that a new quote was generated in this session
 
         // Import and use OrderBuilderService to update status for quote data
         import('./services/orderBuilderService').then(({ OrderBuilderService }) => {
@@ -263,13 +265,18 @@ export default function SupportPage() {
   };
 
   const canQuoteOrder = () => {
-    return orderBuilderStatus.capStyle.status === 'green' &&
+    // Only show Generate Quote button when:
+    // 1. A new quote was generated in this session (not from restored data)
+    // 2. The order builder has the required green statuses
+    return hasNewQuoteInSession &&
+           orderBuilderStatus.capStyle.status === 'green' &&
            orderBuilderStatus.delivery.status === 'green';
   };
 
   const handleQuoteOrder = () => {
     console.log('Generating quote...');
     setIsOrderBuilderVisible(true);
+    setHasNewQuoteInSession(false); // Reset flag after user accepts the quote
   };
 
   const handleAcceptQuoteLocal = async () => {
@@ -359,6 +366,28 @@ export default function SupportPage() {
 
   const handleClearAllFiles = () => {
     FileUploadService.clearAllFiles(setUploadedFiles);
+  };
+
+  const handleShowOrderBuilder = (targetConversationId: string) => {
+    console.log('🔧 Showing Order Builder for conversation:', targetConversationId);
+    // Only show Order Builder if this is the active conversation
+    if (targetConversationId === conversationId) {
+      setIsOrderBuilderVisible(true);
+      console.log('✅ Order Builder made visible for active conversation');
+    } else {
+      console.log('❌ Cannot show Order Builder for inactive conversation - must load conversation first');
+    }
+  };
+
+  // Wrap conversation handlers to reset new quote flag
+  const handleLoadConversationWithReset = (id: string) => {
+    setHasNewQuoteInSession(false); // Reset flag when loading existing conversation
+    handleLoadConversation(id);
+  };
+
+  const handleNewConversationWithReset = () => {
+    setHasNewQuoteInSession(false); // Reset flag when starting new conversation
+    handleNewConversation();
   };
 
   // Add auth loading state check (from original file)
@@ -735,14 +764,15 @@ export default function SupportPage() {
         authUser={authUser}
         onClose={() => setShowConversationHistory(false)}
         onRefresh={handleRefreshConversations}
-        onNewConversation={handleNewConversation}
+        onNewConversation={handleNewConversationWithReset}
         onSearchChange={setSearchQuery}
-        onLoadConversation={handleLoadConversation}
+        onLoadConversation={handleLoadConversationWithReset}
         onRegenerateTitle={handleRegenerateTitle}
         onAcceptQuote={handleAcceptQuote}
         onRejectQuote={handleRejectQuote}
         onDeleteConversation={deleteConversation}
         onClearAllConversations={handleClearAllConversations}
+        onShowOrderBuilder={handleShowOrderBuilder}
         formatConversationTime={formatConversationTime}
         getConversationStatus={getConversationStatus}
       />

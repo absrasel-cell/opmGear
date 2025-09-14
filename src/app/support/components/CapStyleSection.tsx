@@ -524,37 +524,6 @@ const CapStyleSection = ({
                       }
                     }
 
-                    // Fallback: If no structured data was found but we have fabric/closure details, add estimated costs
-                    if (fabricCosts.length === 0 && closureCosts.length === 0 && quantity > 0) {
-                      console.log('🔍 [PREMIUM-COSTS] No costs found, checking fallback options...');
-
-                      // Check fabric details
-                      const fabricType = currentQuoteData?.capDetails?.fabric;
-                      if (fabricType && /laser\s*cut/i.test(fabricType)) {
-                        fabricCosts.push({
-                          type: 'Laser Cut',
-                          unitPrice: 0.80,
-                          totalCost: 0.80 * quantity
-                        });
-                      }
-                      if (fabricType && /polyester/i.test(fabricType) && !/laser/i.test(fabricType)) {
-                        fabricCosts.push({
-                          type: 'Polyester',
-                          unitPrice: 0.50,
-                          totalCost: 0.50 * quantity
-                        });
-                      }
-
-                      // Check closure details
-                      const closureType = currentQuoteData?.capDetails?.closure;
-                      if (closureType && /fitted/i.test(closureType)) {
-                        closureCosts.push({
-                          type: 'Fitted',
-                          unitPrice: 0.30,
-                          totalCost: 0.30 * quantity
-                        });
-                      }
-                    }
 
                     const hasPremiumCosts = fabricCosts.length > 0 || closureCosts.length > 0;
 

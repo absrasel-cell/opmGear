@@ -137,11 +137,9 @@ export class ConversationService {
             OrderBuilderService
           );
 
-          // Show Order Builder if we restored data and the setter is available
-          if (setIsOrderBuilderVisible) {
-            setIsOrderBuilderVisible(true);
-            console.log('🔧 Order Builder made visible due to restored state');
-          }
+          // DON'T automatically show Order Builder when loading conversation history
+          // Let the user decide when they want to see it by interacting with quotes
+          console.log('🔧 Order Builder state restored but keeping it hidden until user interaction');
         }
 
         console.log('✅ Conversation fully loaded and restored');

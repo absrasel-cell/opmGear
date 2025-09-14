@@ -14,6 +14,7 @@ interface ConversationListProps {
   onAcceptQuote: (conversationId: string) => void;
   onRejectQuote: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
+  onShowOrderBuilder?: (conversationId: string) => void;
   formatConversationTime: (time: string | Date) => string;
   getConversationStatus: (conversation: any) => any;
 }
@@ -31,6 +32,7 @@ const ConversationList = ({
   onAcceptQuote,
   onRejectQuote,
   onDeleteConversation,
+  onShowOrderBuilder,
   formatConversationTime,
   getConversationStatus
 }: ConversationListProps) => {
@@ -121,7 +123,7 @@ const ConversationList = ({
                   {/* Quote-specific information */}
                   {conversation.hasQuote && conversation.orderBuilderSummary && (
                     <div className="mb-2 p-2 rounded-lg bg-lime-400/10 border border-lime-400/20">
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center justify-between text-xs mb-2">
                         <div className="flex items-center gap-2 text-lime-300">
                           <div className="h-1.5 w-1.5 rounded-full bg-lime-400" />
                           <span className="font-medium">Quote Completed</span>
@@ -133,11 +135,25 @@ const ConversationList = ({
                           }
                         </span>
                       </div>
-                      {conversation.orderBuilderSummary.totalCost && (
-                        <div className="mt-1 text-xs text-white/80 font-medium">
-                          ${conversation.orderBuilderSummary.totalCost.toFixed(2)}
-                        </div>
-                      )}
+                      <div className="flex items-center justify-between">
+                        {conversation.orderBuilderSummary.totalCost && (
+                          <div className="text-xs text-white/80 font-medium">
+                            ${conversation.orderBuilderSummary.totalCost.toFixed(2)}
+                          </div>
+                        )}
+                        {onShowOrderBuilder && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onShowOrderBuilder(conversation.id);
+                            }}
+                            className="px-2 py-1 text-xs rounded bg-lime-400/20 text-lime-300 hover:bg-lime-400/30 transition-all duration-200 font-medium border border-lime-400/30"
+                            title="View detailed quote breakdown"
+                          >
+                            View Details
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
 

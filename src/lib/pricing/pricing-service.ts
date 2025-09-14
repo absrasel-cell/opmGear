@@ -130,6 +130,15 @@ export interface LogoPricingResult extends PricingResult {
   totalWithMold: number;
 }
 
+export interface MoldCharge {
+  id: string;
+  size: string;
+  size_example: string;
+  charge_amount: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PricingEstimate {
   product: PricingResult;
   logo?: LogoPricingResult;
@@ -605,6 +614,37 @@ export async function loadDeliveryMethods(): Promise<DeliveryMethod[]> {
   }
 }
 
+/**
+ * Load mold charges from Supabase database
+ */
+export async function loadMoldCharges(): Promise<MoldCharge[]> {
+  const cacheKey = 'mold_charges_all';
+
+  let cached = pricingCache.get<MoldCharge[]>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('mold_charges')
+      .select('*')
+      .order('size');
+
+    if (error) throw error;
+
+    const charges = data || [];
+    pricingCache.set(cacheKey, charges, 60 * 60 * 1000); // 1 hour TTL
+
+    console.log(`✅ [PRICING-SERVICE] Loaded ${charges.length} mold charges from Supabase`);
+    return charges;
+  } catch (error) {
+    console.error('❌ [PRICING-SERVICE] Error loading mold charges:', error);
+    return [];
+  }
+}
+
 // ============================================================================
 // HIGH-PERFORMANCE PRICING LOOKUP FUNCTIONS
 // ============================================================================
@@ -688,13 +728,22 @@ export async function getLogoPrice(
     const { unitPrice, tier } = calculatePriceForQuantity(method, quantity);
     const { savings, discountPercent } = calculateSavings(unitPrice, quantity, method);
 
-    // Calculate mold charge
+    // Calculate mold charge from database
     let moldCharge = 0;
     if (method.mold_charge_type) {
-      switch (method.mold_charge_type) {
-        case 'Small Mold Charge': moldCharge = 50; break;
-        case 'Medium Mold Charge': moldCharge = 80; break;
-        case 'Large Mold Charge': moldCharge = 120; break;
+      const moldCharges = await loadMoldCharges();
+      const sizeMap: { [key: string]: string } = {
+        'Small Mold Charge': 'Small',
+        'Medium Mold Charge': 'Medium',
+        'Large Mold Charge': 'Large'
+      };
+
+      const size = sizeMap[method.mold_charge_type];
+      const moldChargeData = moldCharges.find(mc => mc.size === size);
+
+      if (moldChargeData) {
+        moldCharge = parseFloat(moldChargeData.charge_amount);
+        console.log(`💰 [MOLD-CHARGE] Using database charge: ${size} = $${moldCharge}`);
       }
     }
 
@@ -1184,7 +1233,7 @@ export async function getProductInfoBySpecs(
       console.log('🎯 [PRICING-SERVICE] Searching for exact product name:', capDetails.productName);
 
       const exactMatch = products.find(p =>
-        p.name.toLowerCase() === capDetails.productName.toLowerCase()
+        p.name.toLowerCase() === capDetails.productName!.toLowerCase()
       );
 
       if (exactMatch) {

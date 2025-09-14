@@ -124,14 +124,17 @@ const CustomizationSection = ({
                                     <span className="text-xs font-medium text-white">
                                       {logo.position || 'Unknown'}: {logo.name || 'Unknown'} ({logo.size || 'Unknown'})
                                     </span>
-                                    <span className="text-xs text-green-400 font-medium">${logo.totalCost.toFixed(2)}</span>
+                                    {/* CRITICAL FIX: Show integrated total (base cost + mold charge) */}
+                                    <span className="text-xs text-green-400 font-medium">
+                                      ${((logo.totalCost || 0) + (logo.moldCharge || 0)).toFixed(2)}
+                                    </span>
                                   </div>
                                   <div className="grid grid-cols-2 gap-2 text-[10px] text-white/70">
                                     <div>Unit Cost: <span className="text-white">${logo.unitPrice.toFixed(2)}</span></div>
-                                    <div>Base Cost: <span className="text-white">${(logo.unitPrice * quantity).toFixed(2)}</span></div>
+                                    <div>Base Cost: <span className="text-white">${(logo.totalCost || 0).toFixed(2)}</span></div>
                                     {logo.moldCharge > 0 && (
                                       <>
-                                        <div>Mold Charge: <span className="text-orange-400">${logo.moldCharge.toFixed(2)}</span></div>
+                                        <div>Mold Charge: <span className="text-orange-400">+${logo.moldCharge.toFixed(2)}</span></div>
                                         <div>Quantity: <span className="text-white">{quantity} pieces</span></div>
                                       </>
                                     )}
@@ -167,26 +170,7 @@ const CustomizationSection = ({
                           </div>
                         )}
 
-                        {/* Mold Charges Section */}
-                        {moldCharges > 0 && (
-                          <div className="p-3 rounded-lg border border-orange-400/20 bg-orange-400/5">
-                            <div className="flex items-center gap-2 mb-2">
-                              <svg className="h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                              </svg>
-                              <h5 className="text-xs font-medium text-orange-300">Mold Charges</h5>
-                            </div>
-                            <div className="bg-black/20 rounded-md p-2">
-                              <div className="flex justify-between items-center">
-                                <span className="text-xs text-white/70">One-time setup fees</span>
-                                <span className="text-sm font-bold text-orange-400">${moldCharges.toFixed(2)}</span>
-                              </div>
-                              <div className="text-[10px] text-white/50 mt-1">
-                                Applied to logo methods requiring custom molds
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        {/* REMOVED: Separate Mold Charges Section - now integrated into logo costs above */}
 
                         {/* Enhanced Fallback Display with Professional Styling */}
                         {logoCosts.length === 0 && accessoryCosts.length === 0 && moldCharges === 0 && (
@@ -327,8 +311,7 @@ const CustomizationSection = ({
               <div className="mt-2 grid grid-cols-3 gap-1 text-[10px]">
                 {[
                   { key: 'logoSetup', label: 'Logo Setup' },
-                  { key: 'accessories', label: 'Accessories' },
-                  { key: 'moldCharges', label: 'Mold Charges' }
+                  { key: 'accessories', label: 'Accessories' }
                 ].map((item) => (
                   <div key={item.key} className="flex items-center gap-1">
                     {orderBuilderStatus.customization.items[item.key as keyof typeof orderBuilderStatus.customization.items] ? (

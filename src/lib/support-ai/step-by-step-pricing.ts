@@ -14,6 +14,18 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// Import advanced detection functions from the existing knowledge base
+import {
+  detectFabricFromText,
+  detectAllLogosFromText,
+  detectClosureFromText,
+  detectAccessoriesFromText,
+  getDefaultApplicationForDecoration
+} from '@/lib/costing-knowledge-base';
+
+// Import AI pricing service for mold charges
+import { getAILogoPrice } from '@/lib/ai-pricing-service';
+
 // Initialize Supabase client for support AI only - use service role for server-side operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -169,14 +181,14 @@ export class SupportAIPricingService {
   }
 
   /**
-   * Step 3: Logo Setup from Supabase logo_methods table
+   * Step 3: Logo Setup from Supabase logo_methods table with mold charges
    */
   async processLogoSetup(
     customerRequest: string,
     quantity: number
   ): Promise<SupportPricingStep> {
     try {
-      console.log('🎯 [SUPPORT AI] Step 3: Analyzing logo requirements');
+      console.log('🎯 [SUPPORT AI] Step 3: Analyzing logo requirements with mold charges');
 
       const logoAnalysis = await this.analyzeLogoRequirements(customerRequest);
 
@@ -192,51 +204,106 @@ export class SupportAIPricingService {
       }
 
       let totalLogoCost = 0;
+      let totalMoldCharges = 0;
       const logoData: any = {};
 
       // Process each detected logo position
       for (const logo of logoAnalysis.logos) {
-        const { data: logoMethod, error: logoError } = await supabase
-          .from('logo_methods')
-          .select('*')
-          .eq('name', logo.type)
-          .eq('application', logo.application)
-          .eq('size', logo.size)
-          .single();
+        try {
+          // Use AI pricing service to get both logo cost and mold charges
+          const pricingResult = await getAILogoPrice(logo.type, logo.size, logo.application, quantity);
 
-        if (logoError) {
-          console.log('⚠️ Logo method not found:', {
-            name: logo.type,
-            application: logo.application,
-            size: logo.size,
-            error: logoError.message
+          const logoCost = pricingResult.unitPrice;
+          const moldCharge = pricingResult.moldCharge;
+
+          console.log(`💰 [MOLD-CHARGE] Logo pricing: ${logo.type} ${logo.size} ${logo.application}`, {
+            unitPrice: logoCost,
+            totalCost: logoCost * quantity,
+            moldCharge: moldCharge,
+            quantity: quantity
           });
-          continue;
-        }
 
-        if (logoMethod) {
-          const logoCost = this.getQuantityTierPrice(logoMethod, quantity);
+          // Add logo cost (per piece * quantity)
           totalLogoCost += logoCost * quantity;
+
+          // Add mold charge (one-time fee)
+          totalMoldCharges += moldCharge;
 
           logoData[logo.position] = {
             type: logo.type,
             size: logo.size,
             application: logo.application,
-            cost: logoCost * quantity
+            unitPrice: logoCost,
+            cost: logoCost * quantity,
+            moldCharge: moldCharge,
+            totalWithMold: (logoCost * quantity) + moldCharge
           };
+
+        } catch (logoError) {
+          console.log('⚠️ Logo pricing failed:', {
+            name: logo.type,
+            application: logo.application,
+            size: logo.size,
+            error: logoError.message || logoError
+          });
+
+          // Fallback to Supabase direct query
+          const { data: logoMethod, error: supabaseError } = await supabase
+            .from('logo_methods')
+            .select('*')
+            .eq('name', logo.type)
+            .eq('application', logo.application)
+            .eq('size', logo.size)
+            .single();
+
+          if (!supabaseError && logoMethod) {
+            const logoCost = this.getQuantityTierPrice(logoMethod, quantity);
+            totalLogoCost += logoCost * quantity;
+
+            logoData[logo.position] = {
+              type: logo.type,
+              size: logo.size,
+              application: logo.application,
+              unitPrice: logoCost,
+              cost: logoCost * quantity,
+              moldCharge: 0,
+              totalWithMold: logoCost * quantity
+            };
+          }
         }
       }
+
+      // CRITICAL FIX: Include mold charges in total cost
+      const finalTotalCost = totalLogoCost + totalMoldCharges;
+
+      console.log('🎯 [SUPPORT AI] Step 3 Complete - Logo Setup with Mold Charges:', {
+        totalLogoCost: totalLogoCost,
+        totalMoldCharges: totalMoldCharges,
+        finalTotalCost: finalTotalCost,
+        quantity: quantity,
+        logoCount: Object.keys(logoData).length
+      });
 
       return {
         stepNumber: 3,
         stepName: 'Logo Setup',
         completed: true,
-        data: logoData,
-        cost: totalLogoCost,
+        data: {
+          ...logoData,
+          totalLogoCost: totalLogoCost,
+          totalMoldCharges: totalMoldCharges,
+          summary: {
+            logoCost: totalLogoCost,
+            moldCharges: totalMoldCharges,
+            totalWithMold: finalTotalCost
+          }
+        },
+        cost: finalTotalCost, // CRITICAL: This now includes mold charges
         verification: 'verified'
       };
 
     } catch (error) {
+      console.error('❌ [SUPPORT AI] Step 3 Logo Setup failed:', error);
       return {
         stepNumber: 3,
         stepName: 'Logo Setup',
@@ -368,23 +435,64 @@ export class SupportAIPricingService {
   }
 
   /**
-   * Execute complete step-by-step pricing workflow
+   * Execute complete step-by-step pricing workflow with intelligent context
    */
   async processCompleteOrder(
     customerRequest: string,
-    quantity: number
-  ): Promise<SupportOrderBuilder> {
+    quantity: number,
+    conversationHistory: any[] = [],
+    conversationId?: string
+  ): Promise<SupportOrderBuilder & {
+    contextInfo?: {
+      hasContext: boolean;
+      detectedChanges: any[];
+      orderBuilderDelta?: any;
+    }
+  }> {
     console.log('🚀 [SUPPORT AI] Starting step-by-step pricing workflow');
 
-    // Execute all steps sequentially
-    const step1 = await this.processBlankCapCost(customerRequest, quantity);
-    const step2 = await this.processPremiumUpgrades(customerRequest, quantity);
-    const step3 = await this.processLogoSetup(customerRequest, quantity);
-    const step4 = await this.processAccessories(customerRequest, quantity);
-    const step5 = await this.processDelivery(customerRequest, quantity);
+    // Import conversation context service
+    const { ConversationContextService } = await import('./conversation-context');
+
+    // Build smart contextual request using Supabase data
+    const contextResult = await ConversationContextService.buildSmartContextualRequest(
+      customerRequest,
+      conversationHistory,
+      conversationId
+    );
+
+    console.log('📚 [CONTEXT] Smart contextual analysis:', {
+      original: customerRequest.substring(0, 50),
+      hasContext: contextResult.hasContext,
+      detectedChanges: contextResult.detectedChanges.length,
+      contextualLength: contextResult.contextualRequest.length
+    });
+
+    // Execute all steps sequentially with intelligent contextual information
+    const step1 = await this.processBlankCapCost(contextResult.contextualRequest, quantity);
+    const step2 = await this.processPremiumUpgrades(contextResult.contextualRequest, quantity);
+    const step3 = await this.processLogoSetup(contextResult.contextualRequest, quantity);
+    const step4 = await this.processAccessories(contextResult.contextualRequest, quantity);
+    const step5 = await this.processDelivery(contextResult.contextualRequest, quantity);
 
     const totalCost = step1.cost + step2.cost + step3.cost + step4.cost + step5.cost;
+
+    console.log('💰 [SUPPORT AI] Complete Order Cost Breakdown:', {
+      step1_capStyle: step1.cost,
+      step2_premiumUpgrades: step2.cost,
+      step3_logoSetup: step3.cost,
+      step3_logoDetail: step3.data?.summary || 'No summary',
+      step4_accessories: step4.cost,
+      step5_delivery: step5.cost,
+      totalCost: totalCost,
+      quantity: quantity
+    });
     const allStepsCompleted = step1.completed && step5.completed; // Minimum required steps
+
+    // Update Order Builder delta with accurate cost impact
+    if (contextResult.orderBuilderDelta) {
+      contextResult.orderBuilderDelta.costImpact.newTotal = totalCost;
+    }
 
     return {
       capStyle: step1,
@@ -393,97 +501,306 @@ export class SupportAIPricingService {
       accessories: step4,
       delivery: step5,
       totalCost,
-      allStepsCompleted
+      allStepsCompleted,
+      contextInfo: {
+        hasContext: contextResult.hasContext,
+        detectedChanges: contextResult.detectedChanges,
+        orderBuilderDelta: contextResult.orderBuilderDelta
+      }
     };
+  }
+
+  /**
+   * Build contextual request combining current message with conversation history
+   */
+  private buildContextualRequest(currentMessage: string, conversationHistory: any[]): string {
+    if (!conversationHistory || conversationHistory.length === 0) {
+      return currentMessage;
+    }
+
+    // Extract relevant context from previous messages
+    const previousContext = conversationHistory
+      .filter(msg => msg.role === 'user') // Only user messages
+      .map(msg => msg.content)
+      .join(' ');
+
+    // Build comprehensive context
+    const contextualRequest = `
+Previous context: ${previousContext}
+
+Current request: ${currentMessage}
+
+Please interpret the current request in the context of the previous conversation. If the current request is a modification (like "change closure to Fitted"), apply it to the previous specifications.
+    `.trim();
+
+    return contextualRequest;
   }
 
   // Helper methods for AI analysis using custom cap 101.txt knowledge
   private async analyzeCapRequirements(request: string): Promise<any> {
-    // Use custom cap 101.txt knowledge base for cap analysis
+    // Enhanced cap analysis with color and size detection
+    const detectedColor = this.extractColorFromText(request);
+    const detectedSize = this.extractSizeFromText(request);
+
+    console.log('🎨 [SUPPORT AI] Enhanced cap analysis:', {
+      originalRequest: request.substring(0, 100),
+      detectedColor,
+      detectedSize,
+      capStyle: this.extractCapStyle(request),
+      panelCount: this.extractPanelCount(request),
+      structure: this.extractStructure(request)
+    });
+
     return {
       detectedCapStyle: this.extractCapStyle(request),
       panelCount: this.extractPanelCount(request) || '6-Panel', // Default from 101.txt
       profile: this.extractProfile(request) || 'High', // Default from 101.txt
       structure: this.extractStructure(request) || 'Structured', // Default from 101.txt
-      billShape: this.extractBillShape(request) // Extract bill shape preference
+      billShape: this.extractBillShape(request), // Extract bill shape preference
+      color: detectedColor, // Add color to cap analysis
+      capSize: detectedSize // Add cap size to analysis
     };
+  }
+
+  private extractColorFromText(text: string): string | null {
+    const lowerText = text.toLowerCase();
+
+    // Enhanced color detection with split color support (like "Royal/Black")
+    // Priority 1: Check for slash patterns (Royal/Black, Red/White, etc.)
+    const slashPattern = /(\w+)\/(\w+)/i;
+    const slashMatch = text.match(slashPattern);
+
+    if (slashMatch) {
+      const part1 = slashMatch[1];
+      const part2 = slashMatch[2];
+
+      // Common colors for validation
+      const knownColors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple',
+                          'pink', 'brown', 'gray', 'grey', 'navy', 'lime', 'olive', 'royal',
+                          'maroon', 'gold', 'charcoal', 'khaki', 'carolina'];
+
+      // If both parts are colors, treat as split color
+      if (knownColors.includes(part1.toLowerCase()) && knownColors.includes(part2.toLowerCase())) {
+        const normalizedColor = `${part1}/${part2}`;
+        console.log('🎨 [COLOR-DETECTION] Split color detected:', normalizedColor);
+        return normalizedColor;
+      }
+    }
+
+    // Priority 2: Single color patterns
+    const colorPatterns = [
+      /(?:color:?\s*|in\s+|cap\s+)(\w+)/i,
+      /(?:^|\s)(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina)(?:\s|$|,)/i
+    ];
+
+    for (const pattern of colorPatterns) {
+      const colorMatch = text.match(pattern);
+      if (colorMatch) {
+        const detectedColor = colorMatch[1] || colorMatch[0].trim();
+        console.log('🎨 [COLOR-DETECTION] Single color detected:', detectedColor);
+        return detectedColor;
+      }
+    }
+
+    console.log('🎨 [COLOR-DETECTION] No color detected in:', text.substring(0, 50));
+    return null;
+  }
+
+  private extractSizeFromText(text: string): string | null {
+    const lowerText = text.toLowerCase();
+
+    // Enhanced size detection with CM to hat size mapping
+    // Priority 1: CM measurements (like "59 cm")
+    const cmPatterns = [
+      /(\d{2})\s*cm/i,
+      /(\d{2})\s*centimeter/i,
+      /size:?\s*(\d{2})\s*cm/i
+    ];
+
+    for (const pattern of cmPatterns) {
+      const cmMatch = text.match(pattern);
+      if (cmMatch) {
+        const cmSize = parseInt(cmMatch[1]);
+        const hatSize = this.convertCmToHatSize(cmSize);
+        console.log('📏 [SIZE-DETECTION] CM size detected:', { cm: cmSize, hatSize });
+        return hatSize;
+      }
+    }
+
+    // Priority 2: Direct hat size patterns (like "7 1/4")
+    const hatSizePatterns = [
+      /\b([67](?:\s*\d+\/\d+|\.\d+)?)\b.*(?:hat|cap|size)/i,
+      /(?:hat|cap|size).*?\b([67](?:\s*\d+\/\d+|\.\d+)?)\b/i,
+      /\bsize\s*([67](?:\s*\d+\/\d+|\.\d+)?)\b/i,
+      /\b([67]\s*\d+\/\d+)\s*(?:hat|cap|size|fitted)/i
+    ];
+
+    for (const pattern of hatSizePatterns) {
+      const sizeMatch = text.match(pattern);
+      if (sizeMatch) {
+        const detectedSize = sizeMatch[1].trim();
+        console.log('📏 [SIZE-DETECTION] Hat size detected:', detectedSize);
+        return detectedSize;
+      }
+    }
+
+    // Priority 3: Descriptive sizes
+    const descriptivePatterns = [
+      /\b(small|medium|large)\s*(?:hat|cap|size)/i
+    ];
+
+    for (const pattern of descriptivePatterns) {
+      const descMatch = text.match(pattern);
+      if (descMatch) {
+        const desc = descMatch[1].toLowerCase();
+        const hatSize = desc === 'small' ? '7' :
+                      desc === 'medium' ? '7 1/4' :
+                      desc === 'large' ? '7 1/2' : '7 1/4';
+        console.log('📏 [SIZE-DETECTION] Descriptive size detected:', { desc, hatSize });
+        return hatSize;
+      }
+    }
+
+    console.log('📏 [SIZE-DETECTION] No size detected in:', text.substring(0, 50));
+    return null;
+  }
+
+  private convertCmToHatSize(cm: number): string {
+    // Standard CM to Hat Size conversion table
+    const sizeMap: { [key: number]: string } = {
+      54: '6 3/4',
+      55: '6 7/8',
+      56: '7',
+      57: '7 1/8',
+      58: '7 1/4',
+      59: '7 3/8',  // This handles the "59 cm" from the error report
+      60: '7 1/2',
+      61: '7 5/8',
+      62: '7 3/4',
+      63: '7 7/8',
+      64: '8'
+    };
+
+    // Direct lookup first
+    if (sizeMap[cm]) {
+      return sizeMap[cm];
+    }
+
+    // Fallback for sizes between mapped values
+    if (cm <= 54) return '6 3/4';
+    if (cm >= 64) return '8';
+
+    // Find closest match
+    const sizes = Object.keys(sizeMap).map(Number).sort((a, b) => a - b);
+    let closest = sizes[0];
+    let minDiff = Math.abs(cm - closest);
+
+    for (const size of sizes) {
+      const diff = Math.abs(cm - size);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = size;
+      }
+    }
+
+    return sizeMap[closest] || '7 1/4'; // Default fallback
   }
 
   private async analyzeFabricRequirements(request: string): Promise<any> {
-    const premiumFabrics = ['Suede Cotton', 'Acrylic', 'Air Mesh', 'Camo', 'Genuine Leather', 'Laser Cut'];
-    const detectedFabric = premiumFabrics.find(fabric =>
-      request.toLowerCase().includes(fabric.toLowerCase())
-    );
+    // Use advanced fabric detection from knowledge base
+    const detectedFabric = detectFabricFromText(request);
+
+    // Check if detected fabric is premium
+    const hasPremiumFabric = detectedFabric ? this.isPremiumFabric(detectedFabric) : false;
+
+    console.log('🧵 [SUPPORT AI] Advanced fabric detection:', {
+      originalRequest: request.substring(0, 100),
+      detectedFabric,
+      hasPremiumFabric,
+      defaultFabric: detectedFabric || 'Chino Twill'
+    });
 
     return {
-      hasPremiumFabric: !!detectedFabric,
-      fabricType: detectedFabric || 'Chino Twill' // Default from 101.txt
+      hasPremiumFabric,
+      fabricType: detectedFabric || 'Chino Twill' // Default from business rules
     };
   }
 
-  private async analyzeClosureRequirements(request: string): Promise<any> {
-    const premiumClosures = ['Buckle', 'Fitted', 'Flexfit', 'Stretched'];
-    const detectedClosure = premiumClosures.find(closure =>
-      request.toLowerCase().includes(closure.toLowerCase())
+  private isPremiumFabric(fabric: string): boolean {
+    if (!fabric) return false;
+
+    // Handle dual fabrics like "Acrylic/Airmesh"
+    const fabrics = fabric.split('/').map(f => f.trim());
+    const premiumFabrics = ['Suede Cotton', 'Acrylic', 'Air Mesh', 'Camo', 'Genuine Leather', 'Laser Cut', 'Airmesh'];
+
+    return fabrics.some(f =>
+      premiumFabrics.some(premium =>
+        f.toLowerCase().includes(premium.toLowerCase()) ||
+        premium.toLowerCase().includes(f.toLowerCase())
+      )
     );
+  }
+
+  private async analyzeClosureRequirements(request: string): Promise<any> {
+    // Use advanced closure detection from knowledge base
+    const detectedClosure = detectClosureFromText(request);
+
+    // Check if detected closure is premium
+    const premiumClosures = ['buckle', 'fitted', 'flexfit', 'stretched'];
+    const hasPremiumClosure = detectedClosure ?
+      premiumClosures.includes(detectedClosure.toLowerCase()) : false;
+
+    console.log('🔒 [SUPPORT AI] Advanced closure detection:', {
+      originalRequest: request.substring(0, 100),
+      detectedClosure,
+      hasPremiumClosure,
+      defaultClosure: detectedClosure || 'snapback'
+    });
 
     return {
-      hasPremiumClosure: !!detectedClosure,
-      closureType: detectedClosure || 'Snapback' // Default from 101.txt
+      hasPremiumClosure,
+      closureType: detectedClosure || 'snapback' // Default from business rules
     };
   }
 
   private async analyzeLogoRequirements(request: string): Promise<any> {
-    const logoTypes = ['3D Embroidery', 'Flat Embroidery', 'Embroidery', 'Embroidered', 'Rubber Patch', 'Leather Patch', 'Patch', 'Print', 'Logo'];
-    const logoPositions = ['Front', 'Back', 'Left', 'Right', 'Under Bill', 'Upper Bill'];
+    // Use advanced logo detection from knowledge base
+    const logoDetection = detectAllLogosFromText(request);
 
-    const detectedLogos = [];
-    const lowerRequest = request.toLowerCase();
+    console.log('🎨 [SUPPORT AI] Advanced logo detection:', {
+      originalRequest: request.substring(0, 100),
+      primaryLogo: logoDetection.primaryLogo,
+      allLogos: logoDetection.allLogos,
+      hasMultiSetup: !!logoDetection.multiLogoSetup
+    });
 
-    // Check for general logo keywords first
-    const hasLogoKeyword = logoTypes.some(type => lowerRequest.includes(type.toLowerCase()));
+    // Convert detected logos to support AI format
+    const logos = logoDetection.allLogos.map(logo => ({
+      type: logo.type,
+      position: logo.position.charAt(0).toUpperCase() + logo.position.slice(1), // Capitalize position
+      size: logo.size,
+      application: this.getApplicationForLogoType(logo.type)
+    }));
 
-    if (hasLogoKeyword) {
-      // Determine logo type
-      let logoType = '3D Embroidery'; // Default from 101.txt
-      if (lowerRequest.includes('3d embroidery') || lowerRequest.includes('3d')) {
-        logoType = '3D Embroidery';
-      } else if (lowerRequest.includes('flat embroidery') || lowerRequest.includes('flat')) {
-        logoType = 'Flat Embroidery';
-      } else if (lowerRequest.includes('embroidery') || lowerRequest.includes('embroidered')) {
-        logoType = '3D Embroidery'; // Default embroidery type
-      } else if (lowerRequest.includes('rubber patch')) {
-        logoType = 'Rubber Patch';
-      } else if (lowerRequest.includes('leather patch')) {
-        logoType = 'Leather Patch';
-      } else if (lowerRequest.includes('patch')) {
-        logoType = 'Rubber Patch'; // Default patch type
-      } else if (lowerRequest.includes('print')) {
-        logoType = 'Direct Print';
-      }
-
-      // Determine positions
-      const foundPositions = logoPositions.filter(position =>
-        lowerRequest.includes(position.toLowerCase())
-      );
-
-      // If no specific position mentioned, use Front as default (from 101.txt)
-      const positions = foundPositions.length > 0 ? foundPositions : ['Front'];
-
-      for (const position of positions) {
-        detectedLogos.push({
-          type: logoType,
-          position,
-          size: this.extractLogoSize(request, position) || 'Large', // Default from 101.txt
-          application: logoType.includes('Patch') ? 'Patch' : 'Direct' // Rule from 101.txt
-        });
-      }
+    // Handle case where no logos are detected but primary logo exists
+    if (logos.length === 0 && logoDetection.primaryLogo && logoDetection.primaryLogo !== 'None') {
+      logos.push({
+        type: logoDetection.primaryLogo,
+        position: 'Front', // Default position
+        size: 'Large', // Default size for front
+        application: this.getApplicationForLogoType(logoDetection.primaryLogo)
+      });
     }
 
     return {
-      hasLogo: detectedLogos.length > 0,
-      logos: detectedLogos
+      hasLogo: logoDetection.primaryLogo !== 'None' && logoDetection.primaryLogo !== null,
+      logos: logos
     };
+  }
+
+  private getApplicationForLogoType(logoType: string): string {
+    // Use the advanced application mapping from knowledge base
+    return getDefaultApplicationForDecoration(logoType);
   }
 
   private async analyzeAccessoryRequirements(request: string): Promise<any> {
