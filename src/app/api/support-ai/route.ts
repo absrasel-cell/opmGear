@@ -1,229 +1,291 @@
 /**
- * SUPPORT PAGE AI API ROUTE - COMPLETELY SEPARATE SYSTEM
+ * SUPPORT PAGE AI API ROUTE - FORMAT #8 ONLY
  *
- * Uses step-by-step pricing with AI verification
- * Zero dependencies on Advanced Product Page systems
- * Custom Cap 101.txt knowledge base integration
+ * Uses ONLY Format #8's step-by-step pricing system
+ * Completely eliminates Format #1 hardcoded pricing
+ * Order Builder compatible structure with accurate Supabase pricing
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supportAIPricing, SupportOrderBuilder } from '@/lib/support-ai/step-by-step-pricing';
+import {
+  analyzeCustomerRequirements,
+  fetchBlankCapCosts,
+  fetchPremiumUpgrades,
+  fetchLogoSetupCosts,
+  fetchAccessoriesCosts,
+  fetchDeliveryCosts,
+  generateStructuredResponse
+} from '@/lib/pricing/format8-functions';
+import { AI_ASSISTANTS, formatAssistantResponse } from '@/lib/ai-assistants-config';
+
+interface StepByStepRequest {
+  message: string;
+  intent: string;
+  conversationHistory: Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+  }>;
+  userProfile?: any;
+  conversationId?: string;
+  sessionId?: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🎯 [SUPPORT AI] New pricing request received');
+    console.log('🎯 [SUPPORT AI - FORMAT #8] Pure Format #8 pricing request');
 
-    const { message, quantity = 144 } = await request.json();
+    const {
+      message,
+      quantity = 144,
+      conversationHistory = [],
+      conversationId,
+      sessionId
+    } = await request.json();
 
-    if (!message) {
+    if (!message?.trim()) {
       return NextResponse.json(
         { error: 'Message is required' },
         { status: 400 }
       );
     }
 
-    // Execute step-by-step pricing workflow
-    const orderBuilder: SupportOrderBuilder = await supportAIPricing.processCompleteOrder(
-      message,
-      quantity
-    );
+    console.log('🔄 [FORMAT #8 DIRECT] Using Format #8 functions directly');
 
-    // Generate AI response using custom cap 101.txt knowledge
-    const aiResponse = await generateAIResponse(message, orderBuilder);
+    // Step 1: Analyze customer requirements with conversation context
+    const requirements = await analyzeCustomerRequirements(message, conversationHistory);
+    console.log('📋 [STEP-1] Customer requirements analyzed:', requirements);
 
-    // Format response for support page
-    const response = {
-      success: true,
-      message: aiResponse.message,
-      orderBuilder: {
-        capStyle: {
-          completed: orderBuilder.capStyle.completed,
-          status: getBlockStatus(orderBuilder.capStyle),
-          data: orderBuilder.capStyle.data,
-          cost: orderBuilder.capStyle.cost
-        },
-        customization: {
-          completed: orderBuilder.logoSetup.completed || orderBuilder.premiumUpgrades.completed,
-          status: getCustomizationStatus(orderBuilder.logoSetup, orderBuilder.premiumUpgrades),
-          logoSetup: orderBuilder.logoSetup.data,
-          premiumUpgrades: orderBuilder.premiumUpgrades.data,
-          cost: orderBuilder.logoSetup.cost + orderBuilder.premiumUpgrades.cost
-        },
-        accessories: {
-          completed: orderBuilder.accessories.completed,
-          status: getBlockStatus(orderBuilder.accessories),
-          data: orderBuilder.accessories.data,
-          cost: orderBuilder.accessories.cost
-        },
-        delivery: {
-          completed: orderBuilder.delivery.completed,
-          status: getBlockStatus(orderBuilder.delivery),
-          data: orderBuilder.delivery.data,
-          cost: orderBuilder.delivery.cost
-        },
-        costBreakdown: {
-          available: orderBuilder.allStepsCompleted,
-          totalCost: orderBuilder.totalCost,
-          breakdown: {
-            capStyle: orderBuilder.capStyle.cost,
-            customization: orderBuilder.logoSetup.cost + orderBuilder.premiumUpgrades.cost,
-            accessories: orderBuilder.accessories.cost,
-            delivery: orderBuilder.delivery.cost
-          }
-        }
+    // Step 2: Fetch Blank Cap costs from Supabase
+    const capDetails = await fetchBlankCapCosts(requirements);
+    console.log('✅ [STEP-2] Blank cap costs fetched:', capDetails);
+
+    // Step 3: Fetch Premium upgrades (optional)
+    const premiumUpgrades = await fetchPremiumUpgrades(requirements);
+    console.log('✅ [STEP-3] Premium upgrades fetched:', premiumUpgrades);
+
+    // Step 4: Fetch Logo setup costs (optional)
+    const logoSetup = await fetchLogoSetupCosts(requirements);
+    console.log('✅ [STEP-4] Logo setup costs fetched:', logoSetup);
+
+    // Step 5: Fetch Accessories costs (optional)
+    const accessories = await fetchAccessoriesCosts(requirements);
+    console.log('✅ [STEP-5] Accessories costs fetched:', accessories);
+
+    // Step 6: Fetch Delivery costs
+    const delivery = await fetchDeliveryCosts(requirements);
+    console.log('✅ [STEP-6] Delivery costs fetched:', delivery);
+
+    // Generate AI response based on fetched data
+    const aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+
+    // Create structured quote data for Order Builder
+    const structuredQuoteData = {
+      capDetails: {
+        productName: capDetails.productName,
+        panelCount: capDetails.panelCount,
+        unitPrice: capDetails.unitPrice,
+        quantity: requirements.quantity,
+        size: requirements.size,
+        color: requirements.color,
+        colors: requirements.colors,
+        profile: capDetails.profile,
+        billShape: capDetails.billShape,
+        structure: capDetails.structure,
+        fabric: premiumUpgrades.fabric?.name || 'Standard',
+        closure: premiumUpgrades.closure?.name || 'Snapback',
+        stitch: 'Standard'
       },
-      errors: getAllErrors(orderBuilder),
-      stepProgress: {
-        step1: orderBuilder.capStyle.verification,
-        step2: orderBuilder.premiumUpgrades.verification,
-        step3: orderBuilder.logoSetup.verification,
-        step4: orderBuilder.accessories.verification,
-        step5: orderBuilder.delivery.verification
+      customization: {
+        logos: logoSetup.logos || [],
+        accessories: accessories.items || [],
+        logoSetup: logoSetup.summary || 'None'
+      },
+      delivery: {
+        method: delivery.method,
+        leadTime: delivery.leadTime,
+        totalCost: delivery.totalCost,
+        address: null
+      },
+      pricing: {
+        total: capDetails.totalCost + (premiumUpgrades.totalCost || 0) + (logoSetup.totalCost || 0) + (accessories.totalCost || 0) + delivery.totalCost,
+        baseProductCost: capDetails.totalCost,
+        logosCost: logoSetup.totalCost || 0,
+        accessoriesCost: accessories.totalCost || 0,
+        deliveryCost: delivery.totalCost,
+        premiumFabricCost: premiumUpgrades.fabric?.totalCost || 0,
+        premiumClosureCost: premiumUpgrades.closure?.totalCost || 0,
+        quantity: requirements.quantity
       }
     };
 
-    console.log('✅ [SUPPORT AI] Order Builder response generated', {
-      totalCost: orderBuilder.totalCost,
-      allStepsCompleted: orderBuilder.allStepsCompleted,
-      completedSteps: [
-        orderBuilder.capStyle.completed,
-        orderBuilder.premiumUpgrades.completed,
-        orderBuilder.logoSetup.completed,
-        orderBuilder.accessories.completed,
-        orderBuilder.delivery.completed
-      ].filter(Boolean).length
-    });
+    const capCraftAI = AI_ASSISTANTS.QUOTE_MASTER;
+    const formattedResponse = formatAssistantResponse(capCraftAI, aiResponse);
 
-    return NextResponse.json(response);
+    const format8Data = {
+      ...formattedResponse,
+      message: aiResponse,
+      quoteData: structuredQuoteData,
+      conversationId,
+      metadata: {
+        ...formattedResponse.metadata,
+        intent: 'pricing_request',
+        timestamp: new Date().toISOString(),
+        stepByStepWorkflow: true,
+        completedSteps: 6,
+        dataSource: 'supabase',
+        requirements
+      }
+    };
 
-  } catch (error) {
-    console.error('❌ [SUPPORT AI] Processing failed:', error);
+    console.log('✅ [FORMAT #8 DIRECT] Format #8 response generated');
+
+    // Transform Format #8 response to Order Builder compatible structure
+    const orderBuilderResponse = transformToOrderBuilderFormat(format8Data);
+
+    return NextResponse.json(orderBuilderResponse);
+
+  } catch (error: unknown) {
+    console.error('❌ [SUPPORT AI - FORMAT #8] Processing failed:', error);
+
+    const capCraftAI = AI_ASSISTANTS.QUOTE_MASTER;
+    const errorResponse = formatAssistantResponse(capCraftAI, "I apologize, but I'm having trouble creating your quote right now. Please try rephrasing your request with specific details like quantity, colors, and customization requirements.");
 
     return NextResponse.json(
       {
         success: false,
         error: 'AI processing failed',
         message: 'I encountered an issue processing your request. Please try rephrasing your message or contact support.',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        ...errorResponse
       },
       { status: 500 }
     );
   }
 }
 
-// AI Response Generation using Custom Cap 101.txt Knowledge
-async function generateAIResponse(message: string, orderBuilder: SupportOrderBuilder): Promise<{ message: string }> {
+/**
+ * Transform Format #8 response to Order Builder compatible structure
+ * This function maps Format #8's quoteData structure to the expected Order Builder format
+ */
+function transformToOrderBuilderFormat(format8Data: any) {
+  console.log('🔄 [TRANSFORM] Converting Format #8 to Order Builder structure');
 
-  const quantity = orderBuilder.capStyle.data?.quantity || 144;
-  const productName = orderBuilder.capStyle.data?.productName || 'Custom Cap';
-  const totalCost = orderBuilder.totalCost;
+  const { quoteData, message, metadata } = format8Data;
 
-  // Generate contextual response based on analysis
-  let response = `Based on your message: "${message}"\n\n`;
-
-  response += `I've analyzed your requirements and created a quote for ${quantity} ${productName}s:\n\n`;
-
-  // Step-by-step breakdown
-  if (orderBuilder.capStyle.completed) {
-    response += `**Cap Style Setup** ✅\n`;
-    response += `• ${orderBuilder.capStyle.data.productName} (${orderBuilder.capStyle.data.priceTier})\n`;
-    response += `• Base cost: $${orderBuilder.capStyle.cost.toFixed(2)}\n\n`;
+  if (!quoteData) {
+    throw new Error('No quote data received from Format #8');
   }
 
-  if (orderBuilder.premiumUpgrades.completed) {
-    response += `**Premium Upgrades** ✅\n`;
-    if (orderBuilder.premiumUpgrades.data.fabric) {
-      response += `• Fabric: ${orderBuilder.premiumUpgrades.data.fabric.type} (+$${orderBuilder.premiumUpgrades.data.fabric.cost.toFixed(2)})\n`;
-    }
-    if (orderBuilder.premiumUpgrades.data.closure) {
-      response += `• Closure: ${orderBuilder.premiumUpgrades.data.closure.type} (+$${orderBuilder.premiumUpgrades.data.closure.cost.toFixed(2)})\n`;
-    }
-    response += `\n`;
-  }
+  // Extract pricing breakdown from Format #8's structured data
+  const {
+    capDetails,
+    customization,
+    delivery,
+    pricing
+  } = quoteData;
 
-  if (orderBuilder.logoSetup.completed) {
-    response += `**Logo Setup** ✅\n`;
-    Object.entries(orderBuilder.logoSetup.data).forEach(([position, logo]: [string, any]) => {
-      if (logo && logo.type) {
-        response += `• ${position}: ${logo.type} (${logo.size}) - $${logo.cost.toFixed(2)}\n`;
+  // Build Order Builder compatible response
+  const orderBuilderResponse = {
+    success: true,
+    message: message,
+
+    // Format #8's quoteData is already Order Builder compatible
+    quoteData: quoteData,
+
+    // Map to expected Order Builder structure
+    orderBuilder: {
+      capStyle: {
+        completed: true, // Format #8 always provides cap details
+        status: 'green' as const,
+        data: {
+          productName: capDetails.productName,
+          priceTier: capDetails.profile, // Map profile to tier for compatibility
+          quantity: pricing.quantity,
+          panelCount: capDetails.panelCount,
+          color: capDetails.color,
+          colors: capDetails.colors,
+          size: capDetails.size
+        },
+        cost: pricing.baseProductCost
+      },
+
+      customization: {
+        completed: (customization.logos && customization.logos.length > 0) ||
+                  (customization.accessories && customization.accessories.length > 0),
+        status: (customization.logos && customization.logos.length > 0) ||
+                (customization.accessories && customization.accessories.length > 0) ? 'green' as const : 'empty' as const,
+        logoSetup: customization.logos || [],
+        premiumUpgrades: {
+          fabric: capDetails.fabric !== 'Standard' ? capDetails.fabric : null,
+          closure: capDetails.closure !== 'Snapback' ? capDetails.closure : null
+        },
+        cost: pricing.logosCost + (pricing.premiumFabricCost || 0) + (pricing.premiumClosureCost || 0)
+      },
+
+      accessories: {
+        completed: customization.accessories && customization.accessories.length > 0,
+        status: customization.accessories && customization.accessories.length > 0 ? 'green' as const : 'empty' as const,
+        data: customization.accessories || [],
+        cost: pricing.accessoriesCost
+      },
+
+      delivery: {
+        completed: true, // Format #8 always provides delivery
+        status: 'green' as const,
+        data: {
+          method: delivery.method,
+          timeline: delivery.leadTime,
+          days: delivery.leadTime
+        },
+        cost: pricing.deliveryCost
+      },
+
+      costBreakdown: {
+        available: true, // Format #8 always has complete pricing
+        totalCost: pricing.total,
+        breakdown: {
+          capStyle: pricing.baseProductCost,
+          customization: pricing.logosCost + (pricing.premiumFabricCost || 0) + (pricing.premiumClosureCost || 0),
+          accessories: pricing.accessoriesCost,
+          delivery: pricing.deliveryCost
+        }
       }
-    });
-    response += `\n`;
-  }
+    },
 
-  if (orderBuilder.accessories.completed) {
-    response += `**Accessories** ✅\n`;
-    Object.entries(orderBuilder.accessories.data).forEach(([name, accessory]: [string, any]) => {
-      if (accessory && accessory.cost) {
-        response += `• ${name}: $${accessory.cost.toFixed(2)}\n`;
-      }
-    });
-    response += `\n`;
-  }
+    // Conversation continuation (will be enhanced when context is implemented)
+    conversationContinuation: {
+      hasContext: false,
+      detectedChanges: [],
+      changedSections: [],
+      visualIndicators: {}
+    },
 
-  if (orderBuilder.delivery.completed) {
-    response += `**Delivery** ✅\n`;
-    response += `• Method: ${orderBuilder.delivery.data.method}\n`;
-    response += `• Timeline: ${orderBuilder.delivery.data.days}\n`;
-    response += `• Cost: $${orderBuilder.delivery.cost.toFixed(2)}\n\n`;
-  }
+    // No errors from Format #8's reliable system
+    errors: [],
 
-  response += `**Total Investment: $${totalCost.toFixed(2)} for ${quantity} caps**\n`;
-  response += `**Per Cap Cost: $${(totalCost / quantity).toFixed(2)}**\n\n`;
+    // All steps completed (Format #8 provides comprehensive quotes)
+    stepProgress: {
+      step1: 'success',
+      step2: customization.logos && customization.logos.length > 0 ? 'success' : 'pending',
+      step3: customization.logos && customization.logos.length > 0 ? 'success' : 'pending',
+      step4: customization.accessories && customization.accessories.length > 0 ? 'success' : 'pending',
+      step5: 'success'
+    },
 
-  // Add recommendations based on Custom Cap 101.txt knowledge
-  if (quantity < 576) {
-    response += `💡 *Volume Discount Opportunity*: Increase to 576+ caps for better per-unit pricing!\n\n`;
-  }
-
-  if (quantity >= 3168) {
-    response += `🚢 *Large Order Benefits*: Your quantity qualifies for freight shipping discounts!\n\n`;
-  }
-
-  response += `Would you like to:\n`;
-  response += `• Modify any specifications\n`;
-  response += `• Add more customization options\n`;
-  response += `• Proceed with this quote\n`;
-  response += `• Get a physical sample\n\n`;
-
-  response += `I'm here to help optimize your order! 🎯`;
-
-  return { message: response };
-}
-
-// Helper functions for Order Builder status
-function getBlockStatus(step: any): 'red' | 'yellow' | 'green' | 'empty' {
-  if (!step.completed) return 'red';
-  if (step.verification === 'error') return 'red';
-  if (step.verification === 'pending') return 'yellow';
-  return 'green';
-}
-
-function getCustomizationStatus(logoStep: any, upgradeStep: any): 'red' | 'yellow' | 'green' | 'empty' {
-  const hasAnyCustomization = logoStep.completed || upgradeStep.completed;
-
-  if (!hasAnyCustomization) return 'empty';
-
-  if (logoStep.verification === 'error' || upgradeStep.verification === 'error') return 'red';
-  if (logoStep.verification === 'pending' || upgradeStep.verification === 'pending') return 'yellow';
-
-  return 'green';
-}
-
-function getAllErrors(orderBuilder: SupportOrderBuilder): string[] {
-  const allErrors: string[] = [];
-
-  [
-    orderBuilder.capStyle,
-    orderBuilder.premiumUpgrades,
-    orderBuilder.logoSetup,
-    orderBuilder.accessories,
-    orderBuilder.delivery
-  ].forEach(step => {
-    if (step.errors) {
-      allErrors.push(...step.errors);
+    // Pass through Format #8's metadata
+    metadata: {
+      ...metadata,
+      transformedFromFormat8: true,
+      originalFormat8Data: format8Data
     }
+  };
+
+  console.log('✅ [TRANSFORM] Order Builder structure created:', {
+    totalCost: orderBuilderResponse.orderBuilder.costBreakdown.totalCost,
+    completedSections: Object.values(orderBuilderResponse.orderBuilder).filter((section: any) =>
+      section.completed === true
+    ).length
   });
 
-  return allErrors;
+  return orderBuilderResponse;
 }
