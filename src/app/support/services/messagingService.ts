@@ -157,8 +157,24 @@ export class MessagingService {
         }
       }
 
-      // Step 3: Send to appropriate AI endpoint
-      const apiEndpoint = this.getApiEndpoint(intentResult.intent);
+      // Step 3: Determine best AI endpoint with intelligent routing
+      const hasConversationHistory = messages.length > 1;
+      const isModification = this.detectModificationRequest(inputMessage);
+      const isOrderBuilderFocused = currentConversationId && hasConversationHistory;
+
+      console.log('🤖 [DUAL-FORMAT] Routing decision:', {
+        hasConversationHistory,
+        isModification,
+        isOrderBuilderFocused,
+        intent: intentResult.intent
+      });
+
+      const apiEndpoint = this.getApiEndpoint(intentResult.intent, {
+        isOrderBuilderFocused,
+        hasConversationHistory,
+        isModification
+      });
+
       const validUploadedFiles = uploadedFiles.filter(url => url && typeof url === 'string' && url.length > 0);
 
       // Format conversation history for AI
@@ -175,34 +191,63 @@ export class MessagingService {
 
       console.log('🚀 Sending to API:', { endpoint: apiEndpoint, intent: intentResult.intent });
 
+      // Prepare API request with enhanced context for intelligent conversation continuation
+      const apiRequestBody: any = {
+        message: inputMessage,
+        intent: intentResult.intent,
+        conversationHistory: formattedConversationHistory,
+        userProfile: userProfile || (guestContactInfo ? {
+          name: guestContactInfo.name,
+          email: guestContactInfo.email,
+          phone: guestContactInfo.phone,
+          address: guestContactInfo.address,
+          company: guestContactInfo.company
+        } : null),
+        conversationId: currentConversationId,
+        sessionId: requestSessionId,
+        attachedFiles: validUploadedFiles.length > 0 ? validUploadedFiles : undefined
+      };
+
+      // For support-ai API, add quantity parameter if detected
+      if (apiEndpoint === '/api/support-ai') {
+        const quantityMatch = inputMessage.match(/(\d+)\s*(pieces?|pcs?|caps?|units?)/i);
+        if (quantityMatch) {
+          apiRequestBody.quantity = parseInt(quantityMatch[1]);
+          console.log('🔢 [CONTEXT] Detected quantity in message:', apiRequestBody.quantity);
+        }
+      }
+
+      console.log('🚀 [DUAL-FORMAT] Sending to selected endpoint:', {
+        endpoint: apiEndpoint,
+        intent: intentResult.intent,
+        hasConversationId: !!currentConversationId,
+        routingReason: apiEndpoint.includes('support-ai') ? 'Order Builder optimized' : 'Conversation optimized',
+        quantityDetected: apiRequestBody.quantity || 'none'
+      });
+
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: authHeaders,
-        body: JSON.stringify({
-          message: inputMessage,
-          intent: intentResult.intent,
-          conversationHistory: formattedConversationHistory,
-          userProfile: userProfile || (guestContactInfo ? {
-            name: guestContactInfo.name,
-            email: guestContactInfo.email,
-            phone: guestContactInfo.phone,
-            address: guestContactInfo.address,
-            company: guestContactInfo.company
-          } : null),
-          conversationId: currentConversationId,
-          sessionId: requestSessionId,
-          attachedFiles: validUploadedFiles.length > 0 ? validUploadedFiles : undefined
-        })
+        body: JSON.stringify(apiRequestBody)
       });
 
       const data = await response.json();
 
-      // Step 4: Process AI response
+      // Step 4: Normalize response format for unified handling
+      const normalizedData = this.normalizeAIResponse(data, apiEndpoint);
+      console.log('🔄 [DUAL-FORMAT] Response normalized:', {
+        originalFormat: apiEndpoint.includes('support-ai') ? 'Order Builder' : 'Conversation',
+        hasQuoteData: !!normalizedData.quoteData,
+        hasOrderBuilder: !!normalizedData.orderBuilder,
+        message: normalizedData.message?.substring(0, 100)
+      });
+
+      // Step 5: Process normalized AI response
       const aiMessageId = Date.now().toString() + '_ai';
       const aiMessage: any = {
         id: aiMessageId,
         role: 'assistant',
-        content: data.message,
+        content: normalizedData.message,
         model: intentResult.model,
         timestamp: new Date()
       };
@@ -210,19 +255,19 @@ export class MessagingService {
       console.log('📝 Adding AI message to UI:', { id: aiMessage.id, content: aiMessage.content.substring(0, 100) });
       setMessages((prev: any[]) => [...prev, aiMessage]);
 
-      // Step 5: Handle support AI response processing
-      console.log('🎯 [AI-RESPONSE] Processing AI response:', {
+      // Step 6: Handle unified AI response processing
+      console.log('🎯 [AI-RESPONSE] Processing normalized AI response:', {
         intent: intentResult.intent,
-        hasOrderBuilder: !!data.orderBuilder,
-        hasQuoteData: !!data.quoteData,
-        dataKeys: Object.keys(data || {})
+        hasOrderBuilder: !!normalizedData.orderBuilder,
+        hasQuoteData: !!normalizedData.quoteData,
+        dataKeys: Object.keys(normalizedData || {})
       });
 
-      if (intentResult.intent === 'ORDER_CREATION' && data.quoteData) {
-        console.log('🎯 [ORDER-CREATION] Processing order-creation API response with structured quoteData');
+      if (intentResult.intent === 'ORDER_CREATION' && normalizedData.quoteData) {
+        console.log('🎯 [ORDER-CREATION] Processing unified API response with structured quoteData');
 
-        // The order-creation API returns structured quoteData, pass it directly
-        const processedQuoteData = data.quoteData;
+        // The normalized response provides structured quoteData from both formats
+        const processedQuoteData = normalizedData.quoteData;
 
         if (onQuoteDataUpdate) {
           console.log('📊 [ORDER-CREATION] Sending structured quote data to Order Builder:', {
@@ -235,28 +280,43 @@ export class MessagingService {
           onQuoteDataUpdate(processedQuoteData);
         }
 
-      } else if (intentResult.intent === 'ORDER_CREATION' && data.orderBuilder) {
+      } else if (intentResult.intent === 'ORDER_CREATION' && normalizedData.orderBuilder) {
         console.log('🎯 [SUPPORT AI] Processing step-by-step order builder response');
 
-        // Convert support AI response to Order Builder format for compatibility
-        const supportOrderBuilderData = data.orderBuilder;
+        // Check for intelligent conversation continuation
+        const hasIntelligentContext = normalizedData.conversationContinuation?.hasContext;
+        const detectedChanges = normalizedData.conversationContinuation?.detectedChanges || [];
+
+        if (hasIntelligentContext && detectedChanges.length > 0) {
+          console.log('✨ [INTELLIGENT CONTEXT] Processing smart conversation continuation:', {
+            detectedChanges: detectedChanges.length,
+            changedSections: normalizedData.conversationContinuation?.changedSections,
+            visualIndicators: Object.keys(normalizedData.conversationContinuation?.visualIndicators || {})
+          });
+        }
+
+        // Convert normalized response to Order Builder format for compatibility
+        const supportOrderBuilderData = normalizedData.orderBuilder;
         const processedQuoteData = {
           capStyle: supportOrderBuilderData.capStyle,
           customization: supportOrderBuilderData.customization,
           delivery: supportOrderBuilderData.delivery,
           costBreakdown: supportOrderBuilderData.costBreakdown,
           totalCost: supportOrderBuilderData.costBreakdown?.totalCost || 0,
-          stepProgress: data.stepProgress
+          stepProgress: normalizedData.stepProgress,
+          // Add intelligent context information
+          conversationContinuation: normalizedData.conversationContinuation
         };
 
         if (onQuoteDataUpdate) {
-          console.log('📊 [DEBUG] Sending support AI data to Order Builder:', {
+          console.log('📊 [DEBUG] Sending normalized AI data to Order Builder:', {
             processedQuoteData,
-            originalOrderBuilder: data.orderBuilder,
+            originalOrderBuilder: normalizedData.orderBuilder,
             hasCapStyle: !!processedQuoteData.capStyle,
             hasCustomization: !!processedQuoteData.customization,
             hasDelivery: !!processedQuoteData.delivery,
-            hasCostBreakdown: !!processedQuoteData.costBreakdown
+            hasCostBreakdown: !!processedQuoteData.costBreakdown,
+            hasIntelligentContext
           });
           onQuoteDataUpdate(processedQuoteData);
         }
@@ -288,13 +348,13 @@ export class MessagingService {
           onOrderBuilderUpdate(builderState);
         }
       } else {
-        // Legacy processing for other intents - Transform quoteData to Order Builder format
-        let processedQuoteData = data.quoteData;
+        // Fallback processing for other intents - Use normalized data
+        let processedQuoteData = normalizedData.quoteData;
 
-        console.log('📊 Legacy quote data processing:', {
+        console.log('📊 Fallback quote data processing:', {
           hasQuoteData: !!processedQuoteData,
           intent: intentResult.intent,
-          messageLength: data.message?.length || 0,
+          messageLength: normalizedData.message?.length || 0,
           quoteDataStructure: processedQuoteData ? Object.keys(processedQuoteData) : []
         });
 
@@ -425,6 +485,104 @@ export class MessagingService {
     }
   }
 
+  private static detectModificationRequest(message: string): boolean {
+    const modificationKeywords = [
+      'change', 'update', 'modify', 'switch', 'alter', 'adjust', 'replace',
+      'make it', 'instead of', 'different', 'new', 'rather than', 'how about',
+      'what if', 'can we', 'pieces', 'quantity'
+    ];
+
+    return modificationKeywords.some(keyword =>
+      message.toLowerCase().includes(keyword)
+    );
+  }
+
+  /**
+   * Normalize different CapCraft AI response formats to ensure best of both versions
+   * - Conversation-optimized format: Great for sidebar/chat flow
+   * - Order Builder-optimized format: Perfect for structured Order Builder
+   */
+  private static normalizeAIResponse(data: any, endpoint: string): any {
+    console.log('🔄 [DUAL-FORMAT] Normalizing AI response from:', endpoint);
+
+    // If coming from support-ai (Order Builder optimized), it's already in the best format
+    if (endpoint.includes('support-ai')) {
+      return {
+        ...data,
+        // Ensure we have both formats available
+        normalizedFrom: 'Order Builder optimized',
+        conversationOptimized: true,
+        orderBuilderOptimized: true
+      };
+    }
+
+    // If coming from order-creation (Conversation optimized), enhance for Order Builder
+    if (endpoint.includes('order-creation')) {
+      console.log('🔄 [DUAL-FORMAT] Enhancing conversation-optimized response for Order Builder');
+
+      // Extract structured data from conversation-optimized response
+      const enhancedResponse = {
+        ...data,
+        // Preserve original conversation-optimized format
+        normalizedFrom: 'Conversation optimized',
+        conversationOptimized: true,
+
+        // Ensure Order Builder compatibility if missing
+        orderBuilder: data.orderBuilder || this.extractOrderBuilderFromConversation(data),
+        quoteData: data.quoteData || this.extractQuoteDataFromConversation(data),
+
+        // Add any missing fields for unified handling
+        stepProgress: data.stepProgress || {},
+        conversationContinuation: data.conversationContinuation || { hasContext: false }
+      };
+
+      return enhancedResponse;
+    }
+
+    // Fallback: return as-is for other endpoints
+    return {
+      ...data,
+      normalizedFrom: 'Fallback',
+      conversationOptimized: true,
+      orderBuilderOptimized: false
+    };
+  }
+
+  /**
+   * Extract Order Builder structure from conversation-optimized response
+   */
+  private static extractOrderBuilderFromConversation(data: any): any {
+    if (data.orderBuilder) return data.orderBuilder;
+
+    // Create minimal Order Builder structure from available data
+    return {
+      capStyle: { completed: !!data.quoteData?.capDetails, status: 'green', data: data.quoteData?.capDetails || {}, cost: 0 },
+      customization: { completed: !!data.quoteData?.customization, status: 'green', data: data.quoteData?.customization || {}, cost: 0 },
+      delivery: { completed: !!data.quoteData?.delivery, status: 'green', data: data.quoteData?.delivery || {}, cost: 0 },
+      costBreakdown: { available: !!data.quoteData?.pricing, totalCost: data.quoteData?.pricing?.total || 0 }
+    };
+  }
+
+  /**
+   * Extract Quote Data structure from conversation-optimized response
+   */
+  private static extractQuoteDataFromConversation(data: any): any {
+    if (data.quoteData) return data.quoteData;
+
+    // Create minimal quote data structure
+    return {
+      capDetails: data.orderBuilder?.capStyle?.data || {},
+      customization: data.orderBuilder?.customization?.data || {},
+      delivery: data.orderBuilder?.delivery?.data || {},
+      pricing: {
+        total: data.orderBuilder?.costBreakdown?.totalCost || 0,
+        baseProductCost: data.orderBuilder?.capStyle?.cost || 0,
+        logosCost: data.orderBuilder?.customization?.cost || 0,
+        deliveryCost: data.orderBuilder?.delivery?.cost || 0
+      }
+    };
+  }
+
   private static async detectIntent(
     message: string,
     conversationHistory: any[],
@@ -476,10 +634,15 @@ export class MessagingService {
     };
   }
 
-  private static getApiEndpoint(intent: string): string {
+  private static getApiEndpoint(intent: string, context?: {
+    isOrderBuilderFocused?: boolean;
+    hasConversationHistory?: boolean;
+    isModification?: boolean;
+  }): string {
     switch (intent) {
       case 'ORDER_CREATION':
-        return '/api/support/step-by-step-pricing'; // NEW: Step-by-step modular pricing with Supabase
+        // UPDATED ROUTING: Always use step-by-step-pricing for accurate Format #8 pricing
+        return '/api/support/step-by-step-pricing'; // Supabase-based accurate pricing
       case 'LOGO_ANALYSIS':
         return '/api/support/logo-analysis'; // LogoCraft Pro
       default:
