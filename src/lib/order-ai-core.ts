@@ -21,7 +21,6 @@ import {
   detectClosureFromText,
   detectAccessoriesFromText,
   detectSizeFromText,
-  detectAllLogosFromText,
   getDefaultSizeForPosition,
   getDefaultApplicationForDecoration,
   detectStitchingSchemeFromText,
@@ -31,6 +30,9 @@ import {
   getFabricConstructionOptions,
   CostingContext
 } from '@/lib/costing-knowledge-base';
+
+// CRITICAL FIX: Import unified logo detection system
+import { detectLogosUnified, convertToKnowledgeBaseFormat } from '@/lib/unified-logo-detection';
 
 // Import unified costing service
 // import { calculateQuickEstimate } from '@/lib/unified-costing-service'; // Using local implementation instead
@@ -347,16 +349,21 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   // Check for blank caps first - if customer explicitly asks for "blank caps", no logo needed
   const isBlankCapRequest = lowerMessage.includes('blank cap') || lowerMessage.includes('blank caps');
   
-  // Use enhanced multi-logo detection from knowledge base only if not blank caps
+  // CRITICAL FIX: Use unified logo detection system only if not blank caps
   let logoType = "None"; // Default to no logo
   let logoDetectionResult: any = { primaryLogo: null, allLogos: [], multiLogoSetup: null };
 
   if (!isBlankCapRequest) {
-    logoDetectionResult = detectAllLogosFromText(message);
+    const unifiedDetection = detectLogosUnified(message);
+    logoDetectionResult = convertToKnowledgeBaseFormat(unifiedDetection);
     logoType = logoDetectionResult.primaryLogo || "3D Embroidery";
-    
-    // Keep logo type as detected - Supabase handles size separately
-    // No need for artificial concatenation as Supabase has proper name + size structure
+
+    console.log('🎯 [ORDER-AI-CORE] UNIFIED logo detection:', {
+      totalCount: unifiedDetection.totalCount,
+      hasLogos: unifiedDetection.hasLogos,
+      primaryLogo: logoDetectionResult.primaryLogo,
+      summary: unifiedDetection.summary
+    });
   }
   
   console.log('🎯 [ORDER-AI-CORE] Logo detection:', {

@@ -88,6 +88,18 @@ export async function POST(request: NextRequest) {
         closure: premiumUpgrades.closure?.name || requirements.closure || 'Snapback',
         stitch: 'Standard'
       },
+      premiumUpgrades: {
+        data: {
+          fabrics: premiumUpgrades.fabrics || {},
+          fabricCount: Object.keys(premiumUpgrades.fabrics || {}).length,
+          totalFabricCost: premiumUpgrades.fabric?.totalCost || 0,
+          closure: premiumUpgrades.closure ? {
+            type: premiumUpgrades.closure.name,
+            unitPrice: premiumUpgrades.closure.unitPrice,
+            cost: premiumUpgrades.closure.totalCost
+          } : null
+        }
+      },
       customization: {
         logos: logoSetup.logos || [],
         accessories: accessories.items || [],

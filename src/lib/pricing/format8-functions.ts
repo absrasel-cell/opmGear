@@ -23,9 +23,11 @@ import {
   detectClosureFromText,
   detectAccessoriesFromText,
   detectSizeFromText,
-  detectAllLogosFromText,
   getDefaultApplicationForDecoration
 } from '@/lib/costing-knowledge-base';
+
+// CRITICAL FIX: Import unified logo detection system to replace complex logo detection
+import { detectLogosUnified, convertToFormat8Format } from '@/lib/unified-logo-detection';
 
 // Enhanced color detection function that handles "Royal/Black" patterns
 function extractAdvancedColor(text: string): string | null {
@@ -351,36 +353,17 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     console.log('🔒 [ANALYZE] Using previous context closure:', closure);
   }
 
-  // Extract logo requirements - ENHANCED: Use advanced logo detection from knowledge base
-  let logoRequirements = [];
-  const logoDetection = detectAllLogosFromText(message);
+  // CRITICAL FIX: Use unified logo detection system - eliminates duplicate/conflicting detections
+  const unifiedDetection = detectLogosUnified(message);
+  let logoRequirements = convertToFormat8Format(unifiedDetection);
 
-  console.log('🎨 [ANALYZE] Advanced logo detection:', {
+  console.log('🎨 [ANALYZE] UNIFIED logo detection:', {
     message: message.substring(0, 100),
-    primaryLogo: logoDetection.primaryLogo,
-    allLogos: logoDetection.allLogos,
-    hasMultiSetup: !!logoDetection.multiLogoSetup
+    totalCount: unifiedDetection.totalCount,
+    hasLogos: unifiedDetection.hasLogos,
+    logos: unifiedDetection.logos.map(l => ({ type: l.type, position: l.position, size: l.size })),
+    summary: unifiedDetection.summary
   });
-
-  // Convert detected logos to requirements format
-  if (logoDetection.allLogos && logoDetection.allLogos.length > 0) {
-    logoRequirements = logoDetection.allLogos.map(logo => ({
-      type: logo.type,
-      location: logo.position.charAt(0).toUpperCase() + logo.position.slice(1), // Capitalize
-      size: logo.size,
-      hasMoldCharge: logo.type.toLowerCase().includes('patch'), // Patches have mold charges
-      priority: logo.position === 'front' ? 1 : 2 // Front logos have priority
-    }));
-  } else if (logoDetection.primaryLogo && logoDetection.primaryLogo !== 'None') {
-    // Handle case where primary logo detected but no detailed positions
-    logoRequirements.push({
-      type: logoDetection.primaryLogo,
-      location: 'Front', // Default position
-      size: 'Large', // Default size for front
-      hasMoldCharge: logoDetection.primaryLogo.toLowerCase().includes('patch'),
-      priority: 1
-    });
-  }
 
   // Set logo requirement variables
   let logoRequirement = logoRequirements.length > 0 ? logoRequirements[0] : null;
@@ -397,148 +380,8 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     detectedAccessories: accessoriesRequirements
   });
 
-  // All detection logic replaced with advanced functions from knowledge base
-
-  // Position detection with sub-positions and default sizes
-  const getPositionAndSize = (msg: string) => {
-    let position = 'Front'; // Default position
-    let subPosition = 'Center'; // Default sub-position
-    let defaultSize = 'Large'; // Default for Front
-
-    // Main position detection
-    if (msg.includes('back')) {
-      position = 'Back';
-      defaultSize = 'Small';
-    } else if (msg.includes('left side') || msg.includes('left')) {
-      position = 'Left';
-      defaultSize = 'Small';
-    } else if (msg.includes('right side') || msg.includes('right')) {
-      position = 'Right';
-      defaultSize = 'Small';
-    } else if (msg.includes('under bill') || msg.includes('underbill')) {
-      position = 'Under Bill';
-      defaultSize = 'Large';
-    } else if (msg.includes('upper bill') || msg.includes('visor')) {
-      position = 'Upper Bill';
-      defaultSize = 'Medium';
-    }
-
-    // Sub-position detection for Front/Back positions
-    if (position === 'Front' || position === 'Back') {
-      if (msg.includes(position.toLowerCase() + ' left')) {
-        subPosition = 'Left';
-      } else if (msg.includes(position.toLowerCase() + ' right')) {
-        subPosition = 'Right';
-      } else if (msg.includes(position.toLowerCase() + ' center')) {
-        subPosition = 'Center';
-      }
-    }
-
-    // Override size if explicitly mentioned
-    let finalSize = defaultSize;
-    if (msg.includes('small')) finalSize = 'Small';
-    if (msg.includes('medium')) finalSize = 'Medium';
-    if (msg.includes('large')) finalSize = 'Large';
-    if (msg.includes('xl') || msg.includes('extra large')) finalSize = 'XL';
-
-    return {
-      position: subPosition === 'Center' ? position : `${position} ${subPosition}`,
-      size: finalSize,
-      hasSubPosition: subPosition !== 'Center'
-    };
-  };
-
-  // Enhanced multi-logo detection - detect all logo methods mentioned
-  const methodMapping: { [key: string]: string } = {
-    '3d_embroidery': '3D Embroidery',
-    'flat_embroidery': 'Flat Embroidery',
-    'leather_patch': 'Leather Patch',
-    'rubber_patch': 'Rubber Patch',
-    'direct_print': 'Direct Print',
-    'printed_patch': 'Printed Patch',
-    'sublimated_patch': 'Sublimated Patch',
-    'woven_patch': 'Woven Patch'
-  };
-
-  // Specific position-based detection for multiple logos
-  // FIXED: Ordered by specificity - most specific patterns first to avoid conflicts
-  const logoPatterns = [
-    // Most specific patterns first (include position)
-    { method: 'leather_patch', position: 'Front', keywords: ['leather patch front', 'leather patch on front'], priority: 1 },
-    { method: '3d_embroidery', position: 'Front', keywords: ['3d embroidery on front', '3d embroidery front'], priority: 1 },
-    { method: '3d_embroidery', position: 'Left', keywords: ['3d embroidery on left', '3d embroidery left'], priority: 1 },
-    { method: '3d_embroidery', position: 'Back', keywords: ['3d embroidery on back', '3d embroidery back'], priority: 1 },
-    { method: 'flat_embroidery', position: 'Front', keywords: ['flat embroidery on front', 'flat embroidery front'], priority: 1 },
-    { method: 'flat_embroidery', position: 'Right', keywords: ['flat embroidery on right', 'flat embroidery right'], priority: 1 },
-    { method: 'flat_embroidery', position: 'Back', keywords: ['flat embroidery on back', 'flat embroidery back'], priority: 1 },
-    { method: 'rubber_patch', position: 'Back', keywords: ['rubber patch on back', 'rubber patch back'], priority: 1 },
-
-    // Medium specificity patterns (method + position keywords but flexible)
-    { method: '3d_embroidery', position: null, keywords: ['3d embroidery', '3d embroidered'], priority: 2 },
-    { method: 'flat_embroidery', position: null, keywords: ['flat embroidery'], priority: 2 },
-    { method: 'leather_patch', position: null, keywords: ['leather patch', 'leather label'], priority: 2 },
-    { method: 'rubber_patch', position: null, keywords: ['rubber patch', 'rubber label', 'pvc patch'], priority: 2 },
-    { method: 'direct_print', position: null, keywords: ['direct print', 'screen print', 'screen printing'], priority: 2 },
-    { method: 'printed_patch', position: null, keywords: ['printed patch', 'transfer patch'], priority: 2 },
-    { method: 'sublimated_patch', position: null, keywords: ['sublimated patch', 'sublimation patch'], priority: 2 },
-    { method: 'woven_patch', position: null, keywords: ['woven patch', 'woven label'], priority: 2 },
-
-    // Fallback pattern for generic embroidery mentions (lowest priority)
-    { method: '3d_embroidery', position: null, keywords: ['embroidery', 'embroidered'], priority: 3 }
-  ];
-
-  // FIXED: Enhanced pattern matching with priority and duplicate prevention
-  const matchedPatterns = [];
-
-  // First pass: collect all matching patterns with their priority
-  for (const pattern of logoPatterns) {
-    if (pattern.keywords.some(keyword => msgLower.includes(keyword))) {
-      matchedPatterns.push(pattern);
-    }
-  }
-
-  // Sort by priority (lower number = higher priority)
-  matchedPatterns.sort((a, b) => a.priority - b.priority);
-
-  // Process patterns and avoid duplicates
-  for (const pattern of matchedPatterns) {
-    const logoMethod = methodMapping[pattern.method];
-
-    // Use specific position if provided, otherwise detect from message
-    let position, size;
-    if (pattern.position) {
-      position = pattern.position;
-      // Set default size based on position
-      size = position === 'Front' || position === 'Under Bill' ? 'Large' :
-             position === 'Upper Bill' ? 'Medium' : 'Small';
-    } else {
-      const positionInfo = getPositionAndSize(msgLower);
-      position = positionInfo.position;
-      size = positionInfo.size;
-    }
-
-    // CRITICAL FIX: Check if this position already has ANY logo method assigned
-    // This prevents both 3D and Flat embroidery from being applied to the same position
-    const positionExists = logoRequirements.some(logo => logo.location === position);
-
-    if (!positionExists) {
-      logoRequirements.push({
-        type: logoMethod,
-        location: position,
-        size: size,
-        hasMoldCharge: logoMethod === 'Rubber Patch' || logoMethod === 'Leather Patch',
-        priority: pattern.priority
-      });
-
-      console.log(`🎯 [LOGO-DETECTION] Added: ${logoMethod} at ${position} (priority ${pattern.priority})`);
-    } else {
-      console.log(`⚠️ [LOGO-DETECTION] Skipped: ${logoMethod} at ${position} (position already has logo)`);
-    }
-  }
-
-  // Logo requirements already declared above, no need to redeclare
-
-  // Use accessories requirements already declared above
+  // REMOVED: Complex manual logo detection logic - replaced by unified system above
+  // The unified detection system handles all logo detection reliably without conflicts
 
   // Common accessories detection
   if (msgLower.includes('woven label') || msgLower.includes('label')) {
@@ -635,28 +478,85 @@ export async function fetchPremiumUpgrades(requirements: any) {
 
   const upgrades: any = {
     fabric: null,
+    fabrics: {},
     closure: null,
     totalCost: 0
   };
 
   try {
-    // Handle premium fabrics
+    // Handle premium fabrics with dual fabric support (e.g., "Acrylic/Airmesh")
     if (requirements.fabric) {
-      const fabrics = await loadPremiumFabrics();
-      const fabric = fabrics.find(f =>
-        f.name.toLowerCase().includes(requirements.fabric.toLowerCase())
-      );
+      console.log('🧵 [PREMIUM] Processing fabric requirement:', requirements.fabric);
 
-      if (fabric) {
-        const priceResult = calculatePriceForQuantity(fabric, requirements.quantity);
-        const unitPrice = priceResult.unitPrice;
+      const fabrics = await loadPremiumFabrics();
+
+      // Handle dual fabrics like "Acrylic/Airmesh" by splitting and processing each separately
+      const fabricTypes = requirements.fabric.includes('/')
+        ? requirements.fabric.split('/').map((f: string) => f.trim())
+        : [requirements.fabric];
+
+      let totalFabricCost = 0;
+      const fabricData: any = {};
+
+      console.log('🧵 [PREMIUM] Processing fabric types:', fabricTypes);
+
+      for (const singleFabricType of fabricTypes) {
+        // Normalize fabric name to match database entries
+        let normalizedFabricName = singleFabricType;
+
+        // Handle common fabric name variations
+        if (singleFabricType.toLowerCase().includes('airmesh') || singleFabricType.toLowerCase().includes('air mesh')) {
+          normalizedFabricName = 'Air Mesh';
+        } else if (singleFabricType.toLowerCase().includes('acrylic')) {
+          normalizedFabricName = 'Acrylic';
+        } else if (singleFabricType.toLowerCase().includes('suede')) {
+          normalizedFabricName = 'Suede Cotton';
+        } else if (singleFabricType.toLowerCase().includes('leather')) {
+          normalizedFabricName = 'Genuine Leather';
+        } else if (singleFabricType.toLowerCase().includes('laser') || singleFabricType.toLowerCase().includes('cut')) {
+          normalizedFabricName = 'Laser Cut';
+        }
+
+        console.log(`🔍 [PREMIUM] Looking for fabric: ${singleFabricType} -> ${normalizedFabricName}`);
+
+        // Find matching fabric in database
+        const fabric = fabrics.find(f =>
+          f.name.toLowerCase() === normalizedFabricName.toLowerCase() ||
+          f.name.toLowerCase().includes(normalizedFabricName.toLowerCase()) ||
+          normalizedFabricName.toLowerCase().includes(f.name.toLowerCase())
+        );
+
+        if (fabric) {
+          const priceResult = calculatePriceForQuantity(fabric, requirements.quantity);
+          const unitPrice = priceResult.unitPrice;
+          const fabricTotalCost = unitPrice * requirements.quantity;
+          totalFabricCost += fabricTotalCost;
+
+          fabricData[normalizedFabricName] = {
+            type: fabric.name,
+            unitPrice: unitPrice,
+            cost: fabricTotalCost
+          };
+
+          console.log(`✅ [PREMIUM] Found premium fabric: ${fabric.name} - $${unitPrice}/cap ($${fabricTotalCost} total)`);
+        } else {
+          console.log(`⚠️ [PREMIUM] Premium fabric not found in database: ${normalizedFabricName}`);
+        }
+      }
+
+      // Set fabric data in upgrades object
+      if (Object.keys(fabricData).length > 0) {
+        upgrades.fabrics = fabricData;
+        upgrades.totalCost += totalFabricCost;
+
+        // Also keep original format for backward compatibility
         upgrades.fabric = {
-          name: fabric.name,
-          unitPrice,
-          totalCost: unitPrice * requirements.quantity
+          name: requirements.fabric, // Keep original dual format like "Acrylic/Airmesh"
+          unitPrice: totalFabricCost / requirements.quantity,
+          totalCost: totalFabricCost
         };
-        upgrades.totalCost += upgrades.fabric.totalCost;
-        console.log('✅ [PREMIUM] Found premium fabric:', fabric.name, 'at $', unitPrice, 'each');
+
+        console.log('✅ [PREMIUM] Total fabric cost:', totalFabricCost, 'for fabrics:', Object.keys(fabricData));
       }
     }
 
@@ -977,10 +877,18 @@ export function generateStructuredResponse(
   response += `•${capDetails.productName} (${capDetails.pricingTier})\n`;
   response += `•Base cost: $${capDetails.totalCost.toFixed(2)} ($${capDetails.unitPrice.toFixed(2)}/cap)\n\n`;
 
-  if (premiumUpgrades.fabric || premiumUpgrades.closure) {
+  if ((premiumUpgrades.fabrics && Object.keys(premiumUpgrades.fabrics).length > 0) || premiumUpgrades.closure) {
     response += `⭐ **Premium Upgrades** ✅\n`;
 
-    if (premiumUpgrades.fabric) {
+    // Handle dual fabric display
+    if (premiumUpgrades.fabrics && Object.keys(premiumUpgrades.fabrics).length > 0) {
+      Object.entries(premiumUpgrades.fabrics).forEach(([fabricName, fabricInfo]: [string, any]) => {
+        const fabricPerCap = fabricInfo.cost / quantity;
+        response += `•${fabricName}: (+$${fabricInfo.cost.toFixed(2)}) ($${fabricPerCap.toFixed(2)}/cap)\n`;
+      });
+    }
+    // Fallback to single fabric display for backward compatibility
+    else if (premiumUpgrades.fabric) {
       const fabricPerCap = premiumUpgrades.fabric.totalCost / quantity;
       response += `•Fabric: ${premiumUpgrades.fabric.name} (+$${premiumUpgrades.fabric.totalCost.toFixed(2)}) ($${fabricPerCap.toFixed(2)}/cap)\n`;
     }
@@ -1002,7 +910,9 @@ export function generateStructuredResponse(
 
       // Show detailed breakdown if mold charge exists
       if (logo.moldCharge && logo.moldCharge > 0) {
-        response += `•${logo.location}: ${logo.type} (${logo.size}) - $${totalWithMoldCharge.toFixed(2)} ($${logoPerCapWithMold.toFixed(2)}/cap)\n`;
+        const basePerCap = logo.totalCost / quantity;
+        const moldPerCap = logo.moldCharge / quantity;
+        response += `•${logo.location}: ${logo.type} (${logo.size}) - $${totalWithMoldCharge.toFixed(2)} ($${basePerCap.toFixed(2)}/cap + $${moldPerCap.toFixed(2)} mold)\n`;
       } else {
         response += `•${logo.location}: ${logo.type} (${logo.size}) - $${logo.totalCost.toFixed(2)} ($${logoPerCapWithMold.toFixed(2)}/cap)\n`;
       }
@@ -1028,9 +938,19 @@ export function generateStructuredResponse(
 
   response += `📊 **Cost Breakdown Per Cap:**\n`;
   response += `• Base Cap: $${capDetails.unitPrice.toFixed(2)}\n`;
-  if (premiumUpgrades.fabric) {
+
+  // Handle dual fabric breakdown
+  if (premiumUpgrades.fabrics && Object.keys(premiumUpgrades.fabrics).length > 0) {
+    Object.entries(premiumUpgrades.fabrics).forEach(([fabricName, fabricInfo]: [string, any]) => {
+      const fabricPerCap = fabricInfo.cost / quantity;
+      response += `• Premium ${fabricName}: $${fabricPerCap.toFixed(2)}\n`;
+    });
+  }
+  // Fallback to single fabric breakdown for backward compatibility
+  else if (premiumUpgrades.fabric) {
     response += `• Premium Fabric: $${(premiumUpgrades.fabric.totalCost / quantity).toFixed(2)}\n`;
   }
+
   if (premiumUpgrades.closure) {
     response += `• Premium Closure: $${(premiumUpgrades.closure.totalCost / quantity).toFixed(2)}\n`;
   }
@@ -1039,7 +959,15 @@ export function generateStructuredResponse(
       // CRITICAL FIX: Show integrated logo + mold cost in per-cap breakdown
       const totalWithMoldCharge = logo.totalWithMold || logo.totalCost;
       const logoPerCapWithMold = totalWithMoldCharge / quantity;
-      response += `• ${logo.location} Logo: $${logoPerCapWithMold.toFixed(2)}\n`;
+
+      // Show mold breakdown in per-cap section too
+      if (logo.moldCharge && logo.moldCharge > 0) {
+        const basePerCap = logo.totalCost / quantity;
+        const moldPerCap = logo.moldCharge / quantity;
+        response += `• ${logo.location} Logo: $${logoPerCapWithMold.toFixed(2)} ($${basePerCap.toFixed(2)} + $${moldPerCap.toFixed(2)} mold)\n`;
+      } else {
+        response += `• ${logo.location} Logo: $${logoPerCapWithMold.toFixed(2)}\n`;
+      }
     });
   }
   if (accessories.items && accessories.items.length > 0) {

@@ -5,12 +5,21 @@ import DeliverySection from './DeliverySection';
 import CostBreakdownSection from './CostBreakdownSection';
 import { OrderBuilderStatus } from '../types';
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  metadata?: any;
+}
+
 interface OrderBuilderProps {
   isVisible: boolean;
   orderBuilderStatus: OrderBuilderStatus;
   currentQuoteData: any;
   collapsedBlocks: Record<string, boolean>;
   leadTimeData: any;
+  messages?: Message[];
   onToggleCollapse: (block: 'capStyle' | 'customization' | 'delivery' | 'costBreakdown') => void;
   onQuoteOrder: () => void;
   canQuoteOrder: () => boolean;
@@ -25,6 +34,7 @@ const OrderBuilder = ({
   currentQuoteData,
   collapsedBlocks,
   leadTimeData,
+  messages,
   onToggleCollapse,
   onQuoteOrder,
   canQuoteOrder,
@@ -98,6 +108,7 @@ const OrderBuilder = ({
         <CapStyleSection
           orderBuilderStatus={orderBuilderStatus}
           currentQuoteData={currentQuoteData}
+          messages={messages}
           isCollapsed={collapsedBlocks.capStyle}
           onToggleCollapse={() => onToggleCollapse('capStyle')}
         />

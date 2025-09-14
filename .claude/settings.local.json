@@ -4,7 +4,14 @@
       "Read(//f/Custom Cap - github/Claude Instruction/**)",
       "Bash(npm run dev:*)",
       "Bash(node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(/dev/null)",
+      "Bash(npx tsc:*)",
+      "Bash(npx supabase db inspect:*)",
+      "Bash(psql:*)",
+      "Bash(npx supabase db pull:*)",
+      "WebFetch(domain:localhost)"
     ],
     "deny": [],
     "ask": [],

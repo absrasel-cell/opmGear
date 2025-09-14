@@ -16,9 +16,18 @@ interface ProductInfo {
   nick_names: string[];
 }
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  metadata?: any;
+}
+
 interface CapStyleSectionProps {
   orderBuilderStatus: OrderBuilderStatus;
   currentQuoteData: any;
+  messages?: Message[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -87,6 +96,7 @@ function extractPanelCountFromDetails(capDetails: any): number | undefined {
 const CapStyleSection = ({
   orderBuilderStatus,
   currentQuoteData,
+  messages,
   isCollapsed,
   onToggleCollapse
 }: CapStyleSectionProps) => {
@@ -381,17 +391,24 @@ const CapStyleSection = ({
                             const color = currentQuoteData.capDetails.color;
 
                             // Enhanced color parsing - if single color but user requested combination, try to extract from conversation
-                            if (color === 'Black' && conversation?.length > 0) {
-                              const recentMessages = conversation.slice(-3); // Last 3 messages
-                              for (const msg of recentMessages) {
-                                const msgText = msg.content || '';
-                                // Look for color combinations in user messages
-                                const colorComboMatch = msgText.match(/\b([A-Z][a-z]+)\/([A-Z][a-z]+)\b/);
-                                if (colorComboMatch) {
+                            if ((color === 'Black' || color.includes('Polyester')) && messages && messages.length > 0) {
+                              const userMessages = messages.filter(m => m.role === 'user');
+                              const recentUserMessages = userMessages.slice(-3); // Last 3 user messages
+
+                              for (const msg of recentUserMessages) {
+                                const msgText = msg.content;
+                                // Look for color combinations in user messages (prioritize actual colors over fabric)
+                                const colorOnlyMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal)\/([A-Z][a-z]+)\b/i);
+                                if (colorOnlyMatch) {
+                                  return `${colorOnlyMatch[1]}/${colorOnlyMatch[2]}`;
+                                }
+                                // Look for general color combinations
+                                const colorComboMatch = msgText.match(/\b([A-Z][a-z]+)\/([A-Z][a-z]+)\b/i);
+                                if (colorComboMatch && !colorComboMatch[0].toLowerCase().includes('polyester') && !colorComboMatch[0].toLowerCase().includes('laser')) {
                                   return `${colorComboMatch[1]}/${colorComboMatch[2]}`;
                                 }
                                 // Look for "Color, Color" patterns
-                                const colorListMatch = msgText.match(/\b([A-Z][a-z]+),\s*([A-Z][a-z]+)\b/);
+                                const colorListMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal),\s*([A-Z][a-z]+)\b/i);
                                 if (colorListMatch) {
                                   return `${colorListMatch[1]}/${colorListMatch[2]}`;
                                 }
@@ -428,23 +445,24 @@ const CapStyleSection = ({
                     )}
                     {currentQuoteData.capDetails.fabric && (
                       <div className="text-white/70">Fabric: <span className="text-white">{
-                        // Enhanced fabric display logic to extract actual fabric type from AI data
+                        // Enhanced fabric display logic with dual fabric support
                         (() => {
                           const fabric = currentQuoteData.capDetails.fabric;
                           if (typeof fabric !== 'string') return 'Standard';
 
-                          // If fabric is generic "Standard", try to extract from conversation context
-                          if (fabric.toLowerCase() === 'standard' && conversation?.length > 0) {
-                            // Look through recent messages for fabric details
-                            const recentMessages = conversation.slice(-3); // Last 3 messages
-                            for (const msg of recentMessages) {
-                              const msgText = msg.content || '';
-                              // Look for fabric patterns in user messages
+                          // If fabric is generic "Standard" or "Acrylic" alone, try to extract full fabric from user messages
+                          if ((fabric.toLowerCase() === 'standard' || fabric.toLowerCase() === 'acrylic') && messages && messages.length > 0) {
+                            const userMessages = messages.filter(m => m.role === 'user');
+                            const recentUserMessages = userMessages.slice(-3); // Last 3 user messages
+
+                            for (const msg of recentUserMessages) {
+                              const msgText = msg.content;
+                              // Look for dual fabric patterns in user messages (highest priority)
+                              if (msgText.toLowerCase().includes('acrylic') && (msgText.toLowerCase().includes('airmesh') || msgText.toLowerCase().includes('air mesh'))) {
+                                return 'Acrylic/Airmesh';
+                              }
                               if (msgText.toLowerCase().includes('polyester') && msgText.toLowerCase().includes('laser cut')) {
                                 return 'Polyester/Laser Cut';
-                              }
-                              if (msgText.toLowerCase().includes('acrylic') && msgText.toLowerCase().includes('air mesh')) {
-                                return 'Acrylic/Air Mesh';
                               }
                               if (msgText.toLowerCase().includes('duck camo') && msgText.toLowerCase().includes('air mesh')) {
                                 return 'Duck Camo/Air Mesh';
@@ -455,7 +473,7 @@ const CapStyleSection = ({
                               if (msgText.toLowerCase().includes('leather')) {
                                 return 'Genuine Leather';
                               }
-                              // Other fabric types
+                              // Other single fabric types
                               const fabricMatch = msgText.match(/\b(Cotton|Polyester|Acrylic|Air Mesh|Trucker Mesh|Laser Cut)\b/i);
                               if (fabricMatch) {
                                 return fabricMatch[1];
@@ -466,7 +484,7 @@ const CapStyleSection = ({
                           // Clean up corrupted fabric data that might contain pricing or other info
                           if (fabric.includes('$') || fabric.includes('*') || fabric.includes('\n') || fabric.length > 50) {
                             // Try to extract fabric type from corrupted data
-                            const cleanFabricMatch = fabric.match(/\b(Polyester\/Laser Cut|Acrylic\/Air Mesh|Duck Camo\/Air Mesh|Suede Cotton|Genuine Leather|Cotton|Polyester|Acrylic|Leather)\b/i);
+                            const cleanFabricMatch = fabric.match(/\b(Acrylic\/Airmesh|Acrylic\/Air Mesh|Polyester\/Laser Cut|Duck Camo\/Air Mesh|Suede Cotton|Genuine Leather|Cotton|Polyester|Acrylic|Leather)\b/i);
                             return cleanFabricMatch ? cleanFabricMatch[0] : 'Standard';
                           }
 
@@ -499,12 +517,13 @@ const CapStyleSection = ({
                           const stitching = currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch;
                           if (typeof stitching !== 'string') return 'Standard';
 
-                          // If stitching is generic "Standard", try to extract from conversation context
-                          if (stitching.toLowerCase() === 'standard' && conversation?.length > 0) {
-                            // Look through recent messages for stitching details
-                            const recentMessages = conversation.slice(-3); // Last 3 messages
-                            for (const msg of recentMessages) {
-                              const msgText = msg.content || '';
+                          // If stitching is generic "Standard", try to extract from user messages
+                          if (stitching.toLowerCase() === 'standard' && messages && messages.length > 0) {
+                            const userMessages = messages.filter(m => m.role === 'user');
+                            const recentUserMessages = userMessages.slice(-3); // Last 3 user messages
+
+                            for (const msg of recentUserMessages) {
+                              const msgText = msg.content;
                               // Look for stitching patterns in user messages
                               const stitchingPatterns = [
                                 /\b(Contrast Stitching|Matching Stitching|Double Stitching|Flat Stitching|Overlock Stitching)\b/i,
@@ -544,8 +563,21 @@ const CapStyleSection = ({
                     const fabricCosts = [];
                     const closureCosts = [];
 
-                    // Try to get premium costs from structured data first
-                    if (currentQuoteData?.pricing?.premiumFabricCost && currentQuoteData?.pricing?.premiumFabricCost > 0) {
+                    // ENHANCED: Try to get premium costs from new structured data first (dual fabric support)
+                    // Check for new dual fabric structure from updated step-by-step pricing
+                    if (currentQuoteData?.premiumUpgrades?.data?.fabrics && Object.keys(currentQuoteData.premiumUpgrades.data.fabrics).length > 0) {
+                      console.log('🧵 [PREMIUM-COSTS] Using new dual fabric structure:', currentQuoteData.premiumUpgrades.data.fabrics);
+
+                      Object.entries(currentQuoteData.premiumUpgrades.data.fabrics).forEach(([fabricName, fabricInfo]: [string, any]) => {
+                        fabricCosts.push({
+                          type: fabricName,
+                          unitPrice: fabricInfo.unitPrice,
+                          totalCost: fabricInfo.cost
+                        });
+                      });
+                    }
+                    // Fallback to old structured data
+                    else if (currentQuoteData?.pricing?.premiumFabricCost && currentQuoteData?.pricing?.premiumFabricCost > 0) {
                       const fabricType = currentQuoteData?.capDetails?.fabric;
                       if (fabricType && /polyester|laser\s*cut|acrylic|suede|leather|mesh|camo/i.test(fabricType)) {
                         fabricCosts.push({

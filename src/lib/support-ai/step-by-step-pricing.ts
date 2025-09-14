@@ -17,11 +17,13 @@ import { createClient } from '@supabase/supabase-js';
 // Import advanced detection functions from the existing knowledge base
 import {
   detectFabricFromText,
-  detectAllLogosFromText,
   detectClosureFromText,
   detectAccessoriesFromText,
   getDefaultApplicationForDecoration
 } from '@/lib/costing-knowledge-base';
+
+// CRITICAL FIX: Import unified logo detection system to replace detectAllLogosFromText
+import { detectLogosUnified, convertToStepByStepFormat } from '@/lib/unified-logo-detection';
 
 // Import AI pricing service for mold charges
 import { getAILogoPrice } from '@/lib/ai-pricing-service';
@@ -126,19 +128,72 @@ export class SupportAIPricingService {
       let totalCost = 0;
       const upgradeData: any = {};
 
-      // Check for premium fabrics
+      // Check for premium fabrics with dual fabric support
       const fabricAnalysis = await this.analyzeFabricRequirements(customerRequest);
       if (fabricAnalysis.hasPremiumFabric) {
-        const { data: fabrics } = await supabase
-          .from('premium_fabrics')
-          .select('*')
-          .eq('name', fabricAnalysis.fabricType)
-          .single();
+        console.log('🧵 [SUPPORT AI] Processing premium fabric:', fabricAnalysis.fabricType);
 
-        if (fabrics) {
-          const fabricCost = this.getQuantityTierPrice(fabrics, quantity);
-          totalCost += fabricCost * quantity;
-          upgradeData.fabric = { type: fabrics.name, cost: fabricCost * quantity };
+        // Handle dual fabrics like "Acrylic/Airmesh" by splitting and processing each separately
+        const fabricTypes = fabricAnalysis.fabricType.includes('/')
+          ? fabricAnalysis.fabricType.split('/').map((f: string) => f.trim())
+          : [fabricAnalysis.fabricType];
+
+        let totalFabricCost = 0;
+        const fabricData: any = {};
+
+        for (const singleFabricType of fabricTypes) {
+          // Normalize fabric name to match database entries
+          let normalizedFabricName = singleFabricType;
+
+          // Handle common fabric name variations
+          if (singleFabricType.toLowerCase().includes('airmesh') || singleFabricType.toLowerCase().includes('air mesh')) {
+            normalizedFabricName = 'Air Mesh';
+          } else if (singleFabricType.toLowerCase().includes('acrylic')) {
+            normalizedFabricName = 'Acrylic';
+          } else if (singleFabricType.toLowerCase().includes('suede')) {
+            normalizedFabricName = 'Suede Cotton';
+          } else if (singleFabricType.toLowerCase().includes('leather')) {
+            normalizedFabricName = 'Genuine Leather';
+          } else if (singleFabricType.toLowerCase().includes('laser') || singleFabricType.toLowerCase().includes('cut')) {
+            normalizedFabricName = 'Laser Cut';
+          }
+
+          console.log(`🔍 [SUPPORT AI] Looking for fabric: ${singleFabricType} -> ${normalizedFabricName}`);
+
+          const { data: fabrics } = await supabase
+            .from('premium_fabrics')
+            .select('*')
+            .eq('name', normalizedFabricName)
+            .single();
+
+          if (fabrics) {
+            const fabricCost = this.getQuantityTierPrice(fabrics, quantity);
+            const fabricTotalCost = fabricCost * quantity;
+            totalFabricCost += fabricTotalCost;
+
+            fabricData[normalizedFabricName] = {
+              type: fabrics.name,
+              unitPrice: fabricCost,
+              cost: fabricTotalCost
+            };
+
+            console.log(`✅ [SUPPORT AI] Found premium fabric: ${fabrics.name} - $${fabricCost}/cap ($${fabricTotalCost} total)`);
+          } else {
+            console.log(`⚠️ [SUPPORT AI] Premium fabric not found in database: ${normalizedFabricName}`);
+          }
+        }
+
+        totalCost += totalFabricCost;
+        if (Object.keys(fabricData).length > 0) {
+          upgradeData.fabrics = fabricData;
+          upgradeData.fabricCount = Object.keys(fabricData).length;
+          upgradeData.totalFabricCost = totalFabricCost;
+
+          // Also keep original format for backward compatibility
+          upgradeData.fabric = {
+            type: fabricAnalysis.fabricType, // Keep original dual format like "Acrylic/Airmesh"
+            cost: totalFabricCost
+          };
         }
       }
 
@@ -731,14 +786,28 @@ Please interpret the current request in the context of the previous conversation
 
     // Handle dual fabrics like "Acrylic/Airmesh"
     const fabrics = fabric.split('/').map(f => f.trim());
-    const premiumFabrics = ['Suede Cotton', 'Acrylic', 'Air Mesh', 'Camo', 'Genuine Leather', 'Laser Cut', 'Airmesh'];
+    const premiumFabrics = ['Suede Cotton', 'Acrylic', 'Air Mesh', 'Airmesh', 'Duck Camo', 'Camo', 'Genuine Leather', 'Laser Cut', 'Polyester'];
 
-    return fabrics.some(f =>
-      premiumFabrics.some(premium =>
-        f.toLowerCase().includes(premium.toLowerCase()) ||
-        premium.toLowerCase().includes(f.toLowerCase())
-      )
-    );
+    return fabrics.some(f => {
+      const lowerF = f.toLowerCase();
+
+      return premiumFabrics.some(premium => {
+        const lowerPremium = premium.toLowerCase();
+
+        // Handle "Airmesh" variations
+        if (lowerPremium.includes('airmesh') || lowerPremium.includes('air mesh')) {
+          return lowerF.includes('airmesh') || lowerF.includes('air mesh') || lowerF.includes('mesh');
+        }
+
+        // Handle "Duck Camo" variations
+        if (lowerPremium.includes('duck camo') || lowerPremium.includes('camo')) {
+          return lowerF.includes('camo');
+        }
+
+        // Handle standard matching
+        return lowerF.includes(lowerPremium) || lowerPremium.includes(lowerF);
+      });
+    });
   }
 
   private async analyzeClosureRequirements(request: string): Promise<any> {
@@ -764,36 +833,27 @@ Please interpret the current request in the context of the previous conversation
   }
 
   private async analyzeLogoRequirements(request: string): Promise<any> {
-    // Use advanced logo detection from knowledge base
-    const logoDetection = detectAllLogosFromText(request);
+    // CRITICAL FIX: Use unified logo detection system instead of the buggy detectAllLogosFromText
+    const unifiedDetection = detectLogosUnified(request);
 
-    console.log('🎨 [SUPPORT AI] Advanced logo detection:', {
+    console.log('🎨 [SUPPORT AI] UNIFIED logo detection:', {
       originalRequest: request.substring(0, 100),
-      primaryLogo: logoDetection.primaryLogo,
-      allLogos: logoDetection.allLogos,
-      hasMultiSetup: !!logoDetection.multiLogoSetup
+      totalCount: unifiedDetection.totalCount,
+      hasLogos: unifiedDetection.hasLogos,
+      logos: unifiedDetection.logos.map(l => ({ type: l.type, position: l.position, size: l.size })),
+      summary: unifiedDetection.summary
     });
 
-    // Convert detected logos to support AI format
-    const logos = logoDetection.allLogos.map(logo => ({
+    // Convert unified results to support AI format
+    const logos = unifiedDetection.logos.map(logo => ({
       type: logo.type,
-      position: logo.position.charAt(0).toUpperCase() + logo.position.slice(1), // Capitalize position
+      position: logo.position, // Position is already properly capitalized in unified system
       size: logo.size,
-      application: this.getApplicationForLogoType(logo.type)
+      application: logo.application // Application is already determined in unified system
     }));
 
-    // Handle case where no logos are detected but primary logo exists
-    if (logos.length === 0 && logoDetection.primaryLogo && logoDetection.primaryLogo !== 'None') {
-      logos.push({
-        type: logoDetection.primaryLogo,
-        position: 'Front', // Default position
-        size: 'Large', // Default size for front
-        application: this.getApplicationForLogoType(logoDetection.primaryLogo)
-      });
-    }
-
     return {
-      hasLogo: logoDetection.primaryLogo !== 'None' && logoDetection.primaryLogo !== null,
+      hasLogo: unifiedDetection.hasLogos,
       logos: logos
     };
   }

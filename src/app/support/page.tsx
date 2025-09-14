@@ -736,6 +736,7 @@ export default function SupportPage() {
                   currentQuoteData={currentQuoteData}
                   collapsedBlocks={collapsedBlocks}
                   leadTimeData={leadTimeData}
+                  messages={messages}
                   onToggleCollapse={toggleBlockCollapse}
                   onQuoteOrder={handleQuoteOrder}
                   canQuoteOrder={canQuoteOrder}
