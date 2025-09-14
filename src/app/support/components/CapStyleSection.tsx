@@ -272,11 +272,19 @@ const CapStyleSection = ({
               {/* Product Information Section */}
               {currentQuoteData?.capDetails && (
                 <div className="mt-2 p-2 rounded-lg border border-blue-400/20 bg-blue-400/5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CpuChipIcon className="h-4 w-4 text-blue-400" />
-                    <h5 className="text-xs font-medium text-blue-300">Product Information</h5>
-                    {isLoadingProduct && (
-                      <div className="h-3 w-3 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin"></div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CpuChipIcon className="h-4 w-4 text-blue-400" />
+                      <h5 className="text-xs font-medium text-blue-300">Product Information</h5>
+                      {isLoadingProduct && (
+                        <div className="h-3 w-3 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin"></div>
+                      )}
+                    </div>
+                    {/* ENHANCED: Show context preservation status */}
+                    {currentQuoteData?.metadata?.requirements?.isQuantityUpdate && (
+                      <div className="text-[9px] px-2 py-0.5 rounded-full bg-blue-400/20 text-blue-300 border border-blue-400/30">
+                        Context Preserved
+                      </div>
                     )}
                   </div>
                   {productInfo ? (
@@ -347,6 +355,11 @@ const CapStyleSection = ({
                               </div>
                               <div className="text-white/70">
                                 Quantity: <span className="text-white font-medium">{quantity} pieces</span>
+                                {/* ENHANCED: Show if quantity was updated */}
+                                {currentQuoteData?.metadata?.requirements?.isQuantityUpdate && (
+                                  <span className="ml-1 text-[8px] text-yellow-400">• Updated</span>
+                                )}
+                              </div>
                               </div>
                               <div className="text-white/70">
                                 Subtotal: <span className="text-white font-medium text-green-400">
@@ -515,9 +528,9 @@ const CapStyleSection = ({
                         // Enhanced stitching display logic to extract actual stitching details
                         (() => {
                           const stitching = currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch;
-                          if (typeof stitching !== 'string') return 'Standard';
+                          if (typeof stitching !== 'string') return 'Matching';
 
-                          // If stitching is generic "Standard", try to extract from user messages
+                          // If stitching is generic "Standard", try to extract from user messages or default to "Matching"
                           if (stitching.toLowerCase() === 'standard' && messages && messages.length > 0) {
                             const userMessages = messages.filter(m => m.role === 'user');
                             const recentUserMessages = userMessages.slice(-3); // Last 3 user messages
@@ -539,13 +552,20 @@ const CapStyleSection = ({
                                 }
                               }
                             }
+                            // Default to "Matching" if no specific stitching found in user messages
+                            return 'Matching';
+                          }
+
+                          // Convert "Standard" to "Matching" as default
+                          if (stitching.toLowerCase() === 'standard') {
+                            return 'Matching';
                           }
 
                           // Clean up corrupted stitching data that might contain pricing information
                           if (stitching.includes('$') || stitching.includes('*') || stitching.includes('\n') || stitching.length > 30) {
                             // Try to extract stitching type from corrupted data
                             const cleanStitchingMatch = stitching.match(/\b(Contrast|Matching|Double|Flat|Overlock|Standard)\s*Stitching\b/i);
-                            return cleanStitchingMatch ? cleanStitchingMatch[0] : 'Standard';
+                            return cleanStitchingMatch ? cleanStitchingMatch[0] : 'Matching';
                           }
 
                           return stitching;
@@ -673,21 +693,17 @@ const CapStyleSection = ({
                     return hasPremiumCosts ? (
                       <div className="mt-2 pt-2 border-t border-lime-400/10">
                         <h6 className="text-[10px] font-medium text-lime-200 mb-1">Premium Costs</h6>
-                        <div className="space-y-1 text-[10px]">
+                        <div className="flex flex-wrap gap-3 text-[10px]">
                           {fabricCosts.map((fabric, index) => (
-                            <div key={`fabric-${index}`} className="text-white/80 flex justify-between items-center">
-                              <div className="flex flex-col">
-                                <span className="text-xs">{fabric.type}:</span>
-                                <span className="text-lime-300/80 text-[10px]">${fabric.unitPrice.toFixed(2)}/cap</span>
-                              </div>
+                            <div key={`fabric-${index}`} className="flex items-center gap-1 px-2 py-1 rounded border border-lime-400/20 bg-lime-400/5">
+                              <span className="text-white/80">{fabric.type}:</span>
+                              <span className="text-lime-300 font-medium">${fabric.unitPrice.toFixed(2)}/cap</span>
                             </div>
                           ))}
                           {closureCosts.map((closure, index) => (
-                            <div key={`closure-${index}`} className="text-white/80 flex justify-between items-center">
-                              <div className="flex flex-col">
-                                <span className="text-xs">{closure.type}:</span>
-                                <span className="text-lime-300/80 text-[10px]">${closure.unitPrice.toFixed(2)}/cap</span>
-                              </div>
+                            <div key={`closure-${index}`} className="flex items-center gap-1 px-2 py-1 rounded border border-lime-400/20 bg-lime-400/5">
+                              <span className="text-white/80">{closure.type}:</span>
+                              <span className="text-lime-300 font-medium">${closure.unitPrice.toFixed(2)}/cap</span>
                             </div>
                           ))}
                         </div>

@@ -396,6 +396,25 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   // The detectAccessoriesFromText function already handles all accessory patterns
   // Keeping manual detection would cause duplicates since both systems detect the same accessories
 
+  // COMPREHENSIVE: Log final analysis with context preservation status
+  console.log('✅ [ANALYZE] FINAL ANALYSIS COMPLETE:', {
+    isQuantityUpdate: isQuantityUpdate,
+    preservedContext: {
+      fabric: isQuantityUpdate ? 'PRESERVED' : 'DETECTED',
+      closure: isQuantityUpdate ? 'PRESERVED' : 'DETECTED',
+      logos: isQuantityUpdate ? `PRESERVED (${allLogoRequirements.length})` : `DETECTED (${allLogoRequirements.length})`,
+      accessories: isQuantityUpdate ? `PRESERVED (${accessoriesRequirements.length})` : `DETECTED (${accessoriesRequirements.length})`
+    },
+    finalValues: {
+      quantity: quantity,
+      fabric: fabric,
+      closure: closure,
+      logoCount: allLogoRequirements.length,
+      accessoryCount: accessoriesRequirements.length,
+      colors: colors
+    }
+  });
+
   return {
     quantity,
     color,
@@ -407,7 +426,16 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     capSpecifications,
     logoRequirement,
     allLogoRequirements,
-    accessoriesRequirements
+    accessoriesRequirements,
+    // CRITICAL: Add context preservation metadata
+    isQuantityUpdate: isQuantityUpdate,
+    previousContext: previousContext,
+    contextPreservation: {
+      fabricPreserved: isQuantityUpdate && previousContext.fabric,
+      closurePreserved: isQuantityUpdate && previousContext.closure,
+      logosPreserved: isQuantityUpdate && previousContext.logoRequirements.length > 0,
+      accessoriesPreserved: isQuantityUpdate && previousContext.accessories.length > 0
+    }
   };
 }
 

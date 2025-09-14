@@ -21,7 +21,7 @@ export class OrderBuilderService {
     currentStatus: OrderBuilderStatus,
     setOrderBuilderStatus: React.Dispatch<React.SetStateAction<OrderBuilderStatus>>
   ): void {
-    console.log('🔧 updateOrderBuilderStatus called with:', {
+    console.log('🔧 updateOrderBuilderStatus called with ENHANCED context preservation check:', {
       hasQuoteData: !!quoteData,
       quoteDataKeys: quoteData ? Object.keys(quoteData) : [],
       hasPricing: !!(quoteData?.pricing),
@@ -29,6 +29,13 @@ export class OrderBuilderService {
       capDetails: quoteData?.capDetails,
       customization: quoteData?.customization,
       delivery: quoteData?.delivery,
+      // CRITICAL: Enhanced logging for context-preserved data
+      isQuantityUpdate: quoteData?.metadata?.requirements?.isQuantityUpdate,
+      contextPreservation: quoteData?.metadata?.requirements?.contextPreservation,
+      premiumUpgrades: quoteData?.premiumUpgrades,
+      moldCharges: quoteData?.customization?.totalMoldCharges,
+      logoCount: quoteData?.customization?.logos?.length || 0,
+      accessoryCount: quoteData?.customization?.accessories?.length || 0,
       fullQuoteData: quoteData
     });
 
