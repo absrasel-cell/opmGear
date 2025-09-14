@@ -378,7 +378,27 @@ const CapStyleSection = ({
                         {(() => {
                           // Priority: Use color string if available (preserves exact format like "Red/White")
                           if (currentQuoteData.capDetails.color) {
-                            return currentQuoteData.capDetails.color;
+                            const color = currentQuoteData.capDetails.color;
+
+                            // Enhanced color parsing - if single color but user requested combination, try to extract from conversation
+                            if (color === 'Black' && conversation?.length > 0) {
+                              const recentMessages = conversation.slice(-3); // Last 3 messages
+                              for (const msg of recentMessages) {
+                                const msgText = msg.content || '';
+                                // Look for color combinations in user messages
+                                const colorComboMatch = msgText.match(/\b([A-Z][a-z]+)\/([A-Z][a-z]+)\b/);
+                                if (colorComboMatch) {
+                                  return `${colorComboMatch[1]}/${colorComboMatch[2]}`;
+                                }
+                                // Look for "Color, Color" patterns
+                                const colorListMatch = msgText.match(/\b([A-Z][a-z]+),\s*([A-Z][a-z]+)\b/);
+                                if (colorListMatch) {
+                                  return `${colorListMatch[1]}/${colorListMatch[2]}`;
+                                }
+                              }
+                            }
+
+                            return color;
                           }
                           // Fallback: Handle colors array
                           if (Array.isArray(currentQuoteData.capDetails.colors)) {
@@ -407,7 +427,52 @@ const CapStyleSection = ({
                       <div className="text-white/70">Structure: <span className="text-white">{currentQuoteData.capDetails.structure === 'undefined' ? 'Structured' : currentQuoteData.capDetails.structure}</span></div>
                     )}
                     {currentQuoteData.capDetails.fabric && (
-                      <div className="text-white/70">Fabric: <span className="text-white">{currentQuoteData.capDetails.fabric}</span></div>
+                      <div className="text-white/70">Fabric: <span className="text-white">{
+                        // Enhanced fabric display logic to extract actual fabric type from AI data
+                        (() => {
+                          const fabric = currentQuoteData.capDetails.fabric;
+                          if (typeof fabric !== 'string') return 'Standard';
+
+                          // If fabric is generic "Standard", try to extract from conversation context
+                          if (fabric.toLowerCase() === 'standard' && conversation?.length > 0) {
+                            // Look through recent messages for fabric details
+                            const recentMessages = conversation.slice(-3); // Last 3 messages
+                            for (const msg of recentMessages) {
+                              const msgText = msg.content || '';
+                              // Look for fabric patterns in user messages
+                              if (msgText.toLowerCase().includes('polyester') && msgText.toLowerCase().includes('laser cut')) {
+                                return 'Polyester/Laser Cut';
+                              }
+                              if (msgText.toLowerCase().includes('acrylic') && msgText.toLowerCase().includes('air mesh')) {
+                                return 'Acrylic/Air Mesh';
+                              }
+                              if (msgText.toLowerCase().includes('duck camo') && msgText.toLowerCase().includes('air mesh')) {
+                                return 'Duck Camo/Air Mesh';
+                              }
+                              if (msgText.toLowerCase().includes('suede')) {
+                                return 'Suede Cotton';
+                              }
+                              if (msgText.toLowerCase().includes('leather')) {
+                                return 'Genuine Leather';
+                              }
+                              // Other fabric types
+                              const fabricMatch = msgText.match(/\b(Cotton|Polyester|Acrylic|Air Mesh|Trucker Mesh|Laser Cut)\b/i);
+                              if (fabricMatch) {
+                                return fabricMatch[1];
+                              }
+                            }
+                          }
+
+                          // Clean up corrupted fabric data that might contain pricing or other info
+                          if (fabric.includes('$') || fabric.includes('*') || fabric.includes('\n') || fabric.length > 50) {
+                            // Try to extract fabric type from corrupted data
+                            const cleanFabricMatch = fabric.match(/\b(Polyester\/Laser Cut|Acrylic\/Air Mesh|Duck Camo\/Air Mesh|Suede Cotton|Genuine Leather|Cotton|Polyester|Acrylic|Leather)\b/i);
+                            return cleanFabricMatch ? cleanFabricMatch[0] : 'Standard';
+                          }
+
+                          return fabric;
+                        })()
+                      }</span></div>
                     )}
                     {currentQuoteData.capDetails.closure && (
                       <div className="text-white/70">Closure: <span className="text-white">{
@@ -428,7 +493,45 @@ const CapStyleSection = ({
                       }</span></div>
                     )}
                     {(currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch) && (
-                      <div className="text-white/70">Stitching: <span className="text-white">{currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch}</span></div>
+                      <div className="text-white/70">Stitching: <span className="text-white">{
+                        // Enhanced stitching display logic to extract actual stitching details
+                        (() => {
+                          const stitching = currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch;
+                          if (typeof stitching !== 'string') return 'Standard';
+
+                          // If stitching is generic "Standard", try to extract from conversation context
+                          if (stitching.toLowerCase() === 'standard' && conversation?.length > 0) {
+                            // Look through recent messages for stitching details
+                            const recentMessages = conversation.slice(-3); // Last 3 messages
+                            for (const msg of recentMessages) {
+                              const msgText = msg.content || '';
+                              // Look for stitching patterns in user messages
+                              const stitchingPatterns = [
+                                /\b(Contrast Stitching|Matching Stitching|Double Stitching|Flat Stitching|Overlock Stitching)\b/i,
+                                /\b(Red Stitching|White Stitching|Black Stitching|Navy Stitching|Blue Stitching)\b/i,
+                                /\b([A-Z][a-z]+\s+Stitching)\b/i,
+                                /Stitching[:\s]*([^,\n.!?]+)/i
+                              ];
+
+                              for (const pattern of stitchingPatterns) {
+                                const match = msgText.match(pattern);
+                                if (match) {
+                                  return match[1] || match[0];
+                                }
+                              }
+                            }
+                          }
+
+                          // Clean up corrupted stitching data that might contain pricing information
+                          if (stitching.includes('$') || stitching.includes('*') || stitching.includes('\n') || stitching.length > 30) {
+                            // Try to extract stitching type from corrupted data
+                            const cleanStitchingMatch = stitching.match(/\b(Contrast|Matching|Double|Flat|Overlock|Standard)\s*Stitching\b/i);
+                            return cleanStitchingMatch ? cleanStitchingMatch[0] : 'Standard';
+                          }
+
+                          return stitching;
+                        })()
+                      }</span></div>
                     )}
                   </div>
 
