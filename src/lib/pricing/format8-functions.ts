@@ -12,8 +12,156 @@ import {
   loadPremiumFabrics,
   loadDeliveryMethods,
   loadAccessories,
+  loadMoldCharges,
   calculatePriceForQuantity
 } from '@/lib/pricing/pricing-service';
+import { supabaseAdmin } from '@/lib/supabase';
+
+// Import advanced detection functions from knowledge base
+import {
+  detectFabricFromText,
+  detectClosureFromText,
+  detectAccessoriesFromText,
+  detectSizeFromText,
+  detectAllLogosFromText,
+  getDefaultApplicationForDecoration
+} from '@/lib/costing-knowledge-base';
+
+// Enhanced color detection function that handles "Royal/Black" patterns
+function extractAdvancedColor(text: string): string | null {
+  const lowerText = text.toLowerCase();
+
+  // Enhanced color detection with split color support (like "Royal/Black")
+  // Priority 1: Check for slash patterns (Royal/Black, Red/White, etc.)
+  const slashPattern = /(\w+)\/(\w+)/i;
+  const slashMatch = text.match(slashPattern);
+
+  if (slashMatch) {
+    const part1 = slashMatch[1];
+    const part2 = slashMatch[2];
+
+    // Common colors for validation - including Royal
+    const knownColors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple',
+                        'pink', 'brown', 'gray', 'grey', 'navy', 'lime', 'olive', 'royal',
+                        'maroon', 'gold', 'charcoal', 'khaki', 'carolina'];
+
+    // If both parts are colors, treat as split color
+    if (knownColors.includes(part1.toLowerCase()) && knownColors.includes(part2.toLowerCase())) {
+      const normalizedColor = `${part1}/${part2}`;
+      console.log('🎨 [ADVANCED-COLOR] Split color detected:', normalizedColor);
+      return normalizedColor;
+    }
+  }
+
+  // Priority 2: Single color patterns with enhanced detection
+  const colorPatterns = [
+    /(?:color:?\s*|in\s+|cap\s+)(\w+)/i,
+    /(?:^|\s)(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina)(?:\s|$|,)/i
+  ];
+
+  for (const pattern of colorPatterns) {
+    const colorMatch = text.match(pattern);
+    if (colorMatch) {
+      const detectedColor = colorMatch[1] || colorMatch[0].trim();
+      console.log('🎨 [ADVANCED-COLOR] Single color detected:', detectedColor);
+      return detectedColor;
+    }
+  }
+
+  console.log('🎨 [ADVANCED-COLOR] No color detected in:', text.substring(0, 50));
+  return null;
+}
+
+// Enhanced size detection with CM to hat size mapping
+function extractAdvancedSize(text: string): string | null {
+  const lowerText = text.toLowerCase();
+
+  // Priority 1: CM measurements (like "59 cm") -> convert to hat size
+  const cmPatterns = [
+    /(\d{2})\s*cm/i,
+    /(\d{2})\s*centimeter/i,
+    /size:?\s*(\d{2})\s*cm/i
+  ];
+
+  for (const pattern of cmPatterns) {
+    const cmMatch = text.match(pattern);
+    if (cmMatch) {
+      const cmSize = parseInt(cmMatch[1]);
+      const hatSize = convertCmToHatSize(cmSize);
+      console.log('📏 [ADVANCED-SIZE] CM size detected:', { cm: cmSize, hatSize });
+      return hatSize;
+    }
+  }
+
+  // Priority 2: Direct hat size patterns (like "7 1/4")
+  const hatSizePatterns = [
+    /\b([67](?:\s*\d+\/\d+|\.\d+)?)\b.*(?:hat|cap|size)/i,
+    /(?:hat|cap|size).*?\b([67](?:\s*\d+\/\d+|\.\d+)?)\b/i,
+    /\bsize\s*([67](?:\s*\d+\/\d+|\.\d+)?)\b/i
+  ];
+
+  for (const pattern of hatSizePatterns) {
+    const sizeMatch = text.match(pattern);
+    if (sizeMatch) {
+      const detectedSize = sizeMatch[1].trim();
+      console.log('📏 [ADVANCED-SIZE] Hat size detected:', detectedSize);
+      return detectedSize;
+    }
+  }
+
+  // Priority 3: Standard size patterns
+  const standardSizeMatch = text.match(/\b(small|medium|large|x-large|xxl)\b/i);
+  if (standardSizeMatch) {
+    const desc = standardSizeMatch[1].toLowerCase();
+    const hatSize = desc === 'small' ? '7' :
+                  desc === 'medium' ? '7 1/4' :
+                  desc === 'large' ? '7 1/2' :
+                  desc === 'x-large' ? '7 5/8' : '7 1/4';
+    console.log('📏 [ADVANCED-SIZE] Standard size detected:', { desc, hatSize });
+    return hatSize;
+  }
+
+  return null;
+}
+
+// CM to Hat Size conversion
+function convertCmToHatSize(cm: number): string {
+  const sizeMap: { [key: number]: string } = {
+    54: '6 3/4',
+    55: '6 7/8',
+    56: '7',
+    57: '7 1/8',
+    58: '7 1/4',
+    59: '7 3/8',  // This handles the "59 cm" from the error report
+    60: '7 1/2',
+    61: '7 5/8',
+    62: '7 3/4',
+    63: '7 7/8',
+    64: '8'
+  };
+
+  if (sizeMap[cm]) {
+    return sizeMap[cm];
+  }
+
+  // Find closest match
+  if (cm <= 54) return '6 3/4';
+  if (cm >= 64) return '8';
+
+  const sizes = Object.keys(sizeMap).map(Number).sort((a, b) => a - b);
+  let closest = sizes[0];
+  let minDiff = Math.abs(cm - closest);
+
+  for (const size of sizes) {
+    const diff = Math.abs(cm - size);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = size;
+    }
+  }
+
+  return sizeMap[closest] || '7 1/4';
+}
 
 // Helper function to extract previous quote context from conversation history
 export function extractPreviousQuoteContext(conversationHistory: Array<{ role: string; content: string }>) {
@@ -135,64 +283,43 @@ export async function analyzeCustomerRequirements(message: string, conversationH
 
   console.log('🔍 [ANALYZE] Quantity - Current message:', quantityMatch?.[1], 'Previous context:', previousContext.quantity, 'Final:', quantity);
 
-  // Extract colors - FIXED: Preserve previous context if no new colors specified
+  // Extract colors - ENHANCED: Use advanced color detection with split color support
   let colors = previousContext.colors || ['Black'];
   let color = previousContext.colors ? previousContext.colors.join('/') : 'Black';
 
-  // First try specific color combinations in current message
-  const colorCombinationMatch = message.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\s*\/\s*(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\b/gi);
-  let singleColorMatch = null;
-
-  if (colorCombinationMatch) {
-    const colorParts = colorCombinationMatch[0].split('/').map(c => c.trim());
-    colors = colorParts;
-    color = colorParts.join('/');
-  } else {
-    // Try single colors in current message
-    singleColorMatch = message.match(/\b(Red|Blue|Black|White|Green|Yellow|Navy|Gray|Grey|Brown|Khaki|Orange|Purple)\b/gi);
-    if (singleColorMatch) {
-      color = singleColorMatch[0];
-      colors = [singleColorMatch[0]];
+  // Use enhanced color detection that properly handles "Royal/Black" patterns
+  const detectedColor = extractAdvancedColor(message);
+  if (detectedColor) {
+    // Check if it's a split color
+    if (detectedColor.includes('/')) {
+      colors = detectedColor.split('/').map(c => c.trim());
+      color = detectedColor;
+    } else {
+      colors = [detectedColor];
+      color = detectedColor;
     }
   }
 
-  console.log('🔍 [ANALYZE] Colors - Previous context:', previousContext.colors, 'Current message match:', colorCombinationMatch?.[0] || singleColorMatch?.[0], 'Final:', colors);
+  console.log('🎨 [ANALYZE] Enhanced colors - Previous context:', previousContext.colors, 'Detected color:', detectedColor, 'Final colors:', colors);
 
-  // Extract size - FIXED: Handle specific measurements like "59 cm"
+  // Extract size - ENHANCED: Use advanced size detection with CM to hat size mapping
   let size = 'Large'; // Default
-  const standardSizeMatch = message.match(/\b(Small|Medium|Large|X-Large|XXL)\b/i);
-  const measurementMatch = message.match(/\b(\d+)\s*cm\b/i);
-
-  if (standardSizeMatch) {
-    size = standardSizeMatch[1];
-  } else if (measurementMatch) {
-    const measurement = parseInt(measurementMatch[1]);
-    // Convert measurements to standard sizes (approximate mapping)
-    if (measurement >= 58) size = 'Large';
-    else if (measurement >= 56) size = 'Medium';
-    else size = 'Small';
+  const detectedSize = extractAdvancedSize(message);
+  if (detectedSize) {
+    size = detectedSize;
   }
 
-  // Extract fabric with enhanced detection - FIXED: Handle dual fabrics like "Polyester/Laser Cut"
-  const msgLower = message.toLowerCase();
-  let fabric = null;
+  // Extract fabric - ENHANCED: Use advanced fabric detection from knowledge base
+  let fabric = detectFabricFromText(message);
+  console.log('🧵 [ANALYZE] Advanced fabric detection:', {
+    message: message.substring(0, 100),
+    detectedFabric: fabric
+  });
 
-  // Check for dual fabric mentions first
-  if (msgLower.includes('polyester') && msgLower.includes('laser cut')) {
-    fabric = 'Polyester/Laser Cut'; // Dual fabric type
-  } else if (msgLower.includes('acrylic')) {
-    fabric = 'Acrylic';
-  } else if (msgLower.includes('polyester')) {
-    fabric = 'Polyester';
-  } else if (msgLower.includes('laser cut')) {
-    fabric = 'Laser Cut';
-  } else if (msgLower.includes('genuine leather') || (msgLower.includes('leather') && !msgLower.includes('patch'))) {
-    fabric = 'Genuine Leather';
-  }
-
-  // Extract panel count and cap specifications
-  let panelCount = null;
-  let capSpecifications = {};
+  // Extract panel count and cap specifications - FIXED: Added complete logic with defaults
+  let panelCount = '6P'; // Default panel count from business rules
+  let capSpecifications: { panelCount?: string; [key: string]: any } = {};
+  const msgLower = message.toLowerCase(); // FIXED: Define missing msgLower variable
 
   if (msgLower.includes('7-panel') || msgLower.includes('7 panel')) {
     panelCount = '7P';
@@ -203,33 +330,77 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   } else if (msgLower.includes('5-panel') || msgLower.includes('5 panel')) {
     panelCount = '5P';
     capSpecifications.panelCount = '5P';
+  } else if (msgLower.includes('4-panel') || msgLower.includes('4 panel')) {
+    panelCount = '4P';
+    capSpecifications.panelCount = '4P';
+  } else {
+    // Set default panel count in capSpecifications
+    capSpecifications.panelCount = '6P';
   }
 
-  // Extract closure type
-  let closure = null;
-  if (msgLower.includes('fitted')) closure = 'Fitted';
-  if (msgLower.includes('snapback')) closure = 'Snapback';
-  if (msgLower.includes('strapback')) closure = 'Strapback';
-  if (msgLower.includes('velcro')) closure = 'Velcro';
+  // Extract closure - ENHANCED: Use advanced closure detection from knowledge base
+  let closure = detectClosureFromText(message);
+  console.log('🔒 [ANALYZE] Advanced closure detection:', {
+    message: message.substring(0, 100),
+    detectedClosure: closure
+  });
 
-  // Extract logo requirements
+  // Use previous context as fallback if no closure detected in current message
+  if (!closure && previousContext.closure) {
+    closure = previousContext.closure;
+    console.log('🔒 [ANALYZE] Using previous context closure:', closure);
+  }
+
+  // Extract logo requirements - ENHANCED: Use advanced logo detection from knowledge base
   let logoRequirements = [];
+  const logoDetection = detectAllLogosFromText(message);
 
-  // Complete logo method detection patterns based on your specifications
-  // FIXED: More specific patterns to avoid conflicts - 3D embroidery has priority
-  const logoMethods = {
-    '3d_embroidery': ['3d embroidery', '3d embroidered'],
-    'flat_embroidery': ['flat embroidery'], // Removed generic 'embroidery' to avoid conflicts
-    'leather_patch': ['leather patch', 'leather label'],
-    'rubber_patch': ['rubber patch', 'rubber label', 'pvc patch'],
-    'direct_print': ['direct print', 'screen print', 'screen printing', 'printed'],
-    'printed_patch': ['printed patch', 'transfer patch'],
-    'sublimated_patch': ['sublimated patch', 'sublimation patch', 'dye sub patch'],
-    'woven_patch': ['woven patch', 'woven label']
-  };
+  console.log('🎨 [ANALYZE] Advanced logo detection:', {
+    message: message.substring(0, 100),
+    primaryLogo: logoDetection.primaryLogo,
+    allLogos: logoDetection.allLogos,
+    hasMultiSetup: !!logoDetection.multiLogoSetup
+  });
+
+  // Convert detected logos to requirements format
+  if (logoDetection.allLogos && logoDetection.allLogos.length > 0) {
+    logoRequirements = logoDetection.allLogos.map(logo => ({
+      type: logo.type,
+      location: logo.position.charAt(0).toUpperCase() + logo.position.slice(1), // Capitalize
+      size: logo.size,
+      hasMoldCharge: logo.type.toLowerCase().includes('patch'), // Patches have mold charges
+      priority: logo.position === 'front' ? 1 : 2 // Front logos have priority
+    }));
+  } else if (logoDetection.primaryLogo && logoDetection.primaryLogo !== 'None') {
+    // Handle case where primary logo detected but no detailed positions
+    logoRequirements.push({
+      type: logoDetection.primaryLogo,
+      location: 'Front', // Default position
+      size: 'Large', // Default size for front
+      hasMoldCharge: logoDetection.primaryLogo.toLowerCase().includes('patch'),
+      priority: 1
+    });
+  }
+
+  // Set logo requirement variables
+  let logoRequirement = logoRequirements.length > 0 ? logoRequirements[0] : null;
+  let allLogoRequirements = logoRequirements;
+
+  // Extract accessories - ENHANCED: Use advanced accessories detection from knowledge base
+  let accessoriesFromDetection = detectAccessoriesFromText(message);
+
+  // Convert string array to object format for consistency with manual additions
+  let accessoriesRequirements: { type: string; location?: string }[] = accessoriesFromDetection.map(type => ({ type }));
+
+  console.log('🏷️ [ANALYZE] Advanced accessories detection:', {
+    message: message.substring(0, 100),
+    detectedAccessories: accessoriesRequirements
+  });
+
+  // All detection logic replaced with advanced functions from knowledge base
 
   // Position detection with sub-positions and default sizes
-  const getPositionAndSize = (msg) => {
+  const getPositionAndSize = (msg: string) => {
     let position = 'Front'; // Default position
     let subPosition = 'Center'; // Default sub-position
     let defaultSize = 'Large'; // Default for Front
@@ -278,7 +449,7 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   };
 
   // Enhanced multi-logo detection - detect all logo methods mentioned
-  const methodMapping = {
+  const methodMapping: { [key: string]: string } = {
     '3d_embroidery': '3D Embroidery',
     'flat_embroidery': 'Flat Embroidery',
     'leather_patch': 'Leather Patch',
@@ -365,12 +536,9 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     }
   }
 
-  // Return all logo requirements (supporting multiple logos)
-  let logoRequirement = logoRequirements.length > 0 ? logoRequirements[0] : null;
-  let allLogoRequirements = logoRequirements;
+  // Logo requirements already declared above, no need to redeclare
 
-  // Extract accessories requirements
-  let accessoriesRequirements = [];
+  // Use accessories requirements already declared above
 
   // Common accessories detection
   if (msgLower.includes('woven label') || msgLower.includes('label')) {
@@ -382,8 +550,8 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   if (msgLower.includes('sticker') || msgLower.includes('hologram')) {
     accessoriesRequirements.push({ type: 'Hologram Sticker' });
   }
-  if (msgLower.includes('swing tag')) {
-    accessoriesRequirements.push({ type: 'Swing Tag' });
+  if (msgLower.includes('b-tape') || msgLower.includes('btape') || msgLower.includes('b tape')) {
+    accessoriesRequirements.push({ type: 'B-Tape Print' });
   }
 
   return {
@@ -456,18 +624,8 @@ export async function fetchBlankCapCosts(requirements: any) {
 
   } catch (error) {
     console.error('❌ [BLANK-CAP] Error fetching costs:', error);
-    // Return fallback data with correct details
-    return {
-      productName: '6P AirFrame HSCS',
-      productCode: '6P_AIRFRAME_HSCS',
-      panelCount: '6P',
-      profile: 'High',
-      billShape: 'Slight Curved',
-      structure: 'Structured with Mono Lining',
-      unitPrice: 4.00,
-      totalCost: 4.00 * requirements.quantity,
-      pricingTier: 'Tier 2'
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Database connection error';
+    throw new Error(`Failed to fetch blank cap costs: ${errorMessage}`);
   }
 }
 
@@ -482,6 +640,7 @@ export async function fetchPremiumUpgrades(requirements: any) {
   };
 
   try {
+    // Handle premium fabrics
     if (requirements.fabric) {
       const fabrics = await loadPremiumFabrics();
       const fabric = fabrics.find(f =>
@@ -497,9 +656,81 @@ export async function fetchPremiumUpgrades(requirements: any) {
           totalCost: unitPrice * requirements.quantity
         };
         upgrades.totalCost += upgrades.fabric.totalCost;
+        console.log('✅ [PREMIUM] Found premium fabric:', fabric.name, 'at $', unitPrice, 'each');
       }
     }
 
+    // Handle premium closures
+    if (requirements.closure) {
+      console.log('🔒 [PREMIUM] Checking closure requirement:', requirements.closure);
+
+      // Load premium closures from database
+      const premiumClosures = await supabaseAdmin
+        .from('premium_closures')
+        .select('*');
+
+      if (premiumClosures.error) {
+        console.error('❌ [PREMIUM] Error loading closures:', premiumClosures.error);
+      } else {
+        console.log('🔒 [PREMIUM] Available closures:', premiumClosures.data?.map(c => c.name));
+
+        // Enhanced closure matching with multiple strategies
+        const reqClosure = requirements.closure.toLowerCase().trim();
+        console.log('🔒 [PREMIUM] Searching for closure:', reqClosure);
+
+        const closure = premiumClosures.data?.find(c => {
+          const dbName = c.name.toLowerCase();
+
+          // Strategy 1: Exact match
+          if (dbName === reqClosure) {
+            console.log('🎯 [PREMIUM] Exact match found:', c.name);
+            return true;
+          }
+
+          // Strategy 2: Contains match (db name contains requirement)
+          if (dbName.includes(reqClosure)) {
+            console.log('🎯 [PREMIUM] Contains match found:', c.name);
+            return true;
+          }
+
+          // Strategy 3: Reverse contains match (requirement contains db name)
+          if (reqClosure.includes(dbName)) {
+            console.log('🎯 [PREMIUM] Reverse contains match found:', c.name);
+            return true;
+          }
+
+          // Strategy 4: Key word matching for common variations
+          const keyWords = reqClosure.split(/[\s\-_]+/);
+          const dbKeyWords = dbName.split(/[\s\-_]+/);
+
+          for (const keyword of keyWords) {
+            if (keyword.length > 2 && dbKeyWords.some(dbWord => dbWord === keyword)) {
+              console.log('🎯 [PREMIUM] Keyword match found:', c.name, 'via keyword:', keyword);
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        if (closure) {
+          const priceResult = calculatePriceForQuantity(closure, requirements.quantity);
+          const unitPrice = priceResult.unitPrice;
+          upgrades.closure = {
+            name: closure.name,
+            unitPrice,
+            totalCost: unitPrice * requirements.quantity
+          };
+          upgrades.totalCost += upgrades.closure.totalCost;
+          console.log('✅ [PREMIUM] Found premium closure:', closure.name, 'at $', unitPrice, 'each, total:', upgrades.closure.totalCost);
+        } else {
+          console.log('ℹ️ [PREMIUM] Closure not premium or not found:', requirements.closure);
+          console.log('🔍 [PREMIUM] Available closure names for reference:', premiumClosures.data?.map(c => c.name));
+        }
+      }
+    }
+
+    console.log('⭐ [PREMIUM] Final upgrades:', upgrades);
     return upgrades;
 
   } catch (error) {
@@ -519,7 +750,7 @@ export async function fetchLogoSetupCosts(requirements: any) {
     return { logos: [], totalCost: 0, summary: 'None' };
   }
 
-  console.log('🎨 [LOGO] Processing', logoRequirements.length, 'logo(s):', logoRequirements.map(l => `${l.type} @ ${l.location}`));
+  console.log('🎨 [LOGO] Processing', logoRequirements.length, 'logo(s):', logoRequirements.map((l: any) => `${l.type} @ ${l.location}`));
 
   try {
     const logoMethods = await loadLogoMethods();
@@ -531,11 +762,44 @@ export async function fetchLogoSetupCosts(requirements: any) {
     for (const logoReq of logoRequirements) {
       console.log('🎨 [LOGO] Processing:', logoReq.type, logoReq.location, logoReq.size, logoReq.hasMoldCharge ? '(+Mold Charge)' : '');
 
-      // Find matching logo method
+      // Find matching logo method with enhanced matching logic
       const logoMethod = logoMethods.find(m => {
-        const nameMatch = m.name.toLowerCase().includes(logoReq.type.toLowerCase());
-        const sizeMatch = m.size.toLowerCase().includes(logoReq.size.toLowerCase());
-        return nameMatch && sizeMatch;
+        // Enhanced name matching to handle "Rubber Patch" -> "Rubber" mappings
+        let nameMatch = false;
+        const requestType = logoReq.type.toLowerCase();
+        const dbName = m.name.toLowerCase();
+
+        // Direct match: database name contains request type
+        if (dbName.includes(requestType)) {
+          nameMatch = true;
+        }
+        // Reverse match: request type contains database name (e.g., "Rubber Patch" contains "Rubber")
+        else if (requestType.includes(dbName)) {
+          nameMatch = true;
+        }
+        // Specific mappings for common cases
+        else if (requestType.includes('rubber') && dbName.includes('rubber')) {
+          nameMatch = true;
+        }
+        else if (requestType.includes('leather') && dbName.includes('leather')) {
+          nameMatch = true;
+        }
+        else if (requestType.includes('embroidery') && dbName.includes('embroidery')) {
+          nameMatch = true;
+        }
+
+        // Size matching with exact and partial matches
+        const requestSize = logoReq.size.toLowerCase();
+        const dbSize = m.size.toLowerCase();
+        const sizeMatch = dbSize === requestSize || dbSize.includes(requestSize) || requestSize.includes(dbSize);
+
+        const isMatch = nameMatch && sizeMatch;
+
+        if (isMatch) {
+          console.log(`✅ [LOGO-MATCH] Found: "${m.name}" (${m.size}) matches "${logoReq.type}" (${logoReq.size})`);
+        }
+
+        return isMatch;
       });
 
       if (!logoMethod) {
@@ -547,15 +811,18 @@ export async function fetchLogoSetupCosts(requirements: any) {
       const unitPrice = priceResult.unitPrice;
       let logoTotalCost = unitPrice * requirements.quantity;
 
-      // Calculate mold charge for Rubber Patch and Leather Patch
+      // Calculate mold charge from database based on logo size
       let moldCharge = 0;
       if (logoReq.hasMoldCharge) {
-        if (logoReq.type === 'Rubber Patch') {
-          moldCharge = 85; // Standard rubber patch mold charge
-        } else if (logoReq.type === 'Leather Patch') {
-          moldCharge = 65; // Standard leather patch mold charge
+        const moldCharges = await loadMoldCharges();
+        const moldChargeData = moldCharges.find(mc => mc.size === logoReq.size);
+
+        if (moldChargeData) {
+          moldCharge = parseFloat(moldChargeData.charge_amount);
+          console.log('💰 [LOGO] Using database mold charge:', logoReq.size, '=', moldCharge, 'for', logoReq.type);
+        } else {
+          console.warn('⚠️ [LOGO] No mold charge found for size:', logoReq.size, 'for', logoReq.type);
         }
-        console.log('💰 [LOGO] Adding mold charge:', moldCharge, 'for', logoReq.type);
       }
 
       const totalCostWithMold = logoTotalCost + moldCharge;
@@ -636,23 +903,8 @@ export async function fetchAccessoriesCosts(requirements: any) {
           totalCost: itemTotalCost
         });
       } else {
-        console.log('⚠️ [ACCESSORIES] Accessory not found in database:', reqAccessory.type);
-
-        // Add with default cost if not found in database
-        const defaultCost = 0.25; // $0.25 per piece default
-        const itemTotalCost = defaultCost * requirements.quantity;
-
-        const accessoryItem = {
-          name: reqAccessory.type,
-          type: reqAccessory.type,
-          location: reqAccessory.location || null,
-          unitPrice: defaultCost,
-          totalCost: itemTotalCost,
-          quantity: requirements.quantity
-        };
-
-        accessoryItems.push(accessoryItem);
-        totalCost += itemTotalCost;
+        console.error('❌ [ACCESSORIES] Accessory not found in database:', reqAccessory.type);
+        throw new Error(`Accessory "${reqAccessory.type}" not found in database. Please add it to the accessories table.`);
       }
     }
 
@@ -701,13 +953,8 @@ export async function fetchDeliveryCosts(requirements: any) {
 
   } catch (error) {
     console.error('❌ [DELIVERY] Error fetching costs:', error);
-    // Return fallback
-    return {
-      method: 'Regular Delivery',
-      leadTime: '6-10 days',
-      unitPrice: 20.00,
-      totalCost: 20.00
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Database connection error';
+    throw new Error(`Failed to fetch delivery method costs: ${errorMessage}`);
   }
 }
 
@@ -721,32 +968,74 @@ export function generateStructuredResponse(
 ) {
   const total = capDetails.totalCost + (premiumUpgrades.totalCost || 0) + (logoSetup.totalCost || 0) + (accessories.totalCost || 0) + delivery.totalCost;
 
+  // Calculate quantity from cap details (total cost / unit price = quantity)
+  const quantity = Math.round(capDetails.totalCost / capDetails.unitPrice);
+
   let response = `Here's your detailed quote with verified pricing from our database:\n\n`;
 
   response += `📊 **Cap Style Setup** ✅\n`;
   response += `•${capDetails.productName} (${capDetails.pricingTier})\n`;
-  response += `•Base cost: $${capDetails.totalCost.toFixed(2)}\n\n`;
+  response += `•Base cost: $${capDetails.totalCost.toFixed(2)} ($${capDetails.unitPrice.toFixed(2)}/cap)\n\n`;
 
-  if (premiumUpgrades.fabric) {
+  if (premiumUpgrades.fabric || premiumUpgrades.closure) {
     response += `⭐ **Premium Upgrades** ✅\n`;
-    response += `•Fabric: ${premiumUpgrades.fabric.name} (+$${premiumUpgrades.fabric.totalCost.toFixed(2)})\n\n`;
+
+    if (premiumUpgrades.fabric) {
+      const fabricPerCap = premiumUpgrades.fabric.totalCost / quantity;
+      response += `•Fabric: ${premiumUpgrades.fabric.name} (+$${premiumUpgrades.fabric.totalCost.toFixed(2)}) ($${fabricPerCap.toFixed(2)}/cap)\n`;
+    }
+
+    if (premiumUpgrades.closure) {
+      const closurePerCap = premiumUpgrades.closure.totalCost / quantity;
+      response += `•Closure: ${premiumUpgrades.closure.name} (+$${premiumUpgrades.closure.totalCost.toFixed(2)}) ($${closurePerCap.toFixed(2)}/cap)\n`;
+    }
+
+    response += `\n`;
   }
 
   if (logoSetup.logos.length > 0) {
     response += `🎨 **Logo Setup** ✅\n`;
     logoSetup.logos.forEach((logo: any) => {
-      response += `•${logo.location}: ${logo.type} (${logo.size}) - $${logo.totalCost.toFixed(2)}\n`;
+      const logoPerCap = logo.totalCost / quantity;
+      response += `•${logo.location}: ${logo.type} (${logo.size}) - $${logo.totalCost.toFixed(2)} ($${logoPerCap.toFixed(2)}/cap)\n`;
     });
     response += `\n`;
   }
 
+  if (accessories.items && accessories.items.length > 0) {
+    const accessoryPerCap = accessories.totalCost / quantity;
+    response += `🏷️ **Accessories** ✅\n`;
+    response += `•Total accessories: $${accessories.totalCost.toFixed(2)} ($${accessoryPerCap.toFixed(2)}/cap)\n\n`;
+  }
+
+  const deliveryPerCap = delivery.totalCost / quantity;
   response += `🚚 **Delivery** ✅\n`;
   response += `•Method: ${delivery.method}\n`;
   response += `•Timeline: ${delivery.leadTime}\n`;
-  response += `•Cost: $${delivery.totalCost.toFixed(2)}\n\n`;
+  response += `•Cost: $${delivery.totalCost.toFixed(2)} ($${deliveryPerCap.toFixed(2)}/cap)\n\n`;
 
+  const totalPerCap = total / quantity;
   response += `💰 **Total Investment: $${total.toFixed(2)}**\n`;
-  response += `Per Cap Cost: $${(total / capDetails.totalCost * capDetails.unitPrice).toFixed(2)}\n\n`;
+  response += `**Per Cap Cost: $${totalPerCap.toFixed(2)}**\n\n`;
+
+  response += `📊 **Cost Breakdown Per Cap:**\n`;
+  response += `• Base Cap: $${capDetails.unitPrice.toFixed(2)}\n`;
+  if (premiumUpgrades.fabric) {
+    response += `• Premium Fabric: $${(premiumUpgrades.fabric.totalCost / quantity).toFixed(2)}\n`;
+  }
+  if (premiumUpgrades.closure) {
+    response += `• Premium Closure: $${(premiumUpgrades.closure.totalCost / quantity).toFixed(2)}\n`;
+  }
+  if (logoSetup.logos.length > 0) {
+    logoSetup.logos.forEach((logo: any) => {
+      response += `• ${logo.location} Logo: $${(logo.totalCost / quantity).toFixed(2)}\n`;
+    });
+  }
+  if (accessories.items && accessories.items.length > 0) {
+    response += `• Accessories: $${(accessories.totalCost / quantity).toFixed(2)}\n`;
+  }
+  response += `• Delivery: $${deliveryPerCap.toFixed(2)}\n`;
+  response += `**= Total: $${totalPerCap.toFixed(2)}/cap**\n\n`;
 
   response += `✅ All pricing verified from database\n`;
   response += `Would you like to modify any specifications or proceed with this quote?`;

@@ -307,7 +307,7 @@ export const AI_DETECTION_RULES = {
     'acrylic': ['acrylic'],
     'suede cotton': ['suede cotton', 'suede'],
     'genuine leather': ['genuine leather', 'leather'],
-    'air mesh': ['air mesh', 'mesh'],
+    'air mesh': ['air mesh', 'airmesh', 'mesh'],
     'duck camo': ['duck camo'], // FIXED: Separate duck camo for specific detection
     'camo': ['army camo', 'digital camo', 'bottomland camo', 'camo', 'camouflage'], // Generic camo
     'polyester': ['polyester'], // ADDED: Missing polyester pattern
@@ -332,8 +332,8 @@ export const AI_DETECTION_RULES = {
   
   // Closure detection patterns
   CLOSURE_PATTERNS: {
-    'fitted': ['fitted'],
-    'flexfit': ['flexfit'],
+    'flexfit': ['flexfit cap', 'flex fit cap', 'flextfit cap', 'flexfit', 'flex fit', 'flextfit'],
+    'fitted': ['fitted cap', 'fitted', 'fit cap'],
     'buckle': ['adjustable', 'buckle'],
     'velcro': ['velcro'],
     'snapback': ['snapback', 'snap back']
@@ -683,41 +683,41 @@ export function validateFabricColorCompatibility(fabric: string, color: string):
   const normalizedFabric = fabric.trim();
 
   // Check if fabric is premium (supports all colors)
-  if (FABRIC_COLOR_AVAILABILITY.PREMIUM_FABRICS.includes(normalizedFabric)) {
+  if (FABRIC_COLOR_AVAILABILITY.PREMIUM_FABRICS.includes(normalizedFabric as any)) {
     // For premium fabrics, check if color exists in available options
     const normalizedColor = color.trim();
 
     // Check solid colors
-    if (FABRIC_COLOR_AVAILABILITY.SOLID_COLORS.includes(normalizedColor)) {
+    if (FABRIC_COLOR_AVAILABILITY.SOLID_COLORS.includes(normalizedColor as any)) {
       return { isValid: true, message: `${normalizedColor} is available for ${normalizedFabric}` };
     }
 
     // Check split colors
-    if (FABRIC_COLOR_AVAILABILITY.SPLIT_COLORS.includes(normalizedColor)) {
+    if (FABRIC_COLOR_AVAILABILITY.SPLIT_COLORS.includes(normalizedColor as any)) {
       return { isValid: true, message: `${normalizedColor} split-color is available for ${normalizedFabric}` };
     }
 
     // Check tri-colors
-    if (FABRIC_COLOR_AVAILABILITY.TRI_COLORS.includes(normalizedColor)) {
+    if (FABRIC_COLOR_AVAILABILITY.TRI_COLORS.includes(normalizedColor as any)) {
       return { isValid: true, message: `${normalizedColor} tri-color is available for ${normalizedFabric}` };
     }
 
     return {
       isValid: false,
       message: `${normalizedColor} is not available for ${normalizedFabric}`,
-      suggestedColors: FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS
+      suggestedColors: [...FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS]
     };
   }
 
   // For specialty fabrics, only standard colors available
-  if (FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS.includes(color.trim())) {
+  if (FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS.includes(color.trim() as any)) {
     return { isValid: true, message: `${color} is available for ${normalizedFabric}` };
   }
 
   return {
     isValid: false,
     message: `${color} is not available for ${normalizedFabric}. Specialty fabrics support limited colors only.`,
-    suggestedColors: FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS
+    suggestedColors: [...FABRIC_COLOR_AVAILABILITY.STANDARD_COLORS]
   };
 }
 
@@ -750,8 +750,8 @@ export function checkLabDipEligibility(quantity: number, fabric?: string): {
 export function getFabricConstructionOptions(fabric: string): string[] {
   const normalizedFabric = fabric.trim();
 
-  if (FABRIC_COLOR_AVAILABILITY.FABRIC_CONSTRUCTIONS[normalizedFabric]) {
-    return Object.entries(FABRIC_COLOR_AVAILABILITY.FABRIC_CONSTRUCTIONS[normalizedFabric])
+  if ((FABRIC_COLOR_AVAILABILITY.FABRIC_CONSTRUCTIONS as any)[normalizedFabric]) {
+    return Object.entries((FABRIC_COLOR_AVAILABILITY.FABRIC_CONSTRUCTIONS as any)[normalizedFabric])
       .map(([type, value]) => `${value} (${type})`);
   }
 
@@ -947,6 +947,8 @@ export function detectAllLogosFromText(text: string): {
             // Size detection with proximity
             if (contextText.includes('big') || contextText.includes('large')) {
               size = 'Large';
+            } else if (contextText.includes('medium') || contextText.includes('med')) {
+              size = 'Medium';
             } else if (contextText.includes('small')) {
               size = 'Small';
             } else {
@@ -1045,13 +1047,14 @@ export function detectAllLogosFromText(text: string): {
 
 export function detectClosureFromText(text: string): string | null {
   const lowerText = text.toLowerCase();
-  
+
   for (const [closure, patterns] of Object.entries(AI_DETECTION_RULES.CLOSURE_PATTERNS)) {
     if (patterns.some(pattern => lowerText.includes(pattern))) {
-      return closure;
+      // Return properly capitalized closure name to match database
+      return closure.charAt(0).toUpperCase() + closure.slice(1);
     }
   }
-  
+
   return null;
 }
 
