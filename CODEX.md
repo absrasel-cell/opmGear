@@ -1,24 +1,27 @@
 # CODEX.md - Project Context for US Custom Cap
 
-This file mirrors the intent of `CLAUDE.md` and defines how I (Codex) work in this repository. It consolidates paths, guardrails, and the high‑level system overview so I can operate consistently and safely.
+This file mirrors the intent of `CLAUDE.md` and defines how I (Codex) work in this repository. It consolidates paths, guardrails, and the high-level system overview so I can operate consistently and safely.
 
 ## Ops Checklist (Read First)
 - Current task: `\Claude Instruction\currentTask.txt`
-- Error reports / follow‑ups: `\Claude Instruction\errorReport.txt`
-- Screenshots (when explicitly requested): `\Claude Instruction\Screenshots`
+- Error reports / follow-ups: `\Claude Instruction\errorReport.txt`
+- Screenshots (only if asked): `\Claude Instruction\Screenshots`
 - General business context: `F:\Custom Cap - github\Claude Instruction\custom cap 101.txt`
+- Team TODO list (fullstack-cap-engineer): `F:\Custom Cap - github\Claude Instruction\todo list.txt`
 
 ## Special Routing Notes
-- Support page uses isolated AI resources under `src\app\ai` with details in: `src\app\ai\instruction.txt`.
-- Dashboard Admin – product create page: `src\app\dashboard\admin\products\create\page.tsx`.
-- Advanced Product Page at `src\app\customize\[slug]` is off‑limits unless explicitly authorized.
-- Do not add any hardcoded or imaginary data/logic unless explicitly requested.
+- Support Page resources live under: `src\app\ai`
+- Support Page complete memory (ALWAYS READ FIRST): `F:\Custom Cap - github\Claude Instruction\SUPPORT_PAGE_MEMORY.md`
+- Dashboard Admin product create page: `src\app\dashboard\admin\products\create\page.tsx`
+- Advanced Product Page is restricted: `src\app\customize\[slug]` (do not change without approval)
+- Do not add any hardcoded or imaginary data/logic unless explicitly requested
 
 ## Project Overview
-US Custom Cap is a Next.js 15 e‑commerce platform for custom baseball caps, featuring role‑based dashboards, advanced messaging, order management, and a modern UI with tier‑based pricing and volume discounts.
+US Custom Cap is a Next.js 15 e-commerce platform for custom baseball caps, featuring role-based dashboards, advanced messaging, order management, and a modern UI with volume/tier-based pricing.
 
-**Status**: Production Ready (v3.3.0)
-**Completion**: ~96% — marketplace expansion phase in progress
+**Status**: Production Ready (v3.4.0)
+**Completion**: ~97% - marketplace expansion phase in progress
+**Latest Update**: Complete pricing system migration to Supabase database (January 2025)
 
 ## Tech Stack & Architecture
 ### Frontend
@@ -26,9 +29,9 @@ US Custom Cap is a Next.js 15 e‑commerce platform for custom baseball caps, fe
 - Tailwind CSS 4, Heroicons, Lucide React
 
 ### Backend & Data
-- Supabase PostgreSQL with Prisma ORM
+- Supabase PostgreSQL with Row Level Security
 - NextAuth.js for authentication, `bcryptjs` for hashing
-- Row Level Security policies
+- No Prisma - use Supabase directly; use Supabase MCP for DB tasks
 
 ### External Services
 - Sanity.io for headless CMS
@@ -51,7 +54,7 @@ src/
 ### Core Entities
 - User: auth, roles (CUSTOMER, MEMBER, ADMIN), profiles
 - Order: lifecycle and status tracking
-- Cart: session‑scoped cart state
+- Cart: session-scoped cart state
 - Message: categories, priorities, attachments
 - Quote: quote request workflow
 
@@ -62,24 +65,19 @@ src/
 - MessagePriority: LOW | NORMAL | HIGH | URGENT
 
 ## Design System
-- Glass‑morphism surfaces with backdrop blur
+- Glass-morphism surfaces with backdrop blur
 - Centered layout with consistent spacing scale
 - Color themes: Lime (primary), Orange (wholesale), Purple (supplier)
 - Modern typography and smooth, subtle animations
 
-## Pricing & Data Sources
-Authoritative CSVs used by pricing/logic live in:
-- `src\app\csv\Blank Cap Pricings.csv`
-- `src\app\csv\Customer Products.csv`
-- `src\app\csv\Customization Pricings.csv`
-- Additional AI pricing inputs: `src\app\ai\Blank Cap\priceTier.csv`
-
-Display rules include tier‑based pricing, volume discount visualization, and aggregation across logos, accessories, closures, and delivery options.
+## Pricing System
+- Source of truth: Supabase database via `PricingService` (CSV-based pricing is deprecated)
+- Tier-based pricing, volume discounts, and aggregation across logos, accessories, closures, and delivery options
 
 ## AuthN/AuthZ
 - Roles: CUSTOMER, MEMBER, ADMIN (Master Admin: `absrasel@gmail.com`)
 - NextAuth.js sessions, middleware protection, input validation
-- Prisma types for end‑to‑end typing and RLS policies for data safety
+- RLS policies in Supabase for data safety
 
 ## Dashboards
 ### Admin
@@ -91,41 +89,38 @@ Display rules include tier‑based pricing, volume discount visualization, and a
 
 ### Member
 - Order history and reorders
-- Saved orders, continue‑editing flows
+- Saved orders, continue-editing flows
 - Profile management and messaging
 
 ## Messaging System
-- iMessage‑style UI with bubbles
-- File attachments and reply‑to behavior
+- iMessage-style UI with bubbles
+- File attachments and reply-to behavior
 - Category and priority tagging
-- Optimistic send and contact‑support integration
+- Optimistic send and contact-support integration
 
-## E‑commerce Flows
-- Real‑time customization, color previews, size/qty controls
+## E-commerce Flows
+- Real-time customization, color previews, size/qty controls
 - Option selection (logos, accessories, closures)
 - Live cost calculation and volume discounts
 - Persistent cart with session storage
 
 ## Development Guidelines
-- TypeScript first, Prisma‑generated types
+- TypeScript-first
 - Consistent REST patterns and HTTP semantics
 - Centralized error handling; avoid speculative logic/data
 - Performance: optimistic UI, efficient queries, background tasks
+- Database: Supabase only (no Prisma); use Supabase MCP for DB tasks
 
 ## Scripts
-```bash
+```
 npm run dev      # Start dev server
 npm run build    # Build for production
 npm run start    # Run production
 npm run lint     # ESLint
-
-# Prisma
-npx prisma generate
-npx prisma db push
 ```
 
 ## Environment Variables (sample)
-```env
+```
 # Database
 DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
@@ -150,8 +145,9 @@ FROM_EMAIL="noreply@uscustomcap.com"
 ```
 
 ## How Codex Uses This File
-- Always check the Ops Checklist before starting work.
-- Respect Special Routing Notes; avoid touching restricted paths without approval.
-- When implementing or debugging, use the CSVs and `src\app\ai` resources as primary data sources; do not fabricate values.
-- If something is ambiguous, consult `currentTask.txt`, `errorReport.txt`, and the business context document, then ask for clarification.
+- Always check the Ops Checklist before starting work
+- Respect Special Routing Notes; avoid touching restricted paths without approval
+- Use Supabase (not Prisma) and the PricingService for any pricing/data operations
+- For support page work, read the Support Page memory first
+- If something is ambiguous, consult `currentTask.txt`, `errorReport.txt`, the TODO list, and business context, then ask for clarification
 

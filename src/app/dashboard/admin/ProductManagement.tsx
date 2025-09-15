@@ -619,7 +619,7 @@ export function ProductManagement() {
     
     // Add additional supplier information for resale products
     if (formData.productType === 'resale') {
-     headers['x-user-role'] = user.role || '';
+     headers['x-user-role'] = user.customerRole || '';
      headers['x-user-company'] = user.company || '';
     }
    }
@@ -820,7 +820,7 @@ export function ProductManagement() {
     userId: user.id,
     userName: user.name || user.email,
     userEmail: user.email,
-    userRole: user.role,
+    userRole: user.customerRole,
     userCompany: user.company
    };
    
@@ -1704,7 +1704,7 @@ export function ProductManagement() {
             </label>
             <input
              type="text"
-             value={user?.role || ''}
+             value={user?.customerRole || ''}
              disabled
              className="w-full px-3 py-2 border border-stone-600 bg-black/30 text-slate-400 rounded-lg"
              placeholder="User role"

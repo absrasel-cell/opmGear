@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-// REMOVED: CSV-based pricing imports - using Supabase exclusively
-// import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV, CustomizationPricing } from '@/lib/pricing-server';
-// import { loadFabricPricingData } from '@/lib/costing-knowledge-base';
+// CSV-based pricing imports for Advanced Product page (separate from Support AI Supabase pricing)
+import { getBaseProductPricing, loadCustomizationPricing, getPriceForQuantityFromCSV, CustomizationPricing } from '@/lib/pricing-server';
+import { loadFabricPricingData } from '@/lib/costing-knowledge-base';
 import { generatePricingEstimate } from '@/lib/pricing/pricing-service';
 
 interface LogoSetupSelection {
@@ -16,7 +16,7 @@ interface CostCalculationRequest {
  logoSetupSelections: Record<string, LogoSetupSelection>;
  multiSelectOptions: Record<string, string[]>;
  selectedOptions: Record<string, string>;
- baseProductPricing: {
+ baseProductPricing?: {
   price48: number;
   price144: number;
   price576: number;
@@ -285,9 +285,9 @@ export async function POST(request: NextRequest) {
    logoSetupKeys: body.logoSetupSelections ? Object.keys(body.logoSetupSelections) : []
   });
   
-  // CSV pricing DISABLED - using Supabase pricing exclusively
-  console.log('ℹ️ [CALCULATE-COST] CSV pricing disabled - using Supabase pricing service only');
-  const pricingData: any[] = [];
+  // Load CSV pricing data for Advanced Product page (Support AI uses Supabase separately)
+  console.log('ℹ️ [CALCULATE-COST] Loading CSV pricing data for Advanced Product page');
+  const pricingData = await loadCustomizationPricing();
   
   console.log('📊 Pricing data loaded:', {
    totalItems: pricingData.length,
@@ -373,10 +373,15 @@ export async function POST(request: NextRequest) {
   // Use the price tier from the request body for consistent pricing calculations
   const effectivePriceTier = priceTier || selectedOptions?.priceTier || 'Tier 1';
   
-  // CSV BASE PRICING DISABLED - using simplified fallback
+  // Use CSV-based pricing for Advanced Product page
   const getUnitPrice = async (quantity: number): Promise<number> => {
-    console.log('ℹ️ [CALCULATE-COST] Using fallback base pricing - Supabase pricing should handle this');
-    // Simplified tiered pricing (temporary fallback)
+    console.log('ℹ️ [CALCULATE-COST] Using CSV-based pricing for Advanced Product page');
+    const csvPricing = await getBaseProductPricing(effectivePriceTier);
+    if (csvPricing) {
+      return getPriceForQuantityFromCSV(csvPricing, quantity);
+    }
+    // Fallback if CSV pricing fails
+    console.warn('⚠️ CSV pricing failed, using fallback pricing');
     if (quantity >= 10000) return 2.50;
     if (quantity >= 2880) return 3.00;
     if (quantity >= 1152) return 3.50;
@@ -647,9 +652,9 @@ export async function POST(request: NextRequest) {
 
   // Calculate premium fabric costs using BOTH Fabric.csv and Customization Pricings.csv
   const premiumFabricCosts: Array<{ name: string; cost: number; unitPrice: number }> = [];
-  
-  // CSV fabric pricing DISABLED - using Supabase pricing exclusively
-  const fabricPricingData: any[] = [];
+
+  // Load fabric pricing data for Advanced Product page
+  const fabricPricingData = await loadFabricPricingData();
   
   // Get fabric setup from selectedOptions (for cart) or direct body properties (for product page)
   const fabricSetup = selectedOptions?.['fabric-setup'] || body.fabricSetup;

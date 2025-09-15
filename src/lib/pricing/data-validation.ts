@@ -251,7 +251,7 @@ export class DataValidator {
         const seen = new Set()
         let duplicates = 0
 
-        data?.forEach(record => {
+        data?.forEach((record: Record<string, any>) => {
           const key = column.split(',').map(col => record[col.trim()]).join('|')
           if (seen.has(key)) {
             duplicates++

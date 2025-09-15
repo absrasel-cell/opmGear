@@ -1,0 +1,18 @@
+{
+  "step1": {
+    "hasMoldCharges": true,
+    "response": "Here's your detailed quote with verified pricing from our database:\n\n📊 **Cap Style Setup** ✅\n•7P Elite Seven HFS (Tier 3)\n•Base cost: $612.00 ($4.25/cap)\n•Color: Black/White\n\n⭐ **Premium Upgrades** ✅\n•Polyester: (+$0.00) ($0.00/cap)\n\n🎨 **Logo Setup** ✅\n•Back: Rubber (Medium) - $494.72 ($2.88/cap + $80.00 mold)\n•Front: Leather (Large) - $534.72 ($2.88/cap + $120.00 mold)\n•Left: 3D Embroidery (Small) - $216.00 ($1.50/cap)\n•Right: 3D Embroidery (Small) - $216.00 ($1.50/cap)\n\n🚚 **Delivery** ✅\n•Method: Regular Delivery\n•Timeline: 6-10 days days\n•Cost: $473.76 ($3.29/cap)\n\n💰 **Total Investment: $2547.20**\n**Per Cap Cost: $17.69**\n\n📊 **Cost Breakdown Per Cap:**\n• Base Cap: $4.25\n• Premium Polyester: $0.00\n• Back Logo: $3.44 ($2.88 + $0.56 mold)\n• Front Logo: $3.71 ($2.88 + $0.83 mold)\n• Left Logo: $1.50\n• Right Logo: $1.50\n• Delivery: $3.29\n**= Total: $17.69/cap**\n\n✅ All pricing verified from database\nWould you like to modify any specifications or proceed with this quote?"
+  },
+  "step2": {
+    "hasMoldCharges": true,
+    "hasLogos": true,
+    "hasCorrectProduct": true,
+    "response": "I've updated your quote with the requested changes:\n\n🔄 **Changes Applied:**\n• Change quantity from 144 to 600 pieces\n\n💰 **Cost Impact:** +$6250.80 increase (from $2547.20 to $8798.00)\n\nHere's your detailed quote with verified pricing from our database:\n\n📊 **Cap Style Setup** ✅\n•7P Elite Seven HFS (undefined)\n•Base cost: $2400.00 ($4.00/cap)\n•Color: Black/White\n\n⭐ **Premium Upgrades** ✅\n•Polyester: (+$0.00) ($0.00/cap)\n\n🎨 **Logo Setup** ✅\n•Back: Rubber (Medium) - $1658.00 ($2.63/cap + $80.00 mold)\n•Front: Leather (Large) - $1698.00 ($2.63/cap + $120.00 mold)\n•Left: 3D Embroidery (Small) - $708.00 ($1.18/cap)\n•Right: 3D Embroidery (Small) - $708.00 ($1.18/cap)\n\n🚚 **Delivery** ✅\n•Method: Regular Delivery\n•Timeline: 6-10 days days\n•Cost: $1626.00 ($2.71/cap)\n\n💰 **Total Investment: $8798.00**\n**Per Cap Cost: $14.66**\n\n📊 **Cost Breakdown Per Cap:**\n• Base Cap: $4.00\n• Premium Polyester: $0.00\n• Back Logo: $2.76 ($2.63 + $0.13 mold)\n• Front Logo: $2.83 ($2.63 + $0.20 mold)\n• Left Logo:"
+  },
+  "step3": {
+    "hasMoldCharges": true,
+    "hasLogos": true,
+    "hasCorrectProduct": true,
+    "response": "I've updated your quote with the requested changes:\n\n🔄 **Changes Applied:**\n• Change color from Black/White to Red/Blue\n\nHere's your detailed quote with verified pricing from our database:\n\n📊 **Cap Style Setup** ✅\n•7P Elite Seven HFS (Tier 3)\n•Base cost: $2400.00 ($4.00/cap)\n•Color: Red/Blue\n\n⭐ **Premium Upgrades** ✅\n•Polyester: (+$0.00) ($0.00/cap)\n\n🎨 **Logo Setup** ✅\n•Back: Rubber (Medium) - $1658.00 ($2.63/cap + $80.00 mold)\n•Front: Leather (Large) - $1698.00 ($2.63/cap + $120.00 mold)\n•Left: 3D Embroidery (Small) - $708.00 ($1.18/cap)\n•Right: 3D Embroidery (Small) - $708.00 ($1.18/cap)\n\n🚚 **Delivery** ✅\n•Method: Regular Delivery\n•Timeline: 6-10 days days\n•Cost: $1626.00 ($2.71/cap)\n\n💰 **Total Investment: $8798.00**\n**Per Cap Cost: $14.66**\n\n📊 **Cost Breakdown Per Cap:**\n• Base Cap: $4.00\n• Premium Polyester: $0.00\n• Back Logo: $2.76 ($2.63 + $0.13 mold)\n• Front Logo: $2.83 ($2.63 + $0.20 mold)\n• Left Logo: $1.18\n• Right Logo: $1.18\n• Delivery: $2.71\n**= Total: $14.66/cap**\n\n✅"
+  }
+}

@@ -466,8 +466,8 @@ export default function AdminOrdersPage() {
     }
    }
    
-   const { getBaseProductPricing } = await import('@/lib/pricing');
-   const baseProductPricing = getBaseProductPricing(pricingTier);
+   // Remove the problematic client-side call to getBaseProductPricing
+   // The API endpoint will handle pricing internally
 
    // Enhanced request data validation
    const requestData = {
@@ -475,7 +475,6 @@ export default function AdminOrdersPage() {
     logoSetupSelections: order.logoSetupSelections || {},
     multiSelectOptions: order.multiSelectOptions || {},
     selectedOptions: order.selectedOptions || {},
-    baseProductPricing,
     priceTier: pricingTier // Send the tier to API for consistency
    };
 
@@ -484,7 +483,6 @@ export default function AdminOrdersPage() {
     hasLogoSetupSelections: !!requestData.logoSetupSelections,
     hasMultiSelectOptions: !!requestData.multiSelectOptions,
     hasSelectedOptions: !!requestData.selectedOptions,
-    hasBaseProductPricing: !!requestData.baseProductPricing,
     priceTier: requestData.priceTier
    });
 

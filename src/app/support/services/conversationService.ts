@@ -108,8 +108,11 @@ export class ConversationService {
         const conversation = await response.json();
         console.log('✅ Conversation loaded:', {
           id: conversation.id,
-          messageCount: conversation.messages?.length || 0,
-          hasOrderBuilder: !!conversation.orderBuilderState
+          messageCount: conversation.ConversationMessage?.length || 0,
+          hasOrderBuilderState: !!conversation.orderBuilderState,
+          hasMetadataOrderBuilder: !!conversation.metadata?.orderBuilder,
+          conversationContext: conversation.context,
+          setIsOrderBuilderVisibleProvided: !!setIsOrderBuilderVisible
         });
 
         // Set the conversation ID
@@ -129,17 +132,78 @@ export class ConversationService {
         // Restore Order Builder state if available - check both orderBuilderState and metadata.orderBuilder
         const orderBuilderData = conversation.orderBuilderState || conversation.metadata?.orderBuilder;
         if (orderBuilderData) {
+          // CRITICAL FIX: Transform OrderBuilderState from database format to expected format
+          let transformedOrderBuilderData = orderBuilderData;
+
+          // If this is from the OrderBuilderState table, transform to expected format
+          if (orderBuilderData.capStyleSetup || orderBuilderData.customization || orderBuilderData.delivery) {
+            console.log('🔄 Transforming OrderBuilderState from database format');
+            transformedOrderBuilderData = {
+              capDetails: orderBuilderData.capStyleSetup || {},
+              customization: orderBuilderData.customization || {},
+              delivery: orderBuilderData.delivery || {},
+              pricing: orderBuilderData.costBreakdown || {},
+              orderBuilderStatus: orderBuilderData.metadata?.orderBuilderStatus || {
+                capStyle: { completed: false, status: 'red', items: {} },
+                customization: { completed: false, status: 'empty', items: {}, logoPositions: [] },
+                delivery: { completed: false, status: 'red', items: {} },
+                costBreakdown: { completed: false, status: 'red', selectedVersionId: null, versions: [] }
+              },
+              leadTimeData: orderBuilderData.metadata?.leadTimeData || null,
+              quoteVersions: orderBuilderData.metadata?.quoteVersions || []
+            };
+
+            console.log('✅ Transformed OrderBuilderState:', {
+              hasCapDetails: !!transformedOrderBuilderData.capDetails,
+              hasCustomization: !!transformedOrderBuilderData.customization,
+              hasDelivery: !!transformedOrderBuilderData.delivery,
+              hasPricing: !!transformedOrderBuilderData.pricing,
+              hasOrderBuilderStatus: !!transformedOrderBuilderData.orderBuilderStatus,
+              hasQuoteVersions: !!transformedOrderBuilderData.quoteVersions?.length
+            });
+          }
+
           await this.restoreOrderBuilderState(
-            { ...conversation, orderBuilderState: orderBuilderData },
+            { ...conversation, orderBuilderState: transformedOrderBuilderData },
             setCurrentQuoteData,
             setOrderBuilderStatus,
             setLeadTimeData,
             OrderBuilderService
           );
 
-          // DON'T automatically show Order Builder when loading conversation history
-          // Let the user decide when they want to see it by interacting with quotes
-          console.log('🔧 Order Builder state restored but keeping it hidden until user interaction');
+          // Ensure Order Builder is visible when state exists, even if quoteVersions are absent
+          if (setIsOrderBuilderVisible) {
+            try {
+              setIsOrderBuilderVisible(true);
+              console.log('Order Builder made visible after restoring saved state');
+            } catch {}
+          }
+
+          // Show Order Builder when loading conversation history that has quote data
+          const hasQuoteData = transformedOrderBuilderData.quoteVersions?.length > 0 ||
+                              transformedOrderBuilderData.orderBuilderStatus?.costBreakdown?.available ||
+                              transformedOrderBuilderData.capDetails ||
+                              transformedOrderBuilderData.pricing ||
+                              conversation.context === 'QUOTE_REQUEST' ||
+                              orderBuilderData.isCompleted; // Also check if OrderBuilderState is marked as completed
+
+          if (setIsOrderBuilderVisible && hasQuoteData) {
+            console.log('✅ Order Builder made visible for loaded conversation with quotes', {
+              hasQuoteVersions: !!transformedOrderBuilderData.quoteVersions?.length,
+              hasCostBreakdown: !!transformedOrderBuilderData.orderBuilderStatus?.costBreakdown?.available,
+              hasCapDetails: !!transformedOrderBuilderData.capDetails,
+              hasPricing: !!transformedOrderBuilderData.pricing,
+              isQuoteRequest: conversation.context === 'QUOTE_REQUEST',
+              isOrderBuilderCompleted: !!orderBuilderData.isCompleted
+            });
+            setIsOrderBuilderVisible(true);
+          } else {
+            console.log('🔧 Order Builder state restored but keeping it hidden until user interaction', {
+              hasOrderBuilderData: !!orderBuilderData,
+              hasQuoteData: hasQuoteData,
+              transformedDataKeys: Object.keys(transformedOrderBuilderData || {})
+            });
+          }
         }
 
         console.log('✅ Conversation fully loaded and restored');
@@ -183,28 +247,241 @@ export class ConversationService {
         keys: Object.keys(orderBuilderState)
       });
 
-      // Restore currentQuoteData - using the stored structure
-      const restoredQuoteData = {
-        capDetails: orderBuilderState.capDetails || {},
-        customization: orderBuilderState.customization || {},
-        delivery: orderBuilderState.delivery || {},
-        pricing: orderBuilderState.pricing || {}
-      };
+      // Detailed logging of actual data
+      if (orderBuilderState.capDetails) {
+        console.log('🧢 Cap Details:', orderBuilderState.capDetails);
+      }
+      if (orderBuilderState.customization) {
+        console.log('🎨 Customization:', orderBuilderState.customization);
+      }
+      if (orderBuilderState.pricing) {
+        console.log('💰 Pricing:', orderBuilderState.pricing);
+      }
+      if (orderBuilderState.orderBuilderStatus) {
+        console.log('📊 Order Builder Status:', orderBuilderState.orderBuilderStatus);
+      }
+      if (orderBuilderState.quoteVersions) {
+        console.log('📑 Quote Versions:', orderBuilderState.quoteVersions.length, 'versions');
+      }
+
+      // CRITICAL FIX: Restore currentQuoteData with proper structure that OrderBuilderService expects
+      // Transform from OrderBuilderState database format to the runtime format
+      const hasCapStyleSetup = orderBuilderState.capStyleSetup && Object.keys(orderBuilderState.capStyleSetup).length > 0;
+      const hasCustomization = orderBuilderState.customization && Object.keys(orderBuilderState.customization).length > 0;
+      const hasDelivery = orderBuilderState.delivery && Object.keys(orderBuilderState.delivery).length > 0;
+      const hasCostBreakdown = orderBuilderState.costBreakdown && Object.keys(orderBuilderState.costBreakdown).length > 0;
+
+      console.log('🔍 [CRITICAL FIX] OrderBuilderState restoration validation:', {
+        hasCapStyleSetup,
+        hasCustomization,
+        hasDelivery,
+        hasCostBreakdown,
+        capStyleSetupData: orderBuilderState.capStyleSetup,
+        customizationData: orderBuilderState.customization,
+        deliveryData: orderBuilderState.delivery,
+        costBreakdownData: orderBuilderState.costBreakdown,
+        // CRITICAL DEBUG: Log the actual values being restored
+        extractedQuantity: orderBuilderState.capStyleSetup?.quantity || orderBuilderState.totalUnits,
+        extractedColor: orderBuilderState.capStyleSetup?.color,
+        extractedStyle: orderBuilderState.capStyleSetup?.style,
+        extractedTotalCost: orderBuilderState.costBreakdown?.total || orderBuilderState.totalCost,
+        extractedLogos: orderBuilderState.customization?.logos?.length || 0,
+        extractedDeliveryMethod: orderBuilderState.delivery?.method
+      });
+
+      // Reconstruct the quote data structure that OrderBuilderService.updateOrderBuilderStatus() expects
+      const restoredQuoteData = (hasCapStyleSetup || hasCustomization || hasDelivery || hasCostBreakdown) ? {
+        // CRITICAL FIX: Add top-level fields that CapStyleSection expects
+        baseProductCost: orderBuilderState.costBreakdown?.baseProductCost || orderBuilderState.totalCost || 0,
+        quantity: orderBuilderState.capStyleSetup?.quantity || orderBuilderState.totalUnits || 100,
+        // Transform capStyleSetup from database to runtime format
+        capDetails: hasCapStyleSetup ? {
+          // CRITICAL FIX: Use actual stored quantity or totalUnits as fallback
+          quantity: orderBuilderState.capStyleSetup.quantity || orderBuilderState.totalUnits || 100,
+          size: orderBuilderState.capStyleSetup.size,
+          color: orderBuilderState.capStyleSetup.color,
+          colors: orderBuilderState.capStyleSetup.colors || (orderBuilderState.capStyleSetup.color ? [orderBuilderState.capStyleSetup.color] : []),
+          profile: orderBuilderState.capStyleSetup.profile,
+          billShape: orderBuilderState.capStyleSetup.billShape,
+          structure: orderBuilderState.capStyleSetup.structure,
+          fabric: orderBuilderState.capStyleSetup.fabric,
+          closure: orderBuilderState.capStyleSetup.closure,
+          stitching: orderBuilderState.capStyleSetup.stitching,
+          // CRITICAL FIX: Include style information if available AND set as productName for API
+          style: orderBuilderState.capStyleSetup.style,
+          productName: orderBuilderState.capStyleSetup.style || orderBuilderState.capStyleSetup.productName
+        } : {},
+
+        // Transform customization from database to runtime format
+        customization: hasCustomization ? {
+          logos: orderBuilderState.customization.logos || [],
+          accessories: orderBuilderState.customization.accessories || [],
+          totalMoldCharges: orderBuilderState.customization.totalMoldCharges || 0,
+          logoSetup: orderBuilderState.customization.logoSetup
+        } : {},
+
+        // Transform delivery from database to runtime format
+        delivery: hasDelivery ? {
+          method: orderBuilderState.delivery.method,
+          leadTime: orderBuilderState.delivery.leadTime,
+          totalCost: orderBuilderState.delivery.totalCost,
+          address: orderBuilderState.delivery.address
+        } : {},
+
+        // Transform costBreakdown from database to runtime format
+        pricing: hasCostBreakdown ? {
+          baseProductCost: orderBuilderState.costBreakdown.baseProductCost || 0,
+          logosCost: orderBuilderState.costBreakdown.logosCost || 0,
+          deliveryCost: orderBuilderState.costBreakdown.deliveryCost || 0,
+          total: orderBuilderState.costBreakdown.total || orderBuilderState.totalCost || 0,
+          // CRITICAL FIX: Ensure quantity consistency across all sections
+          quantity: orderBuilderState.costBreakdown.quantity || orderBuilderState.totalUnits || orderBuilderState.capStyleSetup?.quantity || 100
+        } : {}
+      } : null;
+
+      console.log('✅ [CRITICAL FIX] Reconstructed quote data for Order Builder:', {
+        restoredQuoteData,
+        hasRestoredData: !!restoredQuoteData,
+        capDetailsKeys: restoredQuoteData?.capDetails ? Object.keys(restoredQuoteData.capDetails) : [],
+        customizationKeys: restoredQuoteData?.customization ? Object.keys(restoredQuoteData.customization) : [],
+        deliveryKeys: restoredQuoteData?.delivery ? Object.keys(restoredQuoteData.delivery) : [],
+        pricingKeys: restoredQuoteData?.pricing ? Object.keys(restoredQuoteData.pricing) : []
+      });
+
+      console.log('🔍 Quote data validation:', {
+        hasCapStyleSetup,
+        hasCustomization,
+        hasDelivery,
+        hasCostBreakdown,
+        willRestoreQuoteData: !!restoredQuoteData
+      });
 
       // Restore leadTimeData if available
       const restoredLeadTimeData = orderBuilderState.leadTimeData || null;
 
-      // Restore orderBuilderStatus with quote versions if available
-      let restoredOrderBuilderStatus = orderBuilderState.orderBuilderStatus || {
-        capStyle: { completed: false, status: 'red', items: {} },
-        customization: { completed: false, status: 'empty', items: {}, logoPositions: [] },
-        delivery: { completed: false, status: 'red', items: {} },
-        costBreakdown: { completed: false, status: 'red', selectedVersionId: null, versions: [] }
-      };
+      // CRITICAL FIX: Restore orderBuilderStatus with proper status calculation based on restored data
+      let restoredOrderBuilderStatus;
 
-      // CRITICAL FIX: Restore quote versions from saved data
+      if (orderBuilderState.orderBuilderStatus) {
+        // Use existing status if available
+        restoredOrderBuilderStatus = orderBuilderState.orderBuilderStatus;
+      } else {
+        // Calculate status based on restored data with proper validation
+        // CRITICAL FIX: Check for required fields to determine actual status
+        const hasRequiredCapFields = orderBuilderState.capStyleSetup?.quantity &&
+                                    orderBuilderState.capStyleSetup?.color &&
+                                    orderBuilderState.capStyleSetup?.size;
+        const hasAllCapFields = hasRequiredCapFields &&
+                               orderBuilderState.capStyleSetup?.profile &&
+                               orderBuilderState.capStyleSetup?.billShape &&
+                               orderBuilderState.capStyleSetup?.structure;
+
+        const capStyleStatus = hasAllCapFields ? 'green' : (hasRequiredCapFields ? 'yellow' : 'red');
+        const customizationStatus = hasCustomization ? (orderBuilderState.customization?.logos?.length > 0 ? 'yellow' : 'empty') : 'empty';
+        const hasDeliveryComplete = orderBuilderState.delivery?.method && orderBuilderState.delivery?.leadTime;
+        const deliveryStatus = hasDeliveryComplete ? 'green' : 'red';
+
+        restoredOrderBuilderStatus = {
+          capStyle: {
+            completed: hasAllCapFields, // CRITICAL FIX: Base completion on all fields, not just existence
+            status: capStyleStatus,
+            items: {
+              size: !!orderBuilderState.capStyleSetup?.size,
+              color: !!orderBuilderState.capStyleSetup?.color,
+              profile: !!orderBuilderState.capStyleSetup?.profile,
+              shape: !!orderBuilderState.capStyleSetup?.billShape,
+              structure: !!orderBuilderState.capStyleSetup?.structure,
+              fabric: !!orderBuilderState.capStyleSetup?.fabric,
+              stitch: !!(orderBuilderState.capStyleSetup?.closure || orderBuilderState.capStyleSetup?.stitching)
+            }
+          },
+          customization: {
+            completed: hasCustomization && orderBuilderState.customization?.logos?.length > 0, // CRITICAL FIX: Only completed if has logos
+            status: customizationStatus,
+            items: {
+              logoSetup: !!(orderBuilderState.customization?.logos?.length > 0),
+              accessories: !!(orderBuilderState.customization?.accessories?.length > 0),
+              moldCharges: !!(orderBuilderState.customization?.totalMoldCharges !== undefined)
+            },
+            logoPositions: orderBuilderState.customization?.logos?.map((logo: any) => logo.location) || []
+          },
+          delivery: {
+            completed: hasDeliveryComplete, // CRITICAL FIX: Use proper validation
+            status: deliveryStatus,
+            items: {
+              method: !!orderBuilderState.delivery?.method,
+              leadTime: !!orderBuilderState.delivery?.leadTime,
+              address: !!orderBuilderState.delivery?.address
+            }
+          },
+          costBreakdown: {
+            completed: hasCostBreakdown,
+            status: hasCostBreakdown ? 'green' : 'red',
+            selectedVersionId: null,
+            versions: []
+          }
+        };
+
+        console.log('✅ Calculated Order Builder status from restored data:', restoredOrderBuilderStatus);
+      }
+
+      // CRITICAL FIX: Restore quote versions from saved data OR create version from cost breakdown
+      let quoteVersions = [];
+
       if (orderBuilderState.quoteVersions && orderBuilderState.quoteVersions.length > 0) {
-        console.log('✅ Restoring quote versions:', orderBuilderState.quoteVersions.length, 'versions');
+        console.log('✅ Restoring existing quote versions:', orderBuilderState.quoteVersions.length, 'versions');
+        quoteVersions = orderBuilderState.quoteVersions;
+      } else if (hasCostBreakdown && restoredQuoteData) {
+        // Create a quote version from the cost breakdown data
+        console.log('🆕 Creating quote version from cost breakdown data');
+
+        // CRITICAL FIX: Generate meaningful label from restored data
+        const productStyle = restoredQuoteData.capDetails?.style || 'Custom Cap';
+        const quantity = restoredQuoteData.pricing.quantity;
+        const color = restoredQuoteData.capDetails?.color || 'Standard';
+        const logoCount = restoredQuoteData.customization?.logos?.length || 0;
+
+        const labelParts = [];
+        labelParts.push(productStyle);
+        if (color !== 'Standard') labelParts.push(color);
+        if (logoCount > 0) labelParts.push(`${logoCount} Logo${logoCount > 1 ? 's' : ''}`);
+        labelParts.push(`${quantity} pcs`);
+
+        const generatedVersion = {
+          id: `version_${Date.now()}_restored`,
+          version: 1,
+          timestamp: new Date(orderBuilderState.completedAt || orderBuilderState.updatedAt || new Date()),
+          pricing: {
+            baseProductCost: restoredQuoteData.pricing.baseProductCost || 0,
+            logosCost: restoredQuoteData.pricing.logosCost || 0,
+            deliveryCost: restoredQuoteData.pricing.deliveryCost || 0,
+            total: restoredQuoteData.pricing.total || 0,
+            quantity: restoredQuoteData.pricing.quantity || 100
+          },
+          quoteData: {
+            ...restoredQuoteData,
+            // CRITICAL FIX: Include restoration metadata
+            restorationInfo: {
+              wasRestored: true,
+              restoredAt: new Date().toISOString(),
+              originalOrderBuilderStateId: orderBuilderState.id,
+              restoredFrom: 'OrderBuilderState'
+            }
+          },
+          label: `Restored: ${labelParts.join(' • ')}`
+        };
+        quoteVersions = [generatedVersion];
+        console.log('✅ Generated quote version from cost breakdown:', {
+          label: generatedVersion.label,
+          total: generatedVersion.pricing.total,
+          quantity: generatedVersion.pricing.quantity,
+          productStyle,
+          color,
+          logoCount
+        });
+      }
+
+      if (quoteVersions.length > 0) {
         restoredOrderBuilderStatus = {
           ...restoredOrderBuilderStatus,
           costBreakdown: {
@@ -212,8 +489,8 @@ export class ConversationService {
             available: true,
             completed: true,
             status: 'green',
-            versions: orderBuilderState.quoteVersions,
-            selectedVersionId: orderBuilderState.quoteVersions[orderBuilderState.quoteVersions.length - 1]?.id || null
+            versions: quoteVersions,
+            selectedVersionId: quoteVersions[quoteVersions.length - 1]?.id || null
           }
         };
       }
@@ -226,12 +503,23 @@ export class ConversationService {
       });
 
       // Set the restored data in the correct order
-      setCurrentQuoteData(restoredQuoteData);
+      if (restoredQuoteData) {
+        console.log('🔄 Setting currentQuoteData with meaningful data...');
+        setCurrentQuoteData(restoredQuoteData);
+      } else {
+        console.log('⚠️ No meaningful quote data to restore, setting to null');
+        setCurrentQuoteData(null);
+      }
+
+      console.log('🔄 Setting orderBuilderStatus...');
       setOrderBuilderStatus(restoredOrderBuilderStatus);
 
       if (restoredLeadTimeData) {
+        console.log('🔄 Setting leadTimeData...');
         setLeadTimeData(restoredLeadTimeData);
       }
+
+      console.log('✅ All state restoration calls completed');
 
       console.log('✅ Order Builder state restored successfully');
     } catch (error) {

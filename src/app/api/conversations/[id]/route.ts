@@ -109,8 +109,65 @@ export async function GET(
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
+    // CRITICAL FIX: Fetch associated OrderBuilderState for this conversation
+    let orderBuilderState = null;
+    try {
+      console.log('🔍 Fetching OrderBuilderState for conversation:', conversationId);
+
+      // Try to find OrderBuilderState by conversation relationship
+      const { data: conversationQuote } = await supabaseAdmin
+        .from('ConversationQuotes')
+        .select('orderBuilderStateId')
+        .eq('conversationId', conversationId)
+        .single();
+
+      if (conversationQuote?.orderBuilderStateId) {
+        const { data: builderState } = await supabaseAdmin
+          .from('OrderBuilderState')
+          .select('*')
+          .eq('id', conversationQuote.orderBuilderStateId)
+          .single();
+
+        if (builderState) {
+          orderBuilderState = builderState;
+          console.log('✅ OrderBuilderState found via ConversationQuotes:', orderBuilderState.id);
+        }
+      }
+
+      // Fallback: Try to find by sessionId if no direct relationship
+      if (!orderBuilderState && conversation.metadata?.session?.sessionId) {
+        console.log('🔍 Fallback: Searching OrderBuilderState by sessionId');
+        const { data: builderStateBySession } = await supabaseAdmin
+          .from('OrderBuilderState')
+          .select('*')
+          .eq('sessionId', conversation.metadata.session.sessionId)
+          .order('updatedAt', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (builderStateBySession) {
+          orderBuilderState = builderStateBySession;
+          console.log('✅ OrderBuilderState found via sessionId:', orderBuilderState.id);
+        }
+      }
+
+      if (orderBuilderState) {
+        console.log('📋 OrderBuilderState loaded:', {
+          id: orderBuilderState.id,
+          isCompleted: orderBuilderState.isCompleted,
+          totalCost: orderBuilderState.totalCost,
+          hasCapStyleSetup: !!orderBuilderState.capStyleSetup,
+          hasCustomization: !!orderBuilderState.customization,
+          hasDelivery: !!orderBuilderState.delivery,
+          hasCostBreakdown: !!orderBuilderState.costBreakdown
+        });
+      }
+    } catch (builderError) {
+      console.warn('⚠️ Error fetching OrderBuilderState (non-critical):', builderError);
+    }
+
     // Sort messages by creation time
-    const sortedMessages = (conversation.ConversationMessage || []).sort((a, b) => 
+    const sortedMessages = (conversation.ConversationMessage || []).sort((a, b) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
@@ -139,6 +196,8 @@ export async function GET(
       lastActivity: conversation.lastActivity,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
+      // CRITICAL FIX: Include OrderBuilderState for Order Builder restoration
+      orderBuilderState: orderBuilderState,
       ConversationMessage: sortedMessages.map(msg => ({
         id: msg.id,
         role: msg.role,

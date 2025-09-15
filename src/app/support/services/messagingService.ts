@@ -515,12 +515,12 @@ export class MessagingService {
   private static normalizeAIResponse(data: any, endpoint: string): any {
     console.log('🔄 [DUAL-FORMAT] Normalizing AI response from:', endpoint);
 
-    // If coming from support-ai (Order Builder optimized), it's already in the best format
-    if (endpoint.includes('support-ai')) {
+    // If coming from support-ai or step-by-step-pricing (Order Builder optimized), it's already in the best format
+    if (endpoint.includes('support-ai') || endpoint.includes('step-by-step-pricing')) {
       return {
         ...data,
         // Ensure we have both formats available
-        normalizedFrom: 'Order Builder optimized',
+        normalizedFrom: 'Order Builder optimized (step-by-step)',
         conversationOptimized: true,
         orderBuilderOptimized: true
       };

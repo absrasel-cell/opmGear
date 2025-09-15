@@ -88,6 +88,7 @@ export async function calculateUnifiedCosts(
       closureCosts: Object.values(costBreakdowns).flatMap(b => b.closureCosts || []),
       premiumFabricCosts: Object.values(costBreakdowns).flatMap(b => b.premiumFabricCosts || []),
       deliveryCosts: Object.values(costBreakdowns).flatMap(b => b.deliveryCosts || []),
+      servicesCosts: Object.values(costBreakdowns).flatMap(b => b.servicesCosts || []),
       moldChargeCosts: Object.values(costBreakdowns).flatMap(b => b.moldChargeCosts || []),
       totalCost: rawSubtotal,
       totalUnits: Object.values(costBreakdowns).reduce((sum, b) => sum + (b.totalUnits || 0), 0)
@@ -151,6 +152,7 @@ export async function calculateUnifiedCosts(
         closureCosts: [],
         premiumFabricCosts: [],
         deliveryCosts: [],
+        servicesCosts: [],
         moldChargeCosts: [],
         totalCost: fallbackTotal,
         totalUnits: 1

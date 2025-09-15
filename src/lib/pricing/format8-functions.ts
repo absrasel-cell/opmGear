@@ -727,6 +727,14 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   let colors = mergedSpecs.colors ? mergedSpecs.colors.split('/') : ['Black'];
   let color = mergedSpecs.colors || mergedSpecs.color || 'Black';
 
+  console.log('🎨 [ENHANCED-ANALYZE] Color processing:', {
+    hasContext: contextResult.hasContext,
+    mergedColors: mergedSpecs.colors,
+    mergedColor: mergedSpecs.color,
+    finalColors: colors,
+    finalColor: color
+  });
+
   // Legacy detection as fallback for new specifications only
   if (!contextResult.hasContext) {
     const detectedColor = extractAdvancedColor(message);
@@ -738,6 +746,7 @@ export async function analyzeCustomerRequirements(message: string, conversationH
         colors = [detectedColor];
         color = detectedColor;
       }
+      console.log('🎨 [ENHANCED-ANALYZE] Legacy color detection applied:', { detectedColor, colors, color });
     }
   }
 
@@ -899,6 +908,15 @@ export async function analyzeCustomerRequirements(message: string, conversationH
       detectedAccessories: accessoriesRequirements,
       uniqueCount: uniqueAccessories.size
     });
+  }
+
+  // CRITICAL FIX: Force accessories preservation for conversational updates
+  if (contextResult.hasContext && accessoriesRequirements.length === 0 && mergedSpecs.accessories?.length > 0) {
+    console.log('🚨 [ACCESSORIES-FIX] Force-restoring accessories from context!');
+    accessoriesRequirements = mergedSpecs.accessories.map(accessory => ({
+      type: accessory
+    }));
+    console.log('🚨 [ACCESSORIES-FIX] Restored accessories:', accessoriesRequirements.map(a => a.type));
   }
 
   // REMOVED: Manual accessories detection to prevent duplicates
@@ -1078,6 +1096,12 @@ function selectProductFromTier(products: any[], targetTier: string, requirements
   return tierProducts[0];
 }
 
+// Helper function to extract panel count from product name
+function extractPanelCountFromName(productName: string): string {
+  const match = productName.match(/(\d+)P/);
+  return match ? match[1] + 'P' : '6P'; // Default to 6P if not found
+}
+
 // Step 2: Fetch Blank Cap costs from Supabase with user input preservation
 export async function fetchBlankCapCosts(requirements: any) {
   console.log('💰 [BLANK-CAP] Fetching costs for quantity:', requirements.quantity);
@@ -1088,6 +1112,87 @@ export async function fetchBlankCapCosts(requirements: any) {
     // Get products with pricing tier data
     const products = await loadProducts();
     const pricingTiers = await loadPricingTiers();
+
+    // CRITICAL FIX: Check for existing product in conversation context
+    const hasConversationContext = requirements.conversationalContext?.hasContext;
+    const existingProductName = requirements.conversationalContext?.mergedSpecifications?.productName;
+
+    console.log('🔄 [BLANK-CAP] Conversation context check:', {
+      hasContext: hasConversationContext,
+      existingProduct: existingProductName,
+      isConversationalUpdate: requirements.conversationalContext?.isConversationalUpdate
+    });
+
+    // DEBUG: Log full conversation context structure
+    if (hasConversationContext) {
+      console.log('🔍 [BLANK-CAP] DEBUG - Full conversation context:', JSON.stringify(requirements.conversationalContext, null, 2));
+      console.log('🔍 [BLANK-CAP] DEBUG - Merged specifications keys:', Object.keys(requirements.conversationalContext?.mergedSpecifications || {}));
+      console.log('🔍 [BLANK-CAP] DEBUG - All requirements keys:', Object.keys(requirements));
+    }
+
+    // If we have an existing product from conversation context, use it
+    if (hasConversationContext && existingProductName) {
+      console.log('🚨 [BLANK-CAP] PRESERVING existing product from conversation:', existingProductName);
+
+      // Find the exact product by name
+      const preservedProduct = products.find(p => p.name === existingProductName);
+      if (preservedProduct) {
+        const tier = pricingTiers.find(t => t.id === preservedProduct.pricing_tier_id);
+        const selectedProduct = { ...preservedProduct, pricing_tier: tier };
+
+        console.log('✅ [BLANK-CAP] Successfully preserved product:', {
+          name: selectedProduct.name,
+          tier: selectedProduct.pricing_tier?.name,
+          preservedFromContext: true
+        });
+
+        // Calculate pricing with preserved product using volume-based pricing
+        const quantity = requirements.quantity;
+        let unitPrice;
+
+        // Use volume-based pricing tiers
+        if (quantity >= 20000 && selectedProduct.pricing_tier.price_20000) {
+          unitPrice = selectedProduct.pricing_tier.price_20000;
+        } else if (quantity >= 10000) {
+          unitPrice = selectedProduct.pricing_tier.price_10000;
+        } else if (quantity >= 2880) {
+          unitPrice = selectedProduct.pricing_tier.price_2880;
+        } else if (quantity >= 1152) {
+          unitPrice = selectedProduct.pricing_tier.price_1152;
+        } else if (quantity >= 576) {
+          unitPrice = selectedProduct.pricing_tier.price_576;
+        } else if (quantity >= 144) {
+          unitPrice = selectedProduct.pricing_tier.price_144;
+        } else {
+          unitPrice = selectedProduct.pricing_tier.price_48;
+        }
+
+        const totalCost = Math.round(unitPrice * quantity);
+
+        const result = {
+          productName: selectedProduct.name,
+          productCode: selectedProduct.code,
+          panelCount: requirements.panelCount || extractPanelCountFromName(selectedProduct.name),
+          billShape: selectedProduct.bill_shape,
+          profile: selectedProduct.profile || 'High',
+          structure: selectedProduct.structure_type || 'Structured with Mono Lining',
+          unitPrice: unitPrice,
+          totalCost: totalCost,
+          pricingTier: selectedProduct.pricing_tier.name,
+          _debug: {
+            userBillShapeInput: requirements.billStyle,
+            databaseBillShape: selectedProduct.bill_shape,
+            preservedUserInput: false,
+            preservedFromContext: true
+          }
+        };
+
+        console.log('🎯 [BLANK-CAP] Final product selection (PRESERVED):', result);
+        return result;
+      } else {
+        console.log('⚠️ [BLANK-CAP] Could not find preserved product in database, falling back to selection logic');
+      }
+    }
 
     // Join pricing tier data to products for proper filtering
     const productsWithTiers = products.map(product => {
@@ -1486,10 +1591,23 @@ export async function fetchAccessoriesCosts(requirements: any) {
     let totalCost = 0;
 
     for (const reqAccessory of requirements.accessoriesRequirements) {
+      // CRITICAL FIX: Filter out invalid accessory names (markdown, formatting, etc.)
+      const accessoryType = reqAccessory.type.trim();
+
+      // Skip invalid accessory types
+      if (!accessoryType ||
+          accessoryType.startsWith('**') ||
+          accessoryType.endsWith('**') ||
+          accessoryType.toLowerCase().includes('total') ||
+          accessoryType.length < 2) {
+        console.log('⚠️ [ACCESSORIES] Skipping invalid accessory type:', accessoryType);
+        continue;
+      }
+
       // Find matching accessory in database
       const accessory = accessories.find(a =>
-        a.name.toLowerCase().includes(reqAccessory.type.toLowerCase()) ||
-        reqAccessory.type.toLowerCase().includes(a.name.toLowerCase())
+        a.name.toLowerCase().includes(accessoryType.toLowerCase()) ||
+        accessoryType.toLowerCase().includes(a.name.toLowerCase())
       );
 
       if (accessory) {
@@ -1515,8 +1633,8 @@ export async function fetchAccessoriesCosts(requirements: any) {
           totalCost: itemTotalCost
         });
       } else {
-        console.error('❌ [ACCESSORIES] Accessory not found in database:', reqAccessory.type);
-        throw new Error(`Accessory "${reqAccessory.type}" not found in database. Please add it to the accessories table.`);
+        console.error('❌ [ACCESSORIES] Accessory not found in database:', accessoryType);
+        throw new Error(`Accessory "${accessoryType}" not found in database. Please add it to the accessories table.`);
       }
     }
 
@@ -1608,7 +1726,13 @@ export function generateConversationalUpdateResponse(
   }
 
   // Generate standard response with "Updated" prefix for changed sections
-  const standardResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+  // Extract customer requirements from conversational context
+  const customerRequirements = {
+    color: mergedSpecifications.colors || mergedSpecifications.color,
+    quantity: mergedSpecifications.quantity,
+    // Add other relevant fields as needed
+  };
+  const standardResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery, customerRequirements);
 
   // Mark changed sections with visual indicators
   let enhancedResponse = standardResponse;
@@ -1643,7 +1767,8 @@ export function generateStructuredResponse(
   premiumUpgrades: any,
   logoSetup: any,
   accessories: any,
-  delivery: any
+  delivery: any,
+  customerRequirements?: any
 ) {
   const total = capDetails.totalCost + (premiumUpgrades.totalCost || 0) + (logoSetup.totalCost || 0) + (accessories.totalCost || 0) + delivery.totalCost;
 
@@ -1654,7 +1779,13 @@ export function generateStructuredResponse(
 
   response += `📊 **Cap Style Setup** ✅\n`;
   response += `•${capDetails.productName} (${capDetails.pricingTier})\n`;
-  response += `•Base cost: $${capDetails.totalCost.toFixed(2)} ($${capDetails.unitPrice.toFixed(2)}/cap)\n\n`;
+  response += `•Base cost: $${capDetails.totalCost.toFixed(2)} ($${capDetails.unitPrice.toFixed(2)}/cap)\n`;
+
+  // CRITICAL FIX: Add color information for conversation context extraction
+  if (customerRequirements?.color) {
+    response += `•Color: ${customerRequirements.color}\n`;
+  }
+  response += `\n`;
 
   if ((premiumUpgrades.fabrics && Object.keys(premiumUpgrades.fabrics).length > 0) || premiumUpgrades.closure) {
     response += `⭐ **Premium Upgrades** ✅\n`;
@@ -1687,11 +1818,11 @@ export function generateStructuredResponse(
       const totalWithMoldCharge = logo.totalWithMold || logo.totalCost;
       const logoPerCapWithMold = totalWithMoldCharge / quantity;
 
-      // Show detailed breakdown if mold charge exists
+      // CRITICAL FIX: Show detailed breakdown with FIXED mold charges (not per-cap)
       if (logo.moldCharge && logo.moldCharge > 0) {
         const basePerCap = logo.totalCost / quantity;
-        const moldPerCap = logo.moldCharge / quantity;
-        response += `•${logo.location}: ${logo.type} (${logo.size}) - $${totalWithMoldCharge.toFixed(2)} ($${basePerCap.toFixed(2)}/cap + $${moldPerCap.toFixed(2)} mold)\n`;
+        // MOLD CHARGES ARE ONE-TIME SETUP COSTS - NEVER divide by quantity
+        response += `•${logo.location}: ${logo.type} (${logo.size}) - $${totalWithMoldCharge.toFixed(2)} ($${basePerCap.toFixed(2)}/cap + $${logo.moldCharge.toFixed(2)} mold)\n`;
       } else {
         response += `•${logo.location}: ${logo.type} (${logo.size}) - $${logo.totalCost.toFixed(2)} ($${logoPerCapWithMold.toFixed(2)}/cap)\n`;
       }

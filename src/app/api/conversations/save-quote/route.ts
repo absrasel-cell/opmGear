@@ -32,6 +32,7 @@ interface SaveQuoteRequest {
   quoteOrderId: string;
   orderBuilderState: OrderBuilderState;
   sessionId: string;
+  uploadedFiles?: string[];
   generateTitle?: boolean;
   titleContext?: {
     customerName?: string;
@@ -50,13 +51,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body: SaveQuoteRequest = await request.json();
-    const { 
-      conversationId, 
-      quoteOrderId, 
-      orderBuilderState, 
-      sessionId, 
+    const {
+      conversationId,
+      quoteOrderId,
+      orderBuilderState,
+      sessionId,
+      uploadedFiles = [],
       generateTitle = true,
-      titleContext 
+      titleContext
     } = body;
 
     // Validate required fields
@@ -68,8 +70,104 @@ export async function POST(request: NextRequest) {
 
     console.log('📊 Processing quote save for conversation:', conversationId);
 
-    // Validate Order Builder state
-    const validation = validateOrderBuilderState(orderBuilderState);
+    // CRITICAL FIX: Transform the frontend Order Builder state to the proper OrderBuilderState format
+    console.log('📋 [CRITICAL FIX] Transforming frontend Order Builder state to database format');
+    console.log('🔍 Input orderBuilderState keys:', Object.keys(orderBuilderState || {}));
+
+    // Handle both formats: direct OrderBuilderState format and the frontend format
+    const transformedOrderBuilderState: OrderBuilderState = {
+      // Transform capDetails -> capStyleSetup (if present)
+      capStyleSetup: orderBuilderState.capStyleSetup || orderBuilderState.capDetails ? {
+        style: orderBuilderState.capStyleSetup?.style || orderBuilderState.capDetails?.productName,
+        profile: orderBuilderState.capStyleSetup?.profile || orderBuilderState.capDetails?.profile,
+        color: orderBuilderState.capStyleSetup?.color || orderBuilderState.capDetails?.color,
+        size: orderBuilderState.capStyleSetup?.size || orderBuilderState.capDetails?.size,
+        quantity: orderBuilderState.capStyleSetup?.quantity || orderBuilderState.capDetails?.quantity,
+        basePrice: orderBuilderState.capStyleSetup?.basePrice || orderBuilderState.capDetails?.unitPrice,
+        // Additional properties from capDetails
+        colors: orderBuilderState.capDetails?.colors,
+        billShape: orderBuilderState.capDetails?.billShape,
+        structure: orderBuilderState.capDetails?.structure,
+        fabric: orderBuilderState.capDetails?.fabric,
+        closure: orderBuilderState.capDetails?.closure,
+        stitching: orderBuilderState.capDetails?.stitch
+      } : undefined,
+
+      // Transform customization (preserve structure)
+      customization: orderBuilderState.customization ? {
+        logoDetails: orderBuilderState.customization.logos?.map((logo: any) => ({
+          id: logo.id,
+          location: logo.location || logo.position,
+          type: logo.type || logo.method,
+          size: logo.size,
+          colors: logo.colors,
+          setupCost: logo.moldCharge || logo.setupCost || 0,
+          unitCost: logo.unitCost || 0,
+          quantity: logo.quantity || orderBuilderState.capDetails?.quantity || 1,
+          fileUploaded: !!logo.fileUploaded,
+          fileName: logo.fileName,
+          instructions: logo.instructions
+        })) || [],
+        totalCustomizationCost: orderBuilderState.customization.totalMoldCharges || 0,
+        accessories: orderBuilderState.customization.accessories || {},
+        closures: orderBuilderState.customization.closures || {}
+      } : undefined,
+
+      // Transform delivery (preserve structure)
+      delivery: orderBuilderState.delivery ? {
+        method: orderBuilderState.delivery.method,
+        timeframe: orderBuilderState.delivery.leadTime,
+        cost: orderBuilderState.delivery.totalCost,
+        address: orderBuilderState.delivery.address,
+        urgency: 'standard'
+      } : undefined,
+
+      // Transform pricing -> costBreakdown
+      costBreakdown: orderBuilderState.costBreakdown || orderBuilderState.pricing ? {
+        baseCost: orderBuilderState.costBreakdown?.baseCost || orderBuilderState.pricing?.baseProductCost || 0,
+        logoSetupCosts: orderBuilderState.costBreakdown?.logoSetupCosts || orderBuilderState.pricing?.moldCharges || 0,
+        logoUnitCosts: orderBuilderState.costBreakdown?.logoUnitCosts || orderBuilderState.pricing?.logosCost || 0,
+        additionalOptionsCosts: orderBuilderState.costBreakdown?.additionalOptionsCosts || orderBuilderState.pricing?.premiumFabricCost || 0,
+        accessoriesCosts: orderBuilderState.costBreakdown?.accessoriesCosts || orderBuilderState.pricing?.accessoriesCost || 0,
+        closuresCosts: orderBuilderState.costBreakdown?.closuresCosts || orderBuilderState.pricing?.premiumClosureCost || 0,
+        deliveryCost: orderBuilderState.costBreakdown?.deliveryCost || orderBuilderState.pricing?.deliveryCost || 0,
+        subtotal: orderBuilderState.costBreakdown?.subtotal || orderBuilderState.pricing?.total || 0,
+        discounts: orderBuilderState.costBreakdown?.discounts || 0,
+        taxes: orderBuilderState.costBreakdown?.taxes || 0,
+        total: orderBuilderState.costBreakdown?.total || orderBuilderState.pricing?.total || orderBuilderState.totalCost || 0,
+        // Additional fields for restoration
+        baseProductCost: orderBuilderState.pricing?.baseProductCost || 0,
+        logosCost: orderBuilderState.pricing?.logosCost || 0,
+        quantity: orderBuilderState.pricing?.quantity || orderBuilderState.totalUnits || 1
+      } : undefined,
+
+      // Preserve other fields
+      currentStep: orderBuilderState.currentStep || 'completed',
+      isCompleted: orderBuilderState.isCompleted !== false, // default to true
+      completedAt: orderBuilderState.completedAt || new Date().toISOString(),
+      totalCost: orderBuilderState.totalCost,
+      totalUnits: orderBuilderState.totalUnits,
+      stateVersion: orderBuilderState.stateVersion || '2.0',
+      sessionId: sessionId,
+      metadata: {
+        orderBuilderStatus: orderBuilderState.orderBuilderStatus,
+        leadTimeData: orderBuilderState.leadTimeData,
+        quoteVersions: orderBuilderState.quoteVersions,
+        originalFormat: 'frontend_transformed',
+        transformedAt: new Date().toISOString()
+      }
+    };
+
+    console.log('✅ [CRITICAL FIX] Transformed OrderBuilderState:', {
+      hasCapStyleSetup: !!transformedOrderBuilderState.capStyleSetup,
+      hasCustomization: !!transformedOrderBuilderState.customization,
+      hasDelivery: !!transformedOrderBuilderState.delivery,
+      hasCostBreakdown: !!transformedOrderBuilderState.costBreakdown,
+      totalCost: transformedOrderBuilderState.totalCost
+    });
+
+    // Validate transformed Order Builder state
+    const validation = validateOrderBuilderState(transformedOrderBuilderState);
     if (!validation.isValid) {
       return NextResponse.json({
         error: 'Invalid Order Builder state',
@@ -84,7 +182,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Serialize state for database storage
-    const serializedState = serializeOrderBuilderState(orderBuilderState);
+    const serializedState = serializeOrderBuilderState(transformedOrderBuilderState);
 
     // Perform database operations (Supabase doesn't have transactions like Prisma, so we'll do operations sequentially)
     console.log('🔄 Starting database operations');
@@ -166,6 +264,121 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ OrderBuilderState saved with ID:', orderBuilderRecord.id);
 
+      // 1.5. Create QuoteOrder record (CRITICAL FIX - this was missing!)
+      console.log('📋 Creating QuoteOrder record for quote acceptance functionality');
+
+      // Extract customer info from validation or use defaults
+      const customerEmail = user.email;
+      const customerName = titleContext?.customerName || 'Customer';
+      const customerCompany = titleContext?.company || '';
+
+      // Extract cost data from transformed Order Builder state
+      const selectedVersion = transformedOrderBuilderState?.metadata?.quoteVersions?.[0];
+      const totalCost = selectedVersion?.finalPrice || transformedOrderBuilderState.totalCost || transformedOrderBuilderState.costBreakdown?.total || 0;
+      const quantity = selectedVersion?.quantity || transformedOrderBuilderState.totalUnits || transformedOrderBuilderState.costBreakdown?.quantity || 1;
+
+      const quoteOrderData = {
+        id: quoteOrderId,
+        sessionId: sessionId,
+        status: 'COMPLETED',
+        title: `Quote for Custom Cap - ${quantity} pieces`,
+        customerEmail: customerEmail,
+        customerName: customerName,
+        customerPhone: '',
+        customerCompany: customerCompany,
+        productType: 'Custom Cap',
+        quantities: { quantity: quantity },
+        colors: transformedOrderBuilderState?.capStyleSetup?.colors || {},
+        logoRequirements: {
+          logos: transformedOrderBuilderState?.customization?.logoDetails || []
+        },
+        customizationOptions: {
+          accessories: transformedOrderBuilderState?.customization?.accessories || [],
+          moldCharges: selectedVersion?.setupFees || transformedOrderBuilderState?.costBreakdown?.logoSetupCosts || 0,
+          delivery: transformedOrderBuilderState?.delivery || {}
+        },
+        estimatedCosts: {
+          total: totalCost,
+          baseProductCost: selectedVersion?.capCosts || transformedOrderBuilderState?.costBreakdown?.baseCost || 0,
+          logosCost: selectedVersion?.logoCosts || transformedOrderBuilderState?.costBreakdown?.logoUnitCosts || 0,
+          deliveryCost: selectedVersion?.deliveryCosts || transformedOrderBuilderState?.costBreakdown?.deliveryCost || 0
+        },
+        aiSummary: `Quote generated for ${quantity} Custom Cap(s) with total cost of $${totalCost}`,
+        uploadedFiles: uploadedFiles,
+        attachments: uploadedFiles.map((url: string) => ({ url, type: 'file' })),
+        complexity: 'SIMPLE',
+        priority: 'NORMAL',
+        createdAt: now,
+        updatedAt: now,
+        lastActivityAt: now
+      };
+
+      const { data: createdQuoteOrder, error: quoteOrderInsertError } = await supabaseAdmin
+        .from('QuoteOrder')
+        .insert(quoteOrderData)
+        .select()
+        .single();
+
+      if (quoteOrderInsertError) {
+        console.error('❌ Failed to create QuoteOrder:', quoteOrderInsertError);
+        throw new Error(`Failed to create QuoteOrder: ${quoteOrderInsertError.message}`);
+      }
+
+      console.log('✅ QuoteOrder created with ID:', createdQuoteOrder.id);
+
+      // Create QuoteOrderFile records for uploaded files
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        console.log('📁 Creating QuoteOrderFile records for', uploadedFiles.length, 'files');
+
+        const fileRecords = uploadedFiles.map((fileUrl: string, index: number) => {
+          const filename = fileUrl.split('/').pop() || `file_${index + 1}`;
+          const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : '';
+
+          let fileType = 'unknown';
+          switch (ext) {
+            case 'pdf': fileType = 'application/pdf'; break;
+            case 'png': fileType = 'image/png'; break;
+            case 'jpg':
+            case 'jpeg': fileType = 'image/jpeg'; break;
+            case 'gif': fileType = 'image/gif'; break;
+            case 'svg': fileType = 'image/svg+xml'; break;
+            case 'ai': fileType = 'application/illustrator'; break;
+            case 'eps': fileType = 'application/postscript'; break;
+            default: fileType = `file/${ext}`;
+          }
+
+          const isLogo = ['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(ext || '');
+
+          return {
+            id: `qof_${Date.now()}_${index}`,
+            quoteOrderId: createdQuoteOrder.id,
+            originalName: filename,
+            fileName: filename,
+            fileType: fileType,
+            fileSize: 0, // We don't have size info, set to 0
+            filePath: fileUrl,
+            bucket: 'uploads',
+            category: isLogo ? 'LOGO' : 'OTHER',
+            isLogo: isLogo,
+            description: `File uploaded via support chat`,
+            metadata: { uploadSource: 'support_chat', sessionId },
+            createdAt: now,
+            updatedAt: now
+          };
+        });
+
+        const { error: filesError } = await supabaseAdmin
+          .from('QuoteOrderFile')
+          .insert(fileRecords);
+
+        if (filesError) {
+          console.error('❌ Failed to create QuoteOrderFile records:', filesError);
+          // Don't fail the whole operation for file records
+        } else {
+          console.log('✅ Created', fileRecords.length, 'QuoteOrderFile records');
+        }
+      }
+
       // 2. Update Conversation with quote completion and auto-approval
       console.log('📝 Updating conversation with quote completion and auto-approval');
       
@@ -195,14 +408,8 @@ export async function POST(request: NextRequest) {
           lastActivity: now,
           updatedAt: now,
           // Ensure userId is set if it was null (for guest->authenticated user conversion)
-          userId: existingConv.userId || user.id,
-          // AUTO-APPROVAL: Mark quote as approved in metadata (Quote button auto-accept)
-          metadata: {
-            quoteStatus: 'APPROVED',
-            quoteAcceptedAt: now,
-            autoAccepted: true,
-            autoAcceptedSource: 'quote_button'
-          }
+          userId: existingConv.userId || user.id
+          // Removed auto-approval - let users choose to accept/reject quotes
         })
         .eq('id', conversationId)
         .select()
@@ -258,10 +465,9 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ ConversationQuotes bridge created');
 
-      // 4. Update QuoteOrder status and AUTO-ACCEPT the quote (create order)
-      console.log('📋 Updating QuoteOrder status and auto-accepting');
-      
-      // First update QuoteOrder to COMPLETED
+      // 4. Update QuoteOrder status to COMPLETED (ready for acceptance)
+      console.log('📋 Updating QuoteOrder status to COMPLETED');
+
       const { error: quoteOrderError } = await supabaseAdmin
         .from('QuoteOrder')
         .update({
@@ -272,108 +478,7 @@ export async function POST(request: NextRequest) {
         .eq('id', quoteOrderId);
 
       if (quoteOrderError) throw quoteOrderError;
-      console.log('✅ QuoteOrder status updated to COMPLETED');
-      
-      // AUTO-ACCEPT: Create Order from QuoteOrder (same logic as Accept button)
-      console.log('🚀 Auto-creating Order from QuoteOrder (Quote button auto-accept):', quoteOrderId);
-      
-      try {
-        // Generate unique order ID
-        orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-        
-        // Get the full QuoteOrder data for order creation
-        const { data: fullQuoteOrder, error: fetchQuoteOrderError } = await supabaseAdmin
-          .from('QuoteOrder')
-          .select('*')
-          .eq('id', quoteOrderId)
-          .single();
-          
-        if (fetchQuoteOrderError || !fullQuoteOrder) {
-          throw new Error(`Failed to fetch QuoteOrder for order creation: ${fetchQuoteOrderError?.message}`);
-        }
-        
-        // Create the Order record
-        const { data: newOrder, error: orderError } = await supabaseAdmin
-          .from('Order')
-          .insert({
-            id: orderId,
-            userId: existingConv.userId || user.id,
-            customerName: fullQuoteOrder.customerName || 'Customer',
-            customerEmail: fullQuoteOrder.customerEmail || user.email,
-            customerPhone: fullQuoteOrder.customerPhone || '',
-            customerCompany: fullQuoteOrder.customerCompany || '',
-            productName: fullQuoteOrder.productType || 'Custom Cap',
-            status: 'PENDING',
-            priority: 'NORMAL',
-            totalCost: fullQuoteOrder.estimatedCosts?.total || 0,
-            estimatedCost: fullQuoteOrder.estimatedCosts?.total || 0,
-            paymentStatus: 'PENDING',
-            productionStatus: 'QUEUED',
-            orderData: {
-              quoteOrderId: fullQuoteOrder.id,
-              capDetails: fullQuoteOrder.quantities || {},
-              customization: fullQuoteOrder.logoRequirements || {},
-              colors: fullQuoteOrder.colors || {},
-              estimatedCosts: fullQuoteOrder.estimatedCosts || {},
-              customizationOptions: fullQuoteOrder.customizationOptions || {},
-              originalQuoteData: fullQuoteOrder
-            },
-            orderNotes: `Order auto-created from Quote button (auto-accept) for quote ${quoteOrderId}. Original requirements: ${fullQuoteOrder.additionalRequirements || ''}`,
-            specialInstructions: fullQuoteOrder.additionalRequirements || '',
-            urgencyLevel: fullQuoteOrder.priority === 'URGENT' ? 'HIGH' : 'NORMAL',
-            leadTimeEstimate: '14-21 days',
-            createdAt: now,
-            updatedAt: now
-          })
-          .select()
-          .single();
-          
-        if (orderError) {
-          throw new Error(`Failed to create Order: ${orderError.message}`);
-        }
-        
-        // Update the QuoteOrder to reference the created order
-        const { error: updateQuoteOrderError } = await supabaseAdmin
-          .from('QuoteOrder')
-          .update({
-            convertedToOrderId: orderId,
-            status: 'CONVERTED_TO_ORDER',
-            updatedAt: now
-          })
-          .eq('id', quoteOrderId);
-          
-        if (updateQuoteOrderError) {
-          console.error('Failed to update QuoteOrder with order reference:', updateQuoteOrderError);
-          // Don't fail the whole operation for this
-        }
-        
-        // Update conversation metadata with order information
-        const { error: conversationUpdateError } = await supabaseAdmin
-          .from('Conversation')
-          .update({
-            title: `ORDER-${orderId.slice(-6)} - Order Created`,
-            metadata: {
-              quoteStatus: 'APPROVED',
-              quoteAcceptedAt: now,
-              autoAccepted: true,
-              autoAcceptedSource: 'quote_button',
-              orderId: orderId,
-              orderCreatedAt: now
-            },
-            updatedAt: now
-          })
-          .eq('id', conversationId);
-          
-        if (conversationUpdateError) {
-          console.error('Failed to update conversation with order metadata:', conversationUpdateError);
-        }
-        
-        console.log('✅ Order auto-created from Quote button:', orderId);
-        
-      } catch (orderCreationError) {
-        console.error('❌ Failed to auto-create order from quote:', orderCreationError);
-        // Continue with quote save even if order creation fails
-      }
+      console.log('✅ QuoteOrder status updated to COMPLETED - ready for user to accept/reject');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -410,7 +515,7 @@ export async function POST(request: NextRequest) {
         const client = getOpenAIClient();
         if (client) {
           // Extract state information for title generation
-          const stateInfo = extractStateForTitleGeneration(orderBuilderState);
+          const stateInfo = extractStateForTitleGeneration(transformedOrderBuilderState);
           
           // Build context for title generation
           let contextPrompt = `Generate a professional conversation title for a completed custom cap quote. `;
@@ -516,7 +621,7 @@ Generate ONLY the title:`;
         titleGenerationError = titleError instanceof Error ? titleError.message : 'Unknown error';
         
         // Generate fallback title
-        const stateInfo = extractStateForTitleGeneration(orderBuilderState);
+        const stateInfo = extractStateForTitleGeneration(transformedOrderBuilderState);
         const fallbackDetails = [];
         if (stateInfo.quantity) fallbackDetails.push(`${stateInfo.quantity} Caps`);
         if (stateInfo.totalCost) fallbackDetails.push(`$${stateInfo.totalCost.toFixed(2)}`);
@@ -546,9 +651,7 @@ Generate ONLY the title:`;
 
     return NextResponse.json({
       success: true,
-      message: result.orderCreated ? 
-        `Quote saved and Order ${result.orderId} created successfully!` : 
-        'Quote conversation saved successfully',
+      message: 'Quote saved successfully - ready for acceptance',
       data: {
         conversationId: result.conversation.id,
         quoteOrderId,
@@ -558,9 +661,10 @@ Generate ONLY the title:`;
         title: generatedTitle,
         titleGenerated: !!generatedTitle,
         titleGenerationError,
-        orderCreated: result.orderCreated,
-        orderId: result.orderId,
-        autoAccepted: true
+        orderCreated: false,
+        orderId: null,
+        autoAccepted: false,
+        readyForAcceptance: true
       },
       validation: {
         warnings: validation.warnings

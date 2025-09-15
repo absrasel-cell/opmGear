@@ -1,0 +1,101 @@
+🔧 MCP SERVER TECHNICAL ARCHITECTURE
+====================================
+
+DIRECTORY STRUCTURE:
+```
+mcp-server/
+├── src/
+│   ├── server.ts              # Main MCP server entry point
+│   ├── tools/                 # MCP tool definitions
+│   │   ├── products.ts        # Product browsing/search tools
+│   │   ├── orders.ts          # Order management tools
+│   │   ├── cart.ts            # Shopping cart tools
+│   │   ├── pricing.ts         # Pricing calculation tools
+│   │   ├── users.ts           # User management tools
+│   │   ├── support.ts         # Customer support tools
+│   │   ├── admin.ts           # Admin operations tools
+│   │   └── analytics.ts       # Metrics and reporting tools
+│   ├── resources/             # MCP resource definitions
+│   │   ├── product-catalog.ts # Product catalog resource
+│   │   ├── order-history.ts   # Order history resource
+│   │   └── inventory.ts       # Inventory status resource
+│   ├── lib/
+│   │   ├── api-client.ts      # HTTP client for your APIs
+│   │   ├── auth.ts            # Authentication handling
+│   │   ├── types.ts           # TypeScript type definitions
+│   │   └── utils.ts           # Utility functions
+│   └── config/
+│       ├── tools-config.ts    # Tool configurations
+│       └── server-config.ts   # Server settings
+├── package.json
+├── tsconfig.json
+├── README.md
+└── docker/                    # Optional containerization
+    ├── Dockerfile
+    └── docker-compose.yml
+```
+
+CORE TECHNOLOGIES:
+- TypeScript/Node.js (Primary language)
+- @modelcontextprotocol/sdk (MCP SDK)
+- axios/fetch (HTTP requests to your APIs)
+- zod (Schema validation)
+- winston (Logging)
+- dotenv (Environment variables)
+
+API INTEGRATION STRATEGY:
+1. Create HTTP client wrapper for your existing APIs
+2. Map each API endpoint to appropriate MCP tool
+3. Handle authentication via API keys/tokens
+4. Implement request/response transformation
+5. Add error handling and retry logic
+
+AUTHENTICATION FLOW:
+1. MCP server authenticates with your APIs using service account
+2. User requests include user context for authorization
+3. Server validates permissions before API calls
+4. Rate limiting per user/tool to prevent abuse
+
+TOOL CATEGORIES:
+📦 PRODUCT TOOLS:
+- search_products
+- get_product_details
+- get_pricing_tiers
+- calculate_custom_pricing
+
+🛒 ORDER TOOLS:
+- create_order
+- get_order_status
+- update_order
+- cancel_order
+- track_shipment
+
+🛍️ CART TOOLS:
+- add_to_cart
+- remove_from_cart
+- get_cart_contents
+- calculate_cart_total
+
+👤 USER TOOLS:
+- get_user_profile
+- update_user_settings
+- get_order_history
+- manage_addresses
+
+🎧 SUPPORT TOOLS:
+- create_support_ticket
+- ai_chat_support
+- upload_artwork
+- get_lead_times
+
+👑 ADMIN TOOLS:
+- get_analytics_metrics
+- manage_inventory
+- process_orders
+- generate_reports
+
+RESOURCE TYPES:
+- Product Catalog (searchable product database)
+- Order History (user's order timeline)
+- Inventory Levels (real-time stock status)
+- Analytics Dashboard (business metrics)

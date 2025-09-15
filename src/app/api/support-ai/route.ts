@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     } else {
       // Generate standard structured response
-      aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+      aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery, requirements);
     }
 
     // Create structured quote data for Order Builder with conversational context
@@ -131,7 +131,17 @@ export async function POST(request: NextRequest) {
       },
 
       // ENHANCED: Include conversational context metadata
-      conversationalContext: conversationalContext
+      conversationalContext: conversationalContext,
+
+      // CRITICAL FIX: Debug information for troubleshooting
+      _debugInfo: {
+        requirementsColor: requirements.color,
+        requirementsColors: requirements.colors,
+        logoCount: logoSetup.logos?.length || 0,
+        accessoryCount: accessories.items?.length || 0,
+        conversationalHasContext: conversationalContext?.hasContext,
+        detectedChanges: conversationalContext?.detectedChanges?.length || 0
+      }
     };
 
     const capCraftAI = AI_ASSISTANTS.QUOTE_MASTER;
@@ -223,7 +233,13 @@ function transformToOrderBuilderFormat(format8Data: any) {
           panelCount: capDetails.panelCount,
           color: capDetails.color,
           colors: capDetails.colors,
-          size: capDetails.size
+          size: capDetails.size,
+          // CRITICAL FIX: Add debug fields for troubleshooting
+          _debug: {
+            sourceColor: capDetails.color,
+            sourceColors: capDetails.colors,
+            conversationalUpdate: conversationalContext?.isConversationalUpdate || false
+          }
         },
         cost: pricing.baseProductCost
       },
@@ -242,7 +258,7 @@ function transformToOrderBuilderFormat(format8Data: any) {
         logoSetup: customization.logos || [],
         premiumUpgrades: {
           fabric: capDetails.fabric !== 'Standard' ? capDetails.fabric : null,
-          closure: capDetails.closure !== 'Snapback' ? capDetails.closure : null
+          closure: capDetails.closure || null
         },
         cost: pricing.logosCost + (pricing.premiumFabricCost || 0) + (pricing.premiumClosureCost || 0) + (pricing.accessoriesCost || 0)
       },

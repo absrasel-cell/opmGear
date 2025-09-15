@@ -47,6 +47,11 @@ interface CostBreakdown {
   cost: number;
   unitPrice: number;
  }>;
+ servicesCosts: Array<{
+  name: string;
+  cost: number;
+  unitPrice: number;
+ }>;
  moldChargeCosts: Array<{
   name: string;
   cost: number;
@@ -545,7 +550,9 @@ function CostCalculator({
  shipmentValidation,
  product,
  previousOrderNumber,
- setPreviousOrderNumber
+ setPreviousOrderNumber,
+ costBreakdown,
+ setCostBreakdown
 }: {
  selectedColors: Record<string, { sizes: Record<string, number> }>;
  logoSetupSelections: Record<string, { position?: string; size?: string; application?: string }>;
@@ -561,8 +568,9 @@ function CostCalculator({
  product: Product;
  previousOrderNumber: string;
  setPreviousOrderNumber: (value: string) => void;
+ costBreakdown: CostBreakdown | null;
+ setCostBreakdown: (breakdown: CostBreakdown | null) => void;
 }) {
- const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
  const [isLoading, setIsLoading] = useState(false);
  const [error, setError] = useState<string | null>(null);
 
@@ -932,6 +940,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
  const [showOptionalOptions, setShowOptionalOptions] = useState<boolean>(false);
  const [currentStep, setCurrentStep] = useState<number>(1);
  const [showOrderForm, setShowOrderForm] = useState<boolean>(false);
+ const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
  const [cartMessage, setCartMessage] = useState<string>('');
  const [cartError, setCartError] = useState<string>('');
@@ -1293,7 +1302,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
   }
   } catch (error) {
    console.error('❌ Error in handleColorSelection:', error);
-   console.error('Error stack:', error.stack);
+   console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
   }
  };
 
@@ -3712,7 +3721,7 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
        <div className="transition-all duration-300 ease-in-out">
         {Object.keys(selectedColors).length > 0 ? (
          <div className="animate-fadeIn">
-          <CostCalculator 
+          <CostCalculator
            selectedColors={selectedColors}
            logoSetupSelections={logoSetupSelections}
            multiSelectOptions={multiSelectOptions}
@@ -3722,6 +3731,8 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
            product={product}
            previousOrderNumber={previousOrderNumber}
            setPreviousOrderNumber={setPreviousOrderNumber}
+           costBreakdown={costBreakdown}
+           setCostBreakdown={setCostBreakdown}
           />
          </div>
         ) : (
@@ -4226,7 +4237,10 @@ export default function ProductClient({ product, productSlug, prefillOrderId, re
           disabled={Object.keys(selectedColors).length === 0}
           onSuccess={handleCartSuccess}
           onError={handleCartError}
-          shipmentValidation={shipmentValidation}
+          shipmentValidation={shipmentValidation.isValid !== null ? {
+            isValid: shipmentValidation.isValid,
+            shipmentData: shipmentValidation.shipmentData
+          } : undefined}
          />
         </div>
 

@@ -6,7 +6,7 @@ import { useCart } from '@/components/cart/CartContext';
 import { useAuth } from '@/components/auth/AuthContext';
 import CustomerInfoForm from '@/components/forms/CustomerInfoForm';
 import { useRouter } from 'next/navigation';
-import { calculateGrandTotal, CostBreakdown, calculateVolumeDiscount, VolumeDiscountInfo, getBaseProductPricing } from '@/lib/pricing';
+import { calculateGrandTotal, CostBreakdown, calculateVolumeDiscount, VolumeDiscountInfo } from '@/lib/pricing';
 
 
 // Component to display discounted pricing with savings notification
@@ -98,7 +98,7 @@ function DiscountedPriceDisplay({
 
  // Use customization pricing if available, otherwise fall back to base product pricing
  const pricingToUse = customizationPricing || pricingData;
- const discountInfo = calculateVolumeDiscount(unitPrice, totalUnits, pricingToUse);
+ const discountInfo = pricingToUse ? calculateVolumeDiscount(unitPrice, totalUnits, pricingToUse) : null;
 
  if (isLoadingPricing) {
   return (
@@ -160,7 +160,6 @@ export default function CartPage() {
 
  const [itemCostBreakdowns, setItemCostBreakdowns] = useState<Record<string, CostBreakdown>>({});
  const [isCalculatingCosts, setIsCalculatingCosts] = useState(false);
- const [baseProductPricing, setBaseProductPricing] = useState<any>(null);
  
  // Refs to track input elements for validation styling
  const inputRefs = useRef<Record<string, HTMLInputElement>>({});
@@ -198,19 +197,6 @@ export default function CartPage() {
   }
  }, []);
 
- // Load base product pricing for discount calculations
- useEffect(() => {
-  const loadBaseProductPricing = async () => {
-   try {
-    const pricing = getBaseProductPricing('Tier 1'); // Load fallback pricing
-    setBaseProductPricing(pricing);
-   } catch (error) {
-    console.error('Error loading base product pricing from CSV:', error);
-   }
-  };
-
-  loadBaseProductPricing();
- }, []);
 
  // Calculate costs for all cart items - trigger when quantities change
  useEffect(() => {
@@ -298,10 +284,6 @@ export default function CartPage() {
 
  const calculateItemCost = async (item: any): Promise<CostBreakdown | null> => {
   try {
-   // Use fallback pricing
-   const baseProductPricing = getBaseProductPricing(item.priceTier || 'Tier 1');
-
-
    const shipmentData = item.shipmentId ? await getShipmentData(item.shipmentId) : undefined;
    
    if (process.env.NODE_ENV === 'development') {
@@ -327,7 +309,6 @@ export default function CartPage() {
      logoSetupSelections: item.logoSetupSelections,
      multiSelectOptions: item.multiSelectOptions,
      selectedOptions: item.selectedOptions,
-     baseProductPricing: baseProductPricing,
      priceTier: item.priceTier || 'Tier 1',
      // Add fabric setup for premium fabric costs
      fabricSetup: item.selectedOptions?.['fabric-setup'],
@@ -656,7 +637,7 @@ export default function CartPage() {
                     <DiscountedPriceDisplay
                      unitPrice={logoCost.unitPrice}
                      totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                     pricingData={baseProductPricing}
+                     pricingData={null}
                      cost={logoCost.cost}
                      name={logoCost.name}
                      baseUnitPrice={(logoCost as any).baseUnitPrice}
@@ -710,7 +691,7 @@ export default function CartPage() {
                     <DiscountedPriceDisplay
                      unitPrice={acc.unitPrice}
                      totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                     pricingData={baseProductPricing}
+                     pricingData={null}
                      cost={acc.cost}
                      name={acc.name}
                     />
@@ -758,7 +739,7 @@ export default function CartPage() {
                   <DiscountedPriceDisplay
                    unitPrice={fabric.unitPrice}
                    totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                   pricingData={baseProductPricing}
+                   pricingData={null}
                    cost={fabric.cost}
                    name={fabric.name}
                   />
@@ -801,7 +782,7 @@ export default function CartPage() {
                    <DiscountedPriceDisplay
                     unitPrice={d.unitPrice}
                     totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                    pricingData={baseProductPricing}
+                    pricingData={null}
                     cost={d.cost}
                     name={d.name}
                    />
@@ -853,7 +834,7 @@ export default function CartPage() {
                    <DiscountedPriceDisplay
                     unitPrice={s.unitPrice}
                     totalUnits={itemCostBreakdowns[item.id].totalUnits}
-                    pricingData={baseProductPricing}
+                    pricingData={null}
                     cost={s.cost}
                     name={s.name}
                    />

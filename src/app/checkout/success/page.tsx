@@ -10,26 +10,25 @@ import { calculateGrandTotal } from '@/lib/pricing';
 // Detailed cost calculation function - matches checkout logic exactly
 async function calculateDetailedCostBreakdown(cartItem: any): Promise<DetailedCostBreakdown> {
  console.log(`🔧 calculateDetailedCostBreakdown called for item ${cartItem.id}`);
- 
+
+ // Prepare the request body first so it's available in catch blocks
+ const requestBody = {
+  selectedColors: cartItem.selectedColors,
+  logoSetupSelections: cartItem.logoSetupSelections,
+  selectedOptions: cartItem.selectedOptions,
+  multiSelectOptions: cartItem.multiSelectOptions,
+  priceTier: cartItem.priceTier || 'Tier 2'
+ };
+
  try {
-  // Import the same function checkout uses
-  const { getBaseProductPricing } = await import('@/lib/pricing');
-  
-  // Get consistent base product pricing - same as checkout
-  const baseProductPricing = getBaseProductPricing(cartItem.priceTier || 'Tier 2');
-  
-  const requestBody = {
-   selectedColors: cartItem.selectedColors,
-   logoSetupSelections: cartItem.logoSetupSelections,
-   selectedOptions: cartItem.selectedOptions,
-   multiSelectOptions: cartItem.multiSelectOptions,
-   baseProductPricing, // Include base product pricing like checkout does
-   priceTier: cartItem.priceTier || 'Tier 2'
-  };
-  
   console.log(`🔧 API request for ${cartItem.id}:`, requestBody);
-  
-  const response = await fetch('/api/calculate-cost', {
+
+  // Use absolute URL to ensure we're hitting the correct port
+  const apiUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/calculate-cost`
+    : '/api/calculate-cost';
+
+  const response = await fetch(apiUrl, {
    method: 'POST',
    headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify(requestBody)
@@ -40,36 +39,48 @@ async function calculateDetailedCostBreakdown(cartItem: any): Promise<DetailedCo
   if (response.ok) {
    const result = await response.json();
    console.log(`🔧 API result for ${cartItem.id}:`, result);
-   
+
    // Calculate base unit price from total units and base cost
    const baseUnitPrice = result.totalUnits > 0 ? result.baseProductCost / result.totalUnits : 0;
-   
+
    const breakdown = {
     baseProductCost: result.baseProductCost || 0,
     baseProductUnitPrice: baseUnitPrice,
-    logoSetupCosts: result.logoSetupCosts || [],
+    logoSetupCosts: (result.logoSetupCosts || []).map((logo: any) => ({
+     ...logo,
+     details: logo.details || logo.name || 'Logo Setup' // Ensure details is never undefined
+    })),
     accessoriesCosts: result.accessoriesCosts || [],
     closureCosts: result.closureCosts || [],
+    premiumFabricCosts: result.premiumFabricCosts || [],
     deliveryCosts: result.deliveryCosts || [],
+    servicesCosts: result.servicesCosts || [],
+    moldChargeCosts: result.moldChargeCosts || [],
     totalUnits: result.totalUnits || 0,
     subtotal: result.totalCost || 0,
     totalCost: result.totalCost || 0, // Use the API calculated total, not order.orderTotal
     volumeDiscountApplied: (result.totalUnits || 0) >= 144,
     priceTier: cartItem.priceTier || 'Tier 2'
    };
-   
+
    console.log(`🔧 Final breakdown for ${cartItem.id}:`, breakdown);
    return breakdown;
   } else {
    const errorText = await response.text();
-   console.error(`🔧 API error for ${cartItem.id}:`, response.status, errorText);
+   console.error(`🔧 API error for ${cartItem.id}:`, response.status, response.statusText, errorText);
+   console.error(`🔧 Request that failed:`, requestBody);
   }
- } catch (error) {
+ } catch (error: unknown) {
   console.error(`🔧 Error calculating detailed breakdown for ${cartItem.id}:`, error);
+  console.error(`🔧 Request that caused error:`, requestBody);
  }
 
- // Fallback breakdown if API fails
- const fallbackUnits = cartItem.pricing?.volume || 0;
+ // Fallback breakdown if API fails - calculate units from order data
+ const fallbackUnits = cartItem.selectedColors ?
+   Object.values(cartItem.selectedColors).reduce((sum: number, colorData: any) =>
+     sum + Object.values((colorData as any).sizes || {}).reduce((colorSum: number, qty: any) => colorSum + (qty as number), 0), 0
+   ) : (cartItem.pricing?.volume || 0);
+
  console.log(`🔧 Using fallback breakdown for ${cartItem.id} with ${fallbackUnits} units`);
   
  return {
@@ -78,7 +89,10 @@ async function calculateDetailedCostBreakdown(cartItem: any): Promise<DetailedCo
   logoSetupCosts: [],
   accessoriesCosts: [],
   closureCosts: [],
+  premiumFabricCosts: [],
   deliveryCosts: [],
+  servicesCosts: [],
+  moldChargeCosts: [],
   totalUnits: fallbackUnits,
   subtotal: 0,
   totalCost: 0,
@@ -107,7 +121,8 @@ interface DetailedCostBreakdown {
   name: string;
   cost: number;
   unitPrice: number;
-  details?: string;
+  details: string;
+  baseUnitPrice?: number;
  }>;
  accessoriesCosts: Array<{
   name: string;
@@ -119,10 +134,27 @@ interface DetailedCostBreakdown {
   cost: number;
   unitPrice: number;
  }>;
+ premiumFabricCosts: Array<{
+  name: string;
+  cost: number;
+  unitPrice: number;
+ }>;
  deliveryCosts: Array<{
   name: string;
   cost: number;
   unitPrice: number;
+ }>;
+ servicesCosts: Array<{
+  name: string;
+  cost: number;
+  unitPrice: number;
+ }>;
+ moldChargeCosts?: Array<{
+  name: string;
+  cost: number;
+  unitPrice: number;
+  waived: boolean;
+  waiverReason?: string;
  }>;
  totalUnits: number;
  subtotal: number;
@@ -231,11 +263,11 @@ function SuccessPageContent() {
         autoCreateInvoicesOnly(validOrders, orderInvoices);
        }, 1000);
       }
-     } catch (error) {
+     } catch (error: unknown) {
       console.log('Could not fetch invoices:', error);
      }
     }
-   } catch (error) {
+   } catch (error: unknown) {
     console.error('Error fetching order details:', error);
    } finally {
     setLoading(false);
@@ -273,7 +305,7 @@ function SuccessPageContent() {
    
    setInvoices(updatedInvoices);
    setAutoProcessingComplete(true);
-  } catch (error) {
+  } catch (error: unknown) {
    console.error('🤖 Error in auto-creating invoices:', error);
    setAutoProcessingComplete(true);
   }
@@ -282,8 +314,8 @@ function SuccessPageContent() {
  // Helper function to create invoice without UI updates (for auto-processing)
  const createInvoiceForOrder = async (orderId: string): Promise<InvoiceData | null> => {
   try {
-   // Try user endpoint first (for user-created invoices)
-   let response = await fetch('/api/user/invoices', {
+   // Only use user endpoint since we're in a user context
+   const response = await fetch('/api/user/invoices', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderId }),
@@ -292,7 +324,7 @@ function SuccessPageContent() {
 
    if (response.ok) {
     const result = await response.json();
-    console.log(`🤖 User invoice created for order ${orderId}:`, result.invoice);
+    console.log(`🤖 Invoice processed for order ${orderId}:`, result.invoice);
     return {
      id: result.invoice.id,
      number: result.invoice.number,
@@ -301,34 +333,18 @@ function SuccessPageContent() {
      orderId: orderId
     };
    } else {
-    console.log(`🤖 User invoice creation failed, trying admin endpoint...`);
-    // Fallback to admin endpoint if user endpoint fails
-    response = await fetch('/api/invoices', {
-     method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ 
-      orderId, 
-      simple: false // Use detailed invoice format with separate line items
-     }),
-     credentials: 'include',
-    });
+    const errorText = await response.text();
+    console.error(`🤖 Invoice creation failed for order ${orderId}:`, errorText);
 
-    if (response.ok) {
-     const result = await response.json();
-     console.log(`🤖 Admin invoice created for order ${orderId}:`, result);
-     return {
-      id: result.id,
-      number: result.number,
-      status: result.status || 'ISSUED',
-      total: result.total,
-      orderId: orderId
-     };
-    } else {
-     const errorText = await response.text();
-     console.error(`🤖 Both endpoints failed for order ${orderId}:`, errorText);
+    // Try to parse error response
+    try {
+     const errorJson = JSON.parse(errorText);
+     console.log(`🤖 Parsed error:`, errorJson);
+    } catch {
+     // Error text is not JSON, log as is
     }
    }
-  } catch (error) {
+  } catch (error: unknown) {
    console.error(`🤖 Error creating invoice for order ${orderId}:`, error);
   }
   return null;
@@ -374,7 +390,7 @@ function SuccessPageContent() {
     const errorText = await response.text();
     console.error(`🤖 PDF download failed for ${invoiceNumber}:`, errorText);
    }
-  } catch (error) {
+  } catch (error: unknown) {
    console.error(`🤖 Error downloading PDF for ${invoiceNumber}:`, error);
    throw error;
   }
@@ -405,7 +421,7 @@ function SuccessPageContent() {
    } else {
     alert('Unable to create invoice. Please try again.');
    }
-  } catch (error) {
+  } catch (error: unknown) {
    console.error('Error creating invoice and downloading PDF:', error);
    alert('Error processing invoice. Please try again.');
   } finally {
@@ -472,18 +488,23 @@ function SuccessPageContent() {
     });
     alert(`Unable to create invoice: ${error.error || error.message || 'Unknown error'}. Please contact support.`);
    }
-  } catch (error) {
+  } catch (error: unknown) {
    console.error('🧾 Error creating invoice:', error);
-   
-   if (error.name === 'AbortError') {
-    console.error('🧾 Request was aborted due to timeout (30 seconds)');
-    alert('Request timeout: The server is taking too long to respond. Please try again or contact support.');
-   } else if (error.message?.includes('fetch')) {
-    console.error('🧾 Network fetch error:', error.message);
-    alert(`Network error: ${error.message}. Please check your connection and try again.`);
+
+   if (error instanceof Error) {
+    if (error.name === 'AbortError') {
+     console.error('🧾 Request was aborted due to timeout (30 seconds)');
+     alert('Request timeout: The server is taking too long to respond. Please try again or contact support.');
+    } else if (error.message?.includes('fetch')) {
+     console.error('🧾 Network fetch error:', error.message);
+     alert(`Network error: ${error.message}. Please check your connection and try again.`);
+    } else {
+     console.error('🧾 Unknown error:', error);
+     alert(`Unknown error: ${error.message || 'Unable to create invoice. Please try again later.'}`);
+    }
    } else {
-    console.error('🧾 Unknown error:', error);
-    alert(`Unknown error: ${error.message || 'Unable to create invoice. Please try again later.'}`);
+    console.error('🧾 Non-Error exception:', error);
+    alert('An unexpected error occurred. Please try again later.');
    }
   } finally {
    console.log(`🧾 Clearing creatingInvoice state`);
@@ -546,9 +567,13 @@ function SuccessPageContent() {
     });
     alert(`Error ${response.status}: ${errorText || 'Unable to download PDF. Please try again.'}`);
    }
-  } catch (error) {
+  } catch (error: unknown) {
    console.error('🔽 Error downloading PDF:', error);
-   alert(`Network error: ${error.message || 'Unable to download PDF. Please try again.'}`);
+   if (error instanceof Error) {
+    alert(`Network error: ${error.message || 'Unable to download PDF. Please try again.'}`);
+   } else {
+    alert('Unable to download PDF. Please try again.');
+   }
   } finally {
    setDownloadingPdf(null);
   }
@@ -659,21 +684,39 @@ function SuccessPageContent() {
       </p>
       
       {/* Order Total Summary */}
-      {Object.values(costBreakdowns).length > 0 && (
+      {(Object.values(costBreakdowns).length > 0 || orderDetails.length > 0) && (
        <div className="mt-8 p-6 rounded-2xl border border-lime-400/20 bg-lime-400/5 ring-1 ring-lime-400/10 receipt-glass-item">
         <div className="text-center">
          <p className="text-lime-300 font-semibold text-lg mb-2">Order Total</p>
          <div className="text-4xl font-bold text-white mb-2">
           {formatPrice(
-           isMultipleOrders 
-            ? calculateGrandTotal(costBreakdowns)
-            : Object.values(costBreakdowns)[0]?.totalCost || 0
+           isMultipleOrders
+            ? (Object.values(costBreakdowns).length > 0
+               ? calculateGrandTotal(costBreakdowns)
+               : orderDetails.reduce((sum, order) => sum + (order.orderTotal || 0), 0))
+            : (Object.values(costBreakdowns)[0]?.totalCost || orderDetails[0]?.orderTotal || 0)
           )}
          </div>
          <p className="text-slate-300 text-sm">
-          {isMultipleOrders 
-           ? `${orderIds.length} orders • ${Object.values(costBreakdowns).reduce((sum, breakdown) => sum + breakdown.totalUnits, 0)} total units`
-           : `${Object.values(costBreakdowns)[0]?.totalUnits || 0} units`
+          {isMultipleOrders
+           ? `${orderIds.length} orders • ${Object.values(costBreakdowns).length > 0
+               ? Object.values(costBreakdowns).reduce((sum, breakdown) => sum + breakdown.totalUnits, 0)
+               : orderDetails.reduce((sum, order) => {
+                   // Calculate total units from order data
+                   const units = order.selectedColors ?
+                     Object.values(order.selectedColors).reduce((orderSum: number, colorData: any) =>
+                       orderSum + Object.values((colorData as any).sizes || {}).reduce((colorSum: number, qty: any) => colorSum + (qty as number), 0), 0
+                     ) : 0;
+                   return sum + units;
+                 }, 0)} total units`
+           : `${Object.values(costBreakdowns)[0]?.totalUnits || (() => {
+               // Calculate units from first order if breakdown not available
+               const order = orderDetails[0];
+               return order?.selectedColors ?
+                 Object.values(order.selectedColors).reduce((sum: number, colorData: any) =>
+                   sum + Object.values((colorData as any).sizes || {}).reduce((colorSum: number, qty: any) => colorSum + (qty as number), 0), 0
+                 ) : 0;
+             })()} units`
           }
          </p>
         </div>
@@ -968,31 +1011,43 @@ function SuccessPageContent() {
      ))}
 
      {/* Summary for Multiple Orders */}
-     {isMultipleOrders && Object.values(costBreakdowns).length > 0 && (
+     {isMultipleOrders && orderDetails.length > 0 && (
       <GlassCard className="p-6 md:p-8 mb-8 receipt-glass-section">
        <h3 className="text-xl font-bold text-white mb-6">Order Summary</h3>
        <div className="space-y-4">
         {/* Individual Order Totals */}
         {orderDetails.map((order, index) => {
          const breakdown = costBreakdowns[order.id];
-         return breakdown ? (
+         return (
           <div key={order.id} className="flex justify-between items-center py-2 border-b border-gray-700/50">
            <span className="text-slate-300">Order {index + 1} (#{order.id})</span>
-           <span className="text-white font-medium">{formatPrice(breakdown.totalCost)}</span>
+           <span className="text-white font-medium">{formatPrice(breakdown?.totalCost || order.orderTotal || 0)}</span>
           </div>
-         ) : null;
+         );
         })}
-        
-        {/* Grand Total using calculateGrandTotal like checkout */}
+
+        {/* Grand Total */}
         <div className="flex justify-between items-center pt-4 border-t border-gray-600/60">
          <div>
           <span className="text-xl font-bold text-white">Grand Total</span>
           <div className="text-sm text-slate-300">
-           {orderIds.length} orders • {Object.values(costBreakdowns).reduce((sum, breakdown) => sum + breakdown.totalUnits, 0)} total units
+           {orderIds.length} orders • {Object.values(costBreakdowns).length > 0
+             ? Object.values(costBreakdowns).reduce((sum, breakdown) => sum + breakdown.totalUnits, 0)
+             : orderDetails.reduce((sum, order) => {
+                 const units = order.selectedColors ?
+                   Object.values(order.selectedColors).reduce((orderSum: number, colorData: any) =>
+                     orderSum + Object.values((colorData as any).sizes || {}).reduce((colorSum: number, qty: any) => colorSum + (qty as number), 0), 0
+                   ) : 0;
+                 return sum + units;
+               }, 0)} total units
           </div>
          </div>
          <span className="text-3xl font-bold text-lime-300">
-          {formatPrice(calculateGrandTotal(costBreakdowns))}
+          {formatPrice(
+           Object.values(costBreakdowns).length > 0
+             ? calculateGrandTotal(costBreakdowns)
+             : orderDetails.reduce((sum, order) => sum + (order.orderTotal || 0), 0)
+          )}
          </span>
         </div>
        </div>

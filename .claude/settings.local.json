@@ -21,7 +21,11 @@
       "Bash(del test-7panel-products.js test-fix.js)",
       "Bash(timeout:*)",
       "Bash(npm run:*)",
-      "Bash(del \"F:\\Custom Cap - github\\USCC\\test-conversation-state.js\")"
+      "Bash(del \"F:\\Custom Cap - github\\USCC\\test-conversation-state.js\")",
+      "Bash(del /s /q .next*)",
+      "Bash(del test-exact-error-scenario.js test-debug-conversation.js test-conversation-state-validation.js)",
+      "Bash(npm install:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": [],

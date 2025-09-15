@@ -29,12 +29,12 @@ export async function PATCH(
       console.log('❌ No authenticated user found');
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    
+
     const userId = user.id;
     console.log('✅ Authenticated user found:', userId);
 
-    // Verify the conversation exists and belongs to the user
-    const { data: conversation, error: conversationError } = await supabaseAdmin
+    // First, try to find the conversation with userId filter
+    let { data: conversation, error: conversationError } = await supabaseAdmin
       .from('Conversation')
       .select(`
         *,
@@ -52,12 +52,94 @@ export async function PATCH(
       .eq('userId', userId)
       .single();
 
+    // If not found with userId, try without userId filter (for guest->auth conversions)
+    if (conversationError || !conversation) {
+      console.log('🔍 Conversation not found with userId filter, trying without userId filter...');
+
+      const { data: conversationWithoutUser, error: errorWithoutUser } = await supabaseAdmin
+        .from('Conversation')
+        .select(`
+          *,
+          ConversationQuotes (
+            id,
+            isMainQuote,
+            quoteOrderId,
+            QuoteOrder (
+              id,
+              status
+            )
+          )
+        `)
+        .eq('id', conversationId)
+        .single();
+
+      if (errorWithoutUser || !conversationWithoutUser) {
+        console.error('❌ Conversation not found even without userId filter:', errorWithoutUser);
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+
+      // Check if this conversation can be accessed by this user
+      // Allow access if userId is null (guest conversation) or matches current user
+      if (conversationWithoutUser.userId && conversationWithoutUser.userId !== userId) {
+        console.error('❌ User does not have access to this conversation:', {
+          conversationUserId: conversationWithoutUser.userId,
+          currentUserId: userId
+        });
+        return NextResponse.json({ error: 'Not authorized to access this conversation' }, { status: 403 });
+      }
+
+      conversation = conversationWithoutUser;
+      conversationError = null;
+      console.log('✅ Found conversation without userId filter:', {
+        conversationId: conversation.id,
+        conversationUserId: conversation.userId,
+        hasQuote: conversation.hasQuote,
+        quoteCount: conversation.ConversationQuotes?.length || 0
+      });
+    } else {
+      console.log('✅ Found conversation with userId filter:', {
+        conversationId: conversation.id,
+        hasQuote: conversation.hasQuote,
+        quoteCount: conversation.ConversationQuotes?.length || 0
+      });
+    }
+
     if (conversationError || !conversation) {
       return NextResponse.json({ error: 'Conversation not found or not authorized' }, { status: 404 });
     }
 
-    if (!conversation.hasQuote || !conversation.ConversationQuotes || conversation.ConversationQuotes.length === 0) {
-      return NextResponse.json({ error: 'No quote found for this conversation' }, { status: 400 });
+    // Enhanced debugging for quote detection
+    console.log('🔍 Checking quote data:', {
+      hasQuote: conversation.hasQuote,
+      conversationQuotesExists: !!conversation.ConversationQuotes,
+      conversationQuotesLength: conversation.ConversationQuotes?.length || 0,
+      conversationQuotesData: conversation.ConversationQuotes
+    });
+
+    if (!conversation.hasQuote) {
+      console.error('❌ Conversation hasQuote flag is false');
+      return NextResponse.json({
+        error: 'No quote found for this conversation',
+        debug: {
+          hasQuote: conversation.hasQuote,
+          conversationId: conversation.id,
+          reason: 'hasQuote flag is false'
+        }
+      }, { status: 400 });
+    }
+
+    if (!conversation.ConversationQuotes || conversation.ConversationQuotes.length === 0) {
+      console.error('❌ No ConversationQuotes bridge records found');
+      return NextResponse.json({
+        error: 'No quote found for this conversation',
+        debug: {
+          hasQuote: conversation.hasQuote,
+          conversationId: conversation.id,
+          conversationQuotesExists: !!conversation.ConversationQuotes,
+          conversationQuotesLength: conversation.ConversationQuotes?.length || 0,
+          reason: 'No ConversationQuotes bridge records'
+        }
+      }, { status: 400 });
     }
 
     // Update the main quote order status

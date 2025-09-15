@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ [STEP-6] Delivery costs fetched:', delivery);
 
     // Generate AI response based on fetched data
-    const aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+    const aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery, requirements);
 
     // DEBUG: Log logo setup details
     console.log('🔍 [DEBUG] Logo setup details:', {
