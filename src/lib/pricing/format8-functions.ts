@@ -29,48 +29,85 @@ import {
 // CRITICAL FIX: Import unified logo detection system to replace complex logo detection
 import { detectLogosUnified, convertToFormat8Format } from '@/lib/unified-logo-detection';
 
-// Enhanced color detection function that handles "Royal/Black" patterns
+// Enhanced color detection function that handles "Navy/White" patterns with interference prevention
 function extractAdvancedColor(text: string): string | null {
+  console.log('🎨 [FORMAT8-COLORS] === START EXTRACTING COLOR ===');
+  console.log('🎨 [FORMAT8-COLORS] Input text:', text);
+
   const lowerText = text.toLowerCase();
 
-  // Enhanced color detection with split color support (like "Royal/Black")
-  // Priority 1: Check for slash patterns (Royal/Black, Red/White, etc.)
-  const slashPattern = /(\w+)\/(\w+)/i;
-  const slashMatch = text.match(slashPattern);
+  // Enhanced color detection with split color support (like "Royal/Black", "Navy/White")
+  // Priority 1: Check for COLOR-SPECIFIC slash patterns, not fabric patterns
+  const colorSlashPattern = /\b(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\s*\/\s*(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b/i;
+  const slashMatch = text.match(colorSlashPattern);
+  console.log('🎨 [FORMAT8-COLORS] Slash pattern match:', slashMatch);
 
   if (slashMatch) {
     const part1 = slashMatch[1];
     const part2 = slashMatch[2];
+    console.log('🎨 [FORMAT8-COLORS] Split color parts:', { part1, part2 });
 
-    // Common colors for validation - including Royal
+    // CRITICAL FIX: Expanded color list and improved validation
     const knownColors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple',
                         'pink', 'brown', 'gray', 'grey', 'navy', 'lime', 'olive', 'royal',
-                        'maroon', 'gold', 'charcoal', 'khaki', 'carolina'];
+                        'maroon', 'gold', 'charcoal', 'khaki', 'carolina', 'silver', 'teal',
+                        'forest', 'burgundy', 'crimson', 'ivory', 'beige', 'tan', 'coral'];
 
-    // If both parts are colors, treat as split color
-    if (knownColors.includes(part1.toLowerCase()) && knownColors.includes(part2.toLowerCase())) {
-      const normalizedColor = `${part1}/${part2}`;
-      console.log('🎨 [ADVANCED-COLOR] Split color detected:', normalizedColor);
+    const part1Valid = knownColors.includes(part1.toLowerCase());
+    const part2Valid = knownColors.includes(part2.toLowerCase());
+    console.log('🎨 [FORMAT8-COLORS] Color validation:', { part1Valid, part2Valid });
+
+    // If both parts are colors, treat as split color with proper capitalization
+    if (part1Valid && part2Valid) {
+      // CRITICAL FIX: Capitalize first letter of each color for proper display
+      const normalizedPart1 = part1.charAt(0).toUpperCase() + part1.slice(1).toLowerCase();
+      const normalizedPart2 = part2.charAt(0).toUpperCase() + part2.slice(1).toLowerCase();
+      const normalizedColor = `${normalizedPart1}/${normalizedPart2}`;
+      console.log('🎨 [FORMAT8-COLORS] RESULT: Split color detected:', normalizedColor);
       return normalizedColor;
     }
   }
 
-  // Priority 2: Single color patterns with enhanced detection
-  const colorPatterns = [
-    /(?:color:?\s*|in\s+|cap\s+)(\w+)/i,
-    /(?:^|\s)(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina)(?:\s|$|,)/i
-  ];
+  // Priority 2: Enhanced single color patterns with FABRIC EXCLUSION
+  // BUT ONLY if there's NO slash pattern present (avoid interfering with Navy/White)
+  const hasSlashPattern = /\b(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\s*\/\s*(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b/i.test(text);
 
-  for (const pattern of colorPatterns) {
-    const colorMatch = text.match(pattern);
-    if (colorMatch) {
-      const detectedColor = colorMatch[1] || colorMatch[0].trim();
-      console.log('🎨 [ADVANCED-COLOR] Single color detected:', detectedColor);
-      return detectedColor;
+  console.log('🎨 [FORMAT8-COLORS] Checking for slash pattern interference:', hasSlashPattern);
+
+  if (!hasSlashPattern) {
+    const colorPatterns = [
+      // Specific color context patterns - only when explicitly stated as color
+      /(?:color:?\s*|color\s+)(\b(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b)/i,
+      /(?:make\s+it\s+)(\b(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b)/i
+    ];
+    console.log('🎨 [FORMAT8-COLORS] Testing single color patterns (no slash interference)');
+
+    for (const pattern of colorPatterns) {
+      const colorMatch = text.match(pattern);
+      console.log('🎨 [FORMAT8-COLORS] Pattern test:', { pattern: pattern.source, match: colorMatch });
+      if (colorMatch) {
+        const detectedColor = colorMatch[1] || colorMatch[0].trim();
+        // CRITICAL FIX: Properly capitalize single colors too
+        const normalizedColor = detectedColor.charAt(0).toUpperCase() + detectedColor.slice(1).toLowerCase();
+        console.log('🎨 [FORMAT8-COLORS] RESULT: Single color detected:', normalizedColor);
+        return normalizedColor;
+      }
     }
+  } else {
+    console.log('🎨 [FORMAT8-COLORS] Skipping single color detection due to slash pattern interference');
   }
 
-  console.log('🎨 [ADVANCED-COLOR] No color detected in:', text.substring(0, 50));
+  // Priority 3: If no explicit color context, default to Black (as per business rules)
+  // But ONLY if we haven't detected any fabric specifications that could be confused
+  const hasFabricTerms = /(?:polyester|laser|cut|acrylic|airmesh|cotton|suede|leather)/i.test(text);
+  if (!hasFabricTerms) {
+    console.log('🎨 [FORMAT8-COLORS] No explicit color or fabric terms, defaulting to Black');
+    console.log('🎨 [FORMAT8-COLORS] === END EXTRACTING COLOR ===');
+    return 'Black';
+  }
+
+  console.log('🎨 [FORMAT8-COLORS] RESULT: Fabric terms detected, no color specified - returning null to use default');
+  console.log('🎨 [FORMAT8-COLORS] === END EXTRACTING COLOR ===');
   return null;
 }
 
@@ -163,6 +200,30 @@ function convertCmToHatSize(cm: number): string {
   }
 
   return sizeMap[closest] || '7 1/4';
+}
+
+// Helper function to extract quantity from message text
+function extractQuantityFromMessage(message: string): number | null {
+  const quantityPatterns = [
+    /(\d+,?\d*)\s*(?:pieces|pcs?|caps?|units?)/i,
+    /quantity[:\s]*(\d+,?\d*)/i,
+    /for\s+(\d+,?\d*)/i,
+    /(\d+,?\d*)\s*caps?\s+/i
+  ];
+
+  for (const pattern of quantityPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      const qty = parseInt(match[1].replace(/,/g, ''));
+      if (qty > 0) {
+        console.log('🔢 [EXTRACT-QTY] Found quantity in message:', qty);
+        return qty;
+      }
+    }
+  }
+
+  console.log('🔢 [EXTRACT-QTY] No quantity found in message');
+  return null;
 }
 
 // Helper function to extract previous quote context from conversation history
@@ -634,8 +695,21 @@ export async function analyzeCustomerRequirements(message: string, conversationH
 
   console.log('📝 [ENHANCED-CONTEXT] Using contextual message:', effectiveMessage.substring(0, 200) + '...');
 
-  // Build requirements object with merged specifications
-  const quantity = mergedSpecs.quantity || 144;
+  // CRITICAL FIX: Preserve quantity from context, only use default for truly fresh requests
+  let quantity;
+  if (mergedSpecs.quantity && mergedSpecs.quantity > 0) {
+    // Use quantity from conversation context (highest priority)
+    quantity = mergedSpecs.quantity;
+    console.log('🔢 [QTY-FIX] Using quantity from context:', quantity);
+  } else if (extractQuantityFromMessage(effectiveMessage)) {
+    // Extract from current message (medium priority)
+    quantity = extractQuantityFromMessage(effectiveMessage);
+    console.log('🔢 [QTY-FIX] Extracted quantity from message:', quantity);
+  } else {
+    // Use default only for completely fresh requests (lowest priority)
+    quantity = 144;
+    console.log('🔢 [QTY-FIX] Using default quantity for fresh request:', quantity);
+  }
 
   // ENHANCED: Determine if this is a conversational update
   const isConversationalUpdate = contextResult.hasContext && detectedChanges.length > 0;
@@ -700,23 +774,57 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     panelCount = mergedSpecs.panelCount.includes('P') ? mergedSpecs.panelCount : `${mergedSpecs.panelCount}P`;
     capSpecifications.panelCount = panelCount;
   } else {
-    // Legacy extraction for new specifications
+    // CRITICAL FIX: Enhanced panel count detection with more patterns
     const msgLower = effectiveMessage.toLowerCase();
-    if (msgLower.includes('7-panel') || msgLower.includes('7 panel')) {
+    if (msgLower.includes('7-panel') || msgLower.includes('7 panel') ||
+        msgLower.includes('seven panel') || msgLower.includes('seven-panel') ||
+        msgLower.includes('7p ') || msgLower.includes('7 p ')) {
       panelCount = '7P';
       capSpecifications.panelCount = '7P';
-    } else if (msgLower.includes('5-panel') || msgLower.includes('5 panel')) {
+      console.log('🎯 [PANEL-DETECTION] 7-PANEL DETECTED from message:', effectiveMessage.substring(0, 100));
+    } else if (msgLower.includes('6-panel') || msgLower.includes('6 panel') ||
+               msgLower.includes('six panel') || msgLower.includes('six-panel') ||
+               msgLower.includes('6p ') || msgLower.includes('6 p ')) {
+      panelCount = '6P';
+      capSpecifications.panelCount = '6P';
+      console.log('🎯 [PANEL-DETECTION] 6-panel detected from message');
+    } else if (msgLower.includes('5-panel') || msgLower.includes('5 panel') ||
+               msgLower.includes('five panel') || msgLower.includes('five-panel') ||
+               msgLower.includes('5p ') || msgLower.includes('5 p ')) {
       panelCount = '5P';
       capSpecifications.panelCount = '5P';
-    } else if (msgLower.includes('4-panel') || msgLower.includes('4 panel')) {
+      console.log('🎯 [PANEL-DETECTION] 5-panel detected from message');
+    } else if (msgLower.includes('4-panel') || msgLower.includes('4 panel') ||
+               msgLower.includes('four panel') || msgLower.includes('four-panel') ||
+               msgLower.includes('4p ') || msgLower.includes('4 p ')) {
       panelCount = '4P';
       capSpecifications.panelCount = '4P';
+      console.log('🎯 [PANEL-DETECTION] 4-panel detected from message');
     } else {
       capSpecifications.panelCount = '6P';
+      console.log('🎯 [PANEL-DETECTION] No specific panel count detected, defaulting to 6P');
     }
   }
 
   console.log('🎯 [ENHANCED-ANALYZE] Panel count - Merged specs:', mergedSpecs.panelCount, 'Final:', panelCount);
+
+  // CRITICAL FIX: Extract and preserve user's bill shape input
+  let billStyle = null;
+  if (mergedSpecs.billShape) {
+    billStyle = mergedSpecs.billShape;
+  } else if (!contextResult.hasContext) {
+    // Only detect from message for new requests
+    const msgLower = effectiveMessage.toLowerCase();
+    if (msgLower.includes('flat bill') || msgLower.includes('flat brim') || msgLower.includes('flatbill')) {
+      billStyle = 'Flat';
+    } else if (msgLower.includes('slight curve') || msgLower.includes('slightly curved') || msgLower.includes('slight curved')) {
+      billStyle = 'Slight Curved';
+    } else if (msgLower.includes('curved bill') || msgLower.includes('curved brim')) {
+      billStyle = 'Curved';
+    }
+  }
+
+  console.log('🎯 [ENHANCED-ANALYZE] Bill shape - Merged specs:', mergedSpecs.billShape, 'Detected:', billStyle);
 
   // ENHANCED: Use closure from merged specifications with intelligent preservation
   let closure = mergedSpecs.closure;
@@ -825,6 +933,7 @@ export async function analyzeCustomerRequirements(message: string, conversationH
     panelCount,
     closure,
     capSpecifications,
+    billStyle, // CRITICAL FIX: Add bill style to analysis results
     logoRequirement,
     allLogoRequirements,
     accessoriesRequirements,
@@ -851,57 +960,214 @@ export async function analyzeCustomerRequirements(message: string, conversationH
   };
 }
 
-// Step 2: Fetch Blank Cap costs from Supabase
+// CRITICAL FIX: Helper function to determine pricing tier based on business logic
+function determineBusinessPricingTier(requirements: any): string {
+  console.log('🎯 [PRICING-TIER] Determining tier based on business logic');
+  console.log('🎯 [PRICING-TIER] Panel count:', requirements.panelCount);
+  console.log('🎯 [PRICING-TIER] Bill style:', requirements.billStyle);
+
+  if (requirements.panelCount) {
+    const panelCountNum = parseInt(requirements.panelCount);
+
+    // BUSINESS RULE 1: 7-Panel = Tier 3 (regardless of bill shape)
+    if (panelCountNum === 7) {
+      console.log('🎯 [PRICING-TIER] 7-Panel detected -> Tier 3 (business rule)');
+      return 'Tier 3';
+    }
+
+    // BUSINESS RULE 2: 6-Panel bill shape determines tier
+    if (panelCountNum === 6) {
+      const billStyle = requirements.billStyle?.toLowerCase() || '';
+
+      // Flat or Slight Curved = Tier 2
+      if (billStyle.includes('flat') ||
+          (billStyle.includes('slight') && billStyle.includes('curved'))) {
+        console.log('🎯 [PRICING-TIER] 6-Panel Flat/Slight Curved -> Tier 2 (business rule)');
+        return 'Tier 2';
+      }
+      // Pure Curved = Tier 1
+      else if (billStyle.includes('curved')) {
+        console.log('🎯 [PRICING-TIER] 6-Panel Curved -> Tier 1 (business rule)');
+        return 'Tier 1';
+      }
+      // Default for 6-Panel
+      else {
+        console.log('🎯 [PRICING-TIER] 6-Panel default -> Tier 2 (business rule)');
+        return 'Tier 2';
+      }
+    }
+
+    // BUSINESS RULE 3: 5-Panel bill shape determines tier
+    if (panelCountNum === 5) {
+      const billStyle = requirements.billStyle?.toLowerCase() || '';
+
+      // Flat or Slight Curved = Tier 2
+      if (billStyle.includes('flat') ||
+          (billStyle.includes('slight') && billStyle.includes('curved'))) {
+        console.log('🎯 [PRICING-TIER] 5-Panel Flat/Slight Curved -> Tier 2 (business rule)');
+        return 'Tier 2';
+      }
+      // Pure Curved = Tier 1
+      else {
+        console.log('🎯 [PRICING-TIER] 5-Panel Curved/Default -> Tier 1 (business rule)');
+        return 'Tier 1';
+      }
+    }
+  }
+
+  // Default fallback
+  console.log('🎯 [PRICING-TIER] Default fallback -> Tier 1');
+  return 'Tier 1';
+}
+
+// CRITICAL FIX: Helper function to select product from correct tier
+function selectProductFromTier(products: any[], targetTier: string, requirements: any): any {
+  console.log('🎯 [PRODUCT-SELECT] Looking for products in', targetTier);
+
+  // Get all products in target tier
+  const tierProducts = products.filter(p => {
+    // Get tier info from pricing_tier_id or tier_name
+    if (p.pricing_tier && p.pricing_tier.tier_name === targetTier) {
+      return true;
+    }
+    // Fallback: match by tier ID if tier name lookup fails
+    const tierIdMap = { 'Tier 1': 1, 'Tier 2': 2, 'Tier 3': 3 };
+    return p.pricing_tier_id === tierIdMap[targetTier];
+  });
+
+  console.log('🎯 [PRODUCT-SELECT] Found', tierProducts.length, 'products in', targetTier, ':', tierProducts.map(p => p.name));
+
+  if (tierProducts.length === 0) {
+    console.log('⚠️ [PRODUCT-SELECT] No products found in target tier, using fallback');
+    return null;
+  }
+
+  // For 7-Panel, prefer Elite Seven products
+  if (requirements.panelCount && parseInt(requirements.panelCount) === 7) {
+    const eliteProduct = tierProducts.find(p => p.name.includes('Elite Seven'));
+    if (eliteProduct) {
+      console.log('🎯 [PRODUCT-SELECT] Selected Elite Seven product:', eliteProduct.name);
+      return eliteProduct;
+    }
+  }
+
+  // For 6-Panel, prefer AirFrame products (prioritize structured)
+  if (requirements.panelCount && parseInt(requirements.panelCount) === 6) {
+    // First, try to find structured AirFrame products (exclude Foam and Unstructured)
+    const structuredAirframe = tierProducts.find(p =>
+      p.name.includes('AirFrame') &&
+      p.structure_type?.includes('Structured') &&
+      !p.structure_type?.includes('Foam') &&
+      !p.structure_type?.includes('Unstructured')
+    );
+    if (structuredAirframe) {
+      console.log('🎯 [PRODUCT-SELECT] Selected structured AirFrame product:', structuredAirframe.name);
+      return structuredAirframe;
+    }
+
+    // Fallback to any AirFrame product if no structured found
+    const airframeProduct = tierProducts.find(p => p.name.includes('AirFrame'));
+    if (airframeProduct) {
+      console.log('🎯 [PRODUCT-SELECT] Selected AirFrame product:', airframeProduct.name);
+      return airframeProduct;
+    }
+  }
+
+  // Default: use first product in tier
+  console.log('🎯 [PRODUCT-SELECT] Selected first available product:', tierProducts[0].name);
+  return tierProducts[0];
+}
+
+// Step 2: Fetch Blank Cap costs from Supabase with user input preservation
 export async function fetchBlankCapCosts(requirements: any) {
   console.log('💰 [BLANK-CAP] Fetching costs for quantity:', requirements.quantity);
+  console.log('💰 [BLANK-CAP] Panel count requirement:', requirements.panelCount);
+  console.log('💰 [BLANK-CAP] User bill shape input:', requirements.billStyle);
 
   try {
-    // Get products from Supabase
+    // Get products with pricing tier data
     const products = await loadProducts();
+    const pricingTiers = await loadPricingTiers();
 
-    // Find default product (6P AirFrame HSCS) - FIXED to select correct structured variant
-    const defaultProduct = products.find(p =>
-      p.code === '6P_AIRFRAME_HSCS'
-    ) || products.find(p =>
-      p.name === '6P AirFrame HSCS'
-    ) || products.find(p =>
-      p.name.includes('6P AirFrame') && p.structure_type.toLowerCase().includes('structured')
-    ) || products[0];
-
-    if (!defaultProduct) {
-      throw new Error('No products found in database');
-    }
-
-    console.log('🎯 [BLANK-CAP] Selected default product:', {
-      name: defaultProduct.name,
-      code: defaultProduct.code,
-      structure: defaultProduct.structure_type,
-      panelCount: defaultProduct.panel_count
+    // Join pricing tier data to products for proper filtering
+    const productsWithTiers = products.map(product => {
+      const tier = pricingTiers.find(t => t.id === product.pricing_tier_id);
+      return { ...product, pricing_tier: tier };
     });
 
-    // Get pricing tier
-    const pricingTiers = await loadPricingTiers();
-    const pricingTier = pricingTiers.find(t => t.id === defaultProduct.pricing_tier_id);
+    // CRITICAL FIX: Use business logic to determine tier, not database product attributes
+    const targetTier = determineBusinessPricingTier(requirements);
 
-    if (!pricingTier) {
-      throw new Error('Pricing tier not found');
+    // Select appropriate product from target tier
+    let selectedProduct = selectProductFromTier(productsWithTiers, targetTier, requirements);
+
+    // Fallback to default product if tier-based selection fails
+    if (!selectedProduct) {
+      console.log('⚠️ [BLANK-CAP] Using fallback product selection');
+      // Prioritize structured products in fallback (exclude Foam and Unstructured)
+      selectedProduct = productsWithTiers.find(p => p.code === '6P_AIRFRAME_HSCS') ||
+                      productsWithTiers.find(p => p.name === '6P AirFrame HSCS') ||
+                      productsWithTiers.find(p =>
+                        p.structure_type?.includes('Structured') &&
+                        !p.structure_type?.includes('Foam') &&
+                        !p.structure_type?.includes('Unstructured')
+                      ) ||
+                      productsWithTiers[0];
     }
 
-    // Calculate unit price based on quantity
+    if (!selectedProduct || !selectedProduct.pricing_tier) {
+      throw new Error('No valid products with pricing tiers found in database');
+    }
+
+    console.log('🎯 [BLANK-CAP] Final product selection:', {
+      name: selectedProduct.name,
+      code: selectedProduct.code,
+      databaseTier: selectedProduct.pricing_tier.tier_name,
+      businessTier: targetTier,
+      panelCount: selectedProduct.panel_count,
+      databaseBillShape: selectedProduct.bill_shape,
+      userBillShape: requirements.billStyle
+    });
+
+    // Calculate unit price based on selected tier
+    const pricingTier = selectedProduct.pricing_tier;
     const priceResult = calculatePriceForQuantity(pricingTier, requirements.quantity);
     const unitPrice = priceResult.unitPrice;
     const totalCost = unitPrice * requirements.quantity;
 
-    return {
-      productName: defaultProduct.name,
-      productCode: defaultProduct.code,
-      panelCount: `${defaultProduct.panel_count}P`,
-      profile: defaultProduct.profile,
-      billShape: defaultProduct.bill_shape,
-      structure: defaultProduct.structure_type,
+    console.log('💰 [BLANK-CAP] Pricing calculated:', {
+      product: selectedProduct.name,
+      tier: pricingTier.tier_name,
       unitPrice,
       totalCost,
-      pricingTier: pricingTier.tier_name
+      quantity: requirements.quantity
+    });
+
+    // CRITICAL FIX: Return user input for Order Builder, database product for admin reference
+    return {
+      // Database product info for admin
+      productName: selectedProduct.name,
+      productCode: selectedProduct.code,
+
+      // USER INPUT PRESERVATION for Order Builder
+      panelCount: requirements.panelCount || `${selectedProduct.panel_count}P`,
+      billShape: requirements.billStyle || selectedProduct.bill_shape, // PRESERVE USER INPUT
+
+      // Database attributes for reference
+      profile: selectedProduct.profile,
+      structure: selectedProduct.structure_type,
+
+      // Pricing data
+      unitPrice,
+      totalCost,
+      pricingTier: pricingTier.tier_name,
+
+      // Debug info
+      _debug: {
+        userBillShapeInput: requirements.billStyle,
+        databaseBillShape: selectedProduct.bill_shape,
+        preservedUserInput: !!requirements.billStyle
+      }
     };
 
   } catch (error) {
@@ -1150,9 +1416,16 @@ export async function fetchLogoSetupCosts(requirements: any) {
       const unitPrice = priceResult.unitPrice;
       let logoTotalCost = unitPrice * requirements.quantity;
 
-      // Calculate mold charge from database based on logo size
+      // CRITICAL FIX: Calculate mold charge - prioritize conversation context, fallback to database
       let moldCharge = 0;
-      if (logoReq.hasMoldCharge) {
+
+      // First: Check if mold charge is already available from conversation context
+      if (logoReq.moldCharge && logoReq.moldCharge > 0) {
+        moldCharge = logoReq.moldCharge;
+        console.log('💰 [LOGO] Using preserved mold charge from context:', moldCharge, 'for', logoReq.type);
+      }
+      // Second: Calculate from database if needed
+      else if (logoReq.hasMoldCharge) {
         const moldCharges = await loadMoldCharges();
         const moldChargeData = moldCharges.find(mc => mc.size === logoReq.size);
 

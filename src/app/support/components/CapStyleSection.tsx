@@ -43,7 +43,36 @@ function extractPanelCountFromDetails(capDetails: any): number | undefined {
 
   console.log('🔍 [PANEL-DETECTION] Input capDetails:', JSON.stringify(capDetails, null, 2));
 
-  // Check various possible structure patterns
+  // PRIORITY 1: Check product name first (most accurate)
+  if (capDetails.productName) {
+    const productName = capDetails.productName.toLowerCase();
+    console.log('🎯 [PANEL-DETECTION] Checking product name:', productName);
+
+    if (productName.includes('7p ') || productName.includes('7-panel') || productName.includes('seven')) {
+      console.log('✅ [PANEL-DETECTION] Found 7-panel from product name');
+      return 7;
+    }
+    if (productName.includes('6p ') || productName.includes('6-panel') || productName.includes('six')) {
+      console.log('✅ [PANEL-DETECTION] Found 6-panel from product name');
+      return 6;
+    }
+    if (productName.includes('5p ') || productName.includes('5-panel') || productName.includes('five')) {
+      console.log('✅ [PANEL-DETECTION] Found 5-panel from product name');
+      return 5;
+    }
+    if (productName.includes('4p ') || productName.includes('4-panel') || productName.includes('four')) {
+      console.log('✅ [PANEL-DETECTION] Found 4-panel from product name');
+      return 4;
+    }
+  }
+
+  // PRIORITY 2: Check explicit panelCount field
+  if (capDetails.panelCount && typeof capDetails.panelCount === 'number') {
+    console.log('🎯 [PANEL-DETECTION] Using explicit panelCount:', capDetails.panelCount);
+    return capDetails.panelCount;
+  }
+
+  // PRIORITY 3: Check various structure patterns
   const structure = (capDetails.structure?.toLowerCase() || '').replace(/[-\s]/g, '');
   const profile = (capDetails.profile?.toLowerCase() || '').replace(/[-\s]/g, '');
   const billShape = (capDetails.billShape?.toLowerCase() || '').replace(/[-\s]/g, '');
@@ -360,7 +389,6 @@ const CapStyleSection = ({
                                   <span className="ml-1 text-[8px] text-yellow-400">• Updated</span>
                                 )}
                               </div>
-                              </div>
                               <div className="text-white/70">
                                 Subtotal: <span className="text-white font-medium text-green-400">
                                   ${parseFloat(baseProductCost).toFixed(2)}
@@ -399,51 +427,87 @@ const CapStyleSection = ({
                     {(currentQuoteData.capDetails.color || currentQuoteData.capDetails.colors) && (
                       <div className="text-white/70">Color: <span className="text-white">
                         {(() => {
-                          // Priority: Use color string if available (preserves exact format like "Red/White")
-                          if (currentQuoteData.capDetails.color) {
-                            const color = currentQuoteData.capDetails.color;
+                          console.log('🎨 [CAP-STYLE-SECTION] === COLOR DISPLAY DEBUG ===');
+                          console.log('🎨 [CAP-STYLE-SECTION] capDetails.color:', currentQuoteData.capDetails.color);
+                          console.log('🎨 [CAP-STYLE-SECTION] capDetails.colors:', currentQuoteData.capDetails.colors);
+                          console.log('🎨 [CAP-STYLE-SECTION] typeof color:', typeof currentQuoteData.capDetails.color);
+                          console.log('🎨 [CAP-STYLE-SECTION] typeof colors:', typeof currentQuoteData.capDetails.colors);
+                          console.log('🎨 [CAP-STYLE-SECTION] Array.isArray(colors):', Array.isArray(currentQuoteData.capDetails.colors));
 
-                            // Enhanced color parsing - if single color but user requested combination, try to extract from conversation
-                            if ((color === 'Black' || color.includes('Polyester')) && messages && messages.length > 0) {
+                          // CRITICAL FIX: Prioritize actual color values over fabric-contaminated data
+
+                          // First, try to get the clean color from colors or color field
+                          let detectedColor = currentQuoteData.capDetails.colors || currentQuoteData.capDetails.color;
+
+                          // If color is contaminated with fabric (contains fabric terms), extract from user messages
+                          const fabricTerms = ['acrylic', 'airmesh', 'air mesh', 'polyester', 'laser', 'cotton', 'suede', 'leather'];
+                          const isColorContaminated = detectedColor && typeof detectedColor === 'string' && fabricTerms.some(term =>
+                            detectedColor.toLowerCase().includes(term)
+                          );
+
+                          if (isColorContaminated) {
+                            // Extract actual colors from user messages
+                            if (messages && messages.length > 0) {
                               const userMessages = messages.filter(m => m.role === 'user');
-                              const recentUserMessages = userMessages.slice(-3); // Last 3 user messages
+                              const recentUserMessages = userMessages.slice(-5); // Last 5 user messages for better detection
 
                               for (const msg of recentUserMessages) {
                                 const msgText = msg.content;
-                                // Look for color combinations in user messages (prioritize actual colors over fabric)
-                                const colorOnlyMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal)\/([A-Z][a-z]+)\b/i);
-                                if (colorOnlyMatch) {
-                                  return `${colorOnlyMatch[1]}/${colorOnlyMatch[2]}`;
+
+                                // Look for split color patterns (Red/White, Royal/Black, etc.)
+                                const splitColorMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal|Gold|Silver|Maroon|Carolina)\/([A-Z][a-z]+)\b/i);
+                                if (splitColorMatch) {
+                                  const cleanColor = `${splitColorMatch[1]}/${splitColorMatch[2]}`;
+                                  console.log('🎨 [COLOR-FIX] Found split color pattern:', cleanColor);
+                                  return cleanColor;
                                 }
-                                // Look for general color combinations
-                                const colorComboMatch = msgText.match(/\b([A-Z][a-z]+)\/([A-Z][a-z]+)\b/i);
-                                if (colorComboMatch && !colorComboMatch[0].toLowerCase().includes('polyester') && !colorComboMatch[0].toLowerCase().includes('laser')) {
-                                  return `${colorComboMatch[1]}/${colorComboMatch[2]}`;
+
+                                // Look for "Color, Color" patterns and convert to slash format
+                                const commaColorMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal|Gold|Silver|Maroon|Carolina),\s*([A-Z][a-z]+)\b/i);
+                                if (commaColorMatch) {
+                                  const cleanColor = `${commaColorMatch[1]}/${commaColorMatch[2]}`;
+                                  console.log('🎨 [COLOR-FIX] Found comma color pattern:', cleanColor);
+                                  return cleanColor;
                                 }
-                                // Look for "Color, Color" patterns
-                                const colorListMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal),\s*([A-Z][a-z]+)\b/i);
-                                if (colorListMatch) {
-                                  return `${colorListMatch[1]}/${colorListMatch[2]}`;
+
+                                // Look for single color mentions
+                                const singleColorMatch = msgText.match(/\b(Black|White|Red|Blue|Green|Yellow|Orange|Purple|Grey|Gray|Navy|Royal|Lime|Pink|Brown|Tan|Khaki|Charcoal|Gold|Silver|Maroon|Carolina)\b/i);
+                                if (singleColorMatch) {
+                                  const cleanColor = singleColorMatch[1];
+                                  console.log('🎨 [COLOR-FIX] Found single color:', cleanColor);
+                                  return cleanColor;
                                 }
                               }
                             }
+                          }
 
-                            return color;
+                          // Standard color display logic (original working behavior)
+                          // Priority: Use color string if available (preserves exact format like "Red/White")
+                          if (currentQuoteData.capDetails.color) {
+                            console.log('🎨 [CAP-STYLE-SECTION] RESULT: Using capDetails.color:', currentQuoteData.capDetails.color);
+                            return currentQuoteData.capDetails.color;
                           }
                           // Fallback: Handle colors array
                           if (Array.isArray(currentQuoteData.capDetails.colors)) {
+                            console.log('🎨 [CAP-STYLE-SECTION] Processing colors array:', currentQuoteData.capDetails.colors);
                             // If it's split colors (2 parts), join with slash
                             if (currentQuoteData.capDetails.colors.length === 2) {
-                              return currentQuoteData.capDetails.colors.join('/');
+                              const result = currentQuoteData.capDetails.colors.join('/');
+                              console.log('🎨 [CAP-STYLE-SECTION] RESULT: Split colors (2 parts):', result);
+                              return result;
                             }
                             // If single color in array that already has slash, preserve it
                             if (currentQuoteData.capDetails.colors.length === 1 && currentQuoteData.capDetails.colors[0].includes('/')) {
+                              console.log('🎨 [CAP-STYLE-SECTION] RESULT: Single color with slash:', currentQuoteData.capDetails.colors[0]);
                               return currentQuoteData.capDetails.colors[0];
                             }
                             // Multiple separate colors - join with commas
-                            return currentQuoteData.capDetails.colors.join(', ');
+                            const result = currentQuoteData.capDetails.colors.join(', ');
+                            console.log('🎨 [CAP-STYLE-SECTION] RESULT: Multiple colors joined:', result);
+                            return result;
                           }
-                          return 'Black'; // Fallback
+                          console.log('🎨 [CAP-STYLE-SECTION] RESULT: Final fallback to Black');
+                          return 'Black'; // Final fallback
                         })()}
                       </span></div>
                     )}
@@ -458,36 +522,67 @@ const CapStyleSection = ({
                     )}
                     {currentQuoteData.capDetails.fabric && (
                       <div className="text-white/70">Fabric: <span className="text-white">{
-                        // Enhanced fabric display logic with dual fabric support
+                        // CRITICAL FIX: Enhanced fabric display that prevents color contamination
                         (() => {
+                          // Get fabric from premium upgrades first (most accurate source)
+                          const premiumFabric = currentQuoteData?.premiumUpgrades?.data?.fabrics;
+                          if (premiumFabric && typeof premiumFabric === 'object') {
+                            const fabricNames = Object.keys(premiumFabric);
+                            if (fabricNames.length > 0) {
+                              const displayFabric = fabricNames.join('/');
+                              console.log('🧵 [FABRIC-FIX] Using premium fabric data:', displayFabric);
+                              return displayFabric;
+                            }
+                          }
+
                           const fabric = currentQuoteData.capDetails.fabric;
                           if (typeof fabric !== 'string') return 'Standard';
 
-                          // If fabric is generic "Standard" or "Acrylic" alone, try to extract full fabric from user messages
+                          // CRITICAL: Filter out color names that shouldn't be in fabric field
+                          const colorNames = ['red', 'white', 'black', 'blue', 'green', 'yellow', 'orange', 'purple', 'royal', 'navy', 'lime', 'pink', 'brown', 'tan', 'khaki', 'charcoal', 'gold', 'silver', 'maroon', 'carolina'];
+                          const hasColorContamination = colorNames.some(color => fabric.toLowerCase().includes(color));
+
+                          if (hasColorContamination) {
+                            console.log('⚠️ [FABRIC-FIX] Color contamination detected in fabric field:', fabric);
+                            // Extract only fabric types, remove colors
+                            const fabricMatch = fabric.match(/\b(Acrylic|Air\s*Mesh|Airmesh|Polyester|Laser\s*Cut|Duck\s*Camo|Suede\s*Cotton|Genuine\s*Leather|Cotton|Trucker\s*Mesh)\b/gi);
+                            if (fabricMatch && fabricMatch.length > 0) {
+                              const cleanFabric = [...new Set(fabricMatch)].join('/');
+                              console.log('🧵 [FABRIC-FIX] Cleaned fabric:', cleanFabric);
+                              return cleanFabric;
+                            }
+                            // If no fabric detected after cleaning, check user messages
+                            if (messages && messages.length > 0) {
+                              const userMessages = messages.filter(m => m.role === 'user');
+                              for (const msg of userMessages.slice(-3)) {
+                                const msgText = msg.content;
+                                if (msgText.toLowerCase().includes('acrylic') && (msgText.toLowerCase().includes('airmesh') || msgText.toLowerCase().includes('air mesh'))) {
+                                  return 'Acrylic/Airmesh';
+                                }
+                                if (msgText.toLowerCase().includes('polyester') && msgText.toLowerCase().includes('laser cut')) {
+                                  return 'Polyester/Laser Cut';
+                                }
+                                const singleFabricMatch = msgText.match(/\b(Cotton|Polyester|Acrylic|Air\s*Mesh|Trucker\s*Mesh|Laser\s*Cut|Suede|Leather)\b/i);
+                                if (singleFabricMatch) {
+                                  return singleFabricMatch[1];
+                                }
+                              }
+                            }
+                            return 'Standard'; // Default if contaminated and can't extract
+                          }
+
+                          // If fabric is generic, try to extract from user messages
                           if ((fabric.toLowerCase() === 'standard' || fabric.toLowerCase() === 'acrylic') && messages && messages.length > 0) {
                             const userMessages = messages.filter(m => m.role === 'user');
-                            const recentUserMessages = userMessages.slice(-3); // Last 3 user messages
-
-                            for (const msg of recentUserMessages) {
+                            for (const msg of userMessages.slice(-3)) {
                               const msgText = msg.content;
-                              // Look for dual fabric patterns in user messages (highest priority)
                               if (msgText.toLowerCase().includes('acrylic') && (msgText.toLowerCase().includes('airmesh') || msgText.toLowerCase().includes('air mesh'))) {
                                 return 'Acrylic/Airmesh';
                               }
                               if (msgText.toLowerCase().includes('polyester') && msgText.toLowerCase().includes('laser cut')) {
                                 return 'Polyester/Laser Cut';
                               }
-                              if (msgText.toLowerCase().includes('duck camo') && msgText.toLowerCase().includes('air mesh')) {
-                                return 'Duck Camo/Air Mesh';
-                              }
-                              if (msgText.toLowerCase().includes('suede')) {
-                                return 'Suede Cotton';
-                              }
-                              if (msgText.toLowerCase().includes('leather')) {
-                                return 'Genuine Leather';
-                              }
-                              // Other single fabric types
-                              const fabricMatch = msgText.match(/\b(Cotton|Polyester|Acrylic|Air Mesh|Trucker Mesh|Laser Cut)\b/i);
+                              const fabricMatch = msgText.match(/\b(Cotton|Polyester|Acrylic|Air\s*Mesh|Trucker\s*Mesh|Laser\s*Cut|Suede\s*Cotton|Genuine\s*Leather)\b/i);
                               if (fabricMatch) {
                                 return fabricMatch[1];
                               }
@@ -496,8 +591,7 @@ const CapStyleSection = ({
 
                           // Clean up corrupted fabric data that might contain pricing or other info
                           if (fabric.includes('$') || fabric.includes('*') || fabric.includes('\n') || fabric.length > 50) {
-                            // Try to extract fabric type from corrupted data
-                            const cleanFabricMatch = fabric.match(/\b(Acrylic\/Airmesh|Acrylic\/Air Mesh|Polyester\/Laser Cut|Duck Camo\/Air Mesh|Suede Cotton|Genuine Leather|Cotton|Polyester|Acrylic|Leather)\b/i);
+                            const cleanFabricMatch = fabric.match(/\b(Acrylic\/Airmesh|Acrylic\/Air\s*Mesh|Polyester\/Laser\s*Cut|Duck\s*Camo\/Air\s*Mesh|Suede\s*Cotton|Genuine\s*Leather|Cotton|Polyester|Acrylic|Leather)\b/i);
                             return cleanFabricMatch ? cleanFabricMatch[0] : 'Standard';
                           }
 

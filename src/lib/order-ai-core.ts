@@ -90,28 +90,59 @@ export interface OrderRequirements {
  * - Tier 3: 7-Panel caps (specialty caps)
  */
 function determineProductTier(requirements: OrderRequirements): string {
-  // If panelCount is explicitly provided, use it directly
+  // CRITICAL FIX: Always prioritize explicit panel count for accurate tier matching
   if (requirements.panelCount) {
-    if (requirements.panelCount === 7) return 'Tier 3';
-    if (requirements.panelCount === 6 && requirements.billStyle?.toLowerCase().includes('flat')) return 'Tier 2';
-    return 'Tier 1'; // 4-Panel, 5-Panel, 6-Panel curved
+    console.log(`🎯 [ORDER-AI-CORE] Determining tier from panel count: ${requirements.panelCount}`);
+
+    if (requirements.panelCount === 7) {
+      console.log('🎯 [ORDER-AI-CORE] 7-PANEL -> Tier 3 (specialty caps)');
+      return 'Tier 3';
+    }
+    if (requirements.panelCount === 6) {
+      // UPDATED 6-panel logic: check bill shape for tier determination
+      // Match the database bill shape patterns: "Flat", "Curved", "Slight Curved"
+      const billStyleLower = requirements.billStyle?.toLowerCase() || '';
+
+      if (billStyleLower.includes('flat')) {
+        console.log('🎯 [ORDER-AI-CORE] 6-panel flat -> Tier 2');
+        return 'Tier 2';
+      } else if (billStyleLower.includes('slight') && billStyleLower.includes('curved')) {
+        console.log('🎯 [ORDER-AI-CORE] 6-panel slight curved -> Tier 2');
+        return 'Tier 2';
+      } else if (billStyleLower.includes('curved')) {
+        // Pure "curved" (not "slight curved") typically goes to Tier 1
+        console.log('🎯 [ORDER-AI-CORE] 6-panel curved -> Tier 1');
+        return 'Tier 1';
+      } else {
+        // Default for 6-panel without clear bill style indication
+        console.log('🎯 [ORDER-AI-CORE] 6-panel default -> Tier 1');
+        return 'Tier 1';
+      }
+    }
+    console.log(`🎯 [ORDER-AI-CORE] ${requirements.panelCount}-panel -> Tier 1`);
+    return 'Tier 1'; // 4-Panel, 5-Panel
   }
-  
-  // If no panelCount, try to detect from other fields (fallback logic)
+
+  // FALLBACK: If no panelCount, try to detect from other fields
+  console.log('🔍 [ORDER-AI-CORE] No explicit panel count, using fallback detection');
+
   // Check bill style for 7-panel indicators (7-panel caps are often flat billed)
-  if (requirements.billStyle?.toLowerCase().includes('7') || 
+  if (requirements.billStyle?.toLowerCase().includes('7') ||
       requirements.structure?.toLowerCase().includes('7') ||
       requirements.fabricType?.toLowerCase().includes('7')) {
+    console.log('🔍 [ORDER-AI-CORE] 7-panel indicator detected -> Tier 3');
     return 'Tier 3';
   }
-  
+
   // Check for 6-panel flat cap indicators
-  if (requirements.billStyle?.toLowerCase().includes('flat') && 
+  if (requirements.billStyle?.toLowerCase().includes('flat') &&
       (requirements.panelCount === 6 || requirements.structure?.toLowerCase().includes('6'))) {
+    console.log('🔍 [ORDER-AI-CORE] 6-panel flat indicator -> Tier 2');
     return 'Tier 2';
   }
-  
+
   // Default to Tier 1 (most affordable - 4/5/6-panel curved)
+  console.log('🔍 [ORDER-AI-CORE] Default fallback -> Tier 1');
   return 'Tier 1';
 }
 
@@ -445,37 +476,108 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     console.log('🧵 [ORDER-AI-CORE] Fabric detected using knowledge base:', detectedFabric);
   }
 
-  // Extract color with enhanced detection - RUNS AFTER FABRIC to avoid conflicts
-  let color = undefined;
-  const colorPatterns = [
-    /(?:color:?\s*|in\s+)(\w+)/i,
-    /(?:^|\s)(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive)(?:\s|$|,)/i
+  // CRITICAL FIX: ENHANCED panel count detection BEFORE color extraction to prevent "7-panel" -> "7" color corruption
+  console.log('🎨 [ORDER-AI-CORE] === START PANEL COUNT DETECTION (PRIORITY) ===');
+  console.log('🎨 [ORDER-AI-CORE] Message for panel analysis:', message);
+
+  // Enhanced panel change detection patterns (HIGHEST PRIORITY)
+  const panelChangePatterns = [
+    /(?:change|switch|make|want).*?(?:to\s+)?7[\s-]?panel/i,
+    /(?:change|switch|make|want).*?(?:to\s+)?6[\s-]?panel/i,
+    /(?:change|switch|make|want).*?(?:to\s+)?5[\s-]?panel/i,
+    /7[\s-]?panel/i,
+    /6[\s-]?panel/i,
+    /5[\s-]?panel/i
   ];
 
-  // ENHANCED: Only check slash pattern for colors if it's NOT a fabric
-  const slashPattern = /(\w+)\/(\w+)/i;
-  const slashMatch = message.match(slashPattern);
-  if (slashMatch && !detectedFabric) {
-    // Only treat as color if both parts are known colors
-    const part1 = slashMatch[1].toLowerCase();
-    const part2 = slashMatch[2].toLowerCase();
-    const knownColors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'gray', 'grey', 'navy', 'lime', 'olive'];
+  let isPanelCountChange = false;
+  let detectedPanelFromChange = null;
 
-    if (knownColors.includes(part1) && knownColors.includes(part2)) {
-      color = `${part1}/${part2}`;
+  for (const panelPattern of panelChangePatterns) {
+    const panelMatch = message.match(panelPattern);
+    if (panelMatch) {
+      isPanelCountChange = true;
+      // Extract the actual panel number
+      const panelNumberMatch = panelMatch[0].match(/(\d+)/);
+      if (panelNumberMatch) {
+        detectedPanelFromChange = parseInt(panelNumberMatch[1]);
+      }
+      console.log('🎨 [ORDER-AI-CORE] PANEL COUNT CHANGE DETECTED:', {
+        pattern: panelPattern.source,
+        match: panelMatch[0],
+        detectedPanel: detectedPanelFromChange,
+        willSkipColorExtraction: true
+      });
+      break;
     }
   }
 
-  // If no slash color found, try other patterns
-  if (!color) {
-    for (const pattern of colorPatterns) {
-      const colorMatch = message.match(pattern);
-      if (colorMatch) {
-        color = colorMatch[1] || colorMatch[0].trim();
-        break;
+  console.log('🎨 [ORDER-AI-CORE] === START COLOR EXTRACTION (AFTER PANEL CHECK) ===');
+  console.log('🎨 [ORDER-AI-CORE] Detected fabric (to avoid conflicts):', detectedFabric);
+  console.log('🎨 [ORDER-AI-CORE] Panel change detected:', isPanelCountChange, '- will skip color if true');
+
+  let color = undefined;
+
+  // Only extract colors if this is NOT a panel count change
+  if (!isPanelCountChange) {
+    const colorPatterns = [
+      /(?:color:?\s*|in\s+)(\w+)/i,
+      /(?:make\s+it\s+)(\w+)/i,
+      /(?:^|\s)(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)(?:\s|$|,)/i
+    ];
+
+    // CRITICAL FIX: Enhanced slash pattern detection for colors if it's NOT a fabric
+    const slashPattern = /(\w+)\/(\w+)/i;
+    const slashMatch = message.match(slashPattern);
+    console.log('🎨 [ORDER-AI-CORE] Slash pattern match:', slashMatch);
+    console.log('🎨 [ORDER-AI-CORE] Fabric check (skip if fabric):', detectedFabric);
+
+    if (slashMatch && !detectedFabric) {
+      // Only treat as color if both parts are known colors
+      const part1 = slashMatch[1];
+      const part2 = slashMatch[2];
+      console.log('🎨 [ORDER-AI-CORE] Split color parts:', { part1, part2 });
+
+      // CRITICAL FIX: Expanded known colors list to match step-by-step-pricing
+      const knownColors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple',
+                          'pink', 'brown', 'gray', 'grey', 'navy', 'lime', 'olive', 'royal',
+                          'maroon', 'gold', 'charcoal', 'khaki', 'carolina', 'silver', 'teal',
+                          'forest', 'burgundy', 'crimson', 'ivory', 'beige', 'tan', 'coral'];
+
+      const part1Valid = knownColors.includes(part1.toLowerCase());
+      const part2Valid = knownColors.includes(part2.toLowerCase());
+      console.log('🎨 [ORDER-AI-CORE] Color validation:', { part1Valid, part2Valid });
+
+      if (part1Valid && part2Valid) {
+        // CRITICAL FIX: Properly capitalize split colors
+        const normalizedPart1 = part1.charAt(0).toUpperCase() + part1.slice(1).toLowerCase();
+        const normalizedPart2 = part2.charAt(0).toUpperCase() + part2.slice(1).toLowerCase();
+        color = `${normalizedPart1}/${normalizedPart2}`;
+        console.log('🎨 [ORDER-AI-CORE] RESULT: Split color detected:', color);
       }
     }
+
+    // If no slash color found, try other patterns
+    if (!color) {
+      console.log('🎨 [ORDER-AI-CORE] Testing single color patterns');
+      for (const pattern of colorPatterns) {
+        const colorMatch = message.match(pattern);
+        console.log('🎨 [ORDER-AI-CORE] Pattern test:', { pattern: pattern.source, match: colorMatch });
+        if (colorMatch) {
+          const detectedColor = colorMatch[1] || colorMatch[0].trim();
+          // CRITICAL FIX: Properly capitalize single colors
+          color = detectedColor.charAt(0).toUpperCase() + detectedColor.slice(1).toLowerCase();
+          console.log('🎨 [ORDER-AI-CORE] RESULT: Single color detected:', color);
+          break;
+        }
+      }
+    }
+  } else {
+    console.log('🎨 [ORDER-AI-CORE] Skipped color extraction due to panel count change detection');
   }
+
+  console.log('🎨 [ORDER-AI-CORE] FINAL COLOR RESULT:', color);
+  console.log('🎨 [ORDER-AI-CORE] === END COLOR EXTRACTION ===');
   
   // Override defaults only if explicitly mentioned in message
   let billStyle = "Flat Bill"; // Keep existing bill style logic
@@ -515,25 +617,46 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     stitchingColors: stitchingConfig.stitchingColors
   });
   
-  // Detect bill style from CSV "bill or visor Shape" field values
+  // CRITICAL FIX: Detect bill style and normalize for product matching
   if (lowerMessage.includes('flat bill') || lowerMessage.includes('flat visor') || lowerMessage.includes('flatbill')) {
-    billStyle = "Flat Bill";
+    billStyle = "Flat";
+    console.log('🎯 [ORDER-AI-CORE] Bill shape detected: Flat');
   } else if (lowerMessage.includes('slight curved') || lowerMessage.includes('slightly curved')) {
-    billStyle = "Slight Curved";
-  } else if (lowerMessage.includes('curved bill') || lowerMessage.includes('curved visor')) {
+    // CRITICAL FIX: Map "Slight Curved" to "Curved" for product matching
     billStyle = "Curved";
+    console.log('🎯 [ORDER-AI-CORE] Bill shape detected: Slight Curved → normalized to Curved');
+  } else if (lowerMessage.includes('curved bill') || lowerMessage.includes('curved visor') || lowerMessage.includes('curved')) {
+    billStyle = "Curved";
+    console.log('🎯 [ORDER-AI-CORE] Bill shape detected: Curved');
   }
   
-  // Detect panel count from CSV "Panel Count" field values
-  // Check for specific panel mentions first (order matters - check 7 first)
-  if (lowerMessage.includes('7 panel') || lowerMessage.includes('7-panel')) {
-    panelCount = 7;
-  } else if (lowerMessage.includes('6 panel') || lowerMessage.includes('6-panel')) {
-    panelCount = 6;
-  } else if (lowerMessage.includes('5 panel') || lowerMessage.includes('5-panel')) {
-    panelCount = 5;
-  } else if (lowerMessage.includes('4 panel') || lowerMessage.includes('4-panel')) {
-    panelCount = 4;
+  // CRITICAL FIX: Use the panel count from earlier detection (already processed above)
+  if (detectedPanelFromChange) {
+    panelCount = detectedPanelFromChange;
+    console.log('🎯 [ORDER-AI-CORE] USING PANEL COUNT from earlier detection:', panelCount);
+  } else {
+    // Enhanced panel count detection for non-change scenarios
+    if (lowerMessage.includes('7 panel') || lowerMessage.includes('7-panel') ||
+        lowerMessage.includes('seven panel') || lowerMessage.includes('seven-panel') ||
+        lowerMessage.includes('7p ') || lowerMessage.includes('7 p ')) {
+      panelCount = 7;
+      console.log('🎯 [ORDER-AI-CORE] 7-PANEL DETECTED from message:', message.substring(0, 100));
+    } else if (lowerMessage.includes('6 panel') || lowerMessage.includes('6-panel') ||
+               lowerMessage.includes('six panel') || lowerMessage.includes('six-panel') ||
+               lowerMessage.includes('6p ') || lowerMessage.includes('6 p ')) {
+      panelCount = 6;
+      console.log('🎯 [ORDER-AI-CORE] 6-panel detected from message');
+    } else if (lowerMessage.includes('5 panel') || lowerMessage.includes('5-panel') ||
+               lowerMessage.includes('five panel') || lowerMessage.includes('five-panel') ||
+               lowerMessage.includes('5p ') || lowerMessage.includes('5 p ')) {
+      panelCount = 5;
+      console.log('🎯 [ORDER-AI-CORE] 5-panel detected from message');
+    } else if (lowerMessage.includes('4 panel') || lowerMessage.includes('4-panel') ||
+               lowerMessage.includes('four panel') || lowerMessage.includes('four-panel') ||
+               lowerMessage.includes('4p ') || lowerMessage.includes('4 p ')) {
+      panelCount = 4;
+      console.log('🎯 [ORDER-AI-CORE] 4-panel detected from message');
+    }
   }
   
   // Handle negative statements like "not 5-panel" + "6-panel"
@@ -633,7 +756,7 @@ export function parseOrderRequirements(message: string): OrderRequirements {
   
   const capSize = detectCapSize(message);
   
-  return {
+  const finalOrderRequirements = {
     quantity,
     logoType,
     logoPosition,
@@ -657,6 +780,12 @@ export function parseOrderRequirements(message: string): OrderRequirements {
     labDipEligibility, // Lab Dip sampling eligibility
     fabricConstructions // Available fabric construction options
   };
+
+  console.log('🎨 [ORDER-AI-CORE] === FINAL RETURN ===');
+  console.log('🎨 [ORDER-AI-CORE] Final color in requirements:', finalOrderRequirements.color);
+  console.log('🎨 [ORDER-AI-CORE] === END PARSE ORDER REQUIREMENTS ===');
+
+  return finalOrderRequirements;
 }
 
 /**

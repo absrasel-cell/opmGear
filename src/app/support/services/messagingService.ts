@@ -177,13 +177,23 @@ export class MessagingService {
 
       const validUploadedFiles = uploadedFiles.filter(url => url && typeof url === 'string' && url.length > 0);
 
-      // Format conversation history for AI
+      // CRITICAL FIX: Format conversation history with complete preservation
       const formattedConversationHistory = messages
-        .filter(msg => msg.role !== 'system')
+        .filter(msg => msg.role !== 'system') // Exclude system routing messages
         .map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: msg.content,
+          // Include timestamp for better context understanding
+          timestamp: msg.timestamp
         }));
+
+      console.log('📚 [CONVERSATION-HISTORY] Formatted history for AI:', {
+        totalMessages: formattedConversationHistory.length,
+        userMessages: formattedConversationHistory.filter(m => m.role === 'user').length,
+        assistantMessages: formattedConversationHistory.filter(m => m.role === 'assistant').length,
+        lastUserMessage: formattedConversationHistory.filter(m => m.role === 'user').slice(-1)[0]?.content?.substring(0, 100),
+        lastAssistantMessage: formattedConversationHistory.filter(m => m.role === 'assistant').slice(-1)[0]?.content?.substring(0, 100)
+      });
 
       const requestSessionId = intentResult.intent === 'ORDER_CREATION'
         ? `quote-${Date.now()}-${Math.random().toString(36).substring(7)}`
@@ -801,7 +811,7 @@ export class MessagingService {
         color: quoteData.color || quoteData.colors?.[0] || quoteData.capDetails?.color || 'Black',
         colors: quoteData.colors || quoteData.capDetails?.colors || [quoteData.color || 'Black'],
         profile: quoteData.profile || quoteData.capDetails?.profile || '6P AirFrame',
-        billShape: quoteData.billShape || quoteData.capDetails?.billShape || 'Flat',
+        billShape: quoteData.billShape || quoteData.capDetails?.billShape || null, // CRITICAL FIX: Don't default to 'Flat', preserve user input
         structure: quoteData.structure || quoteData.capDetails?.structure || '6P AirFrame HSCS',
         fabric: quoteData.fabric || quoteData.capDetails?.fabric || 'Standard',
         closure: quoteData.closure || quoteData.capDetails?.closure || 'Snapback'

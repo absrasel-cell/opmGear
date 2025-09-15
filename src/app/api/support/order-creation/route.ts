@@ -233,8 +233,8 @@ function extractStructuredQuoteData(aiMessage: string, existingQuoteData: any): 
       color: color,
       colors: colors, // Add colors array for Order Builder
       profile: '6P AirFrame',
-      billShape: 'Flat',
-      structure: '6P AirFrame HSCS',
+      billShape: null, // CRITICAL FIX: Don't hardcode bill shape, extract from user input
+      structure: 'Structured',
       fabric: fabric,
       closure: closure,
       stitch: 'Standard'
@@ -1285,7 +1285,7 @@ export async function POST(request: NextRequest) {
   const defaultSpecs = {
     fabric: 'Polyester',
     closure: 'Snapback',
-    billShape: 'Flat',
+    billShape: null, // CRITICAL FIX: Don't default to 'Flat', let business logic determine
     panelCount: '7-Panel',
     profile: 'High',
     structure: 'Structured',

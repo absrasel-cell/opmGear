@@ -84,7 +84,23 @@ export class SupportAIPricingService {
       }
 
       // AI selects best match based on user requirements or intelligent default selection
+      console.log('🎯 [SUPPORT AI] Cap analysis for product selection:', {
+        structure: capAnalysis.structure,
+        panelCount: capAnalysis.panelCount,
+        billShape: capAnalysis.billShape,
+        detectedCapStyle: capAnalysis.detectedCapStyle
+      });
+
       const selectedProduct = this.selectBestProduct(products, capAnalysis) || this.getDefaultProduct(products, capAnalysis);
+
+      console.log('🎯 [SUPPORT AI] Final selected product:', {
+        name: selectedProduct?.name,
+        code: selectedProduct?.code,
+        structure_type: selectedProduct?.structure_type,
+        bill_shape: selectedProduct?.bill_shape,
+        panel_count: selectedProduct?.panel_count
+      });
+
       const tierCost = await this.calculateTierCost(selectedProduct.pricing_tier_id, quantity);
 
       return {
@@ -96,7 +112,12 @@ export class SupportAIPricingService {
           priceTier: selectedProduct.pricing_tier?.tier_name || 'Unknown',
           quantity,
           unitPrice: tierCost.unitPrice,
-          capDetails: capAnalysis
+          capDetails: {
+        ...capAnalysis,
+        // DEBUG: Log the final cap details being returned
+        _debug_extracted_color: capAnalysis.color,
+        _debug_cap_analysis: capAnalysis
+      }
         },
         cost: tierCost.totalCost,
         verification: 'verified'
@@ -523,12 +544,32 @@ export class SupportAIPricingService {
       contextualLength: contextResult.contextualRequest.length
     });
 
+    // CRITICAL FIX: ABSOLUTE PRIORITY for preserved context quantity
+    let effectiveQuantity = quantity; // Start with provided quantity
+    let quantitySource = 'PROVIDED';
+
+    // PRIORITY 1: Use preserved quantity if it's reasonable (>=48 and <=50000)
+    if (contextResult.mergedSpecifications.quantity &&
+        contextResult.mergedSpecifications.quantity >= 48 &&
+        contextResult.mergedSpecifications.quantity <= 50000) {
+      effectiveQuantity = contextResult.mergedSpecifications.quantity;
+      quantitySource = 'PRESERVED_CONTEXT';
+    }
+
+    console.log('🚀 [SUPPORT AI] QUANTITY PRESERVATION - ABSOLUTE PRIORITY CHECK:', {
+      providedQuantity: quantity,
+      preservedQuantity: contextResult.mergedSpecifications.quantity,
+      effectiveQuantity: effectiveQuantity,
+      quantitySource: quantitySource,
+      preservationApplied: quantitySource === 'PRESERVED_CONTEXT'
+    });
+
     // Execute all steps sequentially with intelligent contextual information
-    const step1 = await this.processBlankCapCost(contextResult.contextualRequest, quantity);
-    const step2 = await this.processPremiumUpgrades(contextResult.contextualRequest, quantity);
-    const step3 = await this.processLogoSetup(contextResult.contextualRequest, quantity);
-    const step4 = await this.processAccessories(contextResult.contextualRequest, quantity);
-    const step5 = await this.processDelivery(contextResult.contextualRequest, quantity);
+    const step1 = await this.processBlankCapCost(contextResult.contextualRequest, effectiveQuantity);
+    const step2 = await this.processPremiumUpgrades(contextResult.contextualRequest, effectiveQuantity);
+    const step3 = await this.processLogoSetup(contextResult.contextualRequest, effectiveQuantity);
+    const step4 = await this.processAccessories(contextResult.contextualRequest, effectiveQuantity);
+    const step5 = await this.processDelivery(contextResult.contextualRequest, effectiveQuantity);
 
     const totalCost = step1.cost + step2.cost + step3.cost + step4.cost + step5.cost;
 
@@ -606,58 +647,167 @@ Please interpret the current request in the context of the previous conversation
       structure: this.extractStructure(request)
     });
 
-    return {
+    console.log('🎨 [SUPPORT AI] === FINAL CAP ANALYSIS DEBUG ===');
+    console.log('🎨 [SUPPORT AI] Color being set in capAnalysis:', detectedColor);
+
+    // CRITICAL FIX: ABSOLUTE PRIORITY for preserved colors from conversation context
+    let finalColor = 'Black'; // Safe default
+    let finalColors = ['Black'];
+    let colorSource = 'DEFAULT';
+
+    // Priority 1: Check for preserved color information from conversation context (HIGHEST PRIORITY)
+    const contextualColorMatch = request.match(/Colors?:\s*([^\n,]+)/i);
+    if (contextualColorMatch) {
+      const contextColor = contextualColorMatch[1].trim();
+      // Validate it's not corrupted (like "7" from panel count)
+      if (!/^\d+$/.test(contextColor) && !contextColor.toLowerCase().includes('panel')) {
+        finalColor = contextColor;
+        finalColors = contextColor.includes('/') ? contextColor.split('/') : [contextColor];
+        colorSource = 'PRESERVED_CONTEXT';
+        console.log('🎨 [SUPPORT AI] PRESERVED contextual color from conversation:', contextColor);
+      }
+    }
+
+    // Priority 2: Check for contextual specifications format from mergedSpecifications
+    if (colorSource === 'DEFAULT') {
+      const previousColorMatch = request.match(/Previous order specifications:[\s\S]*?Colors?:\s*([^\n,]+)/i);
+      if (previousColorMatch) {
+        const prevColor = previousColorMatch[1].trim();
+        // Validate it's not corrupted
+        if (!/^\d+$/.test(prevColor) && !prevColor.toLowerCase().includes('panel')) {
+          finalColor = prevColor;
+          finalColors = prevColor.includes('/') ? prevColor.split('/') : [prevColor];
+          colorSource = 'PREVIOUS_SPECS';
+          console.log('🎨 [SUPPORT AI] PRESERVED color from previous specifications:', prevColor);
+        }
+      }
+    }
+
+    // Priority 3: Use detected color only if no preserved color found
+    if (colorSource === 'DEFAULT' && detectedColor && !/^\d+$/.test(detectedColor)) {
+      finalColor = detectedColor;
+      finalColors = detectedColor.includes('/') ? detectedColor.split('/') : [detectedColor];
+      colorSource = 'DETECTED';
+    }
+
+    const finalCapAnalysis = {
       detectedCapStyle: this.extractCapStyle(request),
       panelCount: this.extractPanelCount(request) || '6-Panel', // Default from 101.txt
       profile: this.extractProfile(request) || 'High', // Default from 101.txt
       structure: this.extractStructure(request) || 'Structured', // Default from 101.txt
       billShape: this.extractBillShape(request), // Extract bill shape preference
-      color: detectedColor, // Add color to cap analysis
-      capSize: detectedSize // Add cap size to analysis
+      color: finalColor, // Use preserved color with absolute priority
+      colors: finalColors, // Use preserved colors with absolute priority
+      capSize: detectedSize, // Add cap size to analysis
+      colorSource: colorSource // Track color source for debugging
     };
+
+    console.log('🎨 [SUPPORT AI] === FINAL CAP ANALYSIS RETURN ===');
+    console.log('🎨 [SUPPORT AI] Returning cap analysis with color:', finalCapAnalysis.color);
+    console.log('🎨 [SUPPORT AI] Returning cap analysis with colors array:', finalCapAnalysis.colors);
+    console.log('🎨 [SUPPORT AI] Color source determination:', {
+      detectedColorFromText: detectedColor,
+      finalColorUsed: finalCapAnalysis.color,
+      colorSource: colorSource,
+      contextualColorFound: !!contextualColorMatch,
+      preservationApplied: colorSource !== 'DEFAULT'
+    });
+
+    return finalCapAnalysis;
   }
 
   private extractColorFromText(text: string): string | null {
+    console.log('🎨 [STEP-BY-STEP-COLORS] === START EXTRACTING COLOR ===');
+    console.log('🎨 [STEP-BY-STEP-COLORS] Input text:', text);
+
     const lowerText = text.toLowerCase();
 
+    // CRITICAL FIX: Check for panel count changes FIRST to prevent color interference
+    const panelChangePatterns = [
+      /(?:change|switch|make|want).*?(?:to\s+)?7[\s-]?panel/i,
+      /(?:change|switch|make|want).*?(?:to\s+)?6[\s-]?panel/i,
+      /(?:change|switch|make|want).*?(?:to\s+)?5[\s-]?panel/i
+    ];
+
+    for (const panelPattern of panelChangePatterns) {
+      if (panelPattern.test(text)) {
+        console.log('🎨 [STEP-BY-STEP-COLORS] PANEL COUNT CHANGE DETECTED - skipping color extraction to prevent "7" corruption');
+        return null;
+      }
+    }
+
     // Enhanced color detection with split color support (like "Royal/Black")
-    // Priority 1: Check for slash patterns (Royal/Black, Red/White, etc.)
-    const slashPattern = /(\w+)\/(\w+)/i;
-    const slashMatch = text.match(slashPattern);
+    // Priority 1: Check for COLOR-SPECIFIC slash patterns, not fabric patterns
+    const colorSlashPattern = /\b(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\s*\/\s*(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b/i;
+    const slashMatch = text.match(colorSlashPattern);
+    console.log('🎨 [STEP-BY-STEP-COLORS] Slash pattern match:', slashMatch);
 
     if (slashMatch) {
       const part1 = slashMatch[1];
       const part2 = slashMatch[2];
+      console.log('🎨 [STEP-BY-STEP-COLORS] Split color parts:', { part1, part2 });
 
-      // Common colors for validation
+      // CRITICAL FIX: Expanded color list and improved validation
       const knownColors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple',
                           'pink', 'brown', 'gray', 'grey', 'navy', 'lime', 'olive', 'royal',
-                          'maroon', 'gold', 'charcoal', 'khaki', 'carolina'];
+                          'maroon', 'gold', 'charcoal', 'khaki', 'carolina', 'silver', 'teal',
+                          'forest', 'burgundy', 'crimson', 'ivory', 'beige', 'tan', 'coral'];
 
-      // If both parts are colors, treat as split color
-      if (knownColors.includes(part1.toLowerCase()) && knownColors.includes(part2.toLowerCase())) {
-        const normalizedColor = `${part1}/${part2}`;
-        console.log('🎨 [COLOR-DETECTION] Split color detected:', normalizedColor);
+      const part1Valid = knownColors.includes(part1.toLowerCase());
+      const part2Valid = knownColors.includes(part2.toLowerCase());
+      console.log('🎨 [STEP-BY-STEP-COLORS] Color validation:', { part1Valid, part2Valid });
+
+      // If both parts are colors, treat as split color with proper capitalization
+      if (part1Valid && part2Valid) {
+        // CRITICAL FIX: Capitalize first letter of each color for proper display
+        const normalizedPart1 = part1.charAt(0).toUpperCase() + part1.slice(1).toLowerCase();
+        const normalizedPart2 = part2.charAt(0).toUpperCase() + part2.slice(1).toLowerCase();
+        const normalizedColor = `${normalizedPart1}/${normalizedPart2}`;
+        console.log('🎨 [STEP-BY-STEP-COLORS] RESULT: Split color detected:', normalizedColor);
         return normalizedColor;
       }
     }
 
-    // Priority 2: Single color patterns
-    const colorPatterns = [
-      /(?:color:?\s*|in\s+|cap\s+)(\w+)/i,
-      /(?:^|\s)(black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina)(?:\s|$|,)/i
-    ];
+    // Priority 2: Enhanced single color patterns with FABRIC EXCLUSION
+    // BUT ONLY if there's NO slash pattern present (avoid interfering with Navy/White)
+    const hasSlashPattern = /\b(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\s*\/\s*(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b/i.test(text);
 
-    for (const pattern of colorPatterns) {
-      const colorMatch = text.match(pattern);
-      if (colorMatch) {
-        const detectedColor = colorMatch[1] || colorMatch[0].trim();
-        console.log('🎨 [COLOR-DETECTION] Single color detected:', detectedColor);
-        return detectedColor;
+    console.log('🎨 [STEP-BY-STEP-COLORS] Checking for slash pattern interference:', hasSlashPattern);
+
+    if (!hasSlashPattern) {
+      const colorPatterns = [
+        // Specific color context patterns - only when explicitly stated as color
+        /(?:color:?\s*|color\s+)(\b(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b)/i,
+        /(?:make\s+it\s+)(\b(?:black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|navy|lime|olive|royal|maroon|gold|charcoal|khaki|carolina|silver|teal|forest|burgundy|crimson|ivory|beige|tan|coral)\b)/i
+      ];
+      console.log('🎨 [STEP-BY-STEP-COLORS] Testing single color patterns (no slash interference)');
+
+      for (const pattern of colorPatterns) {
+        const colorMatch = text.match(pattern);
+        console.log('🎨 [STEP-BY-STEP-COLORS] Pattern test:', { pattern: pattern.source, match: colorMatch });
+        if (colorMatch) {
+          const detectedColor = colorMatch[1] || colorMatch[0].trim();
+          // CRITICAL FIX: Properly capitalize single colors too
+          const normalizedColor = detectedColor.charAt(0).toUpperCase() + detectedColor.slice(1).toLowerCase();
+          console.log('🎨 [STEP-BY-STEP-COLORS] RESULT: Single color detected:', normalizedColor);
+          return normalizedColor;
+        }
       }
+    } else {
+      console.log('🎨 [STEP-BY-STEP-COLORS] Skipping single color detection due to slash pattern interference');
     }
 
-    console.log('🎨 [COLOR-DETECTION] No color detected in:', text.substring(0, 50));
+    // Priority 3: If no explicit color context, default to Black (as per business rules)
+    // But ONLY if we haven't detected any fabric specifications that could be confused
+    const hasFabricTerms = /(?:polyester|laser|cut|acrylic|airmesh|cotton|suede|leather)/i.test(text);
+    if (!hasFabricTerms) {
+      console.log('🎨 [STEP-BY-STEP-COLORS] No explicit color or fabric terms, defaulting to Black');
+      console.log('🎨 [STEP-BY-STEP-COLORS] === END EXTRACTING COLOR ===');
+      return 'Black';
+    }
+
+    console.log('🎨 [STEP-BY-STEP-COLORS] RESULT: Fabric terms detected, no color specified - returning null to use default');
+    console.log('🎨 [STEP-BY-STEP-COLORS] === END EXTRACTING COLOR ===');
     return null;
   }
 
@@ -976,7 +1126,8 @@ Please interpret the current request in the context of the previous conversation
     // Check for specific bill shape preferences
     if (capAnalysis?.detectedCapStyle?.toLowerCase().includes('flat') ||
         capAnalysis?.billShape === 'Flat') {
-      const flatBillDefault = products.find(p => p.code === '6P_PROFIT_SIX_HFS');
+      const flatBillDefault = products.find(p => p.code === '6P_PROFIT_SIX_HFS') ||
+                              products.find(p => p.name === '6P ProFit Six HFS');
       if (flatBillDefault) {
         console.log('🎯 [SUPPORT AI] Using Flat Bill default: 6P ProFit Six HFS');
         return flatBillDefault;
@@ -985,7 +1136,8 @@ Please interpret the current request in the context of the previous conversation
 
     if (capAnalysis?.detectedCapStyle?.toLowerCase().includes('curved') ||
         capAnalysis?.billShape === 'Curved') {
-      const curvedBillDefault = products.find(p => p.code === '6P_PROFIT_SIX_HCS');
+      const curvedBillDefault = products.find(p => p.code === '6P_PROFIT_SIX_HCS') ||
+                                products.find(p => p.name === '6P ProFit Six HCS');
       if (curvedBillDefault) {
         console.log('🎯 [SUPPORT AI] Using Curved Bill default: 6P ProFit Six HCS');
         return curvedBillDefault;
@@ -994,7 +1146,8 @@ Please interpret the current request in the context of the previous conversation
 
     // Check for panel count preferences
     if (capAnalysis?.panelCount === '5-Panel') {
-      const fivePanelDefault = products.find(p => p.code === '5P_URBAN_CLASSIC_HCS');
+      const fivePanelDefault = products.find(p => p.code === '5P_URBAN_CLASSIC_HCS') ||
+                               products.find(p => p.name === '5P Urban Classic HCS');
       if (fivePanelDefault) {
         console.log('🎯 [SUPPORT AI] Using 5-Panel default: 5P Urban Classic HCS');
         return fivePanelDefault;
@@ -1002,7 +1155,8 @@ Please interpret the current request in the context of the previous conversation
     }
 
     if (capAnalysis?.panelCount === '7-Panel') {
-      const sevenPanelDefault = products.find(p => p.code === '7P_ELITE_SEVEN_MFS');
+      const sevenPanelDefault = products.find(p => p.code === '7P_ELITE_SEVEN_MFS') ||
+                                products.find(p => p.name === '7P Elite Seven MFS');
       if (sevenPanelDefault) {
         console.log('🎯 [SUPPORT AI] Using 7-Panel default: 7P Elite Seven MFS');
         return sevenPanelDefault;
@@ -1012,39 +1166,74 @@ Please interpret the current request in the context of the previous conversation
     // Check for structure preferences (Dad Hat / Unstructured)
     if (capAnalysis?.structure === 'Unstructured' ||
         capAnalysis?.detectedCapStyle?.toLowerCase().includes('dad')) {
-      const dadHatDefault = products.find(p => p.code === '6P_AIRFRAME_MCU');
+      const dadHatDefault = products.find(p => p.code === '6P_AIRFRAME_MCU') ||
+                            products.find(p => p.name === '6P AirFrame MCU');
       if (dadHatDefault) {
         console.log('🎯 [SUPPORT AI] Using Unstructured Dad Hat default: 6P AirFrame MCU');
         return dadHatDefault;
       }
     }
 
-    // Main default: 6P AirFrame HSCS (General purpose - High Profile, Slight Curved)
-    const generalDefault = products.find(p => p.code === '6P_AIRFRAME_HSCS');
+    // Main default: 6P AirFrame HSCS (General purpose - High Profile, Structured)
+    // CRITICAL FIX: Use both code and name matching to ensure structured cap is found
+    // Also add structure verification to prevent unstructured caps from being selected
+    const generalDefault = products.find(p =>
+      (p.code === '6P_AIRFRAME_HSCS' || p.name === '6P AirFrame HSCS') &&
+      (p.structure_type?.includes('Structured') || !p.structure_type?.includes('Unstructured'))
+    ) || products.find(p => p.code === '6P_AIRFRAME_HSCS') ||
+         products.find(p => p.name === '6P AirFrame HSCS');
+
     if (generalDefault) {
       console.log('🎯 [SUPPORT AI] Using general default: 6P AirFrame HSCS (6-Panel, High Profile, Structured)');
+      console.log('🎯 [SUPPORT AI] Selected product structure type:', generalDefault.structure_type);
       return generalDefault;
     }
 
-    // Fallback hierarchy based on currentTask.txt preferences
+    // Fallback hierarchy based on currentTask.txt preferences - try both code and name formats
     const fallbackOrder = [
-      '6P_PROFIT_SIX_HCS',  // Curved Bill
-      '6P_PROFIT_SIX_HFS',  // Flat Bill
-      '5P_URBAN_CLASSIC_HCS', // 5-Panel
-      '6P_AIRFRAME_MCU',    // Dad Hat
-      '7P_ELITE_SEVEN_MFS'  // 7-Panel
+      { code: '6P_PROFIT_SIX_HCS', name: '6P ProFit Six HCS' },   // Curved Bill Structured
+      { code: '6P_PROFIT_SIX_HFS', name: '6P ProFit Six HFS' },   // Flat Bill Structured
+      { code: '5P_URBAN_CLASSIC_HCS', name: '5P Urban Classic HCS' }, // 5-Panel Structured
+      { code: '6P_AIRFRAME_MCU', name: '6P AirFrame MCU' },       // Dad Hat Unstructured
+      { code: '7P_ELITE_SEVEN_MFS', name: '7P Elite Seven MFS' }   // 7-Panel Structured
     ];
 
-    for (const code of fallbackOrder) {
-      const fallbackProduct = products.find(p => p.code === code);
+    for (const fallback of fallbackOrder) {
+      const fallbackProduct = products.find(p => p.code === fallback.code) ||
+                              products.find(p => p.name === fallback.name);
       if (fallbackProduct) {
         console.log('🎯 [SUPPORT AI] Using fallback default:', fallbackProduct.name);
+        console.log('🎯 [SUPPORT AI] Fallback product structure type:', fallbackProduct.structure_type);
+
+        // CRITICAL: If we're defaulting and this is not an unstructured request, prefer structured caps
+        if (capAnalysis?.structure !== 'Unstructured' && fallbackProduct.structure_type?.includes('Unstructured')) {
+          console.log('⚠️ [SUPPORT AI] Skipping unstructured fallback, continuing search for structured cap');
+          continue;
+        }
+
         return fallbackProduct;
       }
     }
 
-    // Last resort: first active product
+    // Last resort: first active product, but prefer structured if available
     console.log('⚠️ [SUPPORT AI] Using first available product as last resort');
+    console.log('⚠️ [SUPPORT AI] Available products:', products.slice(0, 3).map(p => ({
+      name: p.name,
+      code: p.code,
+      structure: p.structure_type
+    })));
+
+    // Try to find any structured cap as last resort
+    if (capAnalysis?.structure !== 'Unstructured') {
+      const anyStructuredCap = products.find(p =>
+        p.structure_type?.includes('Structured') || !p.structure_type?.includes('Unstructured')
+      );
+      if (anyStructuredCap) {
+        console.log('🎯 [SUPPORT AI] Found structured cap as last resort:', anyStructuredCap.name);
+        return anyStructuredCap;
+      }
+    }
+
     return products[0];
   }
 
@@ -1074,9 +1263,14 @@ Please interpret the current request in the context of the previous conversation
     // Dad hat is specifically unstructured
     if (lowerRequest.includes('dad hat')) return 'Unstructured';
 
-    // Explicit structure mentions
-    if (lowerRequest.includes('structured')) return 'Structured';
+    // CRITICAL FIX: Fitted caps are inherently structured
+    if (lowerRequest.includes('fitted cap') || lowerRequest.includes('fitted hat')) {
+      return 'Structured';
+    }
+
+    // Explicit structure mentions - check unstructured first to avoid conflicts
     if (lowerRequest.includes('unstructured')) return 'Unstructured';
+    if (lowerRequest.includes('structured')) return 'Structured';
 
     return null;
   }
@@ -1091,8 +1285,9 @@ Please interpret the current request in the context of the previous conversation
     if (lowerRequest.includes('curved bill') || lowerRequest.includes('curved brim')) {
       return 'Curved';
     }
-    if (lowerRequest.includes('slight curve') || lowerRequest.includes('slightly curved')) {
-      return 'Slight Curved';
+    // CRITICAL FIX: Map "Slight Curved" variations to "Curved" for consistent product matching
+    if (lowerRequest.includes('slight curve') || lowerRequest.includes('slightly curved') || lowerRequest.includes('slight curved')) {
+      return 'Curved';  // Normalize to "Curved" for product matching
     }
 
     // Check for style indicators (more specific than general terms)

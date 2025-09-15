@@ -48,7 +48,11 @@ export class OrderBuilderService {
       customizationExists: !!quoteData?.customization,
       customizationHasLogos: !!(quoteData?.customization?.logos && quoteData.customization.logos.length > 0),
       deliveryExists: !!quoteData?.delivery,
-      pricingExists: !!quoteData?.pricing
+      pricingExists: !!quoteData?.pricing,
+      // Enhanced validation for conversation context preservation
+      hasConversationContinuation: !!quoteData?.conversationContinuation,
+      contextPreserved: !!quoteData?.conversationContinuation?.hasContext,
+      changedSections: quoteData?.conversationContinuation?.changedSections || []
     });
 
     const { capDetails, customization, delivery, pricing } = quoteData || {};
@@ -113,17 +117,25 @@ export class OrderBuilderService {
       let selectedVersionId = prev.costBreakdown?.selectedVersionId || null;
 
       if (costBreakdownAvailable) {
-        // Check if this is a new quote (different total or customization)
-        const isDifferentQuote = !newVersions.some(v =>
-          v.pricing.total === pricing.total &&
-          v.pricing.logosCost === pricing.logosCost &&
-          v.pricing.baseProductCost === pricing.baseProductCost
-        );
+        // CRITICAL FIX: Enhanced quote comparison for conversation changes
+        const isDifferentQuote = !newVersions.some(v => {
+          const totalMatch = Math.abs(v.pricing.total - pricing.total) < 0.01;
+          const quantityMatch = v.pricing.quantity === pricing.quantity;
+          const logosCostMatch = Math.abs(v.pricing.logosCost - pricing.logosCost) < 0.01;
+          const baseProductMatch = Math.abs(v.pricing.baseProductCost - pricing.baseProductCost) < 0.01;
+
+          // For conversation changes, also compare key specifications
+          const sameSpecs = JSON.stringify(v.quoteData?.capDetails) === JSON.stringify(quoteData?.capDetails) &&
+                           JSON.stringify(v.quoteData?.customization) === JSON.stringify(quoteData?.customization);
+
+          return totalMatch && quantityMatch && logosCostMatch && baseProductMatch && sameSpecs;
+        });
 
         if (isDifferentQuote) {
           // Generate a descriptive label based on the quote differences
           const label = this.generateQuoteLabel(quoteData, newVersions.length + 1);
 
+          // CRITICAL FIX: Include conversation continuation metadata
           const newVersion: QuoteVersion = {
             id: `version_${Date.now()}_${newVersions.length + 1}`,
             version: newVersions.length + 1,
@@ -135,12 +147,28 @@ export class OrderBuilderService {
               total: pricing.total || 0,
               quantity: pricing.quantity || 1
             },
-            quoteData: quoteData,
+            quoteData: {
+              ...quoteData,
+              // Preserve conversation context for version tracking
+              versionMetadata: {
+                isConversationUpdate: !!quoteData?.conversationContinuation?.hasContext,
+                changedSections: quoteData?.conversationContinuation?.changedSections || [],
+                preservedContext: quoteData?.conversationContinuation?.hasContext || false
+              }
+            },
             label: label
           };
 
           newVersions.push(newVersion);
           selectedVersionId = newVersion.id; // Auto-select the latest version
+
+          console.log('🔧 [ORDER-BUILDER] Created new version with conversation context:', {
+            versionId: newVersion.id,
+            isConversationUpdate: newVersion.quoteData.versionMetadata?.isConversationUpdate,
+            changedSections: newVersion.quoteData.versionMetadata?.changedSections
+          });
+        } else {
+          console.log('🔧 [ORDER-BUILDER] Quote unchanged, reusing existing version');
         }
       }
 
@@ -176,15 +204,33 @@ export class OrderBuilderService {
 
     const enhancements: any = {};
 
-    // Extract color specifications
-    const colorMatch = userMessage.match(/\b(red|blue|black|white|green|yellow|navy|gray|grey|brown|khaki|orange|purple)\b/gi);
-    if (colorMatch && colorMatch.length > 0) {
-      const uniqueColors = [...new Set(colorMatch.map(color =>
+    // CRITICAL FIX: Extract color specifications with support for slash patterns like "Black/Grey"
+    // Priority 1: Check for slash patterns (Black/Grey, Red/White, etc.)
+    const slashColorMatch = userMessage.match(/(\b\w+)\/(\w+\b)/gi);
+    if (slashColorMatch && slashColorMatch.length > 0) {
+      const combinedColors = slashColorMatch[0].split('/').map(color =>
         color.charAt(0).toUpperCase() + color.slice(1).toLowerCase()
-      ))];
-      enhancements.colors = uniqueColors;
-      enhancements.color = uniqueColors[0];
-      console.log('✅ [USER-SPEC] Extracted colors:', uniqueColors);
+      );
+      enhancements.colors = combinedColors;
+      enhancements.color = slashColorMatch[0]; // Preserve the original slash format
+      console.log('✅ [USER-SPEC] FIXED: Extracted slash colors:', slashColorMatch[0], combinedColors);
+    } else {
+      // Fallback: Individual color matching
+      const colorMatch = userMessage.match(/\b(red|blue|black|white|green|yellow|navy|gray|grey|brown|khaki|orange|purple)\b/gi);
+      if (colorMatch && colorMatch.length > 0) {
+        const uniqueColors = [...new Set(colorMatch.map(color =>
+          color.charAt(0).toUpperCase() + color.slice(1).toLowerCase()
+        ))];
+        if (uniqueColors.length === 1) {
+          enhancements.colors = uniqueColors;
+          enhancements.color = uniqueColors[0];
+        } else {
+          // Multiple individual colors - join with slash
+          enhancements.colors = uniqueColors;
+          enhancements.color = uniqueColors.join('/');
+        }
+        console.log('✅ [USER-SPEC] Extracted individual colors:', uniqueColors);
+      }
     }
 
     // Extract size specifications
@@ -269,7 +315,7 @@ export class OrderBuilderService {
       } else if (extractedShape.toLowerCase() === 'curved') {
         extractedShape = 'Curved';
       } else if (extractedShape.toLowerCase().includes('slight')) {
-        extractedShape = 'Slight Curved';
+        extractedShape = 'Curved'; // CRITICAL FIX: Normalize "Slight Curved" to "Curved"
       }
       enhancements.billShape = extractedShape;
       console.log('✅ [USER-SPEC] Extracted bill shape:', extractedShape);

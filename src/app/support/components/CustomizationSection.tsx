@@ -72,10 +72,89 @@ const CustomizationSection = ({
                 <div className="mt-2 space-y-3">
                   {(() => {
                     console.log('🔍 [CUSTOMIZATION] Using structured data:', currentQuoteData.customization);
+                    console.log('🔍 [CUSTOMIZATION] Full quote data keys:', Object.keys(currentQuoteData || {}));
+                    console.log('🔍 [CUSTOMIZATION] Pricing data:', currentQuoteData?.pricing || 'No pricing data');
 
                     const quantity = currentQuoteData?.capDetails?.quantity || 100;
                     const logos = currentQuoteData?.customization?.logos || [];
-                    const accessories = currentQuoteData?.customization?.accessories || [];
+
+                    // CRITICAL FIX: Enhanced accessories detection from multiple sources
+                    const extractAccessoriesFromQuoteData = (quoteData: any, qty: number) => {
+                      const extractedAccessories = [];
+
+                      // Method 1: Check if accessories are mentioned in the structured message
+                      if (quoteData?.message && typeof quoteData.message === 'string') {
+                        const message = quoteData.message;
+                        const accessoryPatterns = [
+                          { name: 'Inside Label', pattern: /Inside\s*Label[^$]*\$([\d,]+\.?\d*)/gi },
+                          { name: 'B-Tape Print', pattern: /B-Tape\s*Print[^$]*\$([\d,]+\.?\d*)/gi },
+                          { name: 'Hang Tag', pattern: /Hang\s*Tag[^$]*\$([\d,]+\.?\d*)/gi },
+                          { name: 'Sticker', pattern: /Sticker[^$]*\$([\d,]+\.?\d*)/gi }
+                        ];
+
+                        accessoryPatterns.forEach(({ name, pattern }) => {
+                          const matches = [...message.matchAll(pattern)];
+                          if (matches.length > 0) {
+                            const totalCost = parseFloat(matches[0][1].replace(',', ''));
+                            const unitPrice = totalCost / qty;
+                            extractedAccessories.push({
+                              name: name,
+                              unitPrice: unitPrice,
+                              totalCost: totalCost,
+                              type: name
+                            });
+                            console.log(`🏷️ [EXTRACT] Found ${name}: $${totalCost} total`);
+                          }
+                        });
+                      }
+
+                      // Method 2: Look for accessories cost in pricing breakdown
+                      if (quoteData?.pricing?.accessoriesCost > 0 && extractedAccessories.length === 0) {
+                        // If we have accessories cost but no details, create generic entries
+                        const totalAccessoriesCost = quoteData.pricing.accessoriesCost;
+                        const avgUnitPrice = totalAccessoriesCost / qty / 2; // Assume 2 accessories
+                        extractedAccessories.push(
+                          {
+                            name: 'Inside Label',
+                            unitPrice: avgUnitPrice,
+                            totalCost: avgUnitPrice * qty,
+                            type: 'Inside Label'
+                          },
+                          {
+                            name: 'B-Tape Print',
+                            unitPrice: avgUnitPrice,
+                            totalCost: avgUnitPrice * qty,
+                            type: 'B-Tape Print'
+                          }
+                        );
+                        console.log('🏷️ [EXTRACT] Created accessories from cost breakdown:', totalAccessoriesCost);
+                      }
+
+                      return extractedAccessories;
+                    };
+
+                    let accessories = currentQuoteData?.customization?.accessories || [];
+
+                    // If no accessories in customization, check other possible sources
+                    if (accessories.length === 0) {
+                      // Check if accessories are in the raw pricing data
+                      if (currentQuoteData?.pricing?.accessories) {
+                        accessories = currentQuoteData.pricing.accessories;
+                        console.log('🏷️ [ACCESSORIES-FIX] Found accessories in pricing data:', accessories);
+                      }
+                      // Check root level accessories
+                      else if (currentQuoteData?.accessories) {
+                        accessories = currentQuoteData.accessories;
+                        console.log('🏷️ [ACCESSORIES-FIX] Found accessories in root data:', accessories);
+                      }
+                      // Parse from structured quote message if available
+                      else {
+                        accessories = extractAccessoriesFromQuoteData(currentQuoteData, quantity);
+                        console.log('🏷️ [ACCESSORIES-FIX] Extracted accessories from quote:', accessories);
+                      }
+                    }
+
+                    console.log('🏷️ [ACCESSORIES-DEBUG] Final accessories:', accessories);
 
                     // Use structured data instead of parsing message
                     const logoCosts = logos.map(logo => ({

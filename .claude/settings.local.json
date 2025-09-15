@@ -11,7 +11,17 @@
       "Bash(npx supabase db inspect:*)",
       "Bash(psql:*)",
       "Bash(npx supabase db pull:*)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "Bash(cat:*)",
+      "Read(//c/Users/Rasel/Downloads/**)",
+      "mcp__ide__executeCode",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(del test-7panel-products.js test-fix.js)",
+      "Bash(timeout:*)",
+      "Bash(npm run:*)",
+      "Bash(del \"F:\\Custom Cap - github\\USCC\\test-conversation-state.js\")"
     ],
     "deny": [],
     "ask": [],

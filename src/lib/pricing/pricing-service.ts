@@ -1172,6 +1172,50 @@ export function startCacheCleanup(): void {
 }
 
 // ============================================================================
+// BILL SHAPE MATCHING HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Check if requested bill shape matches product bill shape, handling terminology differences
+ * CRITICAL: Maps user terminology to database terminology
+ * - User says "curved" → Database has "Slight Curved" or "Curved"
+ * - User says "flat" → Database has "Flat"
+ */
+function checkBillShapeMatch(requestedShape: string, productShape: string): boolean {
+  const requested = requestedShape.toLowerCase().trim();
+  const product = productShape.toLowerCase().trim();
+
+  // Exact match
+  if (product === requested) {
+    return true;
+  }
+
+  // Map user "curved" to database "slight curved" or "curved"
+  if (requested === 'curved' || requested === 'curve') {
+    return product === 'curved' ||
+           product === 'slight curved' ||
+           product.includes('curved');
+  }
+
+  // Map user "flat" to database "flat"
+  if (requested === 'flat' || requested === 'flatbill' || requested === 'flat bill') {
+    return product === 'flat' || product.includes('flat');
+  }
+
+  // Handle partial matches for complex user inputs
+  if (requested.includes('curved') && (product === 'slight curved' || product === 'curved')) {
+    return true;
+  }
+
+  if (requested.includes('flat') && product === 'flat') {
+    return true;
+  }
+
+  // Default: check if product shape contains requested shape
+  return product.includes(requested);
+}
+
+// ============================================================================
 // PRODUCT INFORMATION SERVICE FOR ORDER BUILDER
 // ============================================================================
 
@@ -1220,13 +1264,13 @@ export async function getProductInfoBySpecs(
   }
 
   try {
+    console.log('✅ [PRICING-SERVICE] Starting WORKING product matching for:', JSON.stringify(capDetails, null, 2));
+
     const products = await loadProducts();
     if (!products.length) {
       console.warn('⚠️ [PRICING-SERVICE] No products available for matching');
       return null;
     }
-
-    console.log('🔍 [PRICING-SERVICE] Matching product for cap specs:', JSON.stringify(capDetails, null, 2));
 
     // PRIORITY 0: If exact product name is provided, try to find it first
     if (capDetails.productName) {
@@ -1257,30 +1301,26 @@ export async function getProductInfoBySpecs(
       }
     }
 
-    // ENHANCED ALGORITHM: Use pricing data to infer tier and panel count
-    let inferredTier: string | null = null;
-    let inferredPanelCount: number | null = null;
+    // STEP 1: Tier and panel count inference
+    let inferredTier = null;
+    let inferredPanelCount = null;
 
-    // Price-based tier inference (quantity 144 as reference)
-    if (capDetails.unitPrice && capDetails.quantity) {
-      const unitPrice = capDetails.unitPrice;
-      console.log(`🔍 [PRICING-SERVICE] Price-based inference: $${unitPrice} per unit`);
-
-      if (unitPrice >= 4.20) {
+    if (capDetails.panelCount) {
+      inferredPanelCount = capDetails.panelCount;
+      if (capDetails.panelCount === 7) {
         inferredTier = 'Tier 3';
-        inferredPanelCount = 7; // Tier 3 typically 7-panel
-      } else if (unitPrice >= 3.90) {
-        inferredTier = 'Tier 2';
-        inferredPanelCount = 6; // Tier 2 typically 6-panel flat/structured
-      } else if (unitPrice >= 3.50) {
+      } else if (capDetails.panelCount === 6) {
+        inferredTier = capDetails.billShape?.toLowerCase().includes('flat') ? 'Tier 2' : 'Tier 1';
+      } else {
         inferredTier = 'Tier 1';
-        inferredPanelCount = 6; // Tier 1 typically 6-panel curved
       }
-
-      console.log(`🔍 [PRICING-SERVICE] Price inference result: ${inferredTier}, ${inferredPanelCount}-panel`);
     }
 
-    // Enhanced product matching algorithm
+    const targetPanelCount = inferredPanelCount;
+
+    console.log(`🎯 [PRICING-SERVICE] WORKING algorithm: tier=${inferredTier}, panelCount=${targetPanelCount}`);
+
+    // STEP 2: Product matching with WORKING algorithm
     let bestMatch: ProductInfo | null = null;
     let bestScore = 0;
 
@@ -1289,22 +1329,31 @@ export async function getProductInfoBySpecs(
 
       let score = 0;
 
-      // PRIORITY 1: Price-based tier matching (highest priority if available)
-      if (inferredTier && product.pricing_tier.tier_name === inferredTier) {
-        score += 40;
-        console.log(`✅ [PRICING-SERVICE] Price-tier match: ${product.name} (${inferredTier})`);
+      // Panel count matching
+      if (targetPanelCount && product.panel_count === targetPanelCount) {
+        const panelWeight = targetPanelCount === 7 ? 50 : 45;
+        score += panelWeight;
       }
 
-      // PRIORITY 2: Panel count matching (direct or inferred)
-      const targetPanelCount = capDetails.panelCount || inferredPanelCount;
-      if (targetPanelCount && product.panel_count === targetPanelCount) {
-        score += 35;
-        console.log(`✅ [PRICING-SERVICE] Panel count match: ${product.name} (${targetPanelCount}-panel)`);
+      // Tier matching
+      if (inferredTier && product.pricing_tier?.tier_name === inferredTier) {
+        score += 30;
       }
 
       // Bill shape matching
-      if (capDetails.billShape && product.bill_shape.toLowerCase().includes(capDetails.billShape.toLowerCase())) {
-        score += 25;
+      if (capDetails.billShape) {
+        const isShapeMatch = checkBillShapeMatch(capDetails.billShape, product.bill_shape);
+        if (isShapeMatch) {
+          const shapeWeight = targetPanelCount === 7 ? 35 : 25;
+          score += shapeWeight;
+
+          if (targetPanelCount === 7 && product.panel_count === 7) {
+            score += 15;
+          }
+        } else {
+          const shapePenalty = targetPanelCount === 7 ? -15 : -10;
+          score += shapePenalty;
+        }
       }
 
       // Profile matching
@@ -1316,28 +1365,6 @@ export async function getProductInfoBySpecs(
       if (capDetails.structure && product.structure_type.toLowerCase().includes(capDetails.structure.toLowerCase())) {
         score += 15;
       }
-
-      // Fabric matching (for premium products)
-      if (capDetails.fabric) {
-        const fabricLower = capDetails.fabric.toLowerCase();
-        if (fabricLower.includes('premium') || fabricLower.includes('specialty')) {
-          if (product.pricing_tier.tier_name === 'Tier 3') {
-            score += 10;
-          }
-        }
-      }
-
-      // Nickname matching for AI understanding
-      if (product.nick_names && product.nick_names.length > 0) {
-        const specString = JSON.stringify(capDetails).toLowerCase();
-        for (const nickname of product.nick_names) {
-          if (specString.includes(nickname.toLowerCase())) {
-            score += 5;
-          }
-        }
-      }
-
-      console.log(`🔍 [PRICING-SERVICE] Product "${product.name}" score: ${score}`);
 
       if (score > bestScore) {
         bestScore = score;
@@ -1354,35 +1381,30 @@ export async function getProductInfoBySpecs(
       }
     }
 
-    // Apply business rules for fallback matching if no good match found
-    if (!bestMatch || bestScore < 15) {
-      // Use AI tier detection logic as fallback
-      const tierName = await findTierFromCapSpecs(capDetails);
+    // STEP 3: Fallback logic if no good match
+    if (!bestMatch || bestScore < 10) {
+      console.log(`⚠️ [PRICING-SERVICE] No good match (score: ${bestScore}), using fallback...`);
 
-      // Find a representative product from the determined tier
-      const tierProduct = products.find(p =>
-        p.pricing_tier?.tier_name === tierName
-      );
-
-      if (tierProduct) {
-        bestMatch = {
-          name: tierProduct.name,
-          code: tierProduct.code,
-          profile: tierProduct.profile,
-          bill_shape: tierProduct.bill_shape,
-          panel_count: tierProduct.panel_count,
-          structure_type: tierProduct.structure_type,
-          pricing_tier: tierProduct.pricing_tier,
-          nick_names: tierProduct.nick_names || []
-        };
-        console.log(`🔄 [PRICING-SERVICE] Used tier fallback: ${tierName} -> ${bestMatch.name}`);
+      if (targetPanelCount === 7) {
+        const any7PanelProduct = products.find(p => p.panel_count === 7 && p.pricing_tier);
+        if (any7PanelProduct) {
+          bestMatch = {
+            name: any7PanelProduct.name,
+            code: any7PanelProduct.code,
+            profile: any7PanelProduct.profile,
+            bill_shape: any7PanelProduct.bill_shape,
+            panel_count: any7PanelProduct.panel_count,
+            structure_type: any7PanelProduct.structure_type,
+            pricing_tier: any7PanelProduct.pricing_tier,
+            nick_names: any7PanelProduct.nick_names || []
+          };
+        }
       }
     }
 
     if (bestMatch) {
-      const tierName = bestMatch.pricing_tier?.tier_name || 'Unknown';
-      console.log(`✅ [PRICING-SERVICE] Product matched: "${bestMatch.name}" (${tierName}) - Panel Count: ${bestMatch.panel_count}`);
-      pricingCache.set(cacheKey, bestMatch, 30 * 60 * 1000); // 30 min TTL
+      console.log(`✅ [PRICING-SERVICE] SUCCESS: "${bestMatch.name}" (score: ${bestScore})`);
+      pricingCache.set(cacheKey, bestMatch, 30 * 60 * 1000);
       return bestMatch;
     }
 
@@ -1390,7 +1412,11 @@ export async function getProductInfoBySpecs(
     return null;
 
   } catch (error) {
-    console.error('❌ [PRICING-SERVICE] Error getting product info by specs:', error);
+    console.error('❌ [PRICING-SERVICE] Error getting product info by specs:', {
+      error: error.message,
+      stack: error.stack,
+      capDetails: JSON.stringify(capDetails)
+    });
     return null;
   }
 }

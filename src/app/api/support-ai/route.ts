@@ -14,7 +14,8 @@ import {
   fetchLogoSetupCosts,
   fetchAccessoriesCosts,
   fetchDeliveryCosts,
-  generateStructuredResponse
+  generateStructuredResponse,
+  generateConversationalUpdateResponse
 } from '@/lib/pricing/format8-functions';
 import { AI_ASSISTANTS, formatAssistantResponse } from '@/lib/ai-assistants-config';
 
@@ -75,10 +76,22 @@ export async function POST(request: NextRequest) {
     const delivery = await fetchDeliveryCosts(requirements);
     console.log('✅ [STEP-6] Delivery costs fetched:', delivery);
 
-    // Generate AI response based on fetched data
-    const aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+    // ENHANCED: Generate AI response with conversational context awareness
+    const conversationalContext = requirements.conversationalContext;
+    let aiResponse;
 
-    // Create structured quote data for Order Builder
+    if (conversationalContext?.hasContext && conversationalContext.detectedChanges.length > 0) {
+      // Generate conversational update response
+      aiResponse = generateConversationalUpdateResponse(
+        capDetails, premiumUpgrades, logoSetup, accessories, delivery,
+        conversationalContext
+      );
+    } else {
+      // Generate standard structured response
+      aiResponse = generateStructuredResponse(capDetails, premiumUpgrades, logoSetup, accessories, delivery);
+    }
+
+    // Create structured quote data for Order Builder with conversational context
     const structuredQuoteData = {
       capDetails: {
         productName: capDetails.productName,
@@ -115,7 +128,10 @@ export async function POST(request: NextRequest) {
         premiumFabricCost: premiumUpgrades.fabric?.totalCost || 0,
         premiumClosureCost: premiumUpgrades.closure?.totalCost || 0,
         quantity: requirements.quantity
-      }
+      },
+
+      // ENHANCED: Include conversational context metadata
+      conversationalContext: conversationalContext
     };
 
     const capCraftAI = AI_ASSISTANTS.QUOTE_MASTER;
@@ -176,6 +192,9 @@ function transformToOrderBuilderFormat(format8Data: any) {
     throw new Error('No quote data received from Format #8');
   }
 
+  // Extract conversational context from quote data
+  const conversationalContext = quoteData.conversationalContext;
+
   // Extract pricing breakdown from Format #8's structured data
   const {
     capDetails,
@@ -214,12 +233,18 @@ function transformToOrderBuilderFormat(format8Data: any) {
                   (customization.accessories && customization.accessories.length > 0),
         status: (customization.logos && customization.logos.length > 0) ||
                 (customization.accessories && customization.accessories.length > 0) ? 'green' as const : 'empty' as const,
+        items: {
+          logoSetup: customization.logos && customization.logos.length > 0,
+          accessories: customization.accessories && customization.accessories.length > 0,
+          moldCharges: customization.logos && customization.logos.some((logo: any) => logo.moldCharge > 0)
+        },
+        logoPositions: customization.logos ? customization.logos.map((logo: any) => logo.location || logo.position || 'Unknown') : [],
         logoSetup: customization.logos || [],
         premiumUpgrades: {
           fabric: capDetails.fabric !== 'Standard' ? capDetails.fabric : null,
           closure: capDetails.closure !== 'Snapback' ? capDetails.closure : null
         },
-        cost: pricing.logosCost + (pricing.premiumFabricCost || 0) + (pricing.premiumClosureCost || 0)
+        cost: pricing.logosCost + (pricing.premiumFabricCost || 0) + (pricing.premiumClosureCost || 0) + (pricing.accessoriesCost || 0)
       },
 
       accessories: {
@@ -252,12 +277,14 @@ function transformToOrderBuilderFormat(format8Data: any) {
       }
     },
 
-    // Conversation continuation (will be enhanced when context is implemented)
+    // ENHANCED: Conversation continuation with comprehensive context
     conversationContinuation: {
-      hasContext: false,
-      detectedChanges: [],
-      changedSections: [],
-      visualIndicators: {}
+      hasContext: conversationalContext?.hasContext || false,
+      detectedChanges: conversationalContext?.detectedChanges || [],
+      changedSections: conversationalContext?.orderBuilderDelta?.changedSections || [],
+      visualIndicators: conversationalContext?.orderBuilderDelta?.visualIndicators || {},
+      isConversationalUpdate: conversationalContext?.isConversationalUpdate || false,
+      effectiveMessage: conversationalContext?.effectiveMessage || format8Data.message
     },
 
     // No errors from Format #8's reliable system

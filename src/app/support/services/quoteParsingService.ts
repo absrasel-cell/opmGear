@@ -1,7 +1,8 @@
 export class QuoteParsingService {
-  static parseQuoteFromMessage(message: string): any {
+  static parseQuoteFromMessage(message: string, preservedContext?: any): any {
     try {
       console.log('🔍 [QUOTE-PARSER] Parsing message for quote data:', message.substring(0, 200));
+      console.log('🔍 [QUOTE-PARSER] Has preserved context:', !!preservedContext);
 
       // Extract key pricing information from the AI message
       const priceRegex = /Total Order:\s*\$([0-9,]+\.?\d*)/i;
@@ -34,7 +35,8 @@ export class QuoteParsingService {
 
       console.log('✅ [QUOTE-PARSER] Extracted pricing:', { total, quantity, blankCapCost, customizationCost, deliveryCost });
 
-      const quoteData = {
+      // CRITICAL FIX: Merge with preserved context when available
+      const baseQuoteData = {
         capDetails: {
           productName,
           quantity,
@@ -66,6 +68,9 @@ export class QuoteParsingService {
           quantity: quantity
         }
       };
+
+      // Merge with preserved context if available
+      const quoteData = preservedContext ? this.mergeWithPreservedContext(baseQuoteData, preservedContext) : baseQuoteData;
 
       console.log('✅ [QUOTE-PARSER] Successfully parsed quote data:', quoteData);
       return quoteData;
@@ -398,7 +403,7 @@ export class QuoteParsingService {
 
         const lower = shapeValue.toLowerCase();
         if (lower.includes('flat')) return 'Flat';
-        if (lower.includes('slight') && lower.includes('curved')) return 'Slight Curved';
+        if (lower.includes('slight') && lower.includes('curved')) return 'Curved'; // CRITICAL FIX: Normalize to "Curved"
         if (lower.includes('curved')) return 'Curved';
 
         return shapeValue;
@@ -439,5 +444,70 @@ export class QuoteParsingService {
     }
 
     return '10-14 business days';
+  }
+
+  /**
+   * CRITICAL FIX: Merge extracted data with preserved context for conversation continuity
+   */
+  private static mergeWithPreservedContext(baseQuoteData: any, preservedContext: any): any {
+    console.log('🔄 [QUOTE-PARSER] Merging with preserved context:', {
+      baseKeys: Object.keys(baseQuoteData),
+      contextKeys: Object.keys(preservedContext),
+      preservedQuantity: preservedContext.quantity,
+      baseQuantity: baseQuoteData.capDetails?.quantity
+    });
+
+    const merged = JSON.parse(JSON.stringify(baseQuoteData)); // Deep copy
+
+    // CRITICAL FIX: ALWAYS preserve context values when available (higher priority than new extractions)
+    if (preservedContext.quantity && preservedContext.quantity > 0) {
+      merged.capDetails.quantity = preservedContext.quantity;
+      merged.pricing.quantity = preservedContext.quantity;
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved quantity:', preservedContext.quantity);
+    }
+
+    if (preservedContext.colors) {
+      merged.capDetails.colors = Array.isArray(preservedContext.colors)
+        ? preservedContext.colors
+        : [preservedContext.colors];
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved colors:', merged.capDetails.colors);
+    }
+
+    if (preservedContext.logos && preservedContext.logos.length > 0) {
+      // CRITICAL FIX: Preserve logos with all their properties including mold charges
+      merged.customization.logos = preservedContext.logos.map(logo => ({
+        location: logo.position || logo.location,
+        type: logo.type,
+        size: logo.size,
+        moldCharge: logo.moldCharge || 0, // Preserve mold charges
+        hasMoldCharge: logo.hasMoldCharge || false,
+        totalCost: logo.totalCost || logo.cost || 0,
+        unitPrice: logo.unitPrice || 0
+      }));
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved logos with mold charges:', merged.customization.logos.length);
+    }
+
+    if (preservedContext.accessories && preservedContext.accessories.length > 0) {
+      merged.customization.accessories = preservedContext.accessories;
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved accessories:', merged.customization.accessories);
+    }
+
+    if (preservedContext.fabric) {
+      merged.capDetails.fabric = preservedContext.fabric;
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved fabric:', merged.capDetails.fabric);
+    }
+
+    if (preservedContext.closure) {
+      merged.capDetails.closure = preservedContext.closure;
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved closure:', merged.capDetails.closure);
+    }
+
+    if (preservedContext.size) {
+      merged.capDetails.size = preservedContext.size;
+      console.log('🔄 [QUOTE-PARSER] MANDATORY preserved size:', merged.capDetails.size);
+    }
+
+    console.log('✅ [QUOTE-PARSER] Context merge completed with mandatory preservation');
+    return merged;
   }
 }
