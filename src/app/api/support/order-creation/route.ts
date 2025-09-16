@@ -2492,6 +2492,58 @@ I'll get back to you with precise pricing based on your specifications, includin
        quoteOrderId: orderResponse.quoteData.quoteOrderId
       });
 
+      // CRITICAL FIX: Ensure conversation exists in database before creating foreign key relationships
+      console.log('🔍 Verifying conversation exists in database:', conversationId);
+
+      const { data: existingConversation, error: conversationLookupError } = await supabaseAdmin
+        .from('Conversation')
+        .select('id, title, userId')
+        .eq('id', conversationId)
+        .single();
+
+      if (conversationLookupError || !existingConversation) {
+        console.warn('⚠️ Conversation not found in database:', {
+          conversationId,
+          error: conversationLookupError?.message,
+          code: conversationLookupError?.code
+        });
+
+        // Create the conversation first if it doesn't exist
+        console.log('🔧 Creating missing conversation in database...');
+        const conversationCreateTime = new Date().toISOString();
+
+        const { data: createdConversation, error: conversationCreateError } = await supabaseAdmin
+          .from('Conversation')
+          .insert({
+            id: conversationId,
+            userId: user?.id || null, // Use authenticated user if available
+            sessionId: sessionId || null,
+            title: `AI Quote - ${orderResponse.quoteData?.productType || 'Custom Cap'}`,
+            context: 'QUOTE_REQUEST',
+            hasQuote: false, // Will be set to true later
+            lastActivity: conversationCreateTime,
+            createdAt: conversationCreateTime,
+            updatedAt: conversationCreateTime,
+            metadata: {
+              intent: intent || 'quote_request',
+              aiGenerated: true,
+              createdDuringQuoteGeneration: true,
+              userProfile: userProfile || {}
+            }
+          })
+          .select('id')
+          .single();
+
+        if (conversationCreateError) {
+          console.error('❌ Failed to create conversation in database:', conversationCreateError);
+          throw new Error(`Cannot create conversation: ${conversationCreateError.message}`);
+        }
+
+        console.log('✅ Successfully created conversation in database:', createdConversation.id);
+      } else {
+        console.log('✅ Conversation already exists in database:', existingConversation.id);
+      }
+
       // Create unique ID for the ConversationQuotes record using multiple fallback approaches
       let conversationQuoteId;
       try {
@@ -2500,14 +2552,14 @@ I'll get back to you with precise pricing based on your specifications, includin
         console.warn('crypto.randomUUID() failed, using alternative approach:', cryptoError);
         conversationQuoteId = uuidv4();
       }
-      
+
       // Final fallback to manual UUID-like string if both fail
       if (!conversationQuoteId) {
         conversationQuoteId = `cq_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
       }
-      
+
       const now = new Date().toISOString();
-      
+
       console.log('🔧 ConversationQuotes insert attempt with ID:', conversationQuoteId);
 
       const { error: conversationQuotesError } = await supabaseAdmin
@@ -2548,8 +2600,10 @@ I'll get back to you with precise pricing based on your specifications, includin
       }
 
       // Update conversation to mark it has a quote and update activity
+      console.log('🔄 Updating conversation with hasQuote flag:', conversationId);
       const conversationUpdateTime = new Date().toISOString();
-      const { error: conversationUpdateError } = await supabaseAdmin
+
+      const { data: updatedConversation, error: conversationUpdateError } = await supabaseAdmin
         .from('Conversation')
         .update({
           hasQuote: true,
@@ -2557,11 +2611,18 @@ I'll get back to you with precise pricing based on your specifications, includin
           lastActivity: conversationUpdateTime,
           updatedAt: conversationUpdateTime
         })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .select('id, hasQuote, title');
 
       if (conversationUpdateError) {
-        console.error('❌ Failed to update Conversation:', conversationUpdateError);
+        console.error('❌ Failed to update Conversation with hasQuote flag:', conversationUpdateError);
         // Continue without failing - the quote creation was successful
+      } else {
+        console.log('✅ Successfully updated conversation with hasQuote flag:', {
+          conversationId: updatedConversation?.[0]?.id,
+          hasQuote: updatedConversation?.[0]?.hasQuote,
+          title: updatedConversation?.[0]?.title
+        });
       }
      } catch (linkError) {
       console.error('❌ Failed to link QuoteOrder to Conversation:', linkError);

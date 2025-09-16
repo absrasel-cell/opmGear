@@ -116,20 +116,88 @@ export async function PATCH(
       conversationQuotesData: conversation.ConversationQuotes
     });
 
-    if (!conversation.hasQuote) {
-      console.error('❌ Conversation hasQuote flag is false');
+    // CRITICAL FIX: Enhanced quote detection for backward compatibility
+    // Check for quotes in both old system (metadata) and new system (ConversationQuotes + QuoteOrder)
+    const hasLegacyQuote = conversation.hasQuote && conversation.metadata?.hasQuoteData;
+    const hasNewQuote = conversation.ConversationQuotes && conversation.ConversationQuotes.length > 0;
+
+    console.log('🔍 Quote detection analysis:', {
+      hasQuote: conversation.hasQuote,
+      hasLegacyQuote,
+      hasNewQuote,
+      conversationQuotesCount: conversation.ConversationQuotes?.length || 0,
+      metadataHasQuoteData: !!conversation.metadata?.hasQuoteData,
+      metadataQuoteOrderId: conversation.metadata?.quoteOrderId
+    });
+
+    if (!hasLegacyQuote && !hasNewQuote) {
+      console.error('❌ No quote found in either legacy or new system');
       return NextResponse.json({
         error: 'No quote found for this conversation',
         debug: {
           hasQuote: conversation.hasQuote,
           conversationId: conversation.id,
-          reason: 'hasQuote flag is false'
+          hasLegacyQuote,
+          hasNewQuote,
+          conversationQuotesExists: !!conversation.ConversationQuotes,
+          conversationQuotesLength: conversation.ConversationQuotes?.length || 0,
+          metadataHasQuoteData: !!conversation.metadata?.hasQuoteData,
+          reason: 'No quote found in either legacy or new system'
         }
       }, { status: 400 });
     }
 
+    // Handle legacy quotes (stored in conversation metadata)
+    if (hasLegacyQuote && !hasNewQuote) {
+      console.log('📋 Processing legacy quote from conversation metadata');
+
+      // For legacy quotes, we need to handle acceptance differently
+      // Update conversation metadata to track acceptance
+      const now = new Date().toISOString();
+
+      const conversationUpdate: any = {
+        lastActivity: now,
+        updatedAt: now,
+        metadata: {
+          ...(conversation.metadata || {}),
+          quoteStatus: status, // Store APPROVED/REJECTED in metadata
+          quoteAcceptedAt: status === 'APPROVED' ? now : null,
+          quoteRejectedAt: status === 'REJECTED' ? now : null
+        }
+      };
+
+      if (status === 'APPROVED') {
+        conversationUpdate.title = `Quote Accepted - ${conversation.metadata?.productType || 'Custom Cap'}`;
+        // TODO: Create order from legacy quote data if needed
+      } else if (status === 'REJECTED') {
+        conversationUpdate.title = `Quote Rejected - ${conversation.metadata?.productType || 'Custom Cap'}`;
+      }
+
+      const { error: conversationUpdateError } = await supabaseAdmin
+        .from('Conversation')
+        .update(conversationUpdate)
+        .eq('id', conversationId);
+
+      if (conversationUpdateError) {
+        throw conversationUpdateError;
+      }
+
+      console.log('✅ Legacy quote status updated successfully');
+
+      return NextResponse.json({
+        success: true,
+        conversationId,
+        quoteType: 'legacy',
+        previousStatus: conversation.metadata?.quoteStatus || 'PENDING',
+        newStatus: status,
+        updatedAt: now,
+        message: `Legacy quote ${status.toLowerCase()} successfully!`
+      });
+    }
+
+    // Continue with new system processing for ConversationQuotes
     if (!conversation.ConversationQuotes || conversation.ConversationQuotes.length === 0) {
-      console.error('❌ No ConversationQuotes bridge records found');
+      console.error('❌ No ConversationQuotes bridge records found for new system');
       return NextResponse.json({
         error: 'No quote found for this conversation',
         debug: {
@@ -137,7 +205,7 @@ export async function PATCH(
           conversationId: conversation.id,
           conversationQuotesExists: !!conversation.ConversationQuotes,
           conversationQuotesLength: conversation.ConversationQuotes?.length || 0,
-          reason: 'No ConversationQuotes bridge records'
+          reason: 'No ConversationQuotes bridge records for new system'
         }
       }, { status: 400 });
     }
