@@ -124,7 +124,6 @@ export default function SupportPage() {
   const [currentModel, setCurrentModel] = useState<string>('gpt-4o-mini');
   const [currentAssistant, setCurrentAssistant] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSavingQuote, setIsSavingQuote] = useState(false);
 
   // Conversation management
   const {
@@ -266,9 +265,17 @@ export default function SupportPage() {
   };
 
   const canQuoteOrder = () => {
-    // Only show Generate Quote button when:
-    // 1. A new quote was generated in this session (not from restored data)
-    // 2. The order builder has the required green statuses
+    // Allow quote actions if:
+    // 1. New quote in session (for fresh quotes) OR
+    // 2. Loaded conversation has quote data that hasn't been accepted/rejected
+    const hasValidQuoteData = hasNewQuoteInSession || (currentQuoteData && isOrderBuilderVisible);
+    return !!hasValidQuoteData &&
+           orderBuilderStatus.capStyle.status === 'green' &&
+           orderBuilderStatus.delivery.status === 'green';
+  };
+
+  const canGenerateNewQuote = () => {
+    // Only show Generate Quote button for new quotes in current session
     return hasNewQuoteInSession &&
            orderBuilderStatus.capStyle.status === 'green' &&
            orderBuilderStatus.delivery.status === 'green';
@@ -307,145 +314,6 @@ export default function SupportPage() {
     console.log('Selected quote version:', versionId);
   };
 
-  const handleSaveQuote = async () => {
-    if (!conversationId || !currentQuoteData || !orderBuilderStatus.costBreakdown.completed) {
-      console.warn('Cannot save quote - missing required data:', {
-        hasConversationId: !!conversationId,
-        hasQuoteData: !!currentQuoteData,
-        isCompleted: orderBuilderStatus.costBreakdown.completed
-      });
-      return;
-    }
-
-    // Generate a quote order ID if we don't have one
-    const quoteOrderId = `QUOTE-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    setIsSavingQuote(true);
-    console.log('🔄 Starting quote save process...');
-
-    try {
-      // Prepare Order Builder state for the conversations save-quote API
-      const orderBuilderState = {
-        currentStep: 'completed',
-        capDetails: currentQuoteData?.capDetails || {},
-        customization: currentQuoteData?.customization || {},
-        delivery: currentQuoteData?.delivery || {},
-        pricing: currentQuoteData?.pricing || {},
-        orderBuilderStatus: orderBuilderStatus,
-        leadTimeData: leadTimeData,
-        quoteVersions: orderBuilderStatus?.costBreakdown?.versions || [],
-        totalCost: orderBuilderStatus?.costBreakdown?.versions?.[0]?.finalPrice || 0,
-        totalUnits: currentQuoteData?.quantity || 1,
-        stateVersion: '2.0',
-        completedAt: new Date().toISOString()
-      };
-
-      console.log('💾 Saving quote with data:', {
-        conversationId,
-        quoteOrderId,
-        orderBuilderStateSize: JSON.stringify(orderBuilderState).length
-      });
-
-      // Use the conversations save-quote API that properly creates ConversationQuotes bridge records
-      const response = await fetch('/api/conversations/save-quote', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          conversationId,
-          quoteOrderId,
-          orderBuilderState,
-          sessionId,
-          uploadedFiles: uploadedFiles || [],
-          generateTitle: true,
-          titleContext: {
-            customerName: userProfile?.name || authUser?.name,
-            company: userProfile?.company,
-            messages: messages?.slice(-3) || []
-          }
-        })
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        console.log('✅ Quote saved successfully via conversations API:', result.data);
-
-        // Show success message to user
-        const successContent = `✅ **Quote Saved Successfully!**\n\n` +
-          `Your quote has been saved and is now ready for review.\n\n` +
-          `📋 **Details:**\n` +
-          `• Quote saved to conversation\n` +
-          `• All specifications and files preserved\n` +
-          `• Available in Admin dashboard\n` +
-          `${result.data?.title ? `• Title: ${result.data.title}` : ''}\n\n` +
-          `🎯 **Next Steps:**\n` +
-          `• Click **Accept Quote** to create an order\n` +
-          `• Click **Reject Quote** to start over\n` +
-          `• Quote is now visible to administrators for processing`;
-
-        setMessages(prev => [...prev, {
-          id: `system_${Date.now()}`,
-          role: 'system' as const,
-          content: successContent,
-          timestamp: new Date(),
-          metadata: {
-            type: 'success',
-            quoteOrderId: result.data?.orderBuilderStateId,
-            conversationId: result.data?.conversationId,
-            orderCreated: result.data?.orderCreated,
-            orderId: result.data?.orderId
-          }
-        }]);
-
-        // Refresh conversation data to show the quote is now properly linked
-        if (loadUserConversations) {
-          await loadUserConversations();
-        }
-
-      } else {
-        console.error('❌ Failed to save quote via conversations API:', result);
-
-        // Show error message to user
-        setMessages(prev => [...prev, {
-          id: `system_error_${Date.now()}`,
-          role: 'system' as const,
-          content: `❌ **Failed to save quote**\n\n` +
-                   `Error: ${result.error || 'Unknown error'}\n\n` +
-                   `${result.details ? `Details: ${result.details}` : ''}` +
-                   `Please try again or contact support if the issue persists.`,
-          timestamp: new Date(),
-          metadata: {
-            type: 'error',
-            error: result.error || 'Unknown error',
-            details: result.details
-          }
-        }]);
-      }
-
-    } catch (error) {
-      console.error('❌ Error during quote save:', error);
-
-      // Show error message to user
-      setMessages(prev => [...prev, {
-        id: `system_error_${Date.now()}`,
-        role: 'system' as const,
-        content: `❌ **Error saving quote**\n\n` +
-                 `${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
-                 `Please check your connection and try again.`,
-        timestamp: new Date(),
-        metadata: {
-          type: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      }]);
-
-    } finally {
-      setIsSavingQuote(false);
-    }
-  };
 
   const toggleBlockCollapse = (block: 'capStyle' | 'customization' | 'delivery' | 'costBreakdown') => {
     setCollapsedBlocks(prev => ({
@@ -824,7 +692,7 @@ export default function SupportPage() {
                     disabled={isLoading}
                   />
                 </div>
-                {canQuoteOrder() && (
+                {canGenerateNewQuote() && (
                   <button
                     type="button"
                     onClick={handleQuoteOrder}
@@ -881,11 +749,10 @@ export default function SupportPage() {
                   onToggleCollapse={toggleBlockCollapse}
                   onQuoteOrder={handleQuoteOrder}
                   canQuoteOrder={canQuoteOrder}
+                  canGenerateNewQuote={canGenerateNewQuote}
                   onAcceptQuote={handleAcceptQuoteLocal}
                   onRejectQuote={handleRejectQuoteLocal}
                   onSelectVersion={handleSelectVersion}
-                  onSaveQuote={handleSaveQuote}
-                  isSavingQuote={isSavingQuote}
                 />
               )}
             </section>

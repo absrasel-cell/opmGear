@@ -9,7 +9,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  timestamp: Date;
+  timestamp?: Date;
   metadata?: any;
 }
 
@@ -23,11 +23,10 @@ interface OrderBuilderProps {
   onToggleCollapse: (block: 'capStyle' | 'customization' | 'delivery' | 'costBreakdown') => void;
   onQuoteOrder: () => void;
   canQuoteOrder: () => boolean;
+  canGenerateNewQuote?: () => boolean;
   onAcceptQuote?: () => void;
   onRejectQuote?: () => void;
   onSelectVersion?: (versionId: string) => void;
-  onSaveQuote?: () => void;
-  isSavingQuote?: boolean;
 }
 
 const OrderBuilder = ({
@@ -40,11 +39,10 @@ const OrderBuilder = ({
   onToggleCollapse,
   onQuoteOrder,
   canQuoteOrder,
+  canGenerateNewQuote,
   onAcceptQuote,
   onRejectQuote,
-  onSelectVersion,
-  onSaveQuote,
-  isSavingQuote = false
+  onSelectVersion
 }: OrderBuilderProps) => {
   if (!isVisible) return null;
 
@@ -147,33 +145,14 @@ const OrderBuilder = ({
         {orderBuilderStatus.costBreakdown.completed && orderBuilderStatus.costBreakdown.versions && orderBuilderStatus.costBreakdown.versions.length > 0 ? (
           /* Quote Actions */
           <div className="space-y-3">
-            {/* Save Quote Button - Primary Action */}
-            <button
-              onClick={onSaveQuote}
-              disabled={!canQuoteOrder() || isSavingQuote}
-              className={`w-full h-12 rounded-xl transition-colors flex items-center justify-center gap-2 font-medium tracking-tight shadow-[0_10px_40px_-10px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 ${
-                canQuoteOrder() && !isSavingQuote
-                  ? 'bg-lime-400 text-black hover:bg-lime-500'
-                  : 'bg-stone-600 text-white/50 cursor-not-allowed'
-              }`}
-            >
-              {isSavingQuote ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                  Saving Quote...
-                </>
-              ) : (
-                'Save Quote'
-              )}
-            </button>
 
             {/* Accept/Reject Actions */}
             <div className="flex items-center justify-between gap-3">
               <button
                 onClick={onAcceptQuote}
-                disabled={!canQuoteOrder() || isSavingQuote}
+                disabled={!canQuoteOrder()}
                 className={`px-4 py-2 rounded-full text-sm font-medium tracking-tight border transition-all duration-300 flex-1 ${
-                  canQuoteOrder() && !isSavingQuote
+                  canQuoteOrder()
                     ? 'border-green-400/30 bg-green-400/10 text-green-300 hover:bg-green-400/15 hover:border-green-300/50 hover:text-green-200'
                     : 'border-stone-600 text-white/50 cursor-not-allowed bg-black/30 backdrop-blur-sm'
                 }`}
@@ -182,9 +161,9 @@ const OrderBuilder = ({
               </button>
               <button
                 onClick={onRejectQuote}
-                disabled={!canQuoteOrder() || isSavingQuote}
+                disabled={!canQuoteOrder()}
                 className={`px-4 py-2 rounded-full text-sm font-medium tracking-tight border transition-all duration-300 flex-1 ${
-                  canQuoteOrder() && !isSavingQuote
+                  canQuoteOrder()
                     ? 'border-red-400/30 bg-red-400/10 text-red-300 hover:bg-red-400/15 hover:border-red-300/50 hover:text-red-200'
                     : 'border-stone-600 text-white/50 cursor-not-allowed bg-black/30 backdrop-blur-sm'
                 }`}
@@ -197,28 +176,20 @@ const OrderBuilder = ({
           /* Generate Quote Button */
           <button
             onClick={onQuoteOrder}
-            disabled={!canQuoteOrder() || isSavingQuote}
+            disabled={!(canGenerateNewQuote ? canGenerateNewQuote() : canQuoteOrder())}
             className={`w-full h-12 rounded-xl transition-colors flex items-center justify-center gap-2 font-medium tracking-tight shadow-[0_10px_40px_-10px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 ${
-              canQuoteOrder() && !isSavingQuote
+              (canGenerateNewQuote ? canGenerateNewQuote() : canQuoteOrder())
                 ? 'bg-lime-400 text-black hover:bg-lime-500'
                 : 'bg-stone-600 text-white/50 cursor-not-allowed'
             }`}
           >
-            {isSavingQuote ? (
-              <>
-                <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                Generating...
-              </>
-            ) : (
-              'Generate Quote'
-            )}
+            Generate Quote
           </button>
         )}
         <div className="mt-2 text-[10px] text-white/50 text-center">
           {!canQuoteOrder() && 'Complete Cap Style & Delivery sections to enable quote actions'}
-          {canQuoteOrder() && orderBuilderStatus.costBreakdown.completed && !isSavingQuote && 'Quote ready - save to database, accept to create order, or reject to start over'}
-          {canQuoteOrder() && !orderBuilderStatus.costBreakdown.completed && !isSavingQuote && 'Ready to generate quote'}
-          {isSavingQuote && 'Processing request...'}
+          {canQuoteOrder() && orderBuilderStatus.costBreakdown.completed && 'Quote ready - accept to create order or reject to start over'}
+          {canQuoteOrder() && !orderBuilderStatus.costBreakdown.completed && (canGenerateNewQuote ? (canGenerateNewQuote() ? 'Ready to generate quote' : 'Quote already generated - reload to generate new quote') : 'Ready to generate quote')}
         </div>
       </div>
     </section>
