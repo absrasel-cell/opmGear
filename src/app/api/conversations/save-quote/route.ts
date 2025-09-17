@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth-helpers';
-import { 
-  validateOrderBuilderState, 
-  serializeOrderBuilderState, 
+import {
+  validateOrderBuilderState,
+  serializeOrderBuilderState,
   extractStateForTitleGeneration,
-  OrderBuilderState 
+  OrderBuilderState
 } from '@/lib/order-builder-state';
+import { QuoteEmailService } from '@/lib/email/quote-email-service';
 import OpenAI from 'openai';
 
 // Initialize OpenAI client lazily
@@ -43,12 +44,15 @@ interface SaveQuoteRequest {
 
 export async function POST(request: NextRequest) {
   console.log('🚀 Save Quote Conversation API - Starting (FIXED)');
-  
+
   try {
     const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    // CRITICAL FIX: Allow guest users to save quotes to enable full support functionality
+    console.log('🔍 User authentication status:', {
+      isAuthenticated: !!user,
+      userId: user?.id || 'GUEST',
+      userEmail: user?.email || 'guest@example.com'
+    });
 
     const body: SaveQuoteRequest = await request.json();
     const {
@@ -69,33 +73,44 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📊 Processing quote save for conversation:', conversationId);
+    console.log('🔍 [DEBUG] Input orderBuilderState:', JSON.stringify(orderBuilderState, null, 2));
 
     // CRITICAL FIX: Transform the frontend Order Builder state to the proper OrderBuilderState format
     console.log('📋 [CRITICAL FIX] Transforming frontend Order Builder state to database format');
     console.log('🔍 Input orderBuilderState keys:', Object.keys(orderBuilderState || {}));
 
-    // Handle both formats: direct OrderBuilderState format and the frontend format
+    // CRITICAL FIX: Enhanced transformation to preserve ALL data for proper restoration
     const transformedOrderBuilderState: OrderBuilderState = {
-      // Transform capDetails -> capStyleSetup (if present)
+      // Transform capDetails -> capStyleSetup with comprehensive field mapping
       capStyleSetup: orderBuilderState.capStyleSetup || orderBuilderState.capDetails ? {
-        style: orderBuilderState.capStyleSetup?.style || orderBuilderState.capDetails?.productName,
+        style: orderBuilderState.capStyleSetup?.style ||
+               orderBuilderState.capDetails?.productName ||
+               orderBuilderState.capDetails?.style,
+        productName: orderBuilderState.capStyleSetup?.productName ||
+                    orderBuilderState.capDetails?.productName,
         profile: orderBuilderState.capStyleSetup?.profile || orderBuilderState.capDetails?.profile,
         color: orderBuilderState.capStyleSetup?.color || orderBuilderState.capDetails?.color,
+        colors: orderBuilderState.capStyleSetup?.colors || orderBuilderState.capDetails?.colors,
         size: orderBuilderState.capStyleSetup?.size || orderBuilderState.capDetails?.size,
-        quantity: orderBuilderState.capStyleSetup?.quantity || orderBuilderState.capDetails?.quantity,
-        basePrice: orderBuilderState.capStyleSetup?.basePrice || orderBuilderState.capDetails?.unitPrice,
-        // Additional properties from capDetails
-        colors: orderBuilderState.capDetails?.colors,
-        billShape: orderBuilderState.capDetails?.billShape,
-        structure: orderBuilderState.capDetails?.structure,
-        fabric: orderBuilderState.capDetails?.fabric,
-        closure: orderBuilderState.capDetails?.closure,
-        stitching: orderBuilderState.capDetails?.stitch
+        quantity: orderBuilderState.capStyleSetup?.quantity ||
+                 orderBuilderState.capDetails?.quantity ||
+                 orderBuilderState.totalUnits,
+        basePrice: orderBuilderState.capStyleSetup?.basePrice ||
+                  orderBuilderState.capDetails?.unitPrice ||
+                  (orderBuilderState.baseProductCost / (orderBuilderState.quantity || 1)),
+        billShape: orderBuilderState.capStyleSetup?.billShape || orderBuilderState.capDetails?.billShape,
+        structure: orderBuilderState.capStyleSetup?.structure || orderBuilderState.capDetails?.structure,
+        fabric: orderBuilderState.capStyleSetup?.fabric || orderBuilderState.capDetails?.fabric,
+        closure: orderBuilderState.capStyleSetup?.closure || orderBuilderState.capDetails?.closure,
+        stitching: orderBuilderState.capStyleSetup?.stitching ||
+                  orderBuilderState.capDetails?.stitching ||
+                  orderBuilderState.capDetails?.stitch,
+        stitch: orderBuilderState.capStyleSetup?.stitch || orderBuilderState.capDetails?.stitch
       } : undefined,
 
       // Transform customization (preserve structure)
       customization: orderBuilderState.customization ? {
-        logoDetails: orderBuilderState.customization.logos?.map((logo: any) => ({
+        logoDetails: (orderBuilderState.customization.logoDetails || orderBuilderState.customization.logos || []).map((logo: any) => ({
           id: logo.id,
           location: logo.location || logo.position,
           type: logo.type || logo.method,
@@ -103,11 +118,11 @@ export async function POST(request: NextRequest) {
           colors: logo.colors,
           setupCost: logo.moldCharge || logo.setupCost || 0,
           unitCost: logo.unitCost || 0,
-          quantity: logo.quantity || orderBuilderState.capDetails?.quantity || 1,
+          quantity: logo.quantity || orderBuilderState.capStyleSetup?.quantity || 1,
           fileUploaded: !!logo.fileUploaded,
           fileName: logo.fileName,
           instructions: logo.instructions
-        })) || [],
+        })),
         totalCustomizationCost: orderBuilderState.customization.totalMoldCharges || 0,
         accessories: orderBuilderState.customization.accessories || {},
         closures: orderBuilderState.customization.closures || {}
@@ -122,23 +137,39 @@ export async function POST(request: NextRequest) {
         urgency: 'standard'
       } : undefined,
 
-      // Transform pricing -> costBreakdown
-      costBreakdown: orderBuilderState.costBreakdown || orderBuilderState.pricing ? {
-        baseCost: orderBuilderState.costBreakdown?.baseCost || orderBuilderState.pricing?.baseProductCost || 0,
-        logoSetupCosts: orderBuilderState.costBreakdown?.logoSetupCosts || orderBuilderState.pricing?.moldCharges || 0,
-        logoUnitCosts: orderBuilderState.costBreakdown?.logoUnitCosts || orderBuilderState.pricing?.logosCost || 0,
-        additionalOptionsCosts: orderBuilderState.costBreakdown?.additionalOptionsCosts || orderBuilderState.pricing?.premiumFabricCost || 0,
-        accessoriesCosts: orderBuilderState.costBreakdown?.accessoriesCosts || orderBuilderState.pricing?.accessoriesCost || 0,
-        closuresCosts: orderBuilderState.costBreakdown?.closuresCosts || orderBuilderState.pricing?.premiumClosureCost || 0,
-        deliveryCost: orderBuilderState.costBreakdown?.deliveryCost || orderBuilderState.pricing?.deliveryCost || 0,
-        subtotal: orderBuilderState.costBreakdown?.subtotal || orderBuilderState.pricing?.total || 0,
+      // CRITICAL FIX: Enhanced costBreakdown transformation to preserve ALL pricing data
+      costBreakdown: orderBuilderState.costBreakdown || orderBuilderState.pricing || orderBuilderState.totalCost ? {
+        baseCost: orderBuilderState.costBreakdown?.baseCost ||
+                 orderBuilderState.pricing?.baseProductCost ||
+                 orderBuilderState.baseProductCost || 0,
+        logoSetupCosts: orderBuilderState.costBreakdown?.logoSetupCosts ||
+                       orderBuilderState.pricing?.moldCharges || 0,
+        logoUnitCosts: orderBuilderState.costBreakdown?.logoUnitCosts ||
+                      orderBuilderState.pricing?.logosCost || 0,
+        additionalOptionsCosts: orderBuilderState.costBreakdown?.additionalOptionsCosts ||
+                              orderBuilderState.pricing?.premiumFabricCost || 0,
+        accessoriesCosts: orderBuilderState.costBreakdown?.accessoriesCosts ||
+                         orderBuilderState.pricing?.accessoriesCost || 0,
+        closuresCosts: orderBuilderState.costBreakdown?.closuresCosts ||
+                      orderBuilderState.pricing?.premiumClosureCost || 0,
+        deliveryCost: orderBuilderState.costBreakdown?.deliveryCost ||
+                     orderBuilderState.pricing?.deliveryCost || 0,
+        subtotal: orderBuilderState.costBreakdown?.subtotal ||
+                 orderBuilderState.pricing?.total ||
+                 orderBuilderState.totalCost || 0,
         discounts: orderBuilderState.costBreakdown?.discounts || 0,
         taxes: orderBuilderState.costBreakdown?.taxes || 0,
-        total: orderBuilderState.costBreakdown?.total || orderBuilderState.pricing?.total || orderBuilderState.totalCost || 0,
-        // Additional fields for restoration
-        baseProductCost: orderBuilderState.pricing?.baseProductCost || 0,
+        total: orderBuilderState.costBreakdown?.total ||
+               orderBuilderState.pricing?.total ||
+               orderBuilderState.totalCost || 0,
+        // CRITICAL: Additional fields for complete restoration
+        baseProductCost: orderBuilderState.pricing?.baseProductCost ||
+                        orderBuilderState.baseProductCost || 0,
         logosCost: orderBuilderState.pricing?.logosCost || 0,
-        quantity: orderBuilderState.pricing?.quantity || orderBuilderState.totalUnits || 1
+        quantity: orderBuilderState.pricing?.quantity ||
+                 orderBuilderState.capDetails?.quantity ||
+                 orderBuilderState.totalUnits ||
+                 orderBuilderState.quantity || 1
       } : undefined,
 
       // Preserve other fields
@@ -154,7 +185,20 @@ export async function POST(request: NextRequest) {
         leadTimeData: orderBuilderState.leadTimeData,
         quoteVersions: orderBuilderState.quoteVersions,
         originalFormat: 'frontend_transformed',
-        transformedAt: new Date().toISOString()
+        transformedAt: new Date().toISOString(),
+        // CRITICAL: Preserve source data for debugging restoration issues
+        originalOrderBuilderState: {
+          hasCapDetails: !!orderBuilderState.capDetails,
+          hasPricing: !!orderBuilderState.pricing,
+          hasCustomization: !!orderBuilderState.customization,
+          hasDelivery: !!orderBuilderState.delivery,
+          topLevelFields: {
+            baseProductCost: orderBuilderState.baseProductCost,
+            quantity: orderBuilderState.quantity,
+            totalCost: orderBuilderState.totalCost,
+            totalUnits: orderBuilderState.totalUnits
+          }
+        }
       }
     };
 
@@ -165,6 +209,7 @@ export async function POST(request: NextRequest) {
       hasCostBreakdown: !!transformedOrderBuilderState.costBreakdown,
       totalCost: transformedOrderBuilderState.totalCost
     });
+    console.log('🔍 [DEBUG] Full transformed state:', JSON.stringify(transformedOrderBuilderState, null, 2));
 
     // Validate transformed Order Builder state
     const validation = validateOrderBuilderState(transformedOrderBuilderState);
@@ -183,11 +228,12 @@ export async function POST(request: NextRequest) {
 
     // Serialize state for database storage
     const serializedState = serializeOrderBuilderState(transformedOrderBuilderState);
+    console.log('🔍 [DEBUG] Serialized state for DB:', JSON.stringify(serializedState, null, 2));
 
     // Perform database operations (Supabase doesn't have transactions like Prisma, so we'll do operations sequentially)
     console.log('🔄 Starting database operations');
     
-    let orderBuilderRecord, updatedConversation, conversationQuote, orderId = null;
+    let orderBuilderRecord, updatedConversation, conversationQuote, orderId, createdQuoteOrder = null;
 
     try {
       // 1. Create or update OrderBuilderState
@@ -204,6 +250,7 @@ export async function POST(request: NextRequest) {
       
       if (existingState) {
         // Update existing state
+        console.log('🔄 [CRITICAL DEBUG] Updating existing OrderBuilderState:', existingState.id);
         const { data: updatedState, error: updateError } = await supabaseAdmin
           .from('OrderBuilderState')
           .update({
@@ -228,10 +275,25 @@ export async function POST(request: NextRequest) {
           .select()
           .single();
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('❌ [CRITICAL ERROR] Failed to update OrderBuilderState:', updateError);
+          throw updateError;
+        }
         orderBuilderRecord = updatedState;
+        console.log('✅ [CRITICAL DEBUG] Successfully updated OrderBuilderState:', orderBuilderRecord.id);
       } else {
         // Create new state
+        console.log('🆕 [CRITICAL DEBUG] Creating new OrderBuilderState for sessionId:', sessionId);
+        console.log('🔍 [CRITICAL DEBUG] Data being inserted:', {
+          sessionId,
+          capStyleSetup: serializedState.capStyleSetup,
+          customization: serializedState.customization,
+          delivery: serializedState.delivery,
+          costBreakdown: serializedState.costBreakdown,
+          totalCost: orderBuilderState.totalCost,
+          totalUnits: orderBuilderState.totalUnits
+        });
+
         const { data: newState, error: createError } = await supabaseAdmin
           .from('OrderBuilderState')
           .insert({
@@ -258,18 +320,29 @@ export async function POST(request: NextRequest) {
           .select()
           .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          console.error('❌ [CRITICAL ERROR] Failed to create OrderBuilderState:', createError);
+          console.error('❌ [CRITICAL ERROR] Insert data:', {
+            sessionId,
+            serializedStateKeys: Object.keys(serializedState),
+            totalCost: orderBuilderState.totalCost,
+            totalUnits: orderBuilderState.totalUnits
+          });
+          throw createError;
+        }
         orderBuilderRecord = newState;
+        console.log('✅ [CRITICAL DEBUG] Successfully created OrderBuilderState:', orderBuilderRecord.id);
       }
 
       console.log('✅ OrderBuilderState saved with ID:', orderBuilderRecord.id);
+      console.log('🔍 [DEBUG] Saved OrderBuilderState data:', JSON.stringify(orderBuilderRecord, null, 2));
 
       // 1.5. Create QuoteOrder record (CRITICAL FIX - this was missing!)
       console.log('📋 Creating QuoteOrder record for quote acceptance functionality');
 
-      // Extract customer info from validation or use defaults
-      const customerEmail = user.email;
-      const customerName = titleContext?.customerName || 'Customer';
+      // Extract customer info from validation or use defaults (support guest users)
+      const customerEmail = user?.email || titleContext?.customerEmail || 'guest@example.com';
+      const customerName = titleContext?.customerName || user?.user_metadata?.name || 'Guest Customer';
       const customerCompany = titleContext?.company || '';
 
       // Extract cost data from transformed Order Builder state
@@ -313,7 +386,7 @@ export async function POST(request: NextRequest) {
         lastActivityAt: now
       };
 
-      const { data: createdQuoteOrder, error: quoteOrderInsertError } = await supabaseAdmin
+      const { data: insertedQuoteOrder, error: quoteOrderInsertError } = await supabaseAdmin
         .from('QuoteOrder')
         .insert(quoteOrderData)
         .select()
@@ -324,6 +397,7 @@ export async function POST(request: NextRequest) {
         throw new Error(`Failed to create QuoteOrder: ${quoteOrderInsertError.message}`);
       }
 
+      createdQuoteOrder = insertedQuoteOrder; // Assign to outer scope variable
       console.log('✅ QuoteOrder created with ID:', createdQuoteOrder.id);
 
       // Create QuoteOrderFile records for uploaded files
@@ -361,9 +435,9 @@ export async function POST(request: NextRequest) {
             category: isLogo ? 'LOGO' : 'OTHER',
             isLogo: isLogo,
             description: `File uploaded via support chat`,
-            metadata: { uploadSource: 'support_chat', sessionId },
-            createdAt: now,
-            updatedAt: now
+            metadata: { uploadSource: 'support_chat', sessionId }
+            // REMOVED createdAt and updatedAt to fix schema compatibility issue
+            // These will be handled by database defaults if columns exist
           };
         });
 
@@ -392,12 +466,23 @@ export async function POST(request: NextRequest) {
       if (!existingConv) {
         throw new Error(`Conversation ${conversationId} not found`);
       }
-      
+
       // Security check: ensure user owns the conversation (allow null userId for guest quotes)
-      if (existingConv.userId && existingConv.userId !== user.id) {
+      if (existingConv.userId && user && existingConv.userId !== user.id) {
         throw new Error(`User ${user.id} does not own conversation ${conversationId}`);
       }
+
+      // CRITICAL FIX: For guest users, ensure conversation allows guest access (userId should be null)
+      if (!user && existingConv.userId !== null) {
+        throw new Error(`Guest user cannot save quotes to authenticated user's conversation`);
+      }
       
+      console.log('📝 [CRITICAL DEBUG] Updating conversation with OrderBuilderState link:', {
+        conversationId,
+        orderBuilderStateId: orderBuilderRecord.id,
+        hasQuote: true
+      });
+
       const { data: conversation, error: conversationError } = await supabaseAdmin
         .from('Conversation')
         .update({
@@ -408,14 +493,18 @@ export async function POST(request: NextRequest) {
           lastActivity: now,
           updatedAt: now,
           // Ensure userId is set if it was null (for guest->authenticated user conversion)
-          userId: existingConv.userId || user.id
+          userId: existingConv.userId || (user ? user.id : null)
           // Removed auto-approval - let users choose to accept/reject quotes
         })
         .eq('id', conversationId)
         .select()
         .single();
 
-      if (conversationError) throw conversationError;
+      if (conversationError) {
+        console.error('❌ [CRITICAL ERROR] Failed to update conversation:', conversationError);
+        throw conversationError;
+      }
+      console.log('✅ [CRITICAL DEBUG] Successfully updated conversation with OrderBuilderState link');
       updatedConversation = conversation;
       console.log('✅ Conversation updated with quote completion');
 
@@ -432,9 +521,11 @@ export async function POST(request: NextRequest) {
 
       if (existingBridge) {
         // Update existing bridge
+        console.log('🔄 [CRITICAL DEBUG] Updating existing ConversationQuotes bridge');
         const { data: updatedBridge, error: bridgeError } = await supabaseAdmin
           .from('ConversationQuotes')
           .update({
+            orderBuilderStateId: orderBuilderRecord.id, // CRITICAL FIX: Link to OrderBuilderState
             updatedAt: now
           })
           .eq('conversationId', conversationId)
@@ -442,16 +533,26 @@ export async function POST(request: NextRequest) {
           .select()
           .single();
 
-        if (bridgeError) throw bridgeError;
+        if (bridgeError) {
+          console.error('❌ [CRITICAL ERROR] Failed to update ConversationQuotes bridge:', bridgeError);
+          throw bridgeError;
+        }
         conversationQuote = updatedBridge;
+        console.log('✅ [CRITICAL DEBUG] Successfully updated ConversationQuotes bridge');
       } else {
         // Create new bridge - explicitly provide UUID to avoid null constraint error
+        console.log('🆕 [CRITICAL DEBUG] Creating new ConversationQuotes bridge:', {
+          conversationId,
+          quoteOrderId
+        });
+
         const { data: newBridge, error: bridgeError } = await supabaseAdmin
           .from('ConversationQuotes')
           .insert({
             id: crypto.randomUUID(), // Explicitly provide UUID to avoid NOT NULL constraint
             conversationId,
             quoteOrderId,
+            orderBuilderStateId: orderBuilderRecord.id, // CRITICAL FIX: Link to OrderBuilderState
             isMainQuote: true,
             createdAt: now,
             updatedAt: now
@@ -459,8 +560,13 @@ export async function POST(request: NextRequest) {
           .select()
           .single();
 
-        if (bridgeError) throw bridgeError;
+        if (bridgeError) {
+          console.error('❌ [CRITICAL ERROR] Failed to create ConversationQuotes bridge:', bridgeError);
+          console.error('❌ [CRITICAL ERROR] Bridge data:', { conversationId, quoteOrderId });
+          throw bridgeError;
+        }
         conversationQuote = newBridge;
+        console.log('✅ [CRITICAL DEBUG] Successfully created ConversationQuotes bridge:', conversationQuote.id);
       }
 
       console.log('✅ ConversationQuotes bridge created');
@@ -649,6 +755,32 @@ Generate ONLY the title:`;
 
     console.log('🎉 Quote conversation save completed successfully');
 
+    // 6. Send quote emails (customer receipt + admin notification)
+    let emailResults = { customerEmailSent: false, adminEmailSent: false };
+    try {
+      console.log('📧 Sending quote emails...');
+
+      // Generate PDF download link
+      const pdfDownloadLink = QuoteEmailService.generatePdfDownloadLink(quoteOrderId);
+      const dashboardLink = QuoteEmailService.generateDashboardLink(quoteOrderId);
+
+      // Send emails (both customer and admin)
+      emailResults = await QuoteEmailService.sendQuoteEmails(
+        createdQuoteOrder as any, // Cast to match expected type
+        pdfDownloadLink,
+        {
+          sendToCustomer: true,
+          sendToAdmin: true,
+          dashboardLink: dashboardLink
+        }
+      );
+
+      console.log('✅ Quote emails sent:', emailResults);
+    } catch (emailError) {
+      console.error('❌ Email sending failed (non-blocking):', emailError);
+      // Don't fail the whole operation for email errors
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Quote saved successfully - ready for acceptance',
@@ -664,7 +796,8 @@ Generate ONLY the title:`;
         orderCreated: false,
         orderId: null,
         autoAccepted: false,
-        readyForAcceptance: true
+        readyForAcceptance: true,
+        emailResults: emailResults
       },
       validation: {
         warnings: validation.warnings

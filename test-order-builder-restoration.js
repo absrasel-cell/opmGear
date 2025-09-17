@@ -1,61 +1,59 @@
 /**
- * Test script to verify Order Builder data restoration fixes
- * Tests the specific issue where 6P AirFrame HSCS becomes 4P Visor Cap MSCS
+ * Test script to verify Order Builder data restoration works properly
+ * Tests the complete save-quote -> load-conversation -> restore-order-builder flow
  */
 
-// Mock OrderBuilderState data that would come from database
-const mockOrderBuilderState = {
-  id: "test-state-123",
-  sessionId: "test-session",
-  conversationId: "test-conversation",
-  totalCost: 10152.00,
-  totalUnits: 800,
-  isCompleted: true,
-  capStyleSetup: {
-    style: "6P AirFrame HSCS",
-    quantity: 800,
-    size: "59cm",
-    color: "Royal/Black",
-    colors: ["Royal", "Black"],
-    profile: "High",
-    billShape: "Slight Curved",
-    structure: "Structured with Mono Lining",
-    fabric: "Acrylic/Air Mesh",
-    closure: "Fitted",
-    stitching: "Matching"
-  },
-  customization: {
-    logos: [
-      {
-        location: "front",
-        type: "Rubber",
+const testOrderBuilderRestoration = async () => {
+  console.log('🚀 Testing Order Builder restoration flow...\n');
+
+  // Test data based on the 800 piece quote from currentTask.txt
+  const testOrderBuilderState = {
+    capDetails: {
+      productName: "6P AirFrame HSCS",
+      quantity: 800,
+      unitPrice: 3.75,
+      color: "Royal/Black",
+      colors: ["Royal", "Black"],
+      size: "7 3/8",
+      profile: "High",
+      billShape: "Slight Curved",
+      structure: "Structured with Mono Lining",
+      fabric: "Acrylic/Air Mesh",
+      closure: "Fitted",
+      stitch: "Matching",
+      pricingTier: "Tier 2"
+    },
+    customization: {
+      logos: [{
+        id: "logo_1",
+        position: "Front",
+        method: "Rubber",
         size: "Medium",
         unitCost: 2.63,
-        setupCost: 2104.00,
         moldCharge: 80.00,
-        total: 2184.00
-      }
-    ],
-    accessories: [],
-    totalMoldCharges: 80.00
-  },
-  delivery: {
-    method: "Regular Delivery",
-    leadTime: "6-10 days",
-    totalCost: 2168.00
-  },
-  costBreakdown: {
-    baseProductCost: 6600.00, // 800 * $8.25 total per cap
-    logosCost: 2184.00,
-    deliveryCost: 2168.00,
-    total: 10152.00,
-    quantity: 800
-  },
-  metadata: {
+        quantity: 800,
+        totalCost: 2184.00
+      }],
+      totalMoldCharges: 80.00
+    },
+    delivery: {
+      method: "Regular Delivery",
+      leadTime: "6-10 days",
+      totalCost: 2168.00
+    },
+    pricing: {
+      baseProductCost: 3000.00,
+      logosCost: 2104.00,
+      deliveryCost: 2168.00,
+      total: 10152.00,
+      quantity: 800
+    },
+    totalCost: 10152.00,
+    totalUnits: 800,
     orderBuilderStatus: {
       capStyle: {
         completed: true,
-        status: "green",
+        status: 'green',
         items: {
           size: true,
           color: true,
@@ -68,17 +66,17 @@ const mockOrderBuilderState = {
       },
       customization: {
         completed: true,
-        status: "yellow",
+        status: 'yellow',
         items: {
           logoSetup: true,
           accessories: false,
           moldCharges: true
         },
-        logoPositions: ["front"]
+        logoPositions: ['Front']
       },
       delivery: {
         completed: true,
-        status: "green",
+        status: 'green',
         items: {
           method: true,
           leadTime: true,
@@ -87,143 +85,238 @@ const mockOrderBuilderState = {
       },
       costBreakdown: {
         completed: true,
-        status: "green",
+        status: 'green',
+        available: true,
         selectedVersionId: null,
         versions: []
       }
     }
+  };
+
+  const conversationId = "test_conversation_" + Date.now();
+  const quoteOrderId = "test_quote_" + Date.now();
+  const sessionId = "test_session_" + Date.now();
+
+  try {
+    console.log('📋 STEP 1: Testing save-quote API...');
+    console.log('Data structure:', {
+      hasCapDetails: !!testOrderBuilderState.capDetails,
+      capDetailsQuantity: testOrderBuilderState.capDetails?.quantity,
+      hasCustomization: !!testOrderBuilderState.customization,
+      hasDelivery: !!testOrderBuilderState.delivery,
+      hasPricing: !!testOrderBuilderState.pricing,
+      totalCost: testOrderBuilderState.totalCost
+    });
+
+    // Step 1: Create conversation
+    console.log('\n🆕 Creating test conversation...');
+    const createConvResponse = await fetch('http://localhost:3000/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: null, // Test as guest user
+        sessionId,
+        context: 'SUPPORT',
+        title: 'Test Order Builder Restoration',
+        metadata: {
+          test: true,
+          testType: 'order_builder_restoration'
+        }
+      })
+    });
+
+    if (!createConvResponse.ok) {
+      throw new Error('Failed to create conversation');
+    }
+
+    const convData = await createConvResponse.json();
+    const actualConversationId = convData.id;
+    console.log('✅ Test conversation created:', actualConversationId);
+
+    // Step 2: Save quote
+    console.log('\n💾 STEP 2: Saving quote with Order Builder state...');
+    const saveResponse = await fetch('http://localhost:3000/api/conversations/save-quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversationId: actualConversationId,
+        quoteOrderId,
+        orderBuilderState: testOrderBuilderState,
+        sessionId,
+        generateTitle: false
+      })
+    });
+
+    console.log('📡 Save-quote response status:', saveResponse.status);
+
+    if (!saveResponse.ok) {
+      const errorText = await saveResponse.text();
+      throw new Error(`Save-quote failed: ${errorText}`);
+    }
+
+    const saveData = await saveResponse.json();
+    console.log('✅ Quote saved successfully');
+    console.log('Save result:', {
+      success: saveData.success,
+      hasOrderBuilderStateId: !!saveData.data?.orderBuilderStateId,
+      orderBuilderStateId: saveData.data?.orderBuilderStateId,
+      conversationId: saveData.data?.conversationId
+    });
+
+    // Step 3: Load conversation and check data restoration
+    console.log('\n📖 STEP 3: Loading conversation to test data restoration...');
+    const loadResponse = await fetch(`http://localhost:3000/api/conversations/${actualConversationId}`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!loadResponse.ok) {
+      const errorText = await loadResponse.text();
+      throw new Error(`Load conversation failed: ${errorText}`);
+    }
+
+    const loadData = await loadResponse.json();
+    console.log('✅ Conversation loaded successfully');
+
+    // Step 4: Analyze restoration results
+    console.log('\n🔍 STEP 4: ANALYZING ORDER BUILDER RESTORATION...');
+    console.log('\nConversation data structure:');
+    console.log('- hasOrderBuilderState:', !!loadData.orderBuilderState);
+    console.log('- hasMetadataOrderBuilder:', !!loadData.metadata?.orderBuilder);
+    console.log('- orderBuilderStateId on conversation:', loadData.orderBuilderStateId);
+
+    if (loadData.orderBuilderState) {
+      console.log('\n📊 OrderBuilderState analysis:');
+      console.log('- id:', loadData.orderBuilderState.id);
+      console.log('- isCompleted:', loadData.orderBuilderState.isCompleted);
+      console.log('- totalCost:', loadData.orderBuilderState.totalCost);
+      console.log('- totalUnits:', loadData.orderBuilderState.totalUnits);
+      console.log('- hasCapStyleSetup:', !!loadData.orderBuilderState.capStyleSetup);
+      console.log('- hasCustomization:', !!loadData.orderBuilderState.customization);
+      console.log('- hasDelivery:', !!loadData.orderBuilderState.delivery);
+      console.log('- hasCostBreakdown:', !!loadData.orderBuilderState.costBreakdown);
+
+      if (loadData.orderBuilderState.capStyleSetup) {
+        console.log('\n🧢 Cap Style Setup data:');
+        console.log('- style/productName:', loadData.orderBuilderState.capStyleSetup.style);
+        console.log('- quantity:', loadData.orderBuilderState.capStyleSetup.quantity);
+        console.log('- color:', loadData.orderBuilderState.capStyleSetup.color);
+        console.log('- profile:', loadData.orderBuilderState.capStyleSetup.profile);
+        console.log('- billShape:', loadData.orderBuilderState.capStyleSetup.billShape);
+        console.log('- structure:', loadData.orderBuilderState.capStyleSetup.structure);
+        console.log('- fabric:', loadData.orderBuilderState.capStyleSetup.fabric);
+      }
+
+      // CRITICAL TEST: Simulate the conversationService transformation
+      console.log('\n🔄 STEP 5: Testing conversationService transformation...');
+      const transformedData = simulateConversationServiceTransformation(loadData.orderBuilderState);
+
+      console.log('Transformation results:');
+      console.log('- hasCapDetails:', !!transformedData.capDetails);
+      console.log('- capDetails.quantity:', transformedData.capDetails?.quantity);
+      console.log('- capDetails.productName:', transformedData.capDetails?.productName);
+      console.log('- capDetails.color:', transformedData.capDetails?.color);
+      console.log('- hasCustomization:', !!transformedData.customization);
+      console.log('- customization.logos count:', transformedData.customization?.logos?.length || 0);
+      console.log('- hasDelivery:', !!transformedData.delivery);
+      console.log('- delivery.method:', transformedData.delivery?.method);
+      console.log('- hasPricing:', !!transformedData.pricing);
+      console.log('- pricing.total:', transformedData.pricing?.total);
+      console.log('- pricing.quantity:', transformedData.pricing?.quantity);
+
+      // CRITICAL VALIDATION
+      const validationResults = {
+        correctQuantity: transformedData.capDetails?.quantity === 800,
+        correctProductName: transformedData.capDetails?.productName === "6P AirFrame HSCS",
+        correctColor: transformedData.capDetails?.color === "Royal/Black",
+        correctTotalCost: transformedData.pricing?.total === 10152.00,
+        correctDeliveryMethod: transformedData.delivery?.method === "Regular Delivery",
+        correctLogoCount: transformedData.customization?.logos?.length === 1,
+        correctLogoCost: transformedData.customization?.logos?.[0]?.totalCost === 2184.00
+      };
+
+      console.log('\n✅ CRITICAL VALIDATION RESULTS:');
+      Object.entries(validationResults).forEach(([key, value]) => {
+        console.log(`- ${key}: ${value ? '✅ PASS' : '❌ FAIL'}`);
+      });
+
+      const allTestsPassed = Object.values(validationResults).every(result => result === true);
+      console.log(`\n🎯 OVERALL RESULT: ${allTestsPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED'}`);
+
+      if (allTestsPassed) {
+        console.log('\n🎉 SUCCESS: Order Builder data restoration working correctly!');
+        console.log('The system will now load saved data instead of making fresh API calls.');
+      } else {
+        console.log('\n❌ FAILURE: Order Builder data restoration has issues.');
+        console.log('Failed validations need to be addressed.');
+      }
+
+    } else {
+      console.log('❌ CRITICAL ERROR: No OrderBuilderState found in loaded conversation');
+    }
+
+  } catch (error) {
+    console.error('\n❌ Test failed:', error.message);
+    if (error.stack) {
+      console.error('Stack trace:', error.stack);
+    }
   }
 };
 
-// Test the transformation logic from conversationService.ts
-function testDataTransformation(orderBuilderState) {
-  console.log('🔍 TESTING Order Builder State Transformation');
-  console.log('='.repeat(60));
+// Simulate the conversationService transformation logic
+function simulateConversationServiceTransformation(orderBuilderState) {
+  if (!orderBuilderState) return null;
 
-  // Replicate the validation logic from conversationService.ts
-  const hasCapStyleSetup = orderBuilderState.capStyleSetup && Object.keys(orderBuilderState.capStyleSetup).length > 0;
-  const hasCustomization = orderBuilderState.customization && Object.keys(orderBuilderState.customization).length > 0;
-  const hasDelivery = orderBuilderState.delivery && Object.keys(orderBuilderState.delivery).length > 0;
-  const hasCostBreakdown = orderBuilderState.costBreakdown && Object.keys(orderBuilderState.costBreakdown).length > 0;
+  // Transform from OrderBuilderState database format to expected runtime format
+  if (orderBuilderState.capStyleSetup || orderBuilderState.customization || orderBuilderState.delivery) {
+    return {
+      capDetails: orderBuilderState.capStyleSetup ? {
+        quantity: orderBuilderState.capStyleSetup.quantity || orderBuilderState.totalUnits || 100,
+        size: orderBuilderState.capStyleSetup.size,
+        color: orderBuilderState.capStyleSetup.color,
+        colors: orderBuilderState.capStyleSetup.colors || (orderBuilderState.capStyleSetup.color ? [orderBuilderState.capStyleSetup.color] : []),
+        profile: orderBuilderState.capStyleSetup.profile,
+        billShape: orderBuilderState.capStyleSetup.billShape,
+        structure: orderBuilderState.capStyleSetup.structure,
+        fabric: orderBuilderState.capStyleSetup.fabric,
+        closure: orderBuilderState.capStyleSetup.closure,
+        stitching: orderBuilderState.capStyleSetup.stitching,
+        style: orderBuilderState.capStyleSetup.style,
+        productName: orderBuilderState.capStyleSetup.style || orderBuilderState.capStyleSetup.productName
+      } : {},
 
-  console.log('📊 Validation Results:', {
-    hasCapStyleSetup,
-    hasCustomization,
-    hasDelivery,
-    hasCostBreakdown
-  });
+      customization: orderBuilderState.customization ? {
+        logos: orderBuilderState.customization.logoDetails || orderBuilderState.customization.logos || [],
+        accessories: orderBuilderState.customization.accessories || [],
+        totalMoldCharges: orderBuilderState.customization.totalCustomizationCost || orderBuilderState.customization.totalMoldCharges || 0,
+        logoSetup: orderBuilderState.customization.logoSetup
+      } : {},
 
-  // Replicate the data transformation logic
-  const restoredQuoteData = (hasCapStyleSetup || hasCustomization || hasDelivery || hasCostBreakdown) ? {
-    capDetails: hasCapStyleSetup ? {
-      quantity: orderBuilderState.capStyleSetup.quantity || orderBuilderState.totalUnits || 100,
-      size: orderBuilderState.capStyleSetup.size,
-      color: orderBuilderState.capStyleSetup.color,
-      colors: orderBuilderState.capStyleSetup.colors || (orderBuilderState.capStyleSetup.color ? [orderBuilderState.capStyleSetup.color] : []),
-      profile: orderBuilderState.capStyleSetup.profile,
-      billShape: orderBuilderState.capStyleSetup.billShape,
-      structure: orderBuilderState.capStyleSetup.structure,
-      fabric: orderBuilderState.capStyleSetup.fabric,
-      closure: orderBuilderState.capStyleSetup.closure,
-      stitching: orderBuilderState.capStyleSetup.stitching,
-      style: orderBuilderState.capStyleSetup.style
-    } : {},
+      delivery: orderBuilderState.delivery ? {
+        method: orderBuilderState.delivery.method,
+        leadTime: orderBuilderState.delivery.leadTime,
+        totalCost: orderBuilderState.delivery.totalCost,
+        address: orderBuilderState.delivery.address
+      } : {},
 
-    customization: hasCustomization ? {
-      logos: orderBuilderState.customization.logos || [],
-      accessories: orderBuilderState.customization.accessories || [],
-      totalMoldCharges: orderBuilderState.customization.totalMoldCharges || 0,
-      logoSetup: orderBuilderState.customization.logoSetup
-    } : {},
-
-    delivery: hasDelivery ? {
-      method: orderBuilderState.delivery.method,
-      leadTime: orderBuilderState.delivery.leadTime,
-      totalCost: orderBuilderState.delivery.totalCost,
-      address: orderBuilderState.delivery.address
-    } : {},
-
-    pricing: hasCostBreakdown ? {
-      baseProductCost: orderBuilderState.costBreakdown.baseProductCost || 0,
-      logosCost: orderBuilderState.costBreakdown.logosCost || 0,
-      deliveryCost: orderBuilderState.costBreakdown.deliveryCost || 0,
-      total: orderBuilderState.costBreakdown.total || orderBuilderState.totalCost || 0,
-      quantity: orderBuilderState.costBreakdown.quantity || orderBuilderState.totalUnits || orderBuilderState.capStyleSetup?.quantity || 100
-    } : {}
-  } : null;
-
-  console.log('✅ TRANSFORMED DATA:');
-  console.log('='.repeat(60));
-  console.log(JSON.stringify(restoredQuoteData, null, 2));
-
-  // Test expected values
-  console.log('🔍 VALIDATION CHECKS:');
-  console.log('='.repeat(60));
-
-  const tests = [
-    {
-      name: "Product Style",
-      expected: "6P AirFrame HSCS",
-      actual: restoredQuoteData?.capDetails?.style,
-      passed: restoredQuoteData?.capDetails?.style === "6P AirFrame HSCS"
-    },
-    {
-      name: "Quantity",
-      expected: 800,
-      actual: restoredQuoteData?.capDetails?.quantity,
-      passed: restoredQuoteData?.capDetails?.quantity === 800
-    },
-    {
-      name: "Color",
-      expected: "Royal/Black",
-      actual: restoredQuoteData?.capDetails?.color,
-      passed: restoredQuoteData?.capDetails?.color === "Royal/Black"
-    },
-    {
-      name: "Total Cost",
-      expected: 10152.00,
-      actual: restoredQuoteData?.pricing?.total,
-      passed: restoredQuoteData?.pricing?.total === 10152.00
-    },
-    {
-      name: "Logo Count",
-      expected: 1,
-      actual: restoredQuoteData?.customization?.logos?.length,
-      passed: restoredQuoteData?.customization?.logos?.length === 1
-    }
-  ];
-
-  tests.forEach(test => {
-    const status = test.passed ? '✅ PASS' : '❌ FAIL';
-    console.log(`${status} ${test.name}: Expected ${test.expected}, Got ${test.actual}`);
-  });
-
-  const passedTests = tests.filter(t => t.passed).length;
-  console.log(`\n📊 RESULT: ${passedTests}/${tests.length} tests passed`);
-
-  if (passedTests !== tests.length) {
-    console.log('\n❌ DATA TRANSFORMATION ISSUES DETECTED:');
-    tests.filter(t => !t.passed).forEach(test => {
-      console.log(`   - ${test.name}: ${test.expected} → ${test.actual}`);
-    });
-  } else {
-    console.log('\n✅ ALL TESTS PASSED - Data transformation is working correctly');
+      pricing: orderBuilderState.costBreakdown ? {
+        baseProductCost: orderBuilderState.costBreakdown.baseProductCost || 0,
+        logosCost: orderBuilderState.costBreakdown.logosCost || 0,
+        deliveryCost: orderBuilderState.costBreakdown.deliveryCost || 0,
+        total: orderBuilderState.costBreakdown.total || orderBuilderState.totalCost || 0,
+        quantity: orderBuilderState.costBreakdown.quantity || orderBuilderState.totalUnits || orderBuilderState.capStyleSetup?.quantity || 100
+      } : {}
+    };
   }
 
-  return restoredQuoteData;
+  return orderBuilderState;
 }
 
-// Run the test
-console.log('🚀 STARTING ORDER BUILDER RESTORATION TEST');
-console.log('Testing the fix for: 6P AirFrame HSCS → 4P Visor Cap MSCS issue\n');
-
-const result = testDataTransformation(mockOrderBuilderState);
-
-console.log('\n🔍 EXPECTED ORDER BUILDER DISPLAY:');
-console.log('- Product: 6P AirFrame HSCS (Tier 2)');
-console.log('- Quantity: 800 pieces');
-console.log('- Status: Cap: green, Custom: yellow, Delivery: green');
-console.log('- Total: $10,152.00');
-
-console.log('\n📝 This test verifies that the conversationService data transformation');
-console.log('   correctly preserves the original quote data structure.');
+// Run the test if in Node.js environment
+if (typeof window === 'undefined') {
+  // Node.js environment
+  global.fetch = require('node-fetch');
+  testOrderBuilderRestoration().catch(console.error);
+} else {
+  // Browser environment
+  testOrderBuilderRestoration().catch(console.error);
+}

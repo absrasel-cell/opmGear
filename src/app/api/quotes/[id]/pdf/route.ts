@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getUserProfile } from '@/lib/auth-helpers';
 import { renderQuotePdfBuffer, updateQuoteOrderPdfUrl } from '@/lib/pdf/renderQuote';
-// Removed Prisma - migrated to Supabase
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,34 +58,30 @@ export async function GET(
  request: NextRequest,
  { params }: { params: Promise<{ id: string }> }
 ) {
+ let id: string = '';
  try {
-  const { id } = await params;
+  const resolvedParams = await params;
+  id = resolvedParams.id;
   console.log(`📄 Quote PDF API called for quote order ID: ${id}`);
   
   // Verify the quote order exists
-  const quoteOrder = await prisma.quoteOrder.findUnique({
-   where: { id },
-   select: { 
-    id: true, 
-    title: true, 
-    sessionId: true,
-    customerEmail: true,
-    customerName: true,
-    status: true,
-    pdfUrl: true
-   }
-  });
+  const { data: quoteOrder, error: quoteOrderError } = await supabaseAdmin
+   .from('QuoteOrder')
+   .select('id, title, sessionId, customerEmail, customerName, status, pdfUrl')
+   .eq('id', id)
+   .single();
 
   console.log(`📄 Quote order lookup result:`, {
-   found: !!quoteOrder,
+   found: !!quoteOrder && !quoteOrderError,
    id: quoteOrder?.id,
    title: quoteOrder?.title,
    status: quoteOrder?.status,
-   hasPdfUrl: !!quoteOrder?.pdfUrl
+   hasPdfUrl: !!quoteOrder?.pdfUrl,
+   error: quoteOrderError
   });
 
-  if (!quoteOrder) {
-   console.error(`📄 Quote order not found: ${id}`);
+  if (quoteOrderError || !quoteOrder) {
+   console.error(`📄 Quote order not found: ${id}`, quoteOrderError);
    return NextResponse.json({ error: 'Quote order not found' }, { status: 404 });
   }
 

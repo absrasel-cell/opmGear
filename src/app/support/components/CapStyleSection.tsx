@@ -133,120 +133,59 @@ const CapStyleSection = ({
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
 
-  // Fetch product information when cap details are available
+  // CRITICAL FIX: Enhanced data handling for both fresh and restored conversations
   useEffect(() => {
-    const fetchProductInfo = async () => {
-      if (!currentQuoteData?.capDetails) return;
+    console.log('🔍 [CAP-STYLE-SECTION] Processing quote data:', {
+      hasCurrentQuoteData: !!currentQuoteData,
+      hasCapDetails: !!currentQuoteData?.capDetails,
+      capDetailsKeys: currentQuoteData?.capDetails ? Object.keys(currentQuoteData.capDetails) : [],
+      wasRestored: currentQuoteData?.metadata?.wasRestored,
+      restoredFrom: currentQuoteData?.metadata?.restoredFrom
+    });
 
-      console.log('🔍 [CAP-STYLE-SECTION] Full currentQuoteData:', JSON.stringify(currentQuoteData, null, 2));
-      console.log('🔍 [CAP-STYLE-SECTION] capDetails:', JSON.stringify(currentQuoteData.capDetails, null, 2));
+    if (!currentQuoteData?.capDetails) {
+      console.log('⚠️ [CAP-STYLE-SECTION] No capDetails found, clearing product info');
+      setProductInfo(null);
+      return;
+    }
 
-      setIsLoadingProduct(true);
+    console.log('🔍 [CAP-STYLE-SECTION] Using saved data - NO API CALLS');
+    console.log('🔍 [CAP-STYLE-SECTION] capDetails:', JSON.stringify(currentQuoteData.capDetails, null, 2));
 
-      // Extract cap specifications from quote data with enhanced panel detection
-      const extractedPanelCount = extractPanelCountFromDetails(currentQuoteData.capDetails);
-      console.log('🔍 [CAP-STYLE-SECTION] Extracted panel count:', extractedPanelCount);
+    // Extract cap specifications from saved quote data
+    const extractedPanelCount = extractPanelCountFromDetails(currentQuoteData.capDetails);
+    console.log('🔍 [CAP-STYLE-SECTION] Extracted panel count from saved data:', extractedPanelCount);
 
-      // CRITICAL FIX: Always fetch accurate product data from Supabase
-      const aiProductName = currentQuoteData.capDetails.productName;
-
-      if (aiProductName && aiProductName !== 'Custom Cap') {
-        console.log('✅ [CAP-STYLE-SECTION] AI extracted product name:', aiProductName);
-
-        // Fetch the actual product from Supabase by name instead of creating synthetic data
-        try {
-          const response = await fetch('/api/product-info', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productName: aiProductName, // Pass the exact product name for lookup
-              size: currentQuoteData.capDetails.size,
-              color: currentQuoteData.capDetails.color || currentQuoteData.capDetails.colors,
-              profile: currentQuoteData.capDetails.profile,
-              billShape: currentQuoteData.capDetails.billShape || currentQuoteData.capDetails.shape,
-              structure: currentQuoteData.capDetails.structure,
-              fabric: currentQuoteData.capDetails.fabric,
-              closure: currentQuoteData.capDetails.closure,
-              stitch: currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch,
-              panelCount: extractedPanelCount,
-              quantity: currentQuoteData.quantity,
-              unitPrice: currentQuoteData.baseProductCost ?
-                        parseFloat(currentQuoteData.baseProductCost) / (currentQuoteData.quantity || 1) :
-                        undefined,
-              totalPrice: currentQuoteData.baseProductCost ?
-                         parseFloat(currentQuoteData.baseProductCost) :
-                         undefined,
-              _timestamp: Date.now()
-            }),
-          });
-
-          const result = await response.json();
-          if (result.success && result.data) {
-            console.log('✅ [CAP-STYLE-SECTION] Found exact product in Supabase:', result.data);
-            setProductInfo(result.data);
-            setIsLoadingProduct(false);
-            return;
-          } else {
-            console.log('⚠️ [CAP-STYLE-SECTION] Product not found by name, falling back to specs matching');
-          }
-        } catch (error) {
-          console.error('❌ [CAP-STYLE-SECTION] Error fetching product by name:', error);
-        }
-      }
-
-      const capSpecs = {
-        size: currentQuoteData.capDetails.size,
-        color: currentQuoteData.capDetails.color || currentQuoteData.capDetails.colors,
-        profile: currentQuoteData.capDetails.profile,
-        billShape: currentQuoteData.capDetails.billShape,
-        structure: currentQuoteData.capDetails.structure === 'undefined' || !currentQuoteData.capDetails.structure ? 'Structured' : currentQuoteData.capDetails.structure,
-        fabric: currentQuoteData.capDetails.fabric,
-        closure: currentQuoteData.capDetails.closure,
-        stitch: currentQuoteData.capDetails.stitching || currentQuoteData.capDetails.stitch,
-        panelCount: currentQuoteData.capDetails.panelCount ||
-                   currentQuoteData.panelCount ||
-                   extractedPanelCount,
-        // Add pricing context for better matching
-        quantity: currentQuoteData.quantity,
-        unitPrice: currentQuoteData.baseProductCost ?
-                  parseFloat(currentQuoteData.baseProductCost) / (currentQuoteData.quantity || 1) :
-                  undefined,
-        totalPrice: currentQuoteData.baseProductCost ?
-                   parseFloat(currentQuoteData.baseProductCost) :
-                   undefined,
-        // Add timestamp to force re-fetch when quote updates
-        _timestamp: Date.now()
-      };
-
-      console.log('🔍 [CAP-STYLE-SECTION] Final capSpecs for API:', JSON.stringify(capSpecs, null, 2));
-
-      try {
-        const response = await fetch('/api/product-info', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(capSpecs),
-        });
-
-        const result = await response.json();
-        console.log('✅ [CAP-STYLE-SECTION] API response received:', result);
-        if (result.success) {
-          setProductInfo(result.data);
-        } else {
-          console.error('❌ [CAP-STYLE-SECTION] API returned error:', result.error);
-          setProductInfo(null);
-        }
-      } catch (error) {
-        console.error('❌ [CAP-STYLE-SECTION] Error fetching product info:', error);
-        setProductInfo(null);
-      } finally {
-        setIsLoadingProduct(false);
-      }
+    // CRITICAL FIX: Enhanced ProductInfo creation with better fallbacks
+    const savedProductInfo: ProductInfo = {
+      name: currentQuoteData.capDetails.productName ||
+            currentQuoteData.capDetails.style ||
+            'Custom Cap',
+      code: currentQuoteData.capDetails.productCode || 'CUSTOM',
+      profile: currentQuoteData.capDetails.profile || 'Standard',
+      bill_shape: currentQuoteData.capDetails.billShape ||
+                 currentQuoteData.capDetails.shape ||
+                 'Curved',
+      panel_count: extractedPanelCount ||
+                  currentQuoteData.capDetails.panelCount ||
+                  6,
+      structure_type: currentQuoteData.capDetails.structure || 'Structured',
+      pricing_tier: {
+        tier_name: currentQuoteData.capDetails.pricingTier || 'Tier 2'
+      },
+      nick_names: [currentQuoteData.capDetails.productName || currentQuoteData.capDetails.style || 'Custom Cap']
     };
 
-    fetchProductInfo();
-  }, [currentQuoteData, JSON.stringify(currentQuoteData?.capDetails)]);
+    console.log('✅ [CAP-STYLE-SECTION] Created ProductInfo from saved data:', {
+      name: savedProductInfo.name,
+      panelCount: savedProductInfo.panel_count,
+      pricingTier: savedProductInfo.pricing_tier?.tier_name,
+      isRestoredData: !!currentQuoteData?.metadata?.wasRestored
+    });
+
+    setProductInfo(savedProductInfo);
+    setIsLoadingProduct(false);
+  }, [currentQuoteData?.capDetails, currentQuoteData?.metadata?.wasRestored]);
 
   return (
     <div className={`p-3 rounded-xl border transition-all duration-300 ${
@@ -332,17 +271,17 @@ const CapStyleSection = ({
 
                       {/* Base Cap Cost Information */}
                       {(() => {
-                        console.log('🔍 [DEBUG] Current quote data for cap cost:', {
+                        console.log('🔍 [ENHANCED DEBUG] Current quote data for cap cost:', {
                           baseProductCost: currentQuoteData?.baseProductCost,
                           quantity: currentQuoteData?.quantity,
                           pricing: currentQuoteData?.pricing,
                           costBreakdown: currentQuoteData?.costBreakdown,
                           totalCost: currentQuoteData?.totalCost,
-                          message: currentQuoteData?.message ? 'Has message content' : 'No message',
+                          wasRestored: currentQuoteData?.metadata?.wasRestored,
                           keys: Object.keys(currentQuoteData || {})
                         });
 
-                        // Try multiple possible data sources for base product cost
+                        // CRITICAL FIX: Enhanced cost extraction with comprehensive fallback logic
                         let baseProductCost = currentQuoteData?.baseProductCost ||
                                             currentQuoteData?.pricing?.baseProductCost ||
                                             currentQuoteData?.pricing?.subtotals?.blankCaps ||
@@ -352,9 +291,19 @@ const CapStyleSection = ({
                                      currentQuoteData?.pricing?.quantity ||
                                      currentQuoteData?.capDetails?.quantity;
 
-                        // If no structured cost data, try to extract from quote message
+                        // ENHANCED: For restored data, ensure we have at least some cost information
+                        if ((!baseProductCost || !quantity) && currentQuoteData?.metadata?.wasRestored) {
+                          // For restored data, extract from total cost if available
+                          const totalCost = currentQuoteData?.totalCost || currentQuoteData?.pricing?.total;
+                          if (totalCost && quantity) {
+                            // Estimate base product cost as 40-50% of total (typical ratio)
+                            baseProductCost = totalCost * 0.45;
+                            console.log('🔧 [RESTORED] Estimated base cost from total:', baseProductCost);
+                          }
+                        }
+
+                        // If still no structured cost data, try to extract from quote message
                         if (!baseProductCost || !quantity) {
-                          // Check if there's a raw message or content in the quote data
                           const messageContent = currentQuoteData?.message ||
                                                currentQuoteData?.content ||
                                                currentQuoteData?.originalMessage;
@@ -365,11 +314,11 @@ const CapStyleSection = ({
 
                             if (blankCapMatch) {
                               baseProductCost = parseFloat(blankCapMatch[1].replace(',', ''));
-                              console.log('🎯 [EXTRACTED] Base cost from message:', baseProductCost);
+                              console.log('🎯 [MESSAGE EXTRACTED] Base cost:', baseProductCost);
                             }
                             if (quantityMatch) {
                               quantity = parseInt(quantityMatch[1]);
-                              console.log('🎯 [EXTRACTED] Quantity from message:', quantity);
+                              console.log('🎯 [MESSAGE EXTRACTED] Quantity:', quantity);
                             }
                           }
                         }
@@ -397,11 +346,19 @@ const CapStyleSection = ({
                             </div>
                           </div>
                         ) : (
-                          // Show debug info when data is missing
+                          // ENHANCED: Better messaging for missing data based on restoration status
                           <div className="pt-2 border-t border-blue-400/10">
                             <div className="text-[10px] text-yellow-400/70">
-                              Base cap cost data not available yet
+                              {currentQuoteData?.metadata?.wasRestored
+                                ? 'Base cap cost data is being restored...'
+                                : 'Base cap cost data not available yet'
+                              }
                             </div>
+                            {currentQuoteData?.metadata?.wasRestored && (
+                              <div className="text-[9px] text-blue-400/50 mt-1">
+                                Restored from: {currentQuoteData.metadata.restoredFrom}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}

@@ -1,86 +1,86 @@
-Name,Profile,Bill Shape,Panel Count,priceTier,Structure Type,Nick Names
-4P Visor Cap MSCS,Mid,Slight Curved,4-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Sport Visor, Structured Cap, Sun Visor, Tennis Visor"
-5P Urban Classic HFS,High,Flat,5-Panel,Tier 1,Structured with Mono Lining,"Camper Hat, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Snapback, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five HFU,High,Flat,5-Panel,Tier 1,"Unstructured, No Lining","Camper Hat, Chino Cap, Dad Hat, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Snapback, Street Hat, Unstructured Cap, Urban Cap"
-5P StreetFrame HFF,High,Flat,5-Panel,Tier 1,"Foam, Soft Hybrid","Flatbill, Foam Cap, Foam Front Cap, High Crown, New Era 9FIFTY, Pro Fit, Retro Mesh Cap, Snapback, Trucker Hat"
-5P Urban Classic HSCS,High,Slight Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Curved Bill, Fitted Cap, High Crown, Pro Fit, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five HSCU,High,Slight Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Street Hat, Unstructured Cap, Urban Cap"
-5P Heritage Five HSCF,High,Slight Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Foam Cap, Foam Front Cap, High Crown, Pro Fit, Retro Mesh Cap, Trucker Hat"
-5P Urban Classic HCS,High,Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Curved Bill, Fitted Cap, High Crown, Pro Fit, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five HCU,High,Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Street Hat, Unstructured Cap, Urban Cap"
-5P StreetFrame HCF,High,Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Foam Cap, Foam Front Cap, High Crown, Pro Fit, Retro Mesh Cap, Trucker Hat"
-5P Urban Classic MFS,Mid,Flat,5-Panel,Tier 1,Structured with Mono Lining,"Camper Hat, Classic Fit, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Snapback, Street Hat, Structured Cap, Urban Cap"
-5P Urban Classic MFU,Mid,Flat,5-Panel,Tier 1,"Unstructured, No Lining","Camper Hat, Chino Cap, Classic Fit, Dad Hat, Flatbill, Mid Crown, New Era 9FIFTY, Snapback, Street Hat, Unstructured Cap, Urban Cap"
-5P Heritage Five MFF,Mid,Flat,5-Panel,Tier 1,"Foam, Soft Hybrid","Classic Fit, Flatbill, Foam Cap, Foam Front Cap, Mid Crown, New Era 9FIFTY, Retro Mesh Cap, Snapback, Trucker Hat"
-5P StreetFrame MSCS,Mid,Slight Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Street Hat, Structured Cap, Urban Cap"
-5P StreetFrame MSCU,Mid,Slight Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Street Hat, Unstructured Cap, Urban Cap"
-5P StreetFrame MSCF,Mid,Slight Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Foam Cap, Foam Front Cap, Mid Crown, Retro Mesh Cap, Trucker Hat"
-5P Heritage Five MCS,Mid,Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five MCU,Mid,Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Street Hat, Unstructured Cap, Urban Cap"
-5P StreetFrame MCF,Mid,Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Foam Cap, Foam Front Cap, Mid Crown, Retro Mesh Cap, Trucker Hat"
-5P Urban Classic LFS,Low,Flat,5-Panel,Tier 1,Structured with Mono Lining,"Camper Hat, Casual Fit, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Snapback, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five LFU,Low,Flat,5-Panel,Tier 1,"Unstructured, No Lining","Camper Hat, Casual Fit, Chino Cap, Dad Hat, Flatbill, Low Crown, New Era 9FIFTY, Snapback, Street Hat, Unstructured Cap, Urban Cap"
-5P Urban Classic LFF,Low,Flat,5-Panel,Tier 1,"Foam, Soft Hybrid","Casual Fit, Flatbill, Foam Cap, Foam Front Cap, Low Crown, New Era 9FIFTY, Retro Mesh Cap, Snapback, Trucker Hat"
-5P Urban Classic LSCS,Low,Slight Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five LSCU,Low,Slight Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Street Hat, Unstructured Cap, Urban Cap"
-5P Urban Classic LSCF,Low,Slight Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Foam Cap, Foam Front Cap, Low Crown, Retro Mesh Cap, Trucker Hat"
-5P StreetFrame LCS,Low,Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Street Hat, Structured Cap, Urban Cap"
-5P Heritage Five LCU,Low,Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Street Hat, Unstructured Cap, Urban Cap"
-5P StreetFrame LCF,Low,Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Foam Cap, Foam Front Cap, Low Crown, Retro Mesh Cap, Trucker Hat"
-6P Heritage 6C HFS,High,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Structured Cap"
-6P ProFit Six HFU,High,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Dad Hat, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Unstructured Cap"
-6P Heritage 6C HFF,High,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Dad Hat, Flatbill, Foam Cap, High Crown, New Era 9FIFTY, Pro Fit, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap"
-6P ProFit Six HFS,High,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Structured Cap"
-6P AirFrame HFU,High,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Dad Hat, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Unstructured Cap"
-6P ProFit Six HFF,High,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Dad Hat, Flatbill, Foam Cap, High Crown, New Era 9FIFTY, Pro Fit, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap"
-6P AirFrame HSCS,High,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Curved Bill, Fitted Cap, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Structured Cap"
-6P Heritage 6C HSCU,High,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap"
-6P AirFrame HSCF,High,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Dad Hat, Foam Cap, High Crown, Pro Fit, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap"
-6P AirFrame HSCS,High,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Curved Bill, Fitted Cap, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Structured Cap"
-6P AirFrame HSCU,High,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap"
-6P Heritage 6C HSCF,High,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Dad Hat, Foam Cap, High Crown, Pro Fit, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap"
-6P ProFit Six HCS,High,Curved,6-Panel,Tier 1,Structured with Mono Lining,"Baseball Cap, Baseball Style, Curved Bill, Fitted Cap, High Crown, Pro Fit, Pro Style Cap, Snapback, Structured Cap"
-6P Heritage 6C HCU,High,Curved,6-Panel,Tier 1,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Pro Style Cap, Snapback, Unstructured Cap"
-6P ProFit Six HCF,High,Curved,6-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Dad Hat, Foam Cap, High Crown, Pro Fit, Relaxed Cap, Trucker Hat, Vintage Cap"
-6P AirFrame MFS,Mid,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Classic Fit, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap"
-6P ProFit Six MFU,Mid,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Classic Fit, Dad Hat, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap"
-6P AirFrame MFF,Mid,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Classic Fit, Dad Hat, Flatbill, Foam Cap, Mid Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap"
-6P AirFrame MFS,Mid,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Classic Fit, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap"
-6P ProFit Six MFU,Mid,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Classic Fit, Dad Hat, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap"
-6P ProFit Six MFF,Mid,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Classic Fit, Dad Hat, Flatbill, Foam Cap, Mid Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap"
-6P ProFit Six MSCS,Mid,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap"
-6P ProFit Six MSCU,Mid,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap"
-6P Heritage 6C MSCF,Mid,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Dad Hat, Foam Cap, Mid Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap"
-6P ProFit Six MSCS,Mid,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap"
-6P ProFit Six MSCU,Mid,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap"
-6P ProFit Six MSCF,Mid,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Dad Hat, Foam Cap, Mid Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap"
-6P Heritage 6C MCS,Mid,Curved,6-Panel,Tier 1,Structured with Mono Lining,"Baseball Cap, Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Pro Style Cap, Snapback, Structured Cap"
-6P AirFrame MCU,Mid,Curved,6-Panel,Tier 1,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Pro Style Cap, Snapback, Unstructured Cap"
-6P Heritage 6C MCF,Mid,Curved,6-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Dad Hat, Foam Cap, Mid Crown, Relaxed Cap, Trucker Hat, Vintage Cap"
-6P ProFit Six LFS,Low,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Casual Fit, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap"
-6P ProFit Six LFU,Low,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Casual Fit, Chino Cap, Dad Hat, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap"
-6P AirFrame LFF,Low,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Casual Fit, Dad Hat, Flatbill, Foam Cap, Low Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap"
-6P ProFit Six LFS,Low,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Casual Fit, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap"
-6P ProFit Six LFU,Low,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Casual Fit, Chino Cap, Dad Hat, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap"
-6P AirFrame LFF,Low,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Casual Fit, Dad Hat, Flatbill, Foam Cap, Low Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap"
-6P ProFit Six LSCS,Low,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap"
-6P AirFrame LSCU,Low,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap"
-6P AirFrame LSCF,Low,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Dad Hat, Foam Cap, Low Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap"
-6P ProFit Six LSCS,Low,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap"
-6P Heritage 6C LSCU,Low,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap"
-6P ProFit Six LSCF,Low,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Dad Hat, Foam Cap, Low Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap"
-6P Heritage 6C LCS,Low,Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Pro Style Cap, Snapback, Structured Cap"
-6P Heritage 6C LCU,Low,Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Pro Style Cap, Snapback, Unstructured Cap"
-6P Heritage 6C LCF,Low,Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Dad Hat, Foam Cap, Low Crown, Relaxed Cap, Trucker Hat, Vintage Cap"
-7P Elite Seven HFS,High,Flat,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Festival Cap, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Richardson 168, Snapback, Streetwear Cap, Structured Cap"
-7P Summit Seven HFF,High,Flat,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Festival Cap, Flatbill, Foam Cap, High Crown, New Era 9FIFTY, Pro Fit, Richardson 168, Snapback, Streetwear Cap, Trucker Hat"
-7P Elite Seven HSCS,High,Slight Curved,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Baseball Style, Curved Bill, Festival Cap, Fitted Cap, High Crown, Pro Fit, Richardson 168, Streetwear Cap, Structured Cap"
-7P Elite Seven HSCF,High,Slight Curved,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Baseball Style, Curved Bill, Festival Cap, Foam Cap, High Crown, Pro Fit, Richardson 168, Streetwear Cap, Trucker Hat"
-7P Elite Seven MFS,Mid,Flat,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Classic Fit, Festival Cap, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Structured Cap"
-7P Summit Seven MFF,Mid,Flat,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Classic Fit, Festival Cap, Flatbill, Foam Cap, Mid Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Trucker Hat"
-7P CrownFrame 7 MSCS,Mid,Slight Curved,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Baseball Style, Classic Fit, Curved Bill, Festival Cap, Fitted Cap, Mid Crown, Richardson 168, Streetwear Cap, Structured Cap"
-7P CrownFrame 7 MSCF,Mid,Slight Curved,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Baseball Style, Classic Fit, Curved Bill, Festival Cap, Foam Cap, Mid Crown, Richardson 168, Streetwear Cap, Trucker Hat"
-7P CrownFrame 7 LFS,Low,Flat,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Casual Fit, Festival Cap, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Structured Cap"
-7P CrownFrame 7 LFF,Low,Flat,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Casual Fit, Festival Cap, Flatbill, Foam Cap, Low Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Trucker Hat"
-7P Elite Seven LSCS,Low,Slight Curved,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Baseball Style, Casual Fit, Curved Bill, Festival Cap, Fitted Cap, Low Crown, Richardson 168, Streetwear Cap, Structured Cap"
-7P Summit Seven LSCF,Low,Slight Curved,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Baseball Style, Casual Fit, Curved Bill, Festival Cap, Foam Cap, Low Crown, Richardson 168, Streetwear Cap, Trucker Hat"
+Name,Profile,Bill Shape,Panel Count,priceTier,Structure Type,Nick Names,Description
+4P Visor Cap MSCS,Mid,Slight Curved,4-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Sport Visor, Structured Cap, Sun Visor, Tennis Visor",
+5P Urban Classic HFS,High,Flat,5-Panel,Tier 1,Structured with Mono Lining,"Camper Hat, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Snapback, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five HFU,High,Flat,5-Panel,Tier 1,"Unstructured, No Lining","Camper Hat, Chino Cap, Dad Hat, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Snapback, Street Hat, Unstructured Cap, Urban Cap",
+5P StreetFrame HFF,High,Flat,5-Panel,Tier 1,"Foam, Soft Hybrid","Flatbill, Foam Cap, Foam Front Cap, High Crown, New Era 9FIFTY, Pro Fit, Retro Mesh Cap, Snapback, Trucker Hat",
+5P Urban Classic HSCS,High,Slight Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Curved Bill, Fitted Cap, High Crown, Pro Fit, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five HSCU,High,Slight Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Street Hat, Unstructured Cap, Urban Cap",
+5P Heritage Five HSCF,High,Slight Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Foam Cap, Foam Front Cap, High Crown, Pro Fit, Retro Mesh Cap, Trucker Hat",
+5P Urban Classic HCS,High,Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Curved Bill, Fitted Cap, High Crown, Pro Fit, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five HCU,High,Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Street Hat, Unstructured Cap, Urban Cap",
+5P StreetFrame HCF,High,Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Foam Cap, Foam Front Cap, High Crown, Pro Fit, Retro Mesh Cap, Trucker Hat",
+5P Urban Classic MFS,Mid,Flat,5-Panel,Tier 1,Structured with Mono Lining,"Camper Hat, Classic Fit, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Snapback, Street Hat, Structured Cap, Urban Cap",
+5P Urban Classic MFU,Mid,Flat,5-Panel,Tier 1,"Unstructured, No Lining","Camper Hat, Chino Cap, Classic Fit, Dad Hat, Flatbill, Mid Crown, New Era 9FIFTY, Snapback, Street Hat, Unstructured Cap, Urban Cap",
+5P Heritage Five MFF,Mid,Flat,5-Panel,Tier 1,"Foam, Soft Hybrid","Classic Fit, Flatbill, Foam Cap, Foam Front Cap, Mid Crown, New Era 9FIFTY, Retro Mesh Cap, Snapback, Trucker Hat",
+5P StreetFrame MSCS,Mid,Slight Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Street Hat, Structured Cap, Urban Cap",
+5P StreetFrame MSCU,Mid,Slight Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Street Hat, Unstructured Cap, Urban Cap",
+5P StreetFrame MSCF,Mid,Slight Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Foam Cap, Foam Front Cap, Mid Crown, Retro Mesh Cap, Trucker Hat",
+5P Heritage Five MCS,Mid,Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five MCU,Mid,Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Street Hat, Unstructured Cap, Urban Cap",
+5P StreetFrame MCF,Mid,Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Foam Cap, Foam Front Cap, Mid Crown, Retro Mesh Cap, Trucker Hat",
+5P Urban Classic LFS,Low,Flat,5-Panel,Tier 1,Structured with Mono Lining,"Camper Hat, Casual Fit, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Snapback, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five LFU,Low,Flat,5-Panel,Tier 1,"Unstructured, No Lining","Camper Hat, Casual Fit, Chino Cap, Dad Hat, Flatbill, Low Crown, New Era 9FIFTY, Snapback, Street Hat, Unstructured Cap, Urban Cap",
+5P Urban Classic LFF,Low,Flat,5-Panel,Tier 1,"Foam, Soft Hybrid","Casual Fit, Flatbill, Foam Cap, Foam Front Cap, Low Crown, New Era 9FIFTY, Retro Mesh Cap, Snapback, Trucker Hat",
+5P Urban Classic LSCS,Low,Slight Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five LSCU,Low,Slight Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Street Hat, Unstructured Cap, Urban Cap",
+5P Urban Classic LSCF,Low,Slight Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Foam Cap, Foam Front Cap, Low Crown, Retro Mesh Cap, Trucker Hat",
+5P StreetFrame LCS,Low,Curved,5-Panel,Tier 1,Structured with Mono Lining,"Baseball Style, Camper Hat, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Street Hat, Structured Cap, Urban Cap",
+5P Heritage Five LCU,Low,Curved,5-Panel,Tier 1,"Unstructured, No Lining","Baseball Style, Camper Hat, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Street Hat, Unstructured Cap, Urban Cap",
+5P StreetFrame LCF,Low,Curved,5-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Foam Cap, Foam Front Cap, Low Crown, Retro Mesh Cap, Trucker Hat",
+6P Heritage 6C HFS,High,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Structured Cap",
+6P ProFit Six HFU,High,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Dad Hat, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Unstructured Cap",
+6P Heritage 6C HFF,High,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Dad Hat, Flatbill, Foam Cap, High Crown, New Era 9FIFTY, Pro Fit, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap",
+6P ProFit Six HFS,High,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Structured Cap",
+6P AirFrame HFU,High,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Dad Hat, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Pro Style Cap, Snapback, Unstructured Cap",
+6P ProFit Six HFF,High,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Dad Hat, Flatbill, Foam Cap, High Crown, New Era 9FIFTY, Pro Fit, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap",
+6P AirFrame HSCS,High,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Curved Bill, Fitted Cap, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Structured Cap",
+6P Heritage 6C HSCU,High,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap",
+6P AirFrame HSCF,High,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Dad Hat, Foam Cap, High Crown, Pro Fit, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap",
+6P AirFrame HSCS,High,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Curved Bill, Fitted Cap, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Structured Cap",
+6P AirFrame HSCU,High,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap",
+6P Heritage 6C HSCF,High,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Dad Hat, Foam Cap, High Crown, Pro Fit, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap",
+6P ProFit Six HCS,High,Curved,6-Panel,Tier 1,Structured with Mono Lining,"Baseball Cap, Baseball Style, Curved Bill, Fitted Cap, High Crown, Pro Fit, Pro Style Cap, Snapback, Structured Cap",
+6P Heritage 6C HCU,High,Curved,6-Panel,Tier 1,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Curved Bill, Dad Hat, High Crown, Pro Fit, Pro Style Cap, Snapback, Unstructured Cap",
+6P ProFit Six HCF,High,Curved,6-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Curved Bill, Dad Hat, Foam Cap, High Crown, Pro Fit, Relaxed Cap, Trucker Hat, Vintage Cap",
+6P AirFrame MFS,Mid,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Classic Fit, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap",
+6P ProFit Six MFU,Mid,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Classic Fit, Dad Hat, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap",
+6P AirFrame MFF,Mid,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Classic Fit, Dad Hat, Flatbill, Foam Cap, Mid Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap",
+6P AirFrame MFS,Mid,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Classic Fit, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap",
+6P ProFit Six MFU,Mid,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Chino Cap, Classic Fit, Dad Hat, Flatbill, Mid Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap",
+6P ProFit Six MFF,Mid,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Classic Fit, Dad Hat, Flatbill, Foam Cap, Mid Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap",
+6P ProFit Six MSCS,Mid,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap",
+6P ProFit Six MSCU,Mid,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap",
+6P Heritage 6C MSCF,Mid,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Dad Hat, Foam Cap, Mid Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap",
+6P ProFit Six MSCS,Mid,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap",
+6P ProFit Six MSCU,Mid,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap",
+6P ProFit Six MSCF,Mid,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Dad Hat, Foam Cap, Mid Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap",
+6P Heritage 6C MCS,Mid,Curved,6-Panel,Tier 1,Structured with Mono Lining,"Baseball Cap, Baseball Style, Classic Fit, Curved Bill, Fitted Cap, Mid Crown, Pro Style Cap, Snapback, Structured Cap",
+6P AirFrame MCU,Mid,Curved,6-Panel,Tier 1,"Unstructured, No Lining","Baseball Cap, Baseball Style, Chino Cap, Classic Fit, Curved Bill, Dad Hat, Mid Crown, Pro Style Cap, Snapback, Unstructured Cap",
+6P Heritage 6C MCF,Mid,Curved,6-Panel,Tier 1,"Foam, Soft Hybrid","Baseball Style, Classic Fit, Curved Bill, Dad Hat, Foam Cap, Mid Crown, Relaxed Cap, Trucker Hat, Vintage Cap",
+6P ProFit Six LFS,Low,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Casual Fit, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap",
+6P ProFit Six LFU,Low,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Casual Fit, Chino Cap, Dad Hat, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap",
+6P AirFrame LFF,Low,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Casual Fit, Dad Hat, Flatbill, Foam Cap, Low Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap",
+6P ProFit Six LFS,Low,Flat,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Casual Fit, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Structured Cap",
+6P ProFit Six LFU,Low,Flat,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Casual Fit, Chino Cap, Dad Hat, Flatbill, Low Crown, New Era 9FIFTY, Pro Style Cap, Snapback, Unstructured Cap",
+6P AirFrame LFF,Low,Flat,6-Panel,Tier 2,"Foam, Soft Hybrid","Casual Fit, Dad Hat, Flatbill, Foam Cap, Low Crown, New Era 9FIFTY, Relaxed Cap, Snapback, Trucker Hat, Vintage Cap",
+6P ProFit Six LSCS,Low,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap",
+6P AirFrame LSCU,Low,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap",
+6P AirFrame LSCF,Low,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Dad Hat, Foam Cap, Low Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap",
+6P ProFit Six LSCS,Low,Slight Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Pro Style Cap, Richardson 112, Snapback, Structured Cap",
+6P Heritage 6C LSCU,Low,Slight Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Pro Style Cap, Richardson 112, Snapback, Unstructured Cap",
+6P ProFit Six LSCF,Low,Slight Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Dad Hat, Foam Cap, Low Crown, Relaxed Cap, Richardson 112, Trucker Hat, Vintage Cap",
+6P Heritage 6C LCS,Low,Curved,6-Panel,Tier 2,Structured with Mono Lining,"Baseball Cap, Baseball Style, Casual Fit, Curved Bill, Fitted Cap, Low Crown, Pro Style Cap, Snapback, Structured Cap",
+6P Heritage 6C LCU,Low,Curved,6-Panel,Tier 2,"Unstructured, No Lining","Baseball Cap, Baseball Style, Casual Fit, Chino Cap, Curved Bill, Dad Hat, Low Crown, Pro Style Cap, Snapback, Unstructured Cap",
+6P Heritage 6C LCF,Low,Curved,6-Panel,Tier 2,"Foam, Soft Hybrid","Baseball Style, Casual Fit, Curved Bill, Dad Hat, Foam Cap, Low Crown, Relaxed Cap, Trucker Hat, Vintage Cap",
+7P Elite Seven HFS,High,Flat,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Festival Cap, Fitted Cap, Flatbill, High Crown, New Era 9FIFTY, Pro Fit, Richardson 168, Snapback, Streetwear Cap, Structured Cap",
+7P Summit Seven HFF,High,Flat,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Festival Cap, Flatbill, Foam Cap, High Crown, New Era 9FIFTY, Pro Fit, Richardson 168, Snapback, Streetwear Cap, Trucker Hat",
+7P Elite Seven HSCS,High,Slight Curved,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Baseball Style, Curved Bill, Festival Cap, Fitted Cap, High Crown, Pro Fit, Richardson 168, Streetwear Cap, Structured Cap",
+7P Elite Seven HSCF,High,Slight Curved,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Baseball Style, Curved Bill, Festival Cap, Foam Cap, High Crown, Pro Fit, Richardson 168, Streetwear Cap, Trucker Hat",
+7P Elite Seven MFS,Mid,Flat,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Classic Fit, Festival Cap, Fitted Cap, Flatbill, Mid Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Structured Cap",
+7P Summit Seven MFF,Mid,Flat,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Classic Fit, Festival Cap, Flatbill, Foam Cap, Mid Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Trucker Hat",
+7P CrownFrame 7 MSCS,Mid,Slight Curved,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Baseball Style, Classic Fit, Curved Bill, Festival Cap, Fitted Cap, Mid Crown, Richardson 168, Streetwear Cap, Structured Cap",
+7P CrownFrame 7 MSCF,Mid,Slight Curved,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Baseball Style, Classic Fit, Curved Bill, Festival Cap, Foam Cap, Mid Crown, Richardson 168, Streetwear Cap, Trucker Hat",
+7P CrownFrame 7 LFS,Low,Flat,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Casual Fit, Festival Cap, Fitted Cap, Flatbill, Low Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Structured Cap",
+7P CrownFrame 7 LFF,Low,Flat,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Casual Fit, Festival Cap, Flatbill, Foam Cap, Low Crown, New Era 9FIFTY, Richardson 168, Snapback, Streetwear Cap, Trucker Hat",
+7P Elite Seven LSCS,Low,Slight Curved,7-Panel,Tier 3,Structured with Mono Lining,"7-Panel Cap, Baseball Style, Casual Fit, Curved Bill, Festival Cap, Fitted Cap, Low Crown, Richardson 168, Streetwear Cap, Structured Cap",
+7P Summit Seven LSCF,Low,Slight Curved,7-Panel,Tier 3,"Foam, Soft Hybrid","7-Panel Cap, Baseball Style, Casual Fit, Curved Bill, Festival Cap, Foam Cap, Low Crown, Richardson 168, Streetwear Cap, Trucker Hat",

@@ -61,20 +61,23 @@ export async function GET(
       const { data: { user }, error } = await supabase.auth.getUser();
 
       if (error || !user) {
-        console.log('❌ GET Conversation: No authenticated user found:', error?.message);
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+        console.log('⚠️ GET Conversation: No authenticated user found, checking for guest access');
+        // Don't return error immediately - allow guest access for guest conversations
+        userId = null;
+      } else {
+        userId = user.id;
+        console.log('✅ GET Conversation: Authenticated user found:', userId);
       }
 
-      userId = user.id;
-      console.log('✅ GET Conversation: Authenticated user found:', userId);
-
     } catch (authError) {
-      console.log('❌ GET Conversation: Auth error:', authError);
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      console.log('⚠️ GET Conversation: Auth error, treating as guest user:', authError);
+      // Treat authentication errors as guest access
+      userId = null;
     }
 
     // Fetch the specific conversation with messages
-    const { data: conversation, error: fetchError } = await supabaseAdmin
+    // For guest users (userId = null), find conversations with matching sessionId or allow direct ID access for guest conversations
+    let conversationQuery = supabaseAdmin
       .from('Conversation')
       .select(`
         *,
@@ -94,9 +97,17 @@ export async function GET(
           updatedAt
         )
       `)
-      .eq('id', conversationId)
-      .eq('userId', userId)
-      .single();
+      .eq('id', conversationId);
+
+    // For authenticated users, ensure they own the conversation
+    if (userId) {
+      conversationQuery = conversationQuery.eq('userId', userId);
+    } else {
+      // For guest users, only allow access to conversations with null userId (guest conversations)
+      conversationQuery = conversationQuery.is('userId', null);
+    }
+
+    const { data: conversation, error: fetchError } = await conversationQuery.single();
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
@@ -161,6 +172,7 @@ export async function GET(
           hasDelivery: !!orderBuilderState.delivery,
           hasCostBreakdown: !!orderBuilderState.costBreakdown
         });
+        console.log('🔍 [DEBUG] Full loaded OrderBuilderState:', JSON.stringify(orderBuilderState, null, 2));
       }
     } catch (builderError) {
       console.warn('⚠️ Error fetching OrderBuilderState (non-critical):', builderError);
@@ -198,6 +210,12 @@ export async function GET(
       updatedAt: conversation.updatedAt,
       // CRITICAL FIX: Include OrderBuilderState for Order Builder restoration
       orderBuilderState: orderBuilderState,
+      // DEBUG: Log what we're sending to frontend
+      _debug: {
+        hasOrderBuilderState: !!orderBuilderState,
+        orderBuilderStateKeys: orderBuilderState ? Object.keys(orderBuilderState) : [],
+        timestamp: new Date().toISOString()
+      },
       ConversationMessage: sortedMessages.map(msg => ({
         id: msg.id,
         role: msg.role,

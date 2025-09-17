@@ -1210,6 +1210,21 @@ async function correctQuantityBasedPricing(orderResponse: any, pricingTiers: any
 
 export async function POST(request: NextRequest) {
  try {
+  // Extract user information from auth token if available
+  let user = null;
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+   try {
+    const token = authHeader.split(' ')[1];
+    const { data: { user: authUser }, error } = await supabaseAdmin.auth.getUser(token);
+    if (!error && authUser?.email) {
+     user = authUser;
+    }
+   } catch (authError) {
+    console.log('Auth token parsing failed:', authError);
+   }
+  }
+
   const body: OrderCreationRequest = await request.json();
   const { message, intent, conversationHistory, userProfile, conversationId, sessionId, attachedFiles } = body;
 
@@ -2059,7 +2074,7 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
    } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-     throw new Error('Request timeout: OpenAI API call exceeded 2 minutes');
+     throw new Error('Request timeout: OpenAI API call exceeded 5 minutes');
     }
     throw error;
    }
@@ -2087,7 +2102,7 @@ STEP-BY-STEP PREMIUM CLOSURE PROCESSING:
       max_tokens: quoteMaster.maxTokens,
       response_format: { type: 'json_object' }
      }),
-    }, 120000); // 2-minute timeout
+    }, 300000); // 5-minute timeout to handle large system prompt
     break; // Success, exit retry loop
    } catch (error) {
     console.error(`OpenAI API attempt ${retryCount + 1} failed:`, error);
@@ -2267,19 +2282,7 @@ I'll get back to you with precise pricing based on your specifications, includin
   }
 
   // If quote data is provided, save it to database
-  let userEmail = null;
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-   try {
-    const token = authHeader.split(' ')[1];
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (!error && user?.email) {
-     userEmail = user.email;
-    }
-   } catch (authError) {
-    console.log('Auth failed during quote save');
-   }
-  }
+  let userEmail = user?.email || null;
 
   if (orderResponse.quoteData) {
    try {

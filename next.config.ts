@@ -23,6 +23,18 @@ const nextConfig = {
         port: "",
         pathname: "/storage/v1/object/public/**", // Match Supabase storage paths
       },
+      {
+        protocol: "https",
+        hostname: "tfiemrpfsvxvzgbqisdp.supabase.co",
+        port: "",
+        pathname: "/storage/v1/object/public/**", // Match current Supabase storage paths
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+        port: "",
+        pathname: "/images/**", // Match Sanity CDN image paths
+      },
     ],
   },
   // Enable hydration debugging in development

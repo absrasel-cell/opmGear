@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/auth/AuthContext';
 import UploadArtworkComponent from '@/components/ui/UploadArtworkComponent';
+import { ConversationService } from './services/conversationService';
 import { 
   SparklesIcon, 
   BoltIcon, 
@@ -645,6 +646,36 @@ export default function SupportPage() {
       if (authUser?.id) {
         console.log('🔄 Refreshing conversation list after storing conversation');
         await loadUserConversations();
+      }
+
+      // CRITICAL FIX: Create QuoteOrder record if quote data exists
+      // This ensures CapCraft AI quotes appear in Admin Dashboard
+      if (quoteData && quoteData.totalCost && currentConversationId) {
+        console.log('🎯 CRITICAL FIX: Quote data detected - creating QuoteOrder record for Admin Dashboard');
+        try {
+          const quoteOrderResult = await ConversationService.createQuoteOrderFromAI(
+            currentConversationId,
+            quoteData,
+            {
+              name: userProfile?.name || authUser?.name,
+              email: userProfile?.email || authUser?.email,
+              company: userProfile?.company,
+              phone: userProfile?.phone,
+              address: userProfile?.address
+            }
+          );
+
+          if (quoteOrderResult.success) {
+            console.log('✅ CRITICAL FIX SUCCESS: QuoteOrder created successfully - Quote will appear in Admin Dashboard!', quoteOrderResult.quoteOrderId);
+          } else {
+            console.error('❌ CRITICAL FIX FAILED: QuoteOrder creation failed:', quoteOrderResult.error);
+          }
+        } catch (quoteOrderError) {
+          console.error('❌ CRITICAL FIX ERROR: Exception during QuoteOrder creation:', quoteOrderError);
+          // Don't fail the whole conversation storage for quote order creation failure
+        }
+      } else {
+        console.log('ℹ️ No quote data or invalid quote data - skipping QuoteOrder creation');
       }
 
       console.log('✅ PRIMARY STORAGE COMPLETED: All messages stored successfully, skipping fallback');

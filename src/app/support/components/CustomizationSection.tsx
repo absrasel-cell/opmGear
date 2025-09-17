@@ -158,12 +158,10 @@ const CustomizationSection = ({
 
                     // Use structured data instead of parsing message
                     const logoCosts = logos.map(logo => ({
-                      name: typeof logo.type === 'string' ? logo.type : (logo.type ? String(logo.type) : 'Unknown'),
-                      position: typeof logo.location === 'object'
-                        ? Object.keys(logo.location)[0]
-                        : logo.location || (typeof logo.position === 'object'
-                          ? Object.keys(logo.position)[0]
-                          : logo.position) || 'Unknown', // Ensure always a string
+                      name: typeof logo.method === 'string' ? logo.method : (logo.method ? String(logo.method) : 'Unknown'),
+                      position: typeof logo.position === 'object'
+                        ? Object.keys(logo.position)[0]
+                        : (logo.position || 'Unknown'), // Ensure always a string
                       size: typeof logo.size === 'string' ? logo.size : (logo.size ? String(logo.size) : 'Unknown'),
                       unitPrice: logo.unitPrice,
                       totalCost: logo.totalCost,
@@ -261,7 +259,12 @@ const CustomizationSection = ({
                             })}
 
                             {/* Logo Setup Section - Professional Style */}
-                            {currentQuoteData.customization.logos && currentQuoteData.customization.logos.length > 0 && (
+                            {(() => {
+                              console.log('🔍 [LOGO-RENDER-CHECK] currentQuoteData.customization:', currentQuoteData.customization);
+                              console.log('🔍 [LOGO-RENDER-CHECK] logos array:', currentQuoteData.customization?.logos);
+                              console.log('🔍 [LOGO-RENDER-CHECK] logos length:', currentQuoteData.customization?.logos?.length);
+                              return currentQuoteData.customization.logos && currentQuoteData.customization.logos.length > 0;
+                            })() && (
                               <div className="p-3 rounded-lg border border-amber-400/20 bg-amber-400/5">
                                 <div className="flex items-center gap-2 mb-2">
                                   <CogIcon className="h-4 w-4 text-amber-400" />
@@ -269,6 +272,9 @@ const CustomizationSection = ({
                                 </div>
                                 <div className="space-y-2">
                                   {currentQuoteData.customization.logos.map((logo: any, index: number) => {
+                                    // DEBUG: Log the actual logo data structure
+                                    console.log(`🔍 [LOGO-DISPLAY-DEBUG] Logo ${index}:`, logo);
+
                                     // Extract costs if available in the logo object
                                     const unitCost = logo.unitCost || logo.cost || 0;
                                     const moldCharge = logo.moldCharge || 0;
@@ -278,7 +284,7 @@ const CustomizationSection = ({
                                       <div key={index} className="bg-black/20 rounded-md p-2">
                                         <div className="flex justify-between items-start mb-1">
                                           <span className="text-xs font-medium text-white">
-                                            {typeof logo.location === 'object' ? Object.keys(logo.location)[0] : (logo.location || 'Unknown')}: {typeof logo.type === 'string' ? logo.type : String(logo.type || 'Unknown')} ({typeof logo.size === 'string' ? logo.size : String(logo.size || 'Unknown')})
+                                            {typeof logo.position === 'object' ? Object.keys(logo.position)[0] : (logo.position || 'Unknown')}: {typeof logo.method === 'string' ? logo.method : String(logo.method || 'Unknown')} ({typeof logo.size === 'string' ? logo.size : String(logo.size || 'Unknown')})
                                           </span>
                                           {totalCost > 0 && (
                                             <span className="text-xs text-green-400 font-medium">${totalCost.toFixed(2)}</span>

@@ -363,12 +363,13 @@ export function ProductManagement() {
   }
  };
 
- const uploadImage = async (file: File): Promise<string> => {
+ // Upload image to Sanity and return the asset reference
+ const uploadImageToSanity = async (file: File): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);
 
   try {
-   const response = await fetch('/api/upload', {
+   const response = await fetch('/api/sanity/upload', {
     method: 'POST',
     body: formData,
    });
@@ -380,32 +381,39 @@ export function ProductManagement() {
     } catch (parseError) {
      console.error('Failed to parse error response:', parseError);
     }
-    
-    console.error('Upload failed:', response.status, errorData);
-    
-    // Provide more specific error messages based on status code
+
+    console.error('Sanity upload failed:', response.status, errorData);
+
     let errorMessage = 'Upload failed';
     if (response.status === 401) {
      errorMessage = 'Authentication required. Please log in again.';
+    } else if (response.status === 403) {
+     errorMessage = 'Admin access required for product uploads.';
     } else if (response.status === 400) {
      errorMessage = errorData.error || 'Invalid file or request';
     } else if (response.status === 500) {
      errorMessage = errorData.error || errorData.details || 'Server error occurred';
     }
-    
+
     throw new Error(errorMessage);
    }
 
    const data = await response.json();
-   if (!data.file || !data.file.url) {
+   if (!data.asset) {
     throw new Error('Invalid response from server');
    }
-   
-   return data.file.url;
+
+   return data.asset; // Return the Sanity asset reference
   } catch (error) {
-   console.error('Upload error:', error);
+   console.error('Sanity upload error:', error);
    throw error;
   }
+ };
+
+ // Legacy function for backward compatibility - now uses Sanity
+ const uploadImage = async (file: File): Promise<string> => {
+  const asset = await uploadImageToSanity(file);
+  return asset.url || ''; // Return URL for immediate display
  };
 
  const uploadMultipleImages = async (files: FileList, field: string): Promise<ProductImage[]> => {
@@ -418,17 +426,18 @@ export function ProductManagement() {
   for (let i = 0; i < totalFiles; i++) {
    const file = files[i];
    try {
-    const url = await uploadImage(file);
+    const asset = await uploadImageToSanity(file);
     // Extract filename without extension and clean special characters
     const fileNameWithoutExtension = file.name.replace(/\.[^/.]+$/, '');
     let cleanFileName = fileNameWithoutExtension.replace(/[-_,.()\[\]{}!@#$%^&*+=]/g, ' ').replace(/\s+/g, ' ').trim();
-    
+
     // Remove unwanted text patterns
     cleanFileName = cleanFileName.replace(/\b(photoroom|FL|RS|LS|FS|BS|5pu|6p|6pf|back|front|left|right)\b/gi, '').replace(/\s+/g, ' ').trim();
-    
+
     uploadedImages.push({
-     url,
-     alt: field === 'itemData' ? 'Item Data Image' : cleanFileName, // Auto-fill based on field type
+     ...asset,
+     url: asset.url || '', // Keep URL for display
+     alt: field === 'itemData' ? 'Item Data Image' : (cleanFileName || 'Product Image'), // Auto-fill based on field type
     });
     setUploadProgress(((i + 1) / totalFiles) * 100);
    } catch (error) {
@@ -448,16 +457,23 @@ export function ProductManagement() {
 
   try {
    setUploadingImages(true);
-   const url = await uploadImage(file);
+   const asset = await uploadImageToSanity(file);
+
    // Extract filename without extension and clean special characters
    const fileNameWithoutExtension = file.name.replace(/\.[^/.]+$/, '');
    let cleanFileName = fileNameWithoutExtension.replace(/[-_,.()\[\]{}!@#$%^&*+=]/g, ' ').replace(/\s+/g, ' ').trim();
-   
+
    // Remove unwanted text patterns
    cleanFileName = cleanFileName.replace(/\b(photoroom|FL|RS|LS|FS|BS|5pu|6p|6pf|back|front|left|right)\b/gi, '').replace(/\s+/g, ' ').trim();
+
+   // Store as Sanity asset reference, but keep URL for display
    setFormData({
     ...formData,
-    mainImage: { url, alt: 'Main Image' },
+    mainImage: {
+     ...asset,
+     alt: cleanFileName || 'Main Image',
+     url: asset.url || '', // Keep URL for immediate display
+    },
    });
   } catch (error) {
    setError('Failed to upload main image');

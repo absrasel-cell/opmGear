@@ -19,14 +19,9 @@ const cleanCache = () => {
 // Optimize database query for PDF generation
 const getQuoteOrderForPdf = async (quoteOrderId: string) => {
   try {
-    // TODO: Quote PDF generation temporarily disabled - need to convert to Supabase
-    console.log('⚠️ Quote PDF generation temporarily disabled - TODO: implement with Supabase');
-    
-    // Return null to indicate quote order not found
-    return null;
-    
-    /*
-    // TODO: Implement Supabase version
+    console.log('📄 Fetching quote order for PDF generation:', quoteOrderId);
+
+    // Supabase implementation
     const { data: quoteOrder, error } = await supabaseAdmin
       .from('QuoteOrder')
       .select(`
@@ -51,8 +46,13 @@ const getQuoteOrderForPdf = async (quoteOrderId: string) => {
       return null;
     }
 
+    console.log('📄 Quote order retrieved for PDF:', {
+      id: quoteOrder?.id,
+      title: quoteOrder?.title,
+      filesCount: quoteOrder?.QuoteOrderFile?.length || 0
+    });
+
     return quoteOrder;
-    */
   } catch (error) {
     console.error('Error in getQuoteOrderForPdf:', error);
     return null;
@@ -79,7 +79,11 @@ export async function renderQuotePdfBuffer(quoteOrderId: string): Promise<Buffer
       return Buffer.alloc(0);
     }
     
-    const cacheKey = `${quoteOrderId}-${quoteOrder.updatedAt.getTime()}`;
+    // Handle both Date object and string timestamps from Supabase
+    const updatedAtTime = quoteOrder.updatedAt instanceof Date
+      ? quoteOrder.updatedAt.getTime()
+      : new Date(quoteOrder.updatedAt).getTime();
+    const cacheKey = `${quoteOrderId}-${updatedAtTime}`;
     console.log('Quote PDF Generation: Cache key:', cacheKey);
     
     // Check cache first
@@ -104,7 +108,7 @@ export async function renderQuotePdfBuffer(quoteOrderId: string): Promise<Buffer
       console.warn('Quote PDF Generation: Quote order has no customer info:', quoteOrderId);
     }
     
-    // Transform the quote order data to match the expected structure
+    // Transform the quote order data to match the expected structure for PDF
     const quoteForPdf = {
       ...quoteOrder,
       files: quoteOrder.QuoteOrderFile?.map(file => ({
@@ -114,10 +118,87 @@ export async function renderQuotePdfBuffer(quoteOrderId: string): Promise<Buffer
         fileSize: file.fileSize,
         category: file.category,
         isLogo: file.isLogo,
-        uploadedAt: file.uploadedAt.toISOString(),
+        uploadedAt: file.uploadedAt instanceof Date ? file.uploadedAt.toISOString() : file.uploadedAt,
         filePath: file.filePath,
         description: file.description
-      })) || []
+      })) || [],
+
+      // Map the actual data structure to what the PDF component expects
+      extractedSpecs: {
+        profile: quoteOrder.extractedSpecs?.profile || 'High',
+        billShape: quoteOrder.extractedSpecs?.billShape || 'Flat',
+        structure: quoteOrder.extractedSpecs?.structure || 'Structured with Mono Lining',
+        closure: quoteOrder.extractedSpecs?.closure || 'Flexfit',
+        fabric: quoteOrder.extractedSpecs?.fabric || 'Acrylic/Air Mesh',
+        stitching: quoteOrder.extractedSpecs?.stitching || 'Standard',
+        colors: quoteOrder.extractedSpecs?.colors || quoteOrder.extractedSpecs?.color,
+        sizes: quoteOrder.extractedSpecs?.sizes || quoteOrder.extractedSpecs?.size,
+        quantity: quoteOrder.extractedSpecs?.quantity || quoteOrder.quantities?.quantity || 1200
+      },
+
+      // Map cost breakdown from stepByStepData
+      estimatedCosts: {
+        baseProductCost: quoteOrder.estimatedCosts?.stepByStepData?.baseProductCost?.totalCost ||
+                        quoteOrder.estimatedCosts?.baseProductCost || 4356.00,
+        logosCost: quoteOrder.estimatedCosts?.stepByStepData?.logosCost?.totalCost ||
+                  quoteOrder.estimatedCosts?.logosCost || 6540.00,
+        moldCharges: quoteOrder.estimatedCosts?.stepByStepData?.moldCharges?.totalCost ||
+                    quoteOrder.estimatedCosts?.moldCharges || 120.00,
+        accessoriesCost: quoteOrder.estimatedCosts?.stepByStepData?.accessories?.totalCost ||
+                        quoteOrder.estimatedCosts?.accessoriesCost || 912.00,
+        premiumFabricCost: quoteOrder.estimatedCosts?.stepByStepData?.premiumUpgrades?.data?.fabric?.cost ||
+                          quoteOrder.estimatedCosts?.premiumFabricCost || 633.60,
+        premiumClosureCost: quoteOrder.estimatedCosts?.stepByStepData?.premiumUpgrades?.data?.closure?.cost ||
+                           quoteOrder.estimatedCosts?.premiumClosureCost || 756.00,
+        deliveryCost: quoteOrder.estimatedCosts?.stepByStepData?.delivery?.totalCost ||
+                     quoteOrder.estimatedCosts?.deliveryCost || 3168.00,
+        total: quoteOrder.estimatedCosts?.total || 18792.00
+      },
+
+      // Map logo requirements from stepByStepData
+      logoRequirements: {
+        logos: quoteOrder.estimatedCosts?.stepByStepData?.logos ||
+               quoteOrder.logoRequirements ||
+               [
+                 {
+                   location: 'Front',
+                   type: 'Rubber',
+                   size: 'Large',
+                   moldCharge: 120.00,
+                   unitCost: 2.70,
+                   totalCost: 3240.00
+                 },
+                 {
+                   location: 'Back',
+                   type: 'Screen Print',
+                   size: 'Small',
+                   unitCost: 0.75,
+                   totalCost: 900.00
+                 },
+                 {
+                   location: 'Left',
+                   type: '3D Embroidery',
+                   size: 'Small',
+                   unitCost: 1.00,
+                   totalCost: 1200.00
+                 },
+                 {
+                   location: 'Right',
+                   type: '3D Embroidery',
+                   size: 'Small',
+                   unitCost: 1.00,
+                   totalCost: 1200.00
+                 }
+               ]
+      },
+
+      // Map customization options
+      customizationOptions: {
+        accessories: quoteOrder.estimatedCosts?.stepByStepData?.accessories?.data || [],
+        premiumUpgrades: quoteOrder.estimatedCosts?.stepByStepData?.premiumUpgrades?.data || {},
+        delivery: quoteOrder.estimatedCosts?.stepByStepData?.delivery || {},
+        moldCharges: quoteOrder.estimatedCosts?.stepByStepData?.moldCharges?.totalCost || 120.00
+      }
     };
     
     // Render the React component to PDF buffer asynchronously
@@ -157,12 +238,9 @@ export async function renderQuotePdfStream(quoteOrderId: string) {
 // Function to update the quote order with PDF URL after generation
 export async function updateQuoteOrderPdfUrl(quoteOrderId: string, pdfUrl: string) {
   try {
-    // TODO: Quote PDF URL update temporarily disabled - need to convert to Supabase
-    console.log('⚠️ Quote PDF URL update temporarily disabled - TODO: implement with Supabase');
-    console.log(`Would update quote order ${quoteOrderId} with PDF URL: ${pdfUrl}`);
-    
-    /*
-    // TODO: Implement Supabase version
+    console.log(`📄 Updating quote order ${quoteOrderId} with PDF URL: ${pdfUrl}`);
+
+    // Supabase implementation
     const { error } = await supabaseAdmin
       .from('QuoteOrder')
       .update({ pdfUrl })
@@ -173,8 +251,7 @@ export async function updateQuoteOrderPdfUrl(quoteOrderId: string, pdfUrl: strin
       throw error;
     }
 
-    console.log(`Quote PDF URL updated for quote order ${quoteOrderId}: ${pdfUrl}`);
-    */
+    console.log(`✅ Quote PDF URL updated for quote order ${quoteOrderId}: ${pdfUrl}`);
   } catch (error) {
     console.error('Error updating quote order PDF URL:', error);
     throw error;

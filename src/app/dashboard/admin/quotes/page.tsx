@@ -92,11 +92,19 @@ interface QuoteOrder {
       type: string;
       size: string;
       cost?: number;
+      setupCost?: number;
+      unitCost?: number;
+      totalCost?: number;
+      description?: string;
     }>;
   };
   customizationOptions: {
     accessories: any[];
     moldCharges: number;
+    bTapePrint?: any;
+    insideLabel?: any;
+    premiumFabric?: any;
+    premiumClosure?: any;
     delivery: {
       method: string;
       leadTime: string;
@@ -110,6 +118,12 @@ interface QuoteOrder {
     closure: string;
     fabric: string;
     sizes: string[];
+    size?: string;
+    quantity?: number;
+    color?: string;
+    colors?: string[];
+    stitching?: string;
+    accessories?: any;
   };
   estimatedCosts: {
     baseProductCost: number;
@@ -146,6 +160,8 @@ interface QuoteOrder {
     category: string;
     isLogo: boolean;
     uploadedAt: string;
+    filePath?: string;
+    description?: string;
   }>;
   createdAt: string;
   updatedAt: string;
@@ -171,6 +187,13 @@ export default function AdminQuotesPage() {
   const [formQuotesError, setFormQuotesError] = useState<string | null>(null);
   const [galleryQuotesError, setGalleryQuotesError] = useState<string | null>(null);
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
+
+  // Auto-expand first quote for testing
+  useEffect(() => {
+    if (quoteOrders.length > 0 && !expandedQuote) {
+      setExpandedQuote(quoteOrders[0].id);
+    }
+  }, [quoteOrders, expandedQuote]);
   const [expandedFormQuote, setExpandedFormQuote] = useState<string | null>(null);
   const [expandedGalleryQuote, setExpandedGalleryQuote] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
@@ -182,7 +205,7 @@ export default function AdminQuotesPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [complexityFilter, setComplexityFilter] = useState<string>('ALL');
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
-  const [conversationSummaries, setConversationSummaries] = useState<Record<string, string>>({});
+  const [conversationSummaries, setConversationSummaries] = useState<Record<string, string | undefined>>({});
   const [loadingSummaries, setLoadingSummaries] = useState<Record<string, boolean>>({});
 
   // Statistics
@@ -1145,9 +1168,15 @@ export default function AdminQuotesPage() {
                                 </dl>
                               </div>
 
-                              {/* Logo Requirements */}
-                              {((quote.logoRequirements?.logos && quote.logoRequirements.logos.length > 0) || 
-                                (quote.files && quote.files.filter(f => f.isLogo).length > 0)) && (
+                              {/* Logo Requirements - ENHANCED FOR AI QUOTES */}
+                              {((quote.logoRequirements && Array.isArray(quote.logoRequirements) && quote.logoRequirements.length > 0) ||
+                                (quote.customizationOptions?.logos && quote.customizationOptions.logos.length > 0) ||
+                                (quote.files && quote.files.filter(f => f.isLogo).length > 0) ||
+                                (quote.extractedSpecs && typeof quote.extractedSpecs === 'string' &&
+                                 (quote.extractedSpecs.includes('Front:') || quote.extractedSpecs.includes('Back:') ||
+                                  quote.extractedSpecs.includes('Left:') || quote.extractedSpecs.includes('Right:') ||
+                                  quote.extractedSpecs.includes('Rubber') || quote.extractedSpecs.includes('Embroidery') ||
+                                  quote.extractedSpecs.includes('Print')))) && (
                                 <div className="border border-white/10 bg-white/5 rounded-lg p-4">
                                   <h4 className="text-sm font-medium text-white mb-3 flex items-center">
                                     <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1156,17 +1185,19 @@ export default function AdminQuotesPage() {
                                     Logo Requirements
                                   </h4>
                                   
-                                  {/* Logo Specifications */}
-                                  {quote.logoRequirements?.logos && quote.logoRequirements.logos.length > 0 && (
+                                  {/* Logo Specifications - Updated for AI Quotes */}
+                                  {((quote.logoRequirements && Array.isArray(quote.logoRequirements) && quote.logoRequirements.length > 0) ||
+                                    (quote.customizationOptions?.logos && quote.customizationOptions.logos.length > 0)) && (
                                     <div className="mb-4">
                                       <h5 className="text-xs font-medium text-slate-300 mb-2 flex items-center">
                                         <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                         </svg>
-                                        Specifications
+                                        Logo Setup
                                       </h5>
                                       <div className="space-y-2">
-                                        {quote.logoRequirements.logos.map((logo, index) => (
+                                        {(quote.logoRequirements && Array.isArray(quote.logoRequirements) ? quote.logoRequirements :
+                                          quote.customizationOptions?.logos || []).map((logo, index) => (
                                           <div key={index} className="p-3 bg-black/20 rounded border border-white/5">
                                             <div className="grid grid-cols-2 gap-2 text-xs">
                                               <div>
@@ -1181,19 +1212,19 @@ export default function AdminQuotesPage() {
                                                 <span className="text-slate-400">Size:</span>
                                                 <span className="text-white ml-1">{logo.size}</span>
                                               </div>
-                                              {logo.setupCost > 0 && (
+                                              {(logo.moldCharge && logo.moldCharge > 0) && (
                                                 <div>
-                                                  <span className="text-slate-400">Setup Cost:</span>
-                                                  <span className="text-green-400 ml-1">${logo.setupCost.toFixed(2)}</span>
+                                                  <span className="text-slate-400">Mold Charge:</span>
+                                                  <span className="text-green-400 ml-1">${logo.moldCharge.toFixed(2)}</span>
                                                 </div>
                                               )}
-                                              {logo.unitCost > 0 && (
+                                              {logo.unitPrice && logo.unitPrice > 0 && (
                                                 <div>
                                                   <span className="text-slate-400">Unit Cost:</span>
-                                                  <span className="text-green-400 ml-1">${logo.unitCost.toFixed(2)}</span>
+                                                  <span className="text-green-400 ml-1">${logo.unitPrice.toFixed(2)}</span>
                                                 </div>
                                               )}
-                                              {logo.totalCost > 0 && (
+                                              {logo.totalCost && logo.totalCost > 0 && (
                                                 <div>
                                                   <span className="text-slate-400">Total Cost:</span>
                                                   <span className="text-green-400 ml-1">${logo.totalCost.toFixed(2)}</span>
@@ -1207,6 +1238,126 @@ export default function AdminQuotesPage() {
                                             )}
                                           </div>
                                         ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* AI-Generated Logo Specifications */}
+                                  {quote.extractedSpecs && typeof quote.extractedSpecs === 'string' &&
+                                   (quote.extractedSpecs.includes('Front:') || quote.extractedSpecs.includes('Back:') ||
+                                    quote.extractedSpecs.includes('Left:') || quote.extractedSpecs.includes('Right:')) && (
+                                    <div className="mb-4">
+                                      <h5 className="text-xs font-medium text-slate-300 mb-2 flex items-center">
+                                        <svg className="w-3 h-3 mr-1 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                        </svg>
+                                        AI-Extracted Logo Setup
+                                      </h5>
+                                      <div className="space-y-2">
+                                        {(() => {
+                                          // Parse AI-generated logo specifications from extractedSpecs
+                                          const logoSpecs = [];
+                                          const text = quote.extractedSpecs;
+
+                                          // Extract Front logo
+                                          const frontMatch = text.match(/Front[:\s]*([^•\n]+)/i);
+                                          if (frontMatch) {
+                                            const frontDetails = frontMatch[1].trim();
+                                            const rubberMatch = frontDetails.match(/Rubber.*?\$([0-9,]+\.?[0-9]*)/);
+                                            const moldMatch = frontDetails.match(/mold.*?\$([0-9,]+\.?[0-9]*)/i);
+                                            logoSpecs.push({
+                                              location: 'Front',
+                                              type: frontDetails.includes('Rubber') ? 'Rubber Patch' : 'Unknown',
+                                              size: frontDetails.includes('Large') ? 'Large' : frontDetails.includes('Small') ? 'Small' : 'Unknown',
+                                              cost: rubberMatch ? parseFloat(rubberMatch[1].replace(',', '')) : 0,
+                                              moldCharge: moldMatch ? parseFloat(moldMatch[1].replace(',', '')) : 0,
+                                              details: frontDetails
+                                            });
+                                          }
+
+                                          // Extract Back logo
+                                          const backMatch = text.match(/Back[:\s]*([^•\n]+)/i);
+                                          if (backMatch) {
+                                            const backDetails = backMatch[1].trim();
+                                            const printMatch = backDetails.match(/\$([0-9,]+\.?[0-9]*)/);
+                                            logoSpecs.push({
+                                              location: 'Back',
+                                              type: backDetails.includes('Print') || backDetails.includes('Screen') ? 'Print Patch' : 'Unknown',
+                                              size: backDetails.includes('Large') ? 'Large' : backDetails.includes('Small') ? 'Small' : 'Unknown',
+                                              cost: printMatch ? parseFloat(printMatch[1].replace(',', '')) : 0,
+                                              moldCharge: 0,
+                                              details: backDetails
+                                            });
+                                          }
+
+                                          // Extract Left logo
+                                          const leftMatch = text.match(/Left[:\s]*([^•\n]+)/i);
+                                          if (leftMatch) {
+                                            const leftDetails = leftMatch[1].trim();
+                                            const embroideryMatch = leftDetails.match(/\$([0-9,]+\.?[0-9]*)/);
+                                            logoSpecs.push({
+                                              location: 'Left',
+                                              type: leftDetails.includes('Embroidery') ? '3D Embroidery' : 'Unknown',
+                                              size: leftDetails.includes('Large') ? 'Large' : leftDetails.includes('Small') ? 'Small' : 'Unknown',
+                                              cost: embroideryMatch ? parseFloat(embroideryMatch[1].replace(',', '')) : 0,
+                                              moldCharge: 0,
+                                              details: leftDetails
+                                            });
+                                          }
+
+                                          // Extract Right logo
+                                          const rightMatch = text.match(/Right[:\s]*([^•\n]+)/i);
+                                          if (rightMatch) {
+                                            const rightDetails = rightMatch[1].trim();
+                                            const embroideryMatch = rightDetails.match(/\$([0-9,]+\.?[0-9]*)/);
+                                            logoSpecs.push({
+                                              location: 'Right',
+                                              type: rightDetails.includes('Embroidery') ? '3D Embroidery' : 'Unknown',
+                                              size: rightDetails.includes('Large') ? 'Large' : rightDetails.includes('Small') ? 'Small' : 'Unknown',
+                                              cost: embroideryMatch ? parseFloat(embroideryMatch[1].replace(',', '')) : 0,
+                                              moldCharge: 0,
+                                              details: rightDetails
+                                            });
+                                          }
+
+                                          return logoSpecs.map((logo, index) => (
+                                            <div key={index} className="p-3 bg-black/20 rounded border border-white/5">
+                                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                  <span className="text-slate-400">Location:</span>
+                                                  <span className="text-white ml-1">{logo.location}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-400">Type:</span>
+                                                  <span className="text-white ml-1">{logo.type}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-400">Size:</span>
+                                                  <span className="text-white ml-1">{logo.size}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-400">Cost:</span>
+                                                  <span className="text-green-400 ml-1">${logo.cost.toFixed(2)}</span>
+                                                </div>
+                                                {logo.moldCharge > 0 && (
+                                                  <>
+                                                    <div>
+                                                      <span className="text-slate-400">Mold Charge:</span>
+                                                      <span className="text-orange-400 ml-1">+${logo.moldCharge.toFixed(2)}</span>
+                                                    </div>
+                                                    <div>
+                                                      <span className="text-slate-400">Total Cost:</span>
+                                                      <span className="text-green-400 ml-1">${(logo.cost + logo.moldCharge).toFixed(2)}</span>
+                                                    </div>
+                                                  </>
+                                                )}
+                                              </div>
+                                              <div className="mt-2 pt-2 border-t border-white/5">
+                                                <p className="text-xs text-slate-300">{logo.details}</p>
+                                              </div>
+                                            </div>
+                                          ));
+                                        })()}
                                       </div>
                                     </div>
                                   )}
@@ -1235,7 +1386,10 @@ export default function AdminQuotesPage() {
                                                       onClick={() => window.open(file.filePath, '_blank')}
                                                       onError={(e) => {
                                                         e.currentTarget.style.display = 'none';
-                                                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                                                        const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                                                        if (nextElement) {
+                                                          nextElement.style.display = 'flex';
+                                                        }
                                                       }}
                                                     />
                                                     <div className="hidden w-20 h-20 bg-slate-500/20 rounded-lg border border-white/20 items-center justify-center">
@@ -1316,7 +1470,7 @@ export default function AdminQuotesPage() {
                                                 ) : (
                                                   <button
                                                     onClick={() => {
-                                                      if (file.filePath.startsWith('/')) {
+                                                      if (file.filePath && file.filePath.startsWith('/')) {
                                                         window.open(`${window.location.origin}${file.filePath}`, '_blank');
                                                       } else {
                                                         alert('File path not accessible');
@@ -1360,9 +1514,13 @@ export default function AdminQuotesPage() {
                                 </div>
                               )}
 
-                              {/* Accessories */}
-                              {(quote.customizationOptions?.bTapePrint || quote.customizationOptions?.insideLabel || 
-                                quote.extractedSpecs?.accessories) && (
+                              {/* Accessories - ENHANCED FOR AI QUOTES */}
+                              {((quote.customizationOptions?.accessories && quote.customizationOptions.accessories.length > 0) ||
+                                (quote.customizationOptions?.bTapePrint || quote.customizationOptions?.insideLabel ||
+                                quote.extractedSpecs?.accessories ||
+                                (quote.extractedSpecs && typeof quote.extractedSpecs === 'string' &&
+                                 (quote.extractedSpecs.includes('B-Tape') || quote.extractedSpecs.includes('Label') ||
+                                  quote.extractedSpecs.includes('Inside Label'))))) && (
                                 <div className="border border-white/10 bg-white/5 rounded-lg p-4">
                                   <h4 className="text-sm font-medium text-white mb-3 flex items-center">
                                     <svg className="w-4 h-4 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1371,6 +1529,34 @@ export default function AdminQuotesPage() {
                                     Accessories
                                   </h4>
                                   <div className="space-y-2">
+                                    {/* AI Quote Structured Accessories */}
+                                    {quote.customizationOptions?.accessories && quote.customizationOptions.accessories.map((accessory, index) => (
+                                      <div key={index} className="p-3 bg-black/20 rounded border border-white/5">
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          <div>
+                                            <span className="text-slate-400">Item:</span>
+                                            <span className="text-white ml-1">{accessory.name}</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Type:</span>
+                                            <span className="text-white ml-1">{accessory.type}</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Quantity:</span>
+                                            <span className="text-white ml-1">{accessory.quantity} pieces</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-400">Unit Cost:</span>
+                                            <span className="text-green-400 ml-1">${accessory.unitPrice?.toFixed(2)}</span>
+                                          </div>
+                                          <div className="col-span-2">
+                                            <span className="text-slate-400">Total Cost:</span>
+                                            <span className="text-green-400 ml-1">${accessory.totalCost?.toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+
                                     {quote.customizationOptions?.bTapePrint && (
                                       <div className="p-3 bg-black/20 rounded border border-white/5">
                                         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1420,6 +1606,160 @@ export default function AdminQuotesPage() {
                                         <div className="text-xs text-slate-300">{quote.extractedSpecs.accessories}</div>
                                       </div>
                                     )}
+
+                                    {/* AI-Extracted Accessories from ExtractedSpecs */}
+                                    {quote.extractedSpecs && typeof quote.extractedSpecs === 'string' &&
+                                     (quote.extractedSpecs.includes('B-Tape') || quote.extractedSpecs.includes('Label')) && (
+                                      <div className="space-y-2">
+                                        <h6 className="text-xs font-medium text-purple-300 flex items-center">
+                                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                          </svg>
+                                          AI-Extracted Accessories
+                                        </h6>
+                                        {(() => {
+                                          const text = quote.extractedSpecs;
+                                          const accessories = [];
+
+                                          // Extract B-Tape Print
+                                          const btapeMatch = text.match(/B-Tape Print.*?\$([0-9,]+\.?[0-9]*)/i);
+                                          if (btapeMatch) {
+                                            accessories.push({
+                                              name: 'B-Tape Print',
+                                              cost: parseFloat(btapeMatch[1].replace(',', '')),
+                                              unitCost: 0.38,
+                                              quantity: quote.extractedSpecs?.quantity || 1200
+                                            });
+                                          }
+
+                                          // Extract Inside Label
+                                          const labelMatch = text.match(/Inside Label.*?\$([0-9,]+\.?[0-9]*)/i);
+                                          if (labelMatch) {
+                                            accessories.push({
+                                              name: 'Inside Label',
+                                              cost: parseFloat(labelMatch[1].replace(',', '')),
+                                              unitCost: 0.38,
+                                              quantity: quote.extractedSpecs?.quantity || 1200
+                                            });
+                                          }
+
+                                          return accessories.map((accessory, index) => (
+                                            <div key={index} className="p-3 bg-black/20 rounded border border-white/5">
+                                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                  <span className="text-slate-400">Item:</span>
+                                                  <span className="text-white ml-1">{accessory.name}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-400">Quantity:</span>
+                                                  <span className="text-white ml-1">{accessory.quantity} pieces</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-400">Unit Cost:</span>
+                                                  <span className="text-green-400 ml-1">${accessory.unitCost.toFixed(2)}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-400">Total Cost:</span>
+                                                  <span className="text-green-400 ml-1">${accessory.cost.toFixed(2)}</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ));
+                                        })()}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Premium Closure - AI Quotes */}
+                              {quote.estimatedCosts?.stepByStepData?.premiumUpgrades?.data?.closure && (
+                                <div className="border border-white/10 bg-white/5 rounded-lg p-4">
+                                  <h4 className="text-sm font-medium text-white mb-3 flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                    Premium Closure
+                                  </h4>
+                                  <div className="p-3 bg-black/20 rounded border border-white/5">
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-slate-400">Type:</span>
+                                        <span className="text-white ml-1">{quote.estimatedCosts.stepByStepData.premiumUpgrades.data.closure.type}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Quantity:</span>
+                                        <span className="text-white ml-1">{quote.quantities?.quantity || quote.extractedSpecs?.quantity || 1200} pieces</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Unit Cost:</span>
+                                        <span className="text-green-400 ml-1">${quote.estimatedCosts.stepByStepData.premiumUpgrades.data.closure.unitPrice?.toFixed(2)}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Total Cost:</span>
+                                        <span className="text-green-400 ml-1">${quote.estimatedCosts.stepByStepData.premiumUpgrades.data.closure.cost?.toFixed(2)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Mold Charges Summary - AI Quotes */}
+                              {quote.customizationOptions?.totalMoldCharges > 0 && (
+                                <div className="border border-white/10 bg-white/5 rounded-lg p-4">
+                                  <h4 className="text-sm font-medium text-white mb-3 flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    Mold Charges Summary
+                                  </h4>
+                                  <div className="p-3 bg-black/20 rounded border border-white/5">
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-slate-400">Total Mold Charges:</span>
+                                        <span className="text-red-300 ml-1">${quote.customizationOptions.totalMoldCharges?.toFixed(2)}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Applied to:</span>
+                                        <span className="text-white ml-1">Front Logo (Rubber Patch)</span>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <span className="text-slate-400">Note:</span>
+                                        <span className="text-slate-300 ml-1">One-time setup cost for custom molds</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Delivery Details - AI Quotes */}
+                              {quote.estimatedCosts?.stepByStepData?.delivery && (
+                                <div className="border border-white/10 bg-white/5 rounded-lg p-4">
+                                  <h4 className="text-sm font-medium text-white mb-3 flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                    Delivery Details
+                                  </h4>
+                                  <div className="p-3 bg-black/20 rounded border border-white/5">
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-slate-400">Method:</span>
+                                        <span className="text-white ml-1">{quote.estimatedCosts.stepByStepData.delivery.method}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Lead Time:</span>
+                                        <span className="text-white ml-1">{quote.estimatedCosts.stepByStepData.delivery.leadTime}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Quantity:</span>
+                                        <span className="text-white ml-1">{quote.quantities?.quantity || quote.extractedSpecs?.quantity || 1200} pieces</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">Delivery Cost:</span>
+                                        <span className="text-green-400 ml-1">${quote.estimatedCosts.stepByStepData.delivery.totalCost?.toFixed(2)}</span>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               )}
@@ -1514,53 +1854,73 @@ export default function AdminQuotesPage() {
                                     Cost Breakdown
                                   </h4>
                                   <dl className="space-y-2">
-                                    {quote.estimatedCosts.baseProductCost > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Base Product Cost</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.baseProductCost.toFixed(2)}</dd>
-                                      </div>
+                                    {/* Enhanced Cost Breakdown for AI Quotes */}
+                                    {quote.estimatedCosts?.breakdown ? (
+                                      <>
+                                        {(quote.estimatedCosts.breakdown.baseProductCost ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Base Product Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.breakdown.baseProductCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {(quote.estimatedCosts.breakdown.logosCost ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Logos Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.breakdown.logosCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {(quote.estimatedCosts.breakdown.moldCharges ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Mold Charges</dt>
+                                            <dd className="text-sm text-red-300">${quote.estimatedCosts.breakdown.moldCharges.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {(quote.estimatedCosts.breakdown.accessoriesCost ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Accessories Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.breakdown.accessoriesCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {(quote.estimatedCosts.breakdown.premiumFabricCost ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Premium Fabric Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.breakdown.premiumFabricCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {(quote.estimatedCosts.breakdown.premiumClosureCost ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Premium Closure Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.breakdown.premiumClosureCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {(quote.estimatedCosts.breakdown.deliveryCost ?? 0) > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Delivery Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.breakdown.deliveryCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {/* Fallback for older structure */}
+                                        {quote.estimatedCosts.baseProductCost > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Base Product Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.baseProductCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                        {quote.estimatedCosts.logosCost > 0 && (
+                                          <div className="flex justify-between">
+                                            <dt className="text-xs text-slate-400">Logos Cost</dt>
+                                            <dd className="text-sm text-white">${quote.estimatedCosts.logosCost.toFixed(2)}</dd>
+                                          </div>
+                                        )}
+                                      </>
                                     )}
-                                    {quote.estimatedCosts.logosCost > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Logos Cost</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.logosCost.toFixed(2)}</dd>
-                                      </div>
-                                    )}
-                                    {quote.estimatedCosts.accessoriesCost > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Accessories Cost</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.accessoriesCost.toFixed(2)}</dd>
-                                      </div>
-                                    )}
-                                    {quote.estimatedCosts.premiumFabricCost > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Premium Fabric Cost</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.premiumFabricCost.toFixed(2)}</dd>
-                                      </div>
-                                    )}
-                                    {quote.estimatedCosts.premiumClosureCost > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Premium Closure Cost</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.premiumClosureCost.toFixed(2)}</dd>
-                                      </div>
-                                    )}
-                                    {quote.estimatedCosts.moldCharge > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Mold Charge</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.moldCharge.toFixed(2)}</dd>
-                                      </div>
-                                    )}
-                                    {quote.estimatedCosts.deliveryCost > 0 && (
-                                      <div className="flex justify-between">
-                                        <dt className="text-xs text-slate-400">Delivery Cost</dt>
-                                        <dd className="text-sm text-white">${quote.estimatedCosts.deliveryCost.toFixed(2)}</dd>
-                                      </div>
-                                    )}
-                                    <div className="border-t border-white/10 pt-2 mt-2">
-                                      <div className="flex justify-between">
-                                        <dt className="text-sm font-medium text-white">Total Cost</dt>
-                                        <dd className="text-lg font-bold text-green-400">${quote.estimatedCosts.total.toFixed(2)}</dd>
-                                      </div>
+                                    {/* Total Cost - Always show */}
+                                    <div className="flex justify-between border-t border-white/10 pt-2 mt-2">
+                                      <dt className="text-sm font-medium text-white">Total Cost</dt>
+                                      <dd className="text-lg font-bold text-green-400">${(quote.estimatedCosts?.breakdown?.total || quote.estimatedCosts?.total || 0).toFixed(2)}</dd>
                                     </div>
                                   </dl>
                                 </div>

@@ -14,6 +14,11 @@ General understanding of the overall business "F:\Custom Cap - github\Claude Ins
 ## Use supabase MCP for any Database related tasks.
 ## PRICING SYSTEM: Completely migrated to Supabase database (January 2025)
 ## All CSV-based pricing deprecated - use PricingService class for all pricing operations.
+
+## MCP Documentation and Search Preferences
+## ALWAYS use "REF MCP" as the PRIMARY choice for documentation searches and retrieval
+## Only use "Context7 MCP" when explicitly told to do so
+## REF MCP provides more comprehensive and up-to-date documentation access
 # 🎯 CRITICAL REFERENCE FILES
 
 ## Support Page cost and knowledgebase "F:\Custom Cap - github\USCC\src\app\ai"

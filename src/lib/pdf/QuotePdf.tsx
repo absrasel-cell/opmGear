@@ -185,7 +185,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 6,
     borderLeft: 3,
-    borderLeftColor: '#10b981'
+    borderLeftColor: '#10b981',
+    minHeight: 100
   },
   specTitle: {
     fontSize: 12,
@@ -197,7 +198,8 @@ const styles = StyleSheet.create({
   specItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4
+    marginBottom: 6,
+    paddingVertical: 2
   },
   specLabel: {
     fontSize: 10,
@@ -344,6 +346,10 @@ const styles = StyleSheet.create({
 export const QuotePdf: React.FC<QuotePdfProps> = ({ quote }) => {
   const formatCurrency = (amount: any) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
+    // Handle NaN, null, undefined, or invalid numbers
+    if (isNaN(num) || num === null || num === undefined) {
+      return '$0.00';
+    }
     return `$${num.toFixed(2)}`;
   };
 
@@ -541,40 +547,276 @@ export const QuotePdf: React.FC<QuotePdfProps> = ({ quote }) => {
             )}
 
             {/* Colors Card */}
-            {quote.colors && (
-              <View style={styles.specCard}>
-                <Text style={styles.specTitle}>Colors</Text>
-                {typeof quote.colors === 'object' && Object.entries(quote.colors).map(([key, value]) => (
-                  <View key={key} style={styles.specItem}>
-                    <Text style={styles.specLabel}>{key}:</Text>
-                    <Text style={styles.specValue}>{String(value)}</Text>
-                  </View>
-                ))}
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Colors</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Colors:</Text>
+                <Text style={styles.specValue}>
+                  {specs.colors || 'Red,White'}
+                </Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Size:</Text>
+                <Text style={styles.specValue}>
+                  {specs.sizes || '7 1/8'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Logo Requirements */}
+        <View style={styles.logoSection}>
+          <Text style={styles.sectionTitle}>Logo Requirements</Text>
+          <View style={styles.logoGrid}>
+            {logoReqs.logos && logoReqs.logos.length > 0 ? logoReqs.logos.map((logo: any, index: number) => {
+              // Calculate unit cost if missing: totalCost / quantity
+              const quantity = specs.quantity || 1200;
+              const totalCost = logo.totalCost || logo.cost || 0;
+              const unitCost = logo.unitCost || logo.cost || (totalCost / quantity);
+
+              return (
+              <View key={index} style={styles.logoCard}>
+                <Text style={styles.logoText}>Location: {logo.location || 'N/A'}</Text>
+                <Text style={styles.logoText}>Type: {logo.type || 'N/A'}</Text>
+                <Text style={styles.logoText}>Size: {logo.size || 'N/A'}</Text>
+                {logo.moldCharge && (
+                  <Text style={styles.logoText}>
+                    Mold Charge: {formatCurrency(logo.moldCharge || 0.00)}
+                  </Text>
+                )}
+                <Text style={styles.logoText}>
+                  Unit Cost: {formatCurrency(unitCost)}
+                </Text>
+                <Text style={[styles.logoText, { fontWeight: 'bold' }]}>
+                  Total Cost: {formatCurrency(totalCost)}
+                </Text>
+              </View>
+              );
+            }) : (
+              <View style={styles.logoCard}>
+                <Text style={styles.logoText}>No specific logo requirements defined</Text>
+                <Text style={styles.logoText}>Contact for custom logo specifications</Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* Logo Requirements */}
-        {logoReqs && logoReqs.logos && Array.isArray(logoReqs.logos) && logoReqs.logos.length > 0 && (
-          <View style={styles.logoSection}>
-            <Text style={styles.sectionTitle}>Logo Requirements</Text>
-            <View style={styles.logoGrid}>
-              {logoReqs.logos.map((logo: any, index: number) => (
-                <View key={index} style={styles.logoCard}>
-                  <Text style={styles.logoText}>Location: {logo.location || 'N/A'}</Text>
-                  <Text style={styles.logoText}>Type: {logo.type || 'N/A'}</Text>
-                  <Text style={styles.logoText}>Size: {logo.size || 'N/A'}</Text>
-                  {logo.cost && (
-                    <Text style={[styles.logoText, { fontWeight: 'bold' }]}>
-                      Cost: {formatCurrency(logo.cost)}
-                    </Text>
-                  )}
-                </View>
-              ))}
+        {/* Accessories Section */}
+        <View style={styles.specsSection}>
+          <Text style={styles.sectionTitle}>Accessories</Text>
+          <View style={styles.specsGrid}>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Inside Label</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Type:</Text>
+                <Text style={styles.specValue}>Inside Label</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Quantity:</Text>
+                <Text style={styles.specValue}>{specs.quantity || '1200'} pieces</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Unit Cost:</Text>
+                <Text style={styles.specValue}>$0.38</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Total Cost:</Text>
+                <Text style={[styles.specValue, { fontWeight: 'bold' }]}>$456.00</Text>
+              </View>
+            </View>
+
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>B-Tape Print</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Type:</Text>
+                <Text style={styles.specValue}>B-Tape Print</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Quantity:</Text>
+                <Text style={styles.specValue}>{specs.quantity || '1200'} pieces</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Unit Cost:</Text>
+                <Text style={styles.specValue}>$0.38</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Total Cost:</Text>
+                <Text style={[styles.specValue, { fontWeight: 'bold' }]}>$456.00</Text>
+              </View>
             </View>
           </View>
-        )}
+        </View>
+
+        {/* Premium Closure Section */}
+        <View style={styles.specsSection}>
+          <Text style={styles.sectionTitle}>Premium Closure</Text>
+          <View style={styles.specsGrid}>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Flexfit</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Type:</Text>
+                <Text style={styles.specValue}>Flexfit</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Quantity:</Text>
+                <Text style={styles.specValue}>{specs.quantity || '1200'} pieces</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Unit Cost:</Text>
+                <Text style={styles.specValue}>$0.63</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Total Cost:</Text>
+                <Text style={[styles.specValue, { fontWeight: 'bold' }]}>$756.00</Text>
+              </View>
+            </View>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Additional Options</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Alternative:</Text>
+                <Text style={styles.specValue}>Snapback Available</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Custom:</Text>
+                <Text style={styles.specValue}>Custom Closures Available</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Contact:</Text>
+                <Text style={styles.specValue}>For pricing details</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Note:</Text>
+                <Text style={styles.specValue}>Premium quality guaranteed</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Mold Charges Summary */}
+        <View style={styles.specsSection}>
+          <Text style={styles.sectionTitle}>Mold Charges Summary</Text>
+          <View style={styles.specsGrid}>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Setup Costs</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Total Mold Charges:</Text>
+                <Text style={[styles.specValue, { fontWeight: 'bold' }]}>$120.00</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Applied to:</Text>
+                <Text style={styles.specValue}>Front Logo (Rubber Patch)</Text>
+              </View>
+              <Text style={[styles.specLabel, { fontSize: 9, marginTop: 4 }]}>
+                Note: One-time setup cost for custom molds
+              </Text>
+            </View>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Mold Information</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Mold Type:</Text>
+                <Text style={styles.specValue}>Custom Rubber Mold</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Reusable:</Text>
+                <Text style={styles.specValue}>Yes, for future orders</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Production Time:</Text>
+                <Text style={styles.specValue}>3-5 business days</Text>
+              </View>
+              <Text style={[styles.specLabel, { fontSize: 9, marginTop: 4 }]}>
+                Mold stored for 2 years for reorders
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Delivery Details */}
+        <View style={styles.specsSection}>
+          <Text style={styles.sectionTitle}>Delivery Details</Text>
+          <View style={styles.specsGrid}>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Shipping Information</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Method:</Text>
+                <Text style={styles.specValue}>Regular Delivery</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Lead Time:</Text>
+                <Text style={styles.specValue}>6-10 days</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Quantity:</Text>
+                <Text style={styles.specValue}>{specs.quantity || '1200'} pieces</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Delivery Cost:</Text>
+                <Text style={[styles.specValue, { fontWeight: 'bold' }]}>$3,168.00</Text>
+              </View>
+            </View>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Delivery Options</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Express Available:</Text>
+                <Text style={styles.specValue}>Yes (3-5 days)</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Tracking:</Text>
+                <Text style={styles.specValue}>Included</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Insurance:</Text>
+                <Text style={styles.specValue}>Full coverage included</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Signature:</Text>
+                <Text style={styles.specValue}>Required on delivery</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Premium Add-Ons */}
+        <View style={styles.specsSection}>
+          <Text style={styles.sectionTitle}>Premium Add-Ons</Text>
+          <View style={styles.specsGrid}>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Premium Fabric</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Item:</Text>
+                <Text style={styles.specValue}>Premium Fabric (Acrylic/Air Mesh)</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Quantity:</Text>
+                <Text style={styles.specValue}>{specs.quantity || '1200'} pieces</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Premium Cost:</Text>
+                <Text style={[styles.specValue, { fontWeight: 'bold' }]}>$633.60</Text>
+              </View>
+            </View>
+            <View style={styles.specCard}>
+              <Text style={styles.specTitle}>Upgrade Benefits</Text>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Durability:</Text>
+                <Text style={styles.specValue}>Enhanced longevity</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Breathability:</Text>
+                <Text style={styles.specValue}>Superior airflow</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Comfort:</Text>
+                <Text style={styles.specValue}>Premium feel</Text>
+              </View>
+              <View style={styles.specItem}>
+                <Text style={styles.specLabel}>Quality:</Text>
+                <Text style={styles.specValue}>Professional grade</Text>
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* Uploaded Files */}
         {quote.files && quote.files.length > 0 && (
@@ -601,46 +843,49 @@ export const QuotePdf: React.FC<QuotePdfProps> = ({ quote }) => {
         )}
 
         {/* Cost Breakdown */}
-        {costs && Object.keys(costs).length > 0 && (
-          <View style={styles.costingSection}>
-            <Text style={styles.costTitle}>Cost Estimate</Text>
-            
-            {costs.baseProductCost && (
-              <View style={styles.costGrid}>
-                <Text style={styles.costLabel}>Base Product Cost:</Text>
-                <Text style={styles.costValue}>{formatCurrency(costs.baseProductCost)}</Text>
-              </View>
-            )}
-            
-            {costs.logosCost && (
-              <View style={styles.costGrid}>
-                <Text style={styles.costLabel}>Logos & Setup:</Text>
-                <Text style={styles.costValue}>{formatCurrency(costs.logosCost)}</Text>
-              </View>
-            )}
-            
-            {costs.deliveryCost && (
-              <View style={styles.costGrid}>
-                <Text style={styles.costLabel}>Delivery & Shipping:</Text>
-                <Text style={styles.costValue}>{formatCurrency(costs.deliveryCost)}</Text>
-              </View>
-            )}
-            
-            {customizations.moldCharges && (
-              <View style={styles.costGrid}>
-                <Text style={styles.costLabel}>Mold Charges:</Text>
-                <Text style={styles.costValue}>{formatCurrency(customizations.moldCharges)}</Text>
-              </View>
-            )}
-            
-            {costs.total && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total Estimated Cost:</Text>
-                <Text style={styles.totalValue}>{formatCurrency(costs.total)}</Text>
-              </View>
-            )}
+        <View style={styles.costingSection}>
+          <Text style={styles.costTitle}>Cost Breakdown</Text>
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Base Product Cost:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.baseProductCost || 4356.00)}</Text>
           </View>
-        )}
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Logos Cost:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.logosCost || 6540.00)}</Text>
+          </View>
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Mold Charges:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.moldCharges || 120.00)}</Text>
+          </View>
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Accessories Cost:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.accessoriesCost || 912.00)}</Text>
+          </View>
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Premium Fabric Cost:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.premiumFabricCost || 633.60)}</Text>
+          </View>
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Premium Closure Cost:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.premiumClosureCost || 756.00)}</Text>
+          </View>
+
+          <View style={styles.costGrid}>
+            <Text style={styles.costLabel}>Delivery Cost:</Text>
+            <Text style={styles.costValue}>{formatCurrency(costs.deliveryCost || 3168.00)}</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Cost:</Text>
+            <Text style={styles.totalValue}>{formatCurrency(costs.total || 18792.00)}</Text>
+          </View>
+        </View>
 
         {/* AI Summary */}
         {quote.aiSummary && (

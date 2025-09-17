@@ -10,7 +10,8 @@
     "migrate:csv": "tsx scripts/migrate-csv-data.ts",
     "migrate:csv:validate": "tsx scripts/migrate-csv-data.ts --validate",
     "migrate:csv:verify": "tsx scripts/migrate-csv-data.ts --verify",
-    "setup:schema": "tsx scripts/setup-pricing-schema.ts"
+    "setup:schema": "tsx scripts/setup-pricing-schema.ts",
+    "migrate:conversation-quotes": "tsx scripts/apply-conversation-quotes-migration.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

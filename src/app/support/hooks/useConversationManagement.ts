@@ -51,6 +51,7 @@ export function useConversationManagement({
   // Track initialization to prevent multiple loads
   const conversationsInitialized = useRef(false);
   const autoCreationHandled = useRef(false);
+  const manualConversationCreated = useRef(false); // Track manual conversation creation
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
 
   // Load user conversations when authenticated user changes
@@ -69,9 +70,10 @@ export function useConversationManagement({
     // 2. Conversations have been loaded (conversationsLoaded = true)
     // 3. No current conversation is active
     // 4. Auto-creation hasn't been handled yet
+    // 5. No manual conversation was just created
     if (!authLoading && isAuthenticated && authUser?.id &&
         conversationsLoaded && !conversationId &&
-        !autoCreationHandled.current) {
+        !autoCreationHandled.current && !manualConversationCreated.current) {
 
       console.log('🔍 Auto-creation check - conversations fully loaded:', {
         conversationsCount: conversations.length,
@@ -159,6 +161,9 @@ export function useConversationManagement({
       OrderBuilderService,
       setIsOrderBuilderVisible
     );
+
+    // Reset manual conversation creation flag after loading any conversation
+    manualConversationCreated.current = false;
   };
 
   const createNewConversation = async () => {
@@ -171,7 +176,8 @@ export function useConversationManagement({
       setMessages,
       setCurrentQuoteData,
       setOrderBuilderStatus,
-      setLeadTimeData
+      setLeadTimeData,
+      setIsOrderBuilderVisible
     );
 
     // Refresh conversations list after creating new conversation (for authenticated users)
@@ -226,8 +232,8 @@ export function useConversationManagement({
   };
 
   const handleNewConversation = () => {
-    // Reset the auto-creation flag so new conversations can be created
-    autoCreationHandled.current = false;
+    // Set manual conversation creation flag to prevent auto-loading
+    manualConversationCreated.current = true;
     createNewConversation();
     setShowConversationHistory(false);
   };
