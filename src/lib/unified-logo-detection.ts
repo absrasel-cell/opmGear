@@ -46,6 +46,25 @@ const POSITION_DEFAULTS = {
 } as const;
 
 /**
+ * ENHANCED LOGO POSITIONING DEFAULTS
+ * When user doesn't provide specific position data:
+ * 1st logo → Front, Large
+ * 2nd logo → Back, Small
+ * 3rd logo → Left, Small
+ * 4th logo → Right, Small
+ * 5th logo → Upper Bill, Medium
+ * 6th logo → Under Bill, Large
+ */
+const LOGO_POSITION_SEQUENCE = [
+  { position: 'Front', size: 'Large' },
+  { position: 'Back', size: 'Small' },
+  { position: 'Left', size: 'Small' },
+  { position: 'Right', size: 'Small' },
+  { position: 'Upper Bill', size: 'Medium' },
+  { position: 'Under Bill', size: 'Large' }
+] as const;
+
+/**
  * Logo type to application mapping
  */
 const APPLICATION_MAP = {
@@ -63,8 +82,31 @@ const APPLICATION_MAP = {
  * EXACT PATTERN MATCHING - Most specific patterns first
  * Format: "detection_phrase" -> { type, position?, size? }
  * CRITICAL: Ordered by specificity to avoid false positives
+ *
+ * EMBROIDERY IMPROVEMENTS:
+ * - "Embroidered Logo" → "Flat Embroidery Direct"
+ * - "Raised Embroidered Logo" → "3D Embroidery Direct"
+ * - Better keyword mapping for natural language
  */
 const EXACT_PATTERNS: Array<{ pattern: string; type: string; position?: string }> = [
+  // EMBROIDERY IMPROVEMENTS - HIGHEST PRIORITY FOR NEW RULES
+  // Raised/3D/Puff Embroidery patterns (specific to 3D)
+  { pattern: 'raised embroidered logo', type: '3D Embroidery' },
+  { pattern: 'raised embroidery logo', type: '3D Embroidery' },
+  { pattern: 'raised embroidery', type: '3D Embroidery' },
+  { pattern: 'puff embroidered logo', type: '3D Embroidery' },
+  { pattern: 'puff embroidery logo', type: '3D Embroidery' },
+  { pattern: 'puff embroidery', type: '3D Embroidery' },
+  { pattern: '3d embroidered logo', type: '3D Embroidery' },
+  { pattern: '3d embroidery logo', type: '3D Embroidery' },
+
+  // Flat Embroidery patterns (specific to flat)
+  { pattern: 'embroidered logo', type: 'Flat Embroidery' },
+  { pattern: 'embroidery logo', type: 'Flat Embroidery' },
+  { pattern: 'embo logo', type: 'Flat Embroidery' },
+  { pattern: 'flat embroidered logo', type: 'Flat Embroidery' },
+  { pattern: 'flat embroidery logo', type: 'Flat Embroidery' },
+
   // MOST SPECIFIC: Full phrase with position and type (HIGHEST PRIORITY)
   { pattern: 'rubber patch front', type: 'Rubber Patch', position: 'Front' },
   { pattern: 'rubber patch on front', type: 'Rubber Patch', position: 'Front' },
@@ -118,19 +160,42 @@ const EXACT_PATTERNS: Array<{ pattern: string; type: string; position?: string }
   { pattern: 'sublimation on back', type: 'Sublimation', position: 'Back' },
   { pattern: 'sublimation back', type: 'Sublimation', position: 'Back' },
 
-  { pattern: 'embroidery on left', type: 'Embroidery', position: 'Left' },
-  { pattern: 'embroidery left', type: 'Embroidery', position: 'Left' },
-  { pattern: 'embroidery on right', type: 'Embroidery', position: 'Right' },
-  { pattern: 'embroidery right', type: 'Embroidery', position: 'Right' },
-  { pattern: 'embroidery on front', type: 'Embroidery', position: 'Front' },
-  { pattern: 'embroidery front', type: 'Embroidery', position: 'Front' },
-  { pattern: 'embroidery on back', type: 'Embroidery', position: 'Back' },
-  { pattern: 'embroidery back', type: 'Embroidery', position: 'Back' },
+  // Enhanced embroidery position patterns with improved detection
+  { pattern: 'raised embroidery on left', type: '3D Embroidery', position: 'Left' },
+  { pattern: 'raised embroidery left', type: '3D Embroidery', position: 'Left' },
+  { pattern: 'raised embroidery on right', type: '3D Embroidery', position: 'Right' },
+  { pattern: 'raised embroidery right', type: '3D Embroidery', position: 'Right' },
+  { pattern: 'raised embroidery on front', type: '3D Embroidery', position: 'Front' },
+  { pattern: 'raised embroidery front', type: '3D Embroidery', position: 'Front' },
+  { pattern: 'raised embroidery on back', type: '3D Embroidery', position: 'Back' },
+  { pattern: 'raised embroidery back', type: '3D Embroidery', position: 'Back' },
+
+  { pattern: 'flat embroidery on left', type: 'Flat Embroidery', position: 'Left' },
+  { pattern: 'flat embroidery left', type: 'Flat Embroidery', position: 'Left' },
+  { pattern: 'flat embroidery on right', type: 'Flat Embroidery', position: 'Right' },
+  { pattern: 'flat embroidery right', type: 'Flat Embroidery', position: 'Right' },
+  { pattern: 'flat embroidery on front', type: 'Flat Embroidery', position: 'Front' },
+  { pattern: 'flat embroidery front', type: 'Flat Embroidery', position: 'Front' },
+  { pattern: 'flat embroidery on back', type: 'Flat Embroidery', position: 'Back' },
+  { pattern: 'flat embroidery back', type: 'Flat Embroidery', position: 'Back' },
+
+  { pattern: 'embroidery on left', type: 'Flat Embroidery', position: 'Left' },
+  { pattern: 'embroidery left', type: 'Flat Embroidery', position: 'Left' },
+  { pattern: 'embroidery on right', type: 'Flat Embroidery', position: 'Right' },
+  { pattern: 'embroidery right', type: 'Flat Embroidery', position: 'Right' },
+  { pattern: 'embroidery on front', type: 'Flat Embroidery', position: 'Front' },
+  { pattern: 'embroidery front', type: 'Flat Embroidery', position: 'Front' },
+  { pattern: 'embroidery on back', type: 'Flat Embroidery', position: 'Back' },
+  { pattern: 'embroidery back', type: 'Flat Embroidery', position: 'Back' },
 
   { pattern: '3d embroidery on left', type: '3D Embroidery', position: 'Left' },
   { pattern: '3d embroidery left', type: '3D Embroidery', position: 'Left' },
-  { pattern: 'flat embroidery on right', type: 'Flat Embroidery', position: 'Right' },
-  { pattern: 'flat embroidery right', type: 'Flat Embroidery', position: 'Right' },
+  { pattern: '3d embroidery on right', type: '3D Embroidery', position: 'Right' },
+  { pattern: '3d embroidery right', type: '3D Embroidery', position: 'Right' },
+  { pattern: '3d embroidery on front', type: '3D Embroidery', position: 'Front' },
+  { pattern: '3d embroidery front', type: '3D Embroidery', position: 'Front' },
+  { pattern: '3d embroidery on back', type: '3D Embroidery', position: 'Back' },
+  { pattern: '3d embroidery back', type: '3D Embroidery', position: 'Back' },
 
   { pattern: 'print patch on left', type: 'Screen Print', position: 'Left' },
   { pattern: 'print patch left', type: 'Screen Print', position: 'Left' },
@@ -162,13 +227,17 @@ const EXACT_PATTERNS: Array<{ pattern: string; type: string; position?: string }
   { pattern: 'leather patch', type: 'Leather Patch' },
   { pattern: '3d embroidery', type: '3D Embroidery' },
   { pattern: 'flat embroidery', type: 'Flat Embroidery' },
+  { pattern: 'raised embroidery', type: '3D Embroidery' },
+  { pattern: 'puff embroidery', type: '3D Embroidery' },
   { pattern: 'sublimated print', type: 'Sublimation' },
   { pattern: 'sublimated', type: 'Sublimation' },
   { pattern: 'sublimation printing', type: 'Sublimation' },
   { pattern: 'sublimation', type: 'Sublimation' },
 
-  // FALLBACK: Generic embroidery (LOWEST PRIORITY - must be last)
-  { pattern: 'embroidery', type: 'Embroidery' }
+  // IMPROVED FALLBACK: Generic embroidery defaults to Flat Embroidery Direct
+  { pattern: 'embroidered', type: 'Flat Embroidery' },
+  { pattern: 'embo', type: 'Flat Embroidery' },
+  { pattern: 'embroidery', type: 'Flat Embroidery' }
 ] as const;
 
 /**
@@ -417,19 +486,81 @@ export function convertToFormat8Format(detection: UnifiedLogoDetection) {
 }
 
 /**
+ * ENHANCED LOGO FALLBACK SYSTEM
+ * Apply intelligent defaults when logos are detected but positions are unclear
+ */
+export function applyEnhancedLogoDefaults(detection: UnifiedLogoDetection): UnifiedLogoDetection {
+  if (!detection.hasLogos || detection.logos.length === 0) {
+    return detection;
+  }
+
+  console.log('🎯 [ENHANCED-FALLBACK] Applying enhanced logo positioning defaults');
+
+  const enhancedLogos: UnifiedLogoResult[] = [];
+  const usedPositions = new Set<string>();
+
+  // Process each logo and assign intelligent defaults
+  detection.logos.forEach((logo, index) => {
+    let finalPosition = logo.position;
+    let finalSize = logo.size;
+
+    // If position is unclear or already used, apply fallback sequence
+    if (!finalPosition || finalPosition === 'Front' && usedPositions.has('Front')) {
+      const fallbackIndex = Math.min(index, LOGO_POSITION_SEQUENCE.length - 1);
+      const fallback = LOGO_POSITION_SEQUENCE[fallbackIndex];
+
+      // Find next available position in sequence
+      let sequenceIndex = fallbackIndex;
+      while (sequenceIndex < LOGO_POSITION_SEQUENCE.length && usedPositions.has(LOGO_POSITION_SEQUENCE[sequenceIndex].position)) {
+        sequenceIndex++;
+      }
+
+      if (sequenceIndex < LOGO_POSITION_SEQUENCE.length) {
+        finalPosition = LOGO_POSITION_SEQUENCE[sequenceIndex].position;
+        finalSize = LOGO_POSITION_SEQUENCE[sequenceIndex].size;
+      } else {
+        // All sequence positions used, assign to Front with warning
+        finalPosition = 'Front';
+        finalSize = 'Large';
+        console.warn('⚠️ [ENHANCED-FALLBACK] All sequence positions used, defaulting to Front');
+      }
+
+      console.log(`🔄 [ENHANCED-FALLBACK] Logo ${index + 1}: ${logo.type} → ${finalPosition} (${finalSize})`);
+    }
+
+    usedPositions.add(finalPosition);
+
+    enhancedLogos.push({
+      ...logo,
+      position: finalPosition,
+      size: finalSize
+    });
+  });
+
+  return {
+    ...detection,
+    logos: enhancedLogos,
+    summary: enhancedLogos.map(logo => `${logo.position}: ${logo.type} (${logo.size})`).join(', ')
+  };
+}
+
+/**
  * Convert to costing-knowledge-base detectAllLogosFromText format
  */
 export function convertToKnowledgeBaseFormat(detection: UnifiedLogoDetection) {
+  // Apply enhanced defaults before conversion
+  const enhancedDetection = applyEnhancedLogoDefaults(detection);
+
   return {
-    primaryLogo: detection.logos.find(l => l.position === 'Front')?.type || (detection.logos[0]?.type) || 'None',
-    allLogos: detection.logos.map(logo => ({
+    primaryLogo: enhancedDetection.logos.find(l => l.position === 'Front')?.type || (enhancedDetection.logos[0]?.type) || 'None',
+    allLogos: enhancedDetection.logos.map(logo => ({
       type: logo.type,
       position: logo.position.toLowerCase(),
       size: logo.size,
       confidence: logo.confidence
     })),
-    multiLogoSetup: detection.logos.length > 0 ?
-      detection.logos.reduce((setup, logo) => {
+    multiLogoSetup: enhancedDetection.logos.length > 0 ?
+      enhancedDetection.logos.reduce((setup, logo) => {
         const key = logo.position.toLowerCase().replace(' ', '');
         setup[key] = {
           type: logo.type,

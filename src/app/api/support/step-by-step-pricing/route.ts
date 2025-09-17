@@ -101,7 +101,19 @@ export async function POST(request: NextRequest) {
         }
       },
       customization: {
-        logos: logoSetup.logos || [],
+        logos: logoSetup.logos ? logoSetup.logos.map((logo: any) => ({
+          // CRITICAL FIX: Normalize logo structure for UI compatibility
+          // Fresh quotes need same structure as saved conversations
+          position: logo.location || logo.position || 'Front',  // UI expects 'position'
+          name: logo.type || logo.name || 'Unknown',            // UI expects 'name'
+          size: logo.size || 'Large',                           // UI expects 'size'
+          type: logo.type || 'Unknown',                         // Keep for backward compatibility
+          location: logo.location || logo.position || 'Front', // Keep for backward compatibility
+          totalCost: logo.totalCost || 0,
+          moldCharge: logo.moldCharge || 0,
+          unitCost: logo.unitCost || 0,
+          method: logo.type || 'Unknown'                        // Some UI components expect 'method'
+        })) : [],
         accessories: accessories.items || [],
         logoSetup: logoSetup.summary || 'None',
         totalMoldCharges: logoSetup.logos ? logoSetup.logos.reduce((sum: number, logo: any) => sum + (logo.moldCharge || 0), 0) : 0
@@ -129,11 +141,121 @@ export async function POST(request: NextRequest) {
     const capCraftAI = AI_ASSISTANTS.QUOTE_MASTER;
     const formattedResponse = formatAssistantResponse(capCraftAI, aiResponse);
 
+    // CRITICAL FIX: Save fresh AI quotes to database immediately
+    // This ensures Accept Quote functionality works for fresh quotes, not just saved conversations
+    let quoteOrderId = null;
+    let savedToDatabase = false;
+
+    if (conversationId && structuredQuoteData.pricing.total > 0) {
+      try {
+        console.log('🚀 CRITICAL FIX: Saving fresh AI quote to database for immediate Accept Quote support');
+
+        const now = new Date().toISOString();
+        quoteOrderId = `quote-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        const conversationQuoteId = `cq-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+        // Generate unique sessionId for QuoteOrder
+        const uniqueTimestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substr(2, 12);
+        const validSessionId = sessionId || `quote-${conversationId.slice(-8)}-${uniqueTimestamp}-${randomSuffix}`;
+
+        // Extract customer info from userProfile or use defaults
+        const customerEmail = userProfile?.email || 'customer@example.com';
+        const customerName = userProfile?.name || 'Customer';
+
+        // Create comprehensive QuoteOrder record
+        const { data: createdQuoteOrder, error: quoteOrderError } = await supabaseAdmin
+          .from('QuoteOrder')
+          .insert({
+            id: quoteOrderId,
+            sessionId: validSessionId,
+            title: `Fresh AI Quote - ${structuredQuoteData.capDetails.productName}`,
+            status: 'COMPLETED',
+            productType: structuredQuoteData.capDetails.productName,
+            customerEmail: customerEmail,
+            customerName: customerName,
+            quantities: {
+              quantity: structuredQuoteData.capDetails.quantity,
+              totalUnits: structuredQuoteData.capDetails.quantity
+            },
+            estimatedCosts: {
+              total: structuredQuoteData.pricing.total,
+              breakdown: structuredQuoteData.pricing,
+              stepByStepData: {
+                pricing: structuredQuoteData.pricing,
+                delivery: structuredQuoteData.delivery,
+                capDetails: structuredQuoteData.capDetails,
+                customization: structuredQuoteData.customization,
+                premiumUpgrades: structuredQuoteData.premiumUpgrades
+              }
+            },
+            customizationOptions: {
+              ...structuredQuoteData.customization,
+              deliveryRequirements: structuredQuoteData.delivery
+            },
+            logoRequirements: structuredQuoteData.customization?.logos || {},
+            extractedSpecs: {
+              profile: structuredQuoteData.capDetails.profile || 'Not specified',
+              billShape: structuredQuoteData.capDetails.billShape || 'Not specified',
+              structure: structuredQuoteData.capDetails.structure || 'Not specified',
+              closure: structuredQuoteData.capDetails.closure || 'Not specified',
+              fabric: structuredQuoteData.capDetails.fabric || 'Not specified',
+              quantity: structuredQuoteData.capDetails.quantity,
+              color: structuredQuoteData.capDetails.color,
+              colors: structuredQuoteData.capDetails.colors ? [structuredQuoteData.capDetails.colors] : undefined,
+              size: structuredQuoteData.capDetails.size,
+              stitching: structuredQuoteData.capDetails.stitch,
+              capDetails: structuredQuoteData.capDetails
+            },
+            priority: 'NORMAL',
+            createdAt: now,
+            updatedAt: now
+          })
+          .select()
+          .single();
+
+        if (quoteOrderError) {
+          console.error('❌ Failed to create QuoteOrder for fresh AI quote:', quoteOrderError);
+        } else {
+          // Create ConversationQuotes bridge record
+          const { error: conversationQuotesError } = await supabaseAdmin
+            .from('ConversationQuotes')
+            .insert({
+              id: conversationQuoteId,
+              conversationId: conversationId,
+              quoteOrderId: quoteOrderId,
+              isMainQuote: true,
+              createdAt: now,
+              updatedAt: now
+            });
+
+          if (conversationQuotesError) {
+            console.error('❌ Failed to create ConversationQuotes bridge for fresh AI quote:', conversationQuotesError);
+          } else {
+            savedToDatabase = true;
+            console.log('✅ Fresh AI quote saved to database successfully:', {
+              quoteOrderId,
+              conversationQuoteId,
+              totalCost: structuredQuoteData.pricing.total,
+              productName: structuredQuoteData.capDetails.productName,
+              quantity: structuredQuoteData.capDetails.quantity
+            });
+          }
+        }
+
+      } catch (saveError) {
+        console.error('❌ Error saving fresh AI quote to database:', saveError);
+        // Continue with response even if database save fails
+      }
+    }
+
     return NextResponse.json({
       ...formattedResponse,
       message: aiResponse,
       quoteData: structuredQuoteData,
       conversationId,
+      quoteOrderId: quoteOrderId,
+      savedToDatabase: savedToDatabase,
       metadata: {
         ...formattedResponse.metadata,
         intent,
@@ -141,7 +263,9 @@ export async function POST(request: NextRequest) {
         stepByStepWorkflow: true,
         completedSteps: 6,
         dataSource: 'supabase',
-        requirements
+        requirements,
+        quoteOrderId: quoteOrderId,
+        savedToDatabase: savedToDatabase
       }
     });
 
